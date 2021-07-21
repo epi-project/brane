@@ -1,19 +1,21 @@
 name: arithmetic
 version: 1.0.0
-
-base: alpine
-
 kind: compute
+base: alpine
 
 entrypoint:
   kind: task
-  exec: run.sh
+  exec: run.js
 
 dependencies:
-  - bash
+  - nodejs
+  - npm
+
+install:
+  - npm install js-yaml
 
 files:
-  - run.sh
+  - run.js
 
 actions:
   add:
