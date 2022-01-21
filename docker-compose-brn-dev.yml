@@ -2,10 +2,12 @@ version: '3'
 
 services:
   brane-api:
-    image: ghcr.io/onnovalkering/brane/brane-api:${BRANE_VERSION:-latest}
+    image: ghcr.io/onnovalkering/brane/brane-api-dev:${BRANE_VERSION:-latest}
     container_name: brane-api
     ports:
       - "127.0.0.1:8080:8080"
+    volumes:
+      - ./:/build
     restart: always
     environment:
         ADDRESS: "0.0.0.0:8080"
@@ -14,10 +16,12 @@ services:
         SCYLLA: "scylla:9042"
 
   brane-clb:
-    image: ghcr.io/onnovalkering/brane/brane-clb:${BRANE_VERSION:-latest}
+    image: ghcr.io/onnovalkering/brane/brane-clb-dev:${BRANE_VERSION:-latest}
     container_name: brane-clb
     ports:
       - "127.0.0.1:50052:50052"
+    volumes:
+      - ./:/build
     restart: always
     environment:
         ADDRESS: "0.0.0.0:50052"
@@ -25,13 +29,13 @@ services:
         DEBUG: "true"
 
   brane-drv:
-    image: ghcr.io/onnovalkering/brane/brane-drv:${BRANE_VERSION:-latest}
-    command: --debug
+    image: ghcr.io/onnovalkering/brane/brane-drv-dev:${BRANE_VERSION:-latest}
     container_name: brane-drv
     ports:
       - "127.0.0.1:50053:50053"
     volumes:
       - ./infra.yml:/infra.yml
+      - ./:/build
     restart: always
     links:
       - brane-api:brane-api
@@ -44,14 +48,14 @@ services:
         GRAPHQL_URL: "http://brane-api:8080/graphql"
 
   brane-job:
-    image: ghcr.io/onnovalkering/brane/brane-job:${BRANE_VERSION:-latest}
-    command: --debug
+    image: ghcr.io/onnovalkering/brane/brane-job-dev:${BRANE_VERSION:-latest}
     container_name: brane-job
     restart: always
     volumes:
       - ./infra.yml:/infra.yml
       - ./secrets.yml:/secrets.yml
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/build
     environment:
         BROKERS: "kafka:29092"
         CALLBACK_TOPIC: clb
@@ -61,10 +65,12 @@ services:
         XENON: "xenon:50051"
 
   brane-log:
-    image: ghcr.io/onnovalkering/brane/brane-log:${BRANE_VERSION:-latest}
+    image: ghcr.io/onnovalkering/brane/brane-log-dev:${BRANE_VERSION:-latest}
     container_name: brane-log
     ports:
       - "127.0.0.1:8081:8081"
+    volumes:
+      - ./:/build
     restart: always
     environment:
         BROKERS: "kafka:29092"
@@ -73,12 +79,13 @@ services:
         SCYLLA: "scylla:9042"
 
   brane-plr:
-    image: ghcr.io/onnovalkering/brane/brane-plr:${BRANE_VERSION:-latest}
+    image: ghcr.io/onnovalkering/brane/brane-plr-dev:${BRANE_VERSION:-latest}
     container_name: brane-plr
     restart: always
     volumes:
       - ./infra.yml:/infra.yml
       - ./secrets.yml:/secrets.yml
+      - ./:/build
     environment:
         BROKERS: "kafka:29092"
         COMMAND_FROM_TOPIC: drv-cmd
