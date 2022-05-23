@@ -1,17 +1,11 @@
-# DOCKERFILE.dev for BRANE
+# DOCKERFILE.bin for BRANE
 #   by Tim Müller and Onno Valkering
 #
 # Contains the Dockerfile for the various Brane instance images.
 #
-# This version builds the development images, which prefer build speed and
-# debugging over fast executables by simply copying pre-build executables from
-# the project 'target' directory.
+# This version builds the images, using precompiled binaries.
 # 
-# This results in much faster build times when building repeatedly, due to the
-# build cache being re-used, and (on virtualized Docker environments) much
-# faster disk I/O times.
-# 
-# For a release version, see Dockerfile.rls.
+# For a from-source version, see Dockerfile.rls or Dockerfile.dev.
 #
 
 
@@ -38,8 +32,8 @@ ENTRYPOINT [ "/bin/bash" ]
 # This image contains the Brane API service.
 FROM brane-base AS brane-api
 
-# Define the architecture argument
-ARG ARCH
+# Define the source argument
+ARG SOURCE
 
 # Install additional runtime dependencies specific for brane-api
 RUN apt-get update && apt-get install -y \
@@ -49,11 +43,11 @@ RUN apt-get update && apt-get install -y \
  && rm -rf /var/lib/apt/lists/*
 
 # Copy `brane-api` from build stage
-COPY ./.container-bins/$ARCH/brane-api /brane-api
+COPY $SOURCE /brane-api
 RUN chmod +x /brane-api
 
 # Run the compiled executable as base
-ENTRYPOINT [ "/brane-api", "--debug" ]
+ENTRYPOINT [ "/brane-api" ]
 
 
 
@@ -63,15 +57,15 @@ ENTRYPOINT [ "/brane-api", "--debug" ]
 # This image contains the Brane callback service.
 FROM brane-base AS brane-clb
 
-# Define the architecture argument
-ARG ARCH
+# Define the source argument
+ARG SOURCE
  
 # Copy `brane-clb` from build stage
-COPY ./.container-bins/$ARCH/brane-clb /brane-clb
+COPY $SOURCE /brane-clb
 RUN chmod +x /brane-clb
 
 # Run the compiled executable as base
-ENTRYPOINT [ "./brane-clb", "--debug" ]
+ENTRYPOINT [ "./brane-clb" ]
 
 
 
@@ -81,15 +75,15 @@ ENTRYPOINT [ "./brane-clb", "--debug" ]
 # This image contains the Brane driver service.
 FROM brane-base AS brane-drv
 
-# Define the architecture argument
-ARG ARCH
+# Define the source argument
+ARG SOURCE
 
 # Copy `brane-drv` from build stage
-COPY ./.container-bins/$ARCH/brane-drv /brane-drv
+COPY $SOURCE /brane-drv
 RUN chmod +x /brane-drv
 
 # Run the compiled executable as base
-ENTRYPOINT [ "./brane-drv", "--debug" ]
+ENTRYPOINT [ "./brane-drv" ]
 
 
 
@@ -99,15 +93,15 @@ ENTRYPOINT [ "./brane-drv", "--debug" ]
 # This image contains the Brane job service.
 FROM brane-base AS brane-job
 
-# Define the architecture argument
-ARG ARCH
+# Define the source argument
+ARG SOURCE
 
 # Copy `brane-job` from build stage
-COPY ./.container-bins/$ARCH/brane-job /brane-job
+COPY $SOURCE /brane-job
 RUN chmod +x /brane-job
 
 # Run the compiled executable as base
-ENTRYPOINT [ "./brane-job", "--debug" ]
+ENTRYPOINT [ "./brane-job" ]
 
 
 
@@ -117,15 +111,15 @@ ENTRYPOINT [ "./brane-job", "--debug" ]
 # This image contains the Brane log service.
 FROM brane-base AS brane-log
 
-# Define the architecture argument
-ARG ARCH
+# Define the source argument
+ARG SOURCE
 
 # Copy `brane-log from the build stage
-COPY ./.container-bins/$ARCH/brane-log /brane-log
+COPY $SOURCE /brane-log
 RUN chmod +x /brane-log
 
 # Run the compiled executable as base
-ENTRYPOINT [ "./brane-log", "--debug" ]
+ENTRYPOINT [ "./brane-log" ]
 
 
 
@@ -135,12 +129,12 @@ ENTRYPOINT [ "./brane-log", "--debug" ]
 # This image contains the Brane planner service.
 FROM brane-base AS brane-plr
 
-# Define the architecture argument
-ARG ARCH
+# Define the source argument
+ARG SOURCE
 
 # Copy `brane-plr` from build stage
-COPY ./.container-bins/$ARCH/brane-plr /brane-plr
+COPY $SOURCE /brane-plr
 RUN chmod +x /brane-plr
 
 # Run the compiled executable as base
-ENTRYPOINT [ "./brane-plr", "--debug" ]
+ENTRYPOINT [ "./brane-plr" ]
