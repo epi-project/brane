@@ -1,0 +1,20 @@
+# DOCKERFILE.ubuntu
+#   by Tim Müller
+# 
+# Simple Ubuntu-based wrapper around the scripts in this directory that we can
+# use to emulate the GitHub actions locally.
+#
+
+FROM ubuntu:22.04
+
+# Install python3
+RUN apt-get update && apt-get install -y python3 && rm -rf /var/apt/lists/*
+
+# Simply copy the files
+COPY ./dependencies.py /dependencies.py
+
+# Make them executable
+RUN chmod +x /dependencies.py
+
+# Mark one of them as entrypoint
+ENTRYPOINT [ "/dependencies.py", "ubuntu", "--debug" ]
