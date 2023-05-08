@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    12 Apr 2023, 12:07:11
+//    08 May 2023, 14:00:32
 //  Auto updated?
 //    Yes
 // 
@@ -224,6 +224,11 @@ pub enum PreprocessError {
     DataExtractError{ err: brane_shr::fs::Error },
     /// Failed to serialize the preprocessrequest.
     AccessKindSerializeError{ err: serde_json::Error },
+
+    /// Failed to parse the backend file.
+    BackendFileError{ err: brane_cfg::backend::Error },
+    /// The given backend type is not (yet) supported.
+    UnsupportedBackend{ what: &'static str },
 }
 impl Display for PreprocessError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -262,6 +267,9 @@ impl Display for PreprocessError {
             TarWriteError{ path, err }                       => write!(f, "Failed to write to tarball file '{}': {}", path.display(), err),
             DataExtractError{ err }                          => write!(f, "Failed to extract dataset: {err}"),
             AccessKindSerializeError{ err }                  => write!(f, "Failed to serialize the given AccessKind: {err}"),
+
+            BackendFileError{ err }    => write!(f, "Failed to load backend file: {err}"),
+            UnsupportedBackend{ what } => write!(f, "Backend type '{what}' is not (yet) supported"),
         }
     }
 }

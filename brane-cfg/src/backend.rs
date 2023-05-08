@@ -4,7 +4,7 @@
 //  Created:
 //    18 Oct 2022, 13:50:11
 //  Last edited:
-//    10 Mar 2023, 15:52:47
+//    08 May 2023, 12:58:21
 //  Auto updated?
 //    Yes
 // 
@@ -18,6 +18,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use specifications::address::Address;
 use specifications::package::Capability;
 
 pub use crate::spec::YamlError as Error;
@@ -42,7 +43,7 @@ pub enum Credentials {
     /// Defines that this job node connects to one node by use of SSH. This effectively allows the centralized Brane manager to orchestrate over nodes instead of clusters.
     Ssh {
         /// The address of the machine to connect to. Should include any ports if needed.
-        address : String,
+        address : Address,
         /// The path to the key file to connect with.
         key     : PathBuf,
     },
@@ -55,9 +56,11 @@ pub enum Credentials {
     /// Defines that this job node connects to a backend Kubernetes cluster.
     Kubernetes {
         /// The address or URL of the machine to connect to. Should include the port if so.
-        address : String,
+        cluster_address  : Address,
+        /// The address of the Docker registry that we push container images to.
+        registry_address : Address,
         /// The path to the Kubernetes config file to connect with.
-        config  : PathBuf,
+        config           : PathBuf,
     },
 }
 

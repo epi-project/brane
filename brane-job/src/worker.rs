@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    13 Apr 2023, 10:52:20
+//    08 May 2023, 14:09:11
 //  Auto updated?
 //    Yes
 // 
@@ -15,7 +15,9 @@
 // 
 
 use std::collections::{HashMap, HashSet};
+use std::error;
 use std::ffi::OsStr;
+use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -24,6 +26,7 @@ use chrono::Utc;
 use enum_debug::EnumDebug as _;
 use futures_util::StreamExt;
 use hyper::body::Bytes;
+use kube::config::Kubeconfig;
 use log::{debug, error, info, warn};
 use serde_json_any_key::json_to_map;
 use tokio::fs as tfs;
@@ -48,6 +51,7 @@ use brane_tsk::errors::{AuthorizeError, CommitError, ExecuteError, PreprocessErr
 use brane_tsk::spec::JobStatus;
 use brane_tsk::tools::decode_base64;
 use brane_tsk::docker::{self, ClientVersion, DockerOptions, ExecuteInfo, ImageSource, Network};
+use brane_tsk::k8s::{self, K8sOptions};
 use specifications::container::{Image, VolumeBind};
 use specifications::data::{AccessKind, AssetInfo};
 use specifications::package::{Capability, PackageIndex, PackageInfo, PackageKind};
@@ -112,6 +116,34 @@ async fn update_client(tx: &Sender<Result<ExecuteReply, Status>>, status: JobSta
 
     // Done
     Ok(())
+}
+
+
+
+
+
+/***** ERRORS *****/
+/// Defines errors that occur when preprocessing transfer tarballs through Kubernetes.
+#[derive(Debug)]
+pub enum PreprocessTransferTarK8sError {
+    /// Failed to load the Kubernetes config file.
+    LoadConfig{ err: k8s::ConfigError },
+}
+impl Display for PreprocessTransferTarK8sError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use PreprocessTransferTarK8sError::*;
+        match self {
+            LoadConfig{ .. } => write!(f, "Failed to load Kubernetes client config file"),
+        }
+    }
+}
+impl error::Error for PreprocessTransferTarK8sError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        use PreprocessTransferTarK8sError::*;
+        match self {
+            LoadConfig { err } => Some(err),
+        }
+    }
 }
 
 
@@ -204,7 +236,7 @@ impl TaskInfo {
 
 
 /***** PLANNING FUNCTIONS *****/
-/// Function that preprocesses by downloading the given tar and extracting it.
+/// Function that preprocesses the given tar by downloading it to the local machine and extracting it.
 /// 
 /// # Arguments
 /// - `worker_cfg`: The configuration for this node's environment. For us, contains the path where we may find certificates and where to download data & result files to.
@@ -219,10 +251,10 @@ impl TaskInfo {
 /// 
 /// # Errors
 /// This function can error for literally a million reasons - but they mostly relate to IO (file access, request success etc).
-pub async fn preprocess_transfer_tar(worker_cfg: &WorkerConfig, proxy: Arc<ProxyClient>, location: Location, address: impl AsRef<str>, data_name: DataName, prof: ProfileScopeHandle<'_>) -> Result<AccessKind, PreprocessError> {
+async fn preprocess_transfer_tar_local(worker_cfg: &WorkerConfig, proxy: Arc<ProxyClient>, location: Location, address: impl AsRef<str>, data_name: DataName, prof: ProfileScopeHandle<'_>) -> Result<AccessKind, PreprocessError> {
     debug!("Preprocessing by executing a data transfer");
     let address: &str  = address.as_ref();
-    debug!("Downloading from {} ({})", location, address);
+    debug!("Downloading from {} ({}) to local machine", location, address);
 
 
 
@@ -342,6 +374,78 @@ pub async fn preprocess_transfer_tar(worker_cfg: &WorkerConfig, proxy: Arc<Proxy
 
     // Done; send back the reply
     Ok(AccessKind::File{ path: data_path })
+}
+
+/// Function that preprocesses the given tar by downloading it to the backend Kubernetes cluster and preparing it as a mountable volume.
+/// 
+/// # Arguments
+/// - `kinfo`: The [`K8sOptions`] that describe the remote Kubernetes cluster and how to connect to it.
+/// - `location`: The location to download the tarball from.
+/// - `address`: The address to download the tarball from.
+/// - `prof`: A ProfileScope to provide more detailled information about the time it takes to preprocess a TAR-file.
+/// 
+/// # Returns
+/// The AccessKind to access the extracted data.
+/// 
+/// # Errors
+/// This function can error for literally a million reasons - but they mostly relate to IO (file access, request success etc).
+async fn preprocess_transfer_tar_k8s(kinfo: K8sOptions, location: Location, address: impl AsRef<str>, prof: ProfileScopeHandle<'_>) -> Result<AccessKind, PreprocessError> {
+    debug!("Preprocessing by executing a data transfer");
+    let address: &str  = address.as_ref();
+    debug!("Downloading from {} ({}) to Kubernetes cluster @ '{}'", location, address, kinfo.cluster_address);
+
+
+
+    // Done
+    Ok(())
+}
+
+/// Function that preprocesses by downloading the given tar and extracting it.
+/// 
+/// # Arguments
+/// - `worker_cfg`: The configuration for this node's environment. For us, contains the path where we may find certificates and where to download data & result files to.
+/// - `proxy`: The proxy client we use to proxy the data transfer.
+/// - `location`: The location to download the tarball from.
+/// - `address`: The address to download the tarball from.
+/// - `data_name`: The type of the data (i.e., Data or IntermediateResult) combined with its identifier.
+/// - `prof`: A ProfileScope to provide more detailled information about the time it takes to preprocess a TAR-file.
+/// 
+/// # Returns
+/// The AccessKind to access the extracted data.
+/// 
+/// # Errors
+/// This function can error for literally a million reasons - but they mostly relate to IO (file access, request success etc).
+pub async fn preprocess_transfer_tar(worker_cfg: &WorkerConfig, proxy: Arc<ProxyClient>, location: Location, address: impl AsRef<str>, data_name: DataName, prof: ProfileScopeHandle<'_>) -> Result<AccessKind, PreprocessError> {
+    debug!("Preprocessing tar...");
+
+    // Load the local backend file
+    let backend: BackendFile = match BackendFile::from_path_async(&worker_cfg.paths.backend).await {
+        Ok(backend) => backend,
+        Err(err)    => { return Err(PreprocessError::BackendFileError{ err }); },
+    };
+
+    // Now match the credential type
+    match backend.method {
+        Credentials::Local { .. } => {
+            // Download the container locally
+            preprocess_transfer_tar_local(worker_cfg, proxy, location, address, data_name, prof).await
+        },
+
+        Credentials::Ssh { .. } => {
+            Err(PreprocessError::UnsupportedBackend{ what: "SSH" })
+        },
+
+        Credentials::Kubernetes { cluster_address, registry_address, config } => {
+            // Prepare the Kubernetes options
+            let kinfo: K8sOptions = K8sOptions { cluster_address, registry_address, config };
+
+            // Call the function
+            preprocess_transfer_tar_k8s(kinfo, location, address, prof).await
+        },
+        Credentials::Slurm { .. } => {
+            Err(PreprocessError::UnsupportedBackend{ what: "SSH" })
+        },
+    }
 }
 
 
@@ -753,6 +857,117 @@ async fn execute_task_local(worker_cfg: &WorkerConfig, dinfo: DockerOptions, tx:
     Ok(value)
 }
 
+/// Runs the given task on a Kubernetes backend.
+/// 
+/// # Arguments
+/// - `worker_cfg`: The configuration for this node's environment. For us, contains the location ID of this location and where to find data & intermediate results.
+/// - `kinfo`: Information that determines where and how to connect to the Kubernetes cluster.
+/// - `tx`: The transmission channel over which we should update the client of our progress.
+/// - `container_path`: The path of the downloaded container that we should execute.
+/// - `tinfo`: The TaskInfo that describes the task itself to execute.
+/// - `prof`: A ProfileScope to provide more detailled information about the time it takes to execute a local task.
+/// 
+/// # Returns
+/// The return value of the task when it completes..
+/// 
+/// # Errors
+/// This function errors if the task fails for whatever reason or we didn't even manage to launch it.
+async fn execute_task_k8s(worker_cfg: &WorkerConfig, kinfo: K8sOptions, tx: &Sender<Result<ExecuteReply, Status>>, container_path: impl AsRef<Path>, tinfo: TaskInfo, prof: ProfileScopeHandle<'_>) -> Result<FullValue, JobStatus> {
+    let container_path : &Path    = container_path.as_ref();
+    let mut tinfo      : TaskInfo = tinfo;
+    let image          : Image    = tinfo.image.clone().unwrap();
+    debug!("Spawning container '{}' as a Kubernetes container...", image);
+
+    // First, let's read the Kubernetes file
+    let config: k8s::Config = match k8s::read_config(&kinfo.config).await {
+        Ok(config) => config,
+        Err(err)   => { return Err(JobStatus::CreationFailed(format!("Failed to parse Kubernetes configuration file: {err}"))); },
+    };
+
+
+
+    // Let us preprocess the arguments
+    let binds: Vec<VolumeBind> = match prof.time_fut("preprocessing", docker::preprocess_args(&mut tinfo.args, &tinfo.input, &tinfo.result, Some(&worker_cfg.paths.data), &worker_cfg.paths.results)).await {
+        Ok(binds) => binds,
+        Err(err)  => { return Err(JobStatus::CreationFailed(format!("Failed to preprocess arguments: {err}"))); },
+    };
+
+    // Serialize them next
+    let ser = prof.time("Serialization");
+    let params: String = match serde_json::to_string(&tinfo.args) {
+        Ok(params) => params,
+        Err(err)   => { return Err(JobStatus::CreationFailed(format!("Failed to serialize arguments: {err}"))); },
+    };
+    ser.stop();
+
+    // Prepare the ExecuteInfo
+    let info: ExecuteInfo = ExecuteInfo::new(
+        &tinfo.name,
+        image,
+        ImageSource::Path(container_path.into()),
+        vec![
+            "-d".into(),
+            "--application-id".into(),
+            "unspecified".into(),
+            "--location-id".into(),
+            worker_cfg.name.clone(),
+            "--job-id".into(),
+            "unspecified".into(),
+            tinfo.kind.unwrap().into(),
+            tinfo.name.clone(),
+            base64::encode(params),
+        ],
+        binds,
+        tinfo.requirements,
+        Network::None,
+    );
+
+    // Now we can launch the container...
+    let exec = prof.nest("execution");
+    let total = prof.time("Total");
+    let name: String = match exec.time_fut("spawn overhead", docker::launch(&dinfo, info)).await {
+        Ok(name) => name,
+        Err(err) => { return Err(JobStatus::CreationFailed(format!("Failed to spawn container: {err}"))); },
+    };
+    if let Err(err) = update_client(tx, JobStatus::Created).await { error!("{}", err); }
+    if let Err(err) = update_client(tx, JobStatus::Started).await { error!("{}", err); }
+
+    // ...and wait for it to complete
+    let (code, stdout, stderr): (i32, String, String) = match exec.time_fut("join overhead", docker::join(dinfo, name, keep_container)).await {
+        Ok(name) => name,
+        Err(err) => { return Err(JobStatus::CompletionFailed(format!("Failed to join container: {err}"))); },
+    };
+    total.stop();
+    exec.finish();
+
+    // Let the client know it was done
+    debug!("Container return code: {}", code);
+    debug!("Container stdout/stderr:\n\nstdout:\n{}\n\nstderr:\n{}\n", BlockFormatter::new(&stdout), BlockFormatter::new(&stderr));
+    if let Err(err) = update_client(tx, JobStatus::Completed).await { error!("{}", err); }
+
+    // If the return code is no bueno, error and show stderr
+    if code != 0 {
+        return Err(JobStatus::Failed(code, stdout, stderr));
+    }
+
+    // Otherwise, decode the output of branelet to the value returned
+    let decode = prof.time("Decode");
+    let output = stdout.lines().last().unwrap_or_default().to_string();
+    let raw: String = match decode_base64(output) {
+        Ok(raw)  => raw,
+        Err(err) => { return Err(JobStatus::DecodingFailed(format!("Failed to decode output ase base64: {err}"))); },
+    };
+    let value: FullValue = match serde_json::from_str::<Option<FullValue>>(&raw) {
+        Ok(value) => value.unwrap_or(FullValue::Void),
+        Err(err)  => { return Err(JobStatus::DecodingFailed(format!("Failed to decode output as JSON: {err}"))); },
+    };
+    decode.stop();
+
+    // Done
+    debug!("Task '{}' returned value: '{:?}'", tinfo.name, value);
+    Ok(value)
+}
+
 
 
 /// Runs the given task on the backend.
@@ -873,10 +1088,23 @@ async fn execute_task(worker_cfg: &WorkerConfig, proxy: Arc<ProxyClient>, tx: Se
             return Ok(())
         },
 
-        Credentials::Kubernetes { .. } => {
-            error!("Kubernetes backend is not yet supported");
-            if let Err(err) = update_client(&tx, JobStatus::CreationFailed("Kubernetes backend is not yet supported".into())).await { error!("{}", err); }
-            return Ok(())
+        Credentials::Kubernetes { cluster_address, registry_address, config } => {
+            // Prepare the options for the Kubernetes client
+            let kinfo: K8sOptions = K8sOptions {
+                cluster_address,
+                registry_address,
+                config,
+            };
+
+            // Prepare the options we want to pass to Kubernetes
+            match prof.nest_fut("execution (k8s)", |scope| execute_task_k8s(worker_cfg, kinfo, &tx, container_path, tinfo, scope)).await {
+                Ok(value)   => value,
+                Err(status) => {
+                    error!("Job failed with status: {:?}", status);
+                    if let Err(err) = update_client(&tx, status).await { error!("{}", err); }
+                    return Ok(());
+                }
+            }
         },
         Credentials::Slurm { .. } => {
             error!("Slurm backend is not yet supported");

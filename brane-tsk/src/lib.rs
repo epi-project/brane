@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:26:59
 //  Last edited:
-//    09 Jan 2023, 13:05:21
+//    08 May 2023, 13:02:31
 //  Auto updated?
 //    Yes
 // 
@@ -19,6 +19,7 @@ pub mod errors;
 pub mod spec;
 pub mod tools;
 pub mod docker;
+pub mod k8s;
 pub mod local;
 pub mod api;
 
