@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    08 May 2023, 16:41:38
+//    09 May 2023, 14:51:49
 //  Auto updated?
 //    Yes
 // 
@@ -20,6 +20,7 @@ pub use kube::Config;
 pub use kube::api::Resource;
 pub use k8s_openapi::api::core::v1::Volume;
 pub use k8s_openapi::api::batch::v1::Job;
+use k8s_openapi::NamespaceResourceScope;
 use kube::api::Api;
 use kube::config::{Kubeconfig, KubeConfigOptions};
 use tokio::fs as tfs;
@@ -245,12 +246,10 @@ impl Client {
     /// # Returns
     /// A new [`Connection`] representing it.
     #[inline]
-    pub fn connect<R: Resource>(&self, namespace: impl AsRef<str>) -> Connection<R> {
-        // Create a namespaced API for this resource
-        let api: Api<R> = Api::namespaced(client, ns)
-
+    pub fn connect<R: Resource<Scope = NamespaceResourceScope>>(&self, namespace: impl AsRef<str>) -> Connection<R> where R::DynamicType: Default {
+        // We create the requested API interface and return that
         Connection {
-            
+            api : Api::namespaced(self.client.clone(), namespace.as_ref()),
         }
     }
 }
