@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    10 May 2023, 13:49:40
+//    10 May 2023, 14:31:29
 //  Auto updated?
 //    Yes
 // 
@@ -20,14 +20,30 @@ pub use kube::Config;
 pub use k8s_openapi::api::core::v1::Pod;
 pub use k8s_openapi::api::batch::v1::Job;
 use k8s_openapi::NamespaceResourceScope;
-use kube::api::{Api, PostParams, Resource};
+use kube::api::{Api, Resource};
 use kube::config::{Kubeconfig, KubeConfigOptions};
 use tokio::fs as tfs;
 
+use brane_shr::fs::{download_file_async, unarchive_async, DownloadSecurity};
 use specifications::address::Address;
 use specifications::container::Image;
 
 use crate::docker::ImageSource;
+
+
+/***** CONSTANTS *****/
+/// Defines the address we download the x86-64 `crane` tar from.
+pub const CRANE_URL_X86_64: &'static str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_x86_64.tar.gz";
+/// Defines the address we download the ARM64 `crane` tar from.
+pub const CRANE_URL_ARM64: &'static str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_arm64.tar.gz";
+
+/// The location where we expect the `crane` executable to be, locally.
+pub const CRANE_PATH: &'static str = "/tmp/crane";
+/// The checksum of the executable.
+pub const CRANE_CHECKSUM: &'static str = "";
+
+
+
 
 
 /***** ERRORS *****/
@@ -92,13 +108,17 @@ impl Error for ClientError {
 /// Defines errors that occur when working with connections.
 #[derive(Debug)]
 pub enum ConnectionError {
-
+    /// Failed to download the `crane` executable tarball.
+    DownloadCraneTar{ from: &'static str, to: PathBuf, err: brane_shr::fs::Error },
+    /// Failed to unpack the `crane` executable tarball.
+    UnpackCraneTar{ from: PathBuf, to: PathBuf, err: brane_shr::fs::Error },
 }
 impl Display for ConnectionError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use ConnectionError::*;
         match self {
-            
+            DownloadCraneTar{ from, to, .. } => write!(f, "Failed to download `crane` executable tarball from '{}' to '{}'", from, to.display()),
+            UnpackCraneTar{ from, to, .. }
         }
     }
 }
@@ -106,9 +126,46 @@ impl Error for ConnectionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use ConnectionError::*;
         match self {
-            
+            DownloadCraneTar{ err, .. } => Some(err),
         }
     }
+}
+
+
+
+
+
+/***** HELPER FUNCTIONS *****/
+/// Ensures that the `crane` executable is downloaded is some recognizable location.
+/// 
+/// # Errors
+/// This function errors if we failed to find _and_ download it.
+async fn ensure_crate_exe() -> Result<(), ConnectionError> {
+    // Resolve where to get the executable from
+    #[cfg(target_arch = "x86_64")]
+    const URL: &'static str = CRANE_URL_X86_64;
+    #[cfg(target_arch = "aarch64")]
+    const URL: &'static str = CRANE_URL_ARM64;
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+    compile_error!("Unsupported non-x86_64, non-ARM64 architecture");
+
+    // Check if it already exists, that's nice then
+    if PathBuf::from(CRANE_PATH).exists() { return Ok(()); }
+
+    // Otherwise, we should attempt to download the crane executable's tarball
+    let tar_path: PathBuf = "/tmp/go-containerregistry_Linux.tar.gz".into();
+    if let Err(err) = download_file_async(URL, &tar_path, DownloadSecurity::all(CRANE_CHECKSUM.as_bytes()), None).await {
+        return Err(ConnectionError::DownloadCraneTar { from: URL, to: tar_path, err });
+    }
+
+    // Unpack the tarball
+    let dir_path: PathBuf = "/tmp/go-containerregistry_Linux".into();
+    if let Err(err) = unarchive_async(&tar_path, &dir_path).await {
+        return Err(ConnectionError::UnpackCraneTar{ from: tar_path, to: dir_path, err });
+    }
+
+    // Done!
+    Ok(())
 }
 
 
@@ -306,9 +363,15 @@ impl<'c> Connection<'c, Job> {
     /// 
     /// # Errors
     /// This function errors if we failed to push the container to the local registry (if it was a file), connect to the cluster or if Kubernetes failed to launch the job.
-    pub fn spawn<'s>(&'s self, mut einfo: ExecuteInfo) -> Result<JobHandle<'c, 's>, ConnectionError> {
+    pub async fn spawn<'s>(&'s self, mut einfo: ExecuteInfo) -> Result<JobHandle<'c, 's>, ConnectionError> {
         // Let us first resolve the container source, if necessary
-        if let ImageSource::Path(path) = einfo
+        if let ImageSource::Path(path) = einfo.image_source {
+            // Assert we have the crane executable downloaded
+            ensure_crate_exe().await?;
+        }
+
+        // Done
+        Ok(JobHandle{ connection: self })
     }
 }
 
