@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    09 May 2023, 14:51:49
+//    10 May 2023, 13:49:40
 //  Auto updated?
 //    Yes
 // 
@@ -12,48 +12,25 @@
 //!   Provides an API for running Brane tasks on a Kubernetes backend.
 // 
 
-use std::error;
+use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::path::{Path, PathBuf};
 
 pub use kube::Config;
-pub use kube::api::Resource;
-pub use k8s_openapi::api::core::v1::Volume;
+pub use k8s_openapi::api::core::v1::Pod;
 pub use k8s_openapi::api::batch::v1::Job;
 use k8s_openapi::NamespaceResourceScope;
-use kube::api::Api;
+use kube::api::{Api, PostParams, Resource};
 use kube::config::{Kubeconfig, KubeConfigOptions};
 use tokio::fs as tfs;
 
 use specifications::address::Address;
+use specifications::container::Image;
+
+use crate::docker::ImageSource;
 
 
 /***** ERRORS *****/
-/// Defines the errors that may occur when working with Kubernetes.
-#[derive(Debug)]
-pub enum Error {
-    /// Failed to read a certain configuration file.
-    ConfigError{ err: ConfigError },
-}
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use Error::*;
-        match self {
-            ConfigError{ .. } => write!(f, "Failed to read Kubernetes configuration file"),
-        }
-    }
-}
-impl error::Error for Error {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        use Error::*;
-        match self {
-            ConfigError{ err } => Some(err),
-        }
-    }
-}
-
-
-
 /// Defines errors that occur when reading a config.
 #[derive(Debug)]
 pub enum ConfigError {
@@ -74,8 +51,8 @@ impl Display for ConfigError {
         }
     }
 }
-impl error::Error for ConfigError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl Error for ConfigError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         use ConfigError::*;
         match self {
             FileRead { .. }    => None,
@@ -102,12 +79,34 @@ impl Display for ClientError {
         }
     }
 }
-impl error::Error for ClientError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl Error for ClientError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         use ClientError::*;
         match self {
             LoadConfig{ err }    => Some(err),
             CreateClient { err } => Some(err),
+        }
+    }
+}
+
+/// Defines errors that occur when working with connections.
+#[derive(Debug)]
+pub enum ConnectionError {
+
+}
+impl Display for ConnectionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use ConnectionError::*;
+        match self {
+            
+        }
+    }
+}
+impl Error for ConnectionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use ConnectionError::*;
+        match self {
+            
         }
     }
 }
@@ -159,12 +158,24 @@ pub async fn read_config_async(path: impl AsRef<Path>) -> Result<Config, ConfigE
 /// Defines a struct with K8s-specific options to pass to this API.
 #[derive(Clone, Debug)]
 pub struct K8sOptions {
-    /// The address or URL of the machine to connect to. Should include the port if so.
-    pub cluster_address  : Address,
-    /// The address of the Docker registry that we push container images to.
-    pub registry_address : Address,
     /// The path to the Kubernetes config file to connect with.
     pub config           : PathBuf,
+    /// The address of the Docker registry that we push container images to.
+    pub registry_address : Address,
+}
+
+/// Defines a struct that describes everything we need to know about a job for a Kubernetes task.
+#[derive(Clone, Debug)]
+pub struct ExecuteInfo {
+    /// The name of the container-to-be.
+    pub name         : String,
+    /// The image name to use for the container.
+    pub image        : Image,
+    /// The location where we import (as file) or create (from repo) the image from.
+    pub image_source : ImageSource,
+
+    /// The command(s) to pass to Branelet.
+    pub command      : Vec<String>,
 }
 
 
@@ -176,7 +187,9 @@ pub struct K8sOptions {
 #[derive(Clone)]
 pub struct Client {
     /// A Kubernetes config to wrap around.
-    client : kube::Client,
+    client           : kube::Client,
+    /// The registry address which we use to transfer images to Kubernetes.
+    registry_address : Address,
 }
 
 impl Client {
@@ -184,6 +197,7 @@ impl Client {
     /// 
     /// # Arguments
     /// - `config`: The [`Config`] that we use to known to which cluster to connect and how.
+    /// - `registry_address`: The address of the Docker Registry that we can use to temporarily upload Docker images.
     /// 
     /// # Returns
     /// A new Client instance that can be used to connect to the cluster described in the given config.
@@ -191,7 +205,7 @@ impl Client {
     /// # Errors
     /// This function errors if we failed to create a [`kube::Client`] from the given `config`.
     #[inline]
-    pub fn new(config: impl Into<Config>) -> Result<Self, ClientError> {
+    pub fn new(config: impl Into<Config>, registry_address: impl Into<Address>) -> Result<Self, ClientError> {
         // Attempt to create a client from the given config
         let client: kube::Client = match kube::Client::try_from(config.into()) {
             Ok(client) => client,
@@ -201,6 +215,7 @@ impl Client {
         // Return ourselves with the client
         Ok(Self {
             client,
+            registry_address : registry_address.into(),
         })
     }
 
@@ -208,13 +223,14 @@ impl Client {
     /// 
     /// # Arguments
     /// - `path`: The [`Path`]-like to parse the Kubernetes config from.
+    /// - `registry_address`: The address of the Docker Registry that we can use to temporarily upload Docker images.
     /// 
     /// # Returns
     /// A new Client instance that can be used to connect to the cluster described in the given config.
     /// 
     /// # Errors
     /// This function may error if we failed to parse the given file or if we failed to create a [`kube::Client`] from the given `config`.
-    pub async fn from_path_async(path: impl AsRef<Path>) -> Result<Self, ClientError> {
+    pub async fn from_path_async(path: impl AsRef<Path>, registry_address: impl Into<Address>) -> Result<Self, ClientError> {
         // Attempt to load the configuration file
         let config: Config = match read_config_async(path).await {
             Ok(config) => config,
@@ -230,6 +246,7 @@ impl Client {
         // Return ourselves with the client
         Ok(Self {
             client,
+            registry_address : registry_address.into(),
         })
     }
 
@@ -249,7 +266,8 @@ impl Client {
     pub fn connect<R: Resource<Scope = NamespaceResourceScope>>(&self, namespace: impl AsRef<str>) -> Connection<R> where R::DynamicType: Default {
         // We create the requested API interface and return that
         Connection {
-            api : Api::namespaced(self.client.clone(), namespace.as_ref()),
+            api              : Api::namespaced(self.client.clone(), namespace.as_ref()),
+            registry_address : &self.registry_address,
         }
     }
 }
@@ -270,11 +288,35 @@ impl Debug for Client {
 /// # Generic arguments
 /// - `K`: 
 #[derive(Debug)]
-pub struct Connection<R> {
+pub struct Connection<'c, R> {
     /// The [`API`] abstraction with which we connect.
-    api : Api<R>,
+    api              : Api<R>,
+    /// The registry address which we use to transfer images to Kubernetes.
+    registry_address : &'c Address,
 }
 
-impl<R> Connection<R> {
-    
+impl<'c> Connection<'c, Job> {
+    /// Launches a given job in Kubernetes.
+    /// 
+    /// # Arguments
+    /// - `einfo`: The [`ExecuteInfo`] that describes the job to launch.
+    /// 
+    /// # Returns
+    /// A new [`JobHandle`] struct that can be used to cancel a job or otherwise manage it.
+    /// 
+    /// # Errors
+    /// This function errors if we failed to push the container to the local registry (if it was a file), connect to the cluster or if Kubernetes failed to launch the job.
+    pub fn spawn<'s>(&'s self, mut einfo: ExecuteInfo) -> Result<JobHandle<'c, 's>, ConnectionError> {
+        // Let us first resolve the container source, if necessary
+        if let ImageSource::Path(path) = einfo
+    }
+}
+
+
+
+/// Represents a job that is currently running within a Kubernetes cluster.
+#[derive(Debug)]
+pub struct JobHandle<'c1, 'c2> {
+    /// The connection of which we are a part.
+    connection : &'c2 Connection<'c1, Job>,
 }
