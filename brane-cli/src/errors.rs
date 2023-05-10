@@ -4,7 +4,7 @@
 //  Created:
 //    17 Feb 2022, 10:27:28
 //  Last edited:
-//    19 Apr 2023, 13:12:39
+//    10 May 2023, 16:34:47
 //  Auto updated?
 //    Yes
 // 
@@ -18,7 +18,7 @@ use std::path::PathBuf;
 
 use reqwest::StatusCode;
 
-use brane_shr::debug::PrettyListFormatter;
+use brane_shr::formatters::PrettyListFormatter;
 use specifications::package::{PackageInfoError, PackageKindError};
 use specifications::container::{ContainerInfoError, Image, LocalContainerInfoError};
 use specifications::version::{ParseError as VersionParseError, Version};

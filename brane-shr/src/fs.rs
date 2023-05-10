@@ -4,7 +4,7 @@
 //  Created:
 //    09 Nov 2022, 11:12:06
 //  Last edited:
-//    11 Apr 2023, 12:52:39
+//    10 May 2023, 16:34:42
 //  Auto updated?
 //    Yes
 // 
@@ -34,7 +34,7 @@ use tokio_tar::{Archive, Builder, Entries, Entry};
 
 use specifications::version::Version;
 
-use crate::debug::Capitalizeable;
+use crate::formatters::Capitalizeable;
 
 
 /***** TESTS *****/
@@ -44,7 +44,7 @@ pub mod tests {
     use std::io::{Read, Write};
     use getrandom::getrandom;
     use tempfile::TempDir;
-    use crate::debug::{BlockFormatter, HexFormatter};
+    use crate::formatters::{BlockFormatter, HexFormatter};
     use super::*;
 
 

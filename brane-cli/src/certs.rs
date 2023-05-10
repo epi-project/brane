@@ -4,7 +4,7 @@
 //  Created:
 //    30 Jan 2023, 09:35:00
 //  Last edited:
-//    19 Apr 2023, 13:09:07
+//    10 May 2023, 16:34:45
 //  Auto updated?
 //    Yes
 // 
@@ -31,7 +31,7 @@ use x509_parser::prelude::{FromDer as _};
 use x509_parser::x509::X509Name;
 
 use brane_cfg::certs::load_all;
-use brane_shr::debug::PrettyListFormatter;
+use brane_shr::formatters::PrettyListFormatter;
 
 pub use crate::errors::CertsError as Error;
 use crate::utils::{ensure_instances_dir, get_instance_dir};

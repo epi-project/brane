@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    08 May 2023, 14:09:11
+//    10 May 2023, 16:34:52
 //  Auto updated?
 //    Yes
 // 
@@ -45,7 +45,7 @@ use brane_cfg::policies::{ContainerPolicy, PolicyFile};
 use brane_exe::FullValue;
 use brane_prx::spec::NewPathRequestTlsOptions;
 use brane_prx::client::ProxyClient;
-use brane_shr::debug::BlockFormatter;
+use brane_shr::formatters::BlockFormatter;
 use brane_shr::fs::{copy_dir_recursively_async, unarchive_async};
 use brane_tsk::errors::{AuthorizeError, CommitError, ExecuteError, PreprocessError};
 use brane_tsk::spec::JobStatus;

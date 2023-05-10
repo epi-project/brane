@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    10 May 2023, 14:31:29
+//    10 May 2023, 16:51:33
 //  Auto updated?
 //    Yes
 // 
@@ -22,9 +22,10 @@ pub use k8s_openapi::api::batch::v1::Job;
 use k8s_openapi::NamespaceResourceScope;
 use kube::api::{Api, Resource};
 use kube::config::{Kubeconfig, KubeConfigOptions};
+use log::{debug, info, warn};
 use tokio::fs as tfs;
 
-use brane_shr::fs::{download_file_async, unarchive_async, DownloadSecurity};
+use brane_shr::fs::{download_file_async, set_executable, unarchive_async, DownloadSecurity};
 use specifications::address::Address;
 use specifications::container::Image;
 
@@ -33,14 +34,14 @@ use crate::docker::ImageSource;
 
 /***** CONSTANTS *****/
 /// Defines the address we download the x86-64 `crane` tar from.
-pub const CRANE_URL_X86_64: &'static str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_x86_64.tar.gz";
+pub const CRANE_TAR_URL_X86_64: &'static str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_x86_64.tar.gz";
 /// Defines the address we download the ARM64 `crane` tar from.
-pub const CRANE_URL_ARM64: &'static str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_arm64.tar.gz";
+pub const CRANE_TAR_URL_ARM64: &'static str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_arm64.tar.gz";
 
 /// The location where we expect the `crane` executable to be, locally.
 pub const CRANE_PATH: &'static str = "/tmp/crane";
 /// The checksum of the executable.
-pub const CRANE_CHECKSUM: &'static str = "";
+pub const CRANE_TAR_CHECKSUM: &'static str = "";
 
 
 
@@ -112,13 +113,19 @@ pub enum ConnectionError {
     DownloadCraneTar{ from: &'static str, to: PathBuf, err: brane_shr::fs::Error },
     /// Failed to unpack the `crane` executable tarball.
     UnpackCraneTar{ from: PathBuf, to: PathBuf, err: brane_shr::fs::Error },
+    /// Failed to move the `crane` executable from the downloaded folder to the target path.
+    MoveCrane{ from: PathBuf, to: PathBuf, err: std::io::Error },
+    /// Failed to make the `crane` executable... executable.
+    MakeCraneExecutable{ path: PathBuf, err: brane_shr::fs::Error },
 }
 impl Display for ConnectionError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use ConnectionError::*;
         match self {
             DownloadCraneTar{ from, to, .. } => write!(f, "Failed to download `crane` executable tarball from '{}' to '{}'", from, to.display()),
-            UnpackCraneTar{ from, to, .. }
+            UnpackCraneTar{ from, to, .. }   => write!(f, "Failed to unpack `crane` executable tarball from '{}' to '{}'", from.display(), to.display()),
+            MoveCrane{ from, to, .. }        => write!(f, "Failed to move `crane` executable from '{}' to '{}'", from.display(), to.display()),
+            MakeCraneExecutable{ path, .. }  => write!(f, "Failed to make `crane` executable '{}' executable", path.display()),
         }
     }
 }
@@ -126,7 +133,10 @@ impl Error for ConnectionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use ConnectionError::*;
         match self {
-            DownloadCraneTar{ err, .. } => Some(err),
+            DownloadCraneTar{ err, .. }    => Some(err),
+            UnpackCraneTar{ err, .. }      => Some(err),
+            MoveCrane{ err, .. }           => Some(err),
+            MakeCraneExecutable{ err, .. } => Some(err),
         }
     }
 }
@@ -141,30 +151,53 @@ impl Error for ConnectionError {
 /// # Errors
 /// This function errors if we failed to find _and_ download it.
 async fn ensure_crate_exe() -> Result<(), ConnectionError> {
+    debug!("Ensuring `crate` executable existance...");
+
     // Resolve where to get the executable from
     #[cfg(target_arch = "x86_64")]
-    const URL: &'static str = CRANE_URL_X86_64;
+    const URL: &'static str = CRANE_TAR_URL_X86_64;
     #[cfg(target_arch = "aarch64")]
-    const URL: &'static str = CRANE_URL_ARM64;
+    const URL: &'static str = CRANE_TAR_URL_ARM64;
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     compile_error!("Unsupported non-x86_64, non-ARM64 architecture");
 
     // Check if it already exists, that's nice then
-    if PathBuf::from(CRANE_PATH).exists() { return Ok(()); }
+    if PathBuf::from(CRANE_PATH).exists() {
+        debug!("Executable '{}' found, marked as present", CRANE_PATH);
+        return Ok(());
+    }
 
     // Otherwise, we should attempt to download the crane executable's tarball
     let tar_path: PathBuf = "/tmp/go-containerregistry_Linux.tar.gz".into();
-    if let Err(err) = download_file_async(URL, &tar_path, DownloadSecurity::all(CRANE_CHECKSUM.as_bytes()), None).await {
+    debug!("Downloading '{}' to '{}'...", URL, tar_path.display());
+    if let Err(err) = download_file_async(URL, &tar_path, DownloadSecurity::all(CRANE_TAR_CHECKSUM.as_bytes()), None).await {
         return Err(ConnectionError::DownloadCraneTar { from: URL, to: tar_path, err });
     }
 
     // Unpack the tarball
     let dir_path: PathBuf = "/tmp/go-containerregistry_Linux".into();
+    debug!("Unpacking '{}' to '{}'...", tar_path.display(), dir_path.display());
     if let Err(err) = unarchive_async(&tar_path, &dir_path).await {
         return Err(ConnectionError::UnpackCraneTar{ from: tar_path, to: dir_path, err });
     }
 
+    // Move the directory's crane executable to the target location
+    let crane_path: PathBuf = dir_path.join("crane");
+    debug!("Extracting '{}' to '{}'...", crane_path.display(), CRANE_PATH);
+    if let Err(err) = tfs::copy(&crane_path, CRANE_PATH).await {
+        return Err(ConnectionError::MoveCrane{ from: crane_path, to: CRANE_PATH.into(), err });
+    }
+    // Make it executable, too
+    if let Err(err) = set_executable(CRANE_PATH) {
+        return Err(ConnectionError::MakeCraneExecutable{ path: CRANE_PATH.into(), err });
+    }
+
+    // Finally, delete the tar and directory
+    if let Err(err) = tfs::remove_dir_all(&dir_path).await { warn!("Failed to remove extracted tarball folder '{}': {}", dir_path.display(), err); }
+    if let Err(err) = tfs::remove_file(&tar_path).await { warn!("Failed to remove downloaded tarball '{}': {}", tar_path.display(), err); }
+
     // Done!
+    debug!("Successfully downloaded `crane` executable to {CRANE_PATH}");
     Ok(())
 }
 
@@ -205,6 +238,25 @@ pub async fn read_config_async(path: impl AsRef<Path>) -> Result<Config, ConfigE
         Ok(config) => Ok(config),
         Err(err)   => Err(ConfigError::Compile{ path: path.into(), err }),
     }
+}
+
+
+
+/// Resolves the [`ImageSource`] to an [`ImageSource::Registry`].
+/// 
+/// If we're given an [`ImageSource::Path`], we upload the container to the given registry. Otherwise, we just return as-is.
+/// 
+/// # Arguments
+/// - `image`: The [`ImageSource`] to resolve.
+/// - `registry`: The address of the registry to upload the image to if necessary.
+/// 
+/// # Returns
+/// Another [`ImageSource`] that is the resolved version of `image`.
+/// 
+/// # Errors
+/// This function may error if the given `image` was an [`ImageSource::Path`], and we failed to upload the image.
+pub fn resolve_image_source(image: ImageSource, registry: Address) -> Result<ImageSource, ResolveError> {
+    
 }
 
 
@@ -363,12 +415,11 @@ impl<'c> Connection<'c, Job> {
     /// 
     /// # Errors
     /// This function errors if we failed to push the container to the local registry (if it was a file), connect to the cluster or if Kubernetes failed to launch the job.
-    pub async fn spawn<'s>(&'s self, mut einfo: ExecuteInfo) -> Result<JobHandle<'c, 's>, ConnectionError> {
-        // Let us first resolve the container source, if necessary
-        if let ImageSource::Path(path) = einfo.image_source {
-            // Assert we have the crane executable downloaded
-            ensure_crate_exe().await?;
-        }
+    pub async fn spawn<'s>(&'s self, einfo: ExecuteInfo) -> Result<JobHandle<'c, 's>, ConnectionError> {
+        info!("Spawning package task '{}' from '{}' on Kubernetes backend", einfo.name, einfo.image);
+
+        // Assert the container has been uploaded
+        if !matches!(einfo.image_source, ImageSource::Registry(_)) { panic!("Non-Registry ImageSource must have been resolved before calling Connection::spawn"); }
 
         // Done
         Ok(JobHandle{ connection: self })

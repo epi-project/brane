@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:34:05
 //  Last edited:
-//    12 Apr 2023, 11:57:13
+//    10 May 2023, 16:34:44
 //  Auto updated?
 //    Yes
 // 
@@ -30,7 +30,7 @@ use brane_exe::Vm;
 use brane_exe::errors::VmError;
 use brane_exe::spec::{RunState, TaskInfo, VmPlugin};
 use brane_exe::value::FullValue;
-use brane_shr::debug::BlockFormatter;
+use brane_shr::formatters::BlockFormatter;
 use brane_shr::fs::copy_dir_recursively_async;
 use brane_tsk::errors::{CommitError, ExecuteError, PreprocessError, StdoutError};
 use brane_tsk::spec::{LOCALHOST, Planner as _};

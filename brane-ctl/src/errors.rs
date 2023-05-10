@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    13 Apr 2023, 10:28:19
+//    10 May 2023, 16:34:45
 //  Auto updated?
 //    Yes
 // 
@@ -21,7 +21,7 @@ use console::style;
 use enum_debug::EnumDebug as _;
 
 use brane_cfg::node::NodeKind;
-use brane_shr::debug::Capitalizeable;
+use brane_shr::formatters::Capitalizeable;
 use brane_tsk::docker::ImageSource;
 use specifications::container::Image;
 use specifications::version::Version;
