@@ -15,7 +15,7 @@ console = "0.15"
 dotenvy = "0.15"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
 # env_logger = "0.10"
-hex-literal = "0.3.4"
+hex-literal = "0.4"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
 human-panic = "1.0"
 lazy_static = "1.4.0"

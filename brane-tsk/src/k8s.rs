@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    10 May 2023, 16:51:33
+//    12 May 2023, 17:15:52
 //  Auto updated?
 //    Yes
 // 
@@ -15,10 +15,12 @@
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 pub use kube::Config;
 pub use k8s_openapi::api::core::v1::Pod;
 pub use k8s_openapi::api::batch::v1::Job;
+use hex_literal::hex;
 use k8s_openapi::NamespaceResourceScope;
 use kube::api::{Api, Resource};
 use kube::config::{Kubeconfig, KubeConfigOptions};
@@ -32,6 +34,49 @@ use specifications::container::Image;
 use crate::docker::ImageSource;
 
 
+/***** TESTS *****/
+#[cfg(test)]
+mod tests {
+    use brane_shr::errors::ErrorTrace as _;
+    use super::*;
+
+    /// Function that tests downloading the crane executable from the internet.
+    /// 
+    /// Essentially just checks if everything proceeds without errors, and if we can then call '--version' on it.
+    #[tokio::test]
+    async fn test_crane_download() {
+        // Prepare a temporary directory
+        if let Err(err) = tfs::create_dir_all("./temp").await { panic!("Failed to create temporary directory './temp': {err}"); }
+
+        // Ensure the executable exists
+        if let Err(err) = ensure_crane_exe("./temp/crane", "./temp").await {
+            if let Err(err) = tfs::remove_dir_all("./temp").await { warn!("Failed to cleanup temporary directory './temp': {err}"); }
+            panic!("Failed to ensure crane executable: {}", err.trace());
+        }
+
+        // Attempt to run `--version`
+        let mut cmd: Command = Command::new("./temp/crane");
+        cmd.arg("version");
+        match cmd.status() {
+            Ok(status) => if !status.success() {
+                if let Err(err) = tfs::remove_dir_all("./temp").await { warn!("Failed to cleanup temporary directory './temp': {err}"); }
+                panic!("Failed to run './temp/crane' (see output above)");
+            },
+            Err(err)   => {
+                if let Err(err) = tfs::remove_dir_all("./temp").await { warn!("Failed to cleanup temporary directory './temp': {err}"); }
+                panic!("Failed to spawn job './temp/crane': {err}");
+            },
+        }
+
+        // Done! Cleanup
+        if let Err(err) = tfs::remove_dir_all("./temp").await { warn!("Failed to cleanup temporary directory './temp': {err}"); }
+    }
+}
+
+
+
+
+
 /***** CONSTANTS *****/
 /// Defines the address we download the x86-64 `crane` tar from.
 pub const CRANE_TAR_URL_X86_64: &'static str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_x86_64.tar.gz";
@@ -41,13 +86,71 @@ pub const CRANE_TAR_URL_ARM64: &'static str = "https://github.com/google/go-cont
 /// The location where we expect the `crane` executable to be, locally.
 pub const CRANE_PATH: &'static str = "/tmp/crane";
 /// The checksum of the executable.
-pub const CRANE_TAR_CHECKSUM: &'static str = "";
+pub const CRANE_TAR_CHECKSUM: [u8; 32] = hex!("d4710014a3bd135eb1d4a9142f509cfd61d2be242e5f5785788e404448a4f3f2");
 
 
 
 
 
 /***** ERRORS *****/
+/// Defines errors that occur when downloading the `crane` executable.
+#[derive(Debug)]
+pub enum CraneError {
+    /// Failed to download the `crane` executable tarball.
+    DownloadCraneTar{ from: &'static str, to: PathBuf, err: brane_shr::fs::Error },
+    /// Failed to unpack the `crane` executable tarball.
+    UnpackCraneTar{ from: PathBuf, to: PathBuf, err: brane_shr::fs::Error },
+    /// Failed to move the `crane` executable from the downloaded folder to the target path.
+    MoveCrane{ from: PathBuf, to: PathBuf, err: std::io::Error },
+    /// Failed to make the `crane` executable... executable.
+    MakeCraneExecutable{ path: PathBuf, err: brane_shr::fs::Error },
+}
+impl Display for CraneError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use CraneError::*;
+        match self {
+            DownloadCraneTar{ from, to, .. } => write!(f, "Failed to download tarball from '{}' to '{}'", from, to.display()),
+            UnpackCraneTar{ from, to, .. }   => write!(f, "Failed to unpack tarball '{}' to '{}'", from.display(), to.display()),
+            MoveCrane{ from, to, .. }        => write!(f, "Failed to move executable from '{}' to '{}'", from.display(), to.display()),
+            MakeCraneExecutable{ path, .. }  => write!(f, "Failed to make executable '{}' executable", path.display()),
+        }
+    }
+}
+impl Error for CraneError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use CraneError::*;
+        match self {
+            DownloadCraneTar{ err, .. }    => Some(err),
+            UnpackCraneTar{ err, .. }      => Some(err),
+            MoveCrane{ err, .. }           => Some(err),
+            MakeCraneExecutable{ err, .. } => Some(err),
+        }
+    }
+}
+
+/// Defines errors that occur when resolving an image source (i.e., pushing to a registry).
+#[derive(Debug)]
+pub enum ResolveError {
+    /// Failed to download the crane client.
+    CraneExe{ err: CraneError },
+}
+impl Display for ResolveError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use ResolveError::*;
+        match self {
+            CraneExe{ .. } => write!(f, "Failed to download `crane` registry client"),
+        }
+    }
+}
+impl Error for ResolveError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use ResolveError::*;
+        match self {
+            CraneExe{ err } => Some(err),
+        }
+    }
+}
+
 /// Defines errors that occur when reading a config.
 #[derive(Debug)]
 pub enum ConfigError {
@@ -109,23 +212,13 @@ impl Error for ClientError {
 /// Defines errors that occur when working with connections.
 #[derive(Debug)]
 pub enum ConnectionError {
-    /// Failed to download the `crane` executable tarball.
-    DownloadCraneTar{ from: &'static str, to: PathBuf, err: brane_shr::fs::Error },
-    /// Failed to unpack the `crane` executable tarball.
-    UnpackCraneTar{ from: PathBuf, to: PathBuf, err: brane_shr::fs::Error },
-    /// Failed to move the `crane` executable from the downloaded folder to the target path.
-    MoveCrane{ from: PathBuf, to: PathBuf, err: std::io::Error },
-    /// Failed to make the `crane` executable... executable.
-    MakeCraneExecutable{ path: PathBuf, err: brane_shr::fs::Error },
+    
 }
 impl Display for ConnectionError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use ConnectionError::*;
         match self {
-            DownloadCraneTar{ from, to, .. } => write!(f, "Failed to download `crane` executable tarball from '{}' to '{}'", from, to.display()),
-            UnpackCraneTar{ from, to, .. }   => write!(f, "Failed to unpack `crane` executable tarball from '{}' to '{}'", from.display(), to.display()),
-            MoveCrane{ from, to, .. }        => write!(f, "Failed to move `crane` executable from '{}' to '{}'", from.display(), to.display()),
-            MakeCraneExecutable{ path, .. }  => write!(f, "Failed to make `crane` executable '{}' executable", path.display()),
+            
         }
     }
 }
@@ -133,10 +226,7 @@ impl Error for ConnectionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use ConnectionError::*;
         match self {
-            DownloadCraneTar{ err, .. }    => Some(err),
-            UnpackCraneTar{ err, .. }      => Some(err),
-            MoveCrane{ err, .. }           => Some(err),
-            MakeCraneExecutable{ err, .. } => Some(err),
+            
         }
     }
 }
@@ -146,12 +236,18 @@ impl Error for ConnectionError {
 
 
 /***** HELPER FUNCTIONS *****/
-/// Ensures that the `crane` executable is downloaded is some recognizable location.
+/// Ensures that the `crane` executable is downloaded at the given location.
+/// 
+/// # Arguments
+/// - `path`: The path to put the `crane` executable.
+/// - `temp_dir`: Some (already existing!) directory to download intermediary files and unpacking them and such.
 /// 
 /// # Errors
-/// This function errors if we failed to find _and_ download it.
-async fn ensure_crate_exe() -> Result<(), ConnectionError> {
-    debug!("Ensuring `crate` executable existance...");
+/// This function errors if we faield to find _and_ download the file.
+async fn ensure_crane_exe(path: impl AsRef<Path>, temp_dir: impl AsRef<Path>) -> Result<(), CraneError> {
+    let path     : &Path = path.as_ref();
+    let temp_dir : &Path = temp_dir.as_ref();
+    debug!("Ensuring `crate` executable exists at '{}'...", path.display());
 
     // Resolve where to get the executable from
     #[cfg(target_arch = "x86_64")]
@@ -162,34 +258,34 @@ async fn ensure_crate_exe() -> Result<(), ConnectionError> {
     compile_error!("Unsupported non-x86_64, non-ARM64 architecture");
 
     // Check if it already exists, that's nice then
-    if PathBuf::from(CRANE_PATH).exists() {
-        debug!("Executable '{}' found, marked as present", CRANE_PATH);
+    if path.exists() {
+        debug!("Executable '{}' found, marked as present", path.display());
         return Ok(());
     }
 
     // Otherwise, we should attempt to download the crane executable's tarball
-    let tar_path: PathBuf = "/tmp/go-containerregistry_Linux.tar.gz".into();
+    let tar_path: PathBuf = temp_dir.join("go-containerregistry_Linux.tar.gz");
     debug!("Downloading '{}' to '{}'...", URL, tar_path.display());
-    if let Err(err) = download_file_async(URL, &tar_path, DownloadSecurity::all(CRANE_TAR_CHECKSUM.as_bytes()), None).await {
-        return Err(ConnectionError::DownloadCraneTar { from: URL, to: tar_path, err });
+    if let Err(err) = download_file_async(URL, &tar_path, DownloadSecurity::all(&CRANE_TAR_CHECKSUM), None).await {
+        return Err(CraneError::DownloadCraneTar { from: URL, to: tar_path, err });
     }
 
     // Unpack the tarball
-    let dir_path: PathBuf = "/tmp/go-containerregistry_Linux".into();
+    let dir_path: PathBuf = temp_dir.join("go-containerregistry_Linux");
     debug!("Unpacking '{}' to '{}'...", tar_path.display(), dir_path.display());
     if let Err(err) = unarchive_async(&tar_path, &dir_path).await {
-        return Err(ConnectionError::UnpackCraneTar{ from: tar_path, to: dir_path, err });
+        return Err(CraneError::UnpackCraneTar{ from: tar_path, to: dir_path, err });
     }
 
     // Move the directory's crane executable to the target location
     let crane_path: PathBuf = dir_path.join("crane");
-    debug!("Extracting '{}' to '{}'...", crane_path.display(), CRANE_PATH);
-    if let Err(err) = tfs::copy(&crane_path, CRANE_PATH).await {
-        return Err(ConnectionError::MoveCrane{ from: crane_path, to: CRANE_PATH.into(), err });
+    debug!("Extracting '{}' to '{}'...", crane_path.display(), path.display());
+    if let Err(err) = tfs::copy(&crane_path, path).await {
+        return Err(CraneError::MoveCrane{ from: crane_path, to: path.into(), err });
     }
     // Make it executable, too
-    if let Err(err) = set_executable(CRANE_PATH) {
-        return Err(ConnectionError::MakeCraneExecutable{ path: CRANE_PATH.into(), err });
+    if let Err(err) = set_executable(path) {
+        return Err(CraneError::MakeCraneExecutable{ path: path.into(), err });
     }
 
     // Finally, delete the tar and directory
@@ -197,7 +293,7 @@ async fn ensure_crate_exe() -> Result<(), ConnectionError> {
     if let Err(err) = tfs::remove_file(&tar_path).await { warn!("Failed to remove downloaded tarball '{}': {}", tar_path.display(), err); }
 
     // Done!
-    debug!("Successfully downloaded `crane` executable to {CRANE_PATH}");
+    debug!("Successfully downloaded `crane` executable to {}", path.display());
     Ok(())
 }
 
@@ -247,7 +343,8 @@ pub async fn read_config_async(path: impl AsRef<Path>) -> Result<Config, ConfigE
 /// If we're given an [`ImageSource::Path`], we upload the container to the given registry. Otherwise, we just return as-is.
 /// 
 /// # Arguments
-/// - `image`: The [`ImageSource`] to resolve.
+/// - `image`: The image to push. This will determine its name and tag in the container registry.
+/// - `source`: The [`ImageSource`] to resolve.
 /// - `registry`: The address of the registry to upload the image to if necessary.
 /// 
 /// # Returns
@@ -255,8 +352,26 @@ pub async fn read_config_async(path: impl AsRef<Path>) -> Result<Config, ConfigE
 /// 
 /// # Errors
 /// This function may error if the given `image` was an [`ImageSource::Path`], and we failed to upload the image.
-pub fn resolve_image_source(image: ImageSource, registry: Address) -> Result<ImageSource, ResolveError> {
-    
+pub async fn resolve_image_source(name: Image, source: ImageSource, registry: Address) -> Result<ImageSource, ResolveError> {
+    // Only resolve if we're a local file
+    let path: PathBuf = match source {
+        ImageSource::Path(path)    => path,
+        ImageSource::Registry(reg) => { return Ok(ImageSource::Registry(reg)); },
+    };
+
+    // Deduce the path to the registry
+    let registry: String = format!("{registry}/v2/{}:{}", name.name, if let Some(version) = &name.version { version } else { "latest" });
+
+    // Next, ensure the crane executable exists
+    if let Err(err) = ensure_crane_exe(CRANE_PATH, "/tmp").await { return Err(ResolveError::CraneExe{ err }); }
+
+    // Next up, prepare to launch crane with the tarball path
+    let mut cmd: Command = Command::new(CRANE_PATH);
+    cmd.args(["push", CRANE_PATH]);
+    cmd.arg(&registry);
+
+    // Done
+    Ok(ImageSource::Registry(registry))
 }
 
 

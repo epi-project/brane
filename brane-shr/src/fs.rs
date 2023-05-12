@@ -4,7 +4,7 @@
 //  Created:
 //    09 Nov 2022, 11:12:06
 //  Last edited:
-//    10 May 2023, 16:34:42
+//    12 May 2023, 12:01:17
 //  Auto updated?
 //    Yes
 // 
@@ -904,7 +904,7 @@ pub async fn download_file_async(source: impl AsRef<str>, target: impl AsRef<Pat
         debug!("Verifying checksum...");
 
         // Assert the checksums check out (wheezes)
-        if &result[..] != checksum { return Err(Error::FileChecksumError{ what: "downloaded", path: target.into(), expected: hex::encode(&result[..]), got: hex::encode(checksum) }); }
+        if &result[..] != checksum { return Err(Error::FileChecksumError{ what: "downloaded", path: target.into(), expected: hex::encode(checksum), got: hex::encode(&result[..]) }); }
 
         // Print that the checksums are equal if asked
         if let Some(style) = verbose {
