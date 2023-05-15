@@ -931,6 +931,7 @@ dependencies = [
  "kube",
  "log",
  "prost",
+ "rand 0.8.5",
  "rdkafka",
  "reqwest",
  "serde",
