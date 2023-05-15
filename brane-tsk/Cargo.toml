@@ -5,6 +5,11 @@ edition = "2021"
 authors = [ "Tim Müller" ]
 
 
+[[example]]
+path = "./examples/cli.rs"
+name = "cli"
+
+
 [dependencies]
 async-trait = "0.1"
 base64 = "0.13"
@@ -38,6 +43,12 @@ brane-cfg = { path = "../brane-cfg" }
 brane-exe = { path = "../brane-exe" }
 brane-shr = { path = "../brane-shr" }
 specifications = { path = "../specifications" }
+
+
+[dev-dependencies]
+clap = { version = "4.2", features = ["derive"] }
+console = "0.15"
+humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
 
 
 # [build-dependencies]

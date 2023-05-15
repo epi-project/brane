@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    12 May 2023, 17:15:52
+//    15 May 2023, 11:55:11
 //  Auto updated?
 //    Yes
 // 
@@ -15,7 +15,7 @@
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, ExitStatus, Output, Stdio};
 
 pub use kube::Config;
 pub use k8s_openapi::api::core::v1::Pod;
@@ -133,12 +133,21 @@ impl Error for CraneError {
 pub enum ResolveError {
     /// Failed to download the crane client.
     CraneExe{ err: CraneError },
+    /// Failed to run the command to push the image to a remote registry.
+    LaunchPush{ what: Command, err: std::io::Error },
+    /// The push command was run successfully, but failed.
+    PushFailure{ path: PathBuf, image: String, err: Box<Self> },
+    /// The push command failed.
+    PushCommandFailure{ what: Command, status: ExitStatus, stdout: String, stderr: String },
 }
 impl Display for ResolveError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use ResolveError::*;
         match self {
-            CraneExe{ .. } => write!(f, "Failed to download `crane` registry client"),
+            CraneExe{ .. }                                     => write!(f, "Failed to download `crane` registry client"),
+            LaunchPush{ what, .. }                             => write!(f, "Failed to launch command '{:?}' to push image", what),
+            PushFailure{ path, image, .. }                     => write!(f, "Failed to push image '{}' to '{}'", path.display(), image),
+            PushCommandFailure{ what, status, stdout, stderr } => write!(f, "Command '{:?}' failed with exit code {}\n\nstdout:\n{}\n{}\n{}\n\nstderr:\n{}\n{}\n{}\n\n", what, status.code().unwrap_or(-1), (0..80).map(|_| '-').collect::<String>(), stdout, (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>(), stderr, (0..80).map(|_| '-').collect::<String>()),
         }
     }
 }
@@ -146,7 +155,10 @@ impl Error for ResolveError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use ResolveError::*;
         match self {
-            CraneExe{ err } => Some(err),
+            CraneExe{ err }          => Some(err),
+            LaunchPush{ err, .. }    => Some(err),
+            PushFailure{ err, .. }   => Some(err),
+            PushCommandFailure{ .. } => None,
         }
     }
 }
@@ -212,13 +224,13 @@ impl Error for ClientError {
 /// Defines errors that occur when working with connections.
 #[derive(Debug)]
 pub enum ConnectionError {
-    
+    Temp,
 }
 impl Display for ConnectionError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use ConnectionError::*;
         match self {
-            
+            Temp => write!(f, "TEMP"),
         }
     }
 }
@@ -226,7 +238,7 @@ impl Error for ConnectionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use ConnectionError::*;
         match self {
-            
+            Temp => None,
         }
     }
 }
@@ -262,6 +274,7 @@ async fn ensure_crane_exe(path: impl AsRef<Path>, temp_dir: impl AsRef<Path>) ->
         debug!("Executable '{}' found, marked as present", path.display());
         return Ok(());
     }
+    debug!("Executable '{}' not found, marked as missing", path.display());
 
     // Otherwise, we should attempt to download the crane executable's tarball
     let tar_path: PathBuf = temp_dir.join("go-containerregistry_Linux.tar.gz");
@@ -367,8 +380,17 @@ pub async fn resolve_image_source(name: Image, source: ImageSource, registry: Ad
 
     // Next up, prepare to launch crane with the tarball path
     let mut cmd: Command = Command::new(CRANE_PATH);
-    cmd.args(["push", CRANE_PATH]);
+    cmd.args(["push", path.display().to_string().as_str()]);
     cmd.arg(&registry);
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    // Run it
+    let output: Output = match cmd.output() {
+        Ok(output) => output,
+        Err(err)   => { return Err(ResolveError::LaunchPush { what: cmd, err }); },
+    };
+    if !output.status.success() { return Err(ResolveError::PushFailure { path, image: registry, err: Box::new(ResolveError::PushCommandFailure { what: cmd, status: output.status, stdout: String::from_utf8_lossy(&output.stdout).into(), stderr: String::from_utf8_lossy(&output.stderr).into() }) }); }
 
     // Done
     Ok(ImageSource::Registry(registry))
