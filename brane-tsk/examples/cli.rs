@@ -4,7 +4,7 @@
 //  Created:
 //    15 May 2023, 11:15:47
 //  Last edited:
-//    15 May 2023, 16:49:54
+//    16 May 2023, 17:08:28
 //  Auto updated?
 //    Yes
 // 
@@ -26,7 +26,7 @@ use specifications::container::Image;
 use specifications::package::PackageInfo;
 
 use brane_tsk::docker::ImageSource;
-use brane_tsk::k8s::{read_config_async, resolve_image_source, BasicAuth, Client, Config, Connection, ExecuteInfo, Job, JobHandle, RegistryAuth};
+use brane_tsk::k8s::{read_config_async, resolve_image_source, BasicAuth, Client, Config, ExecuteInfo, Handle, Pod, RegistryAuth, Scope, Secret};
 
 
 /***** ARGUMENTS *****/
@@ -99,9 +99,6 @@ struct K8sPushArguments {
 /// Defines the arguments to push a package to a local registry.
 #[derive(Debug, Parser)]
 struct K8sLaunchArguments {
-    /// Defines the path to the Kubernetes config to use to connect.
-    #[clap(name="K8S_CONFIG_PATH", help="The Kubernetes config YAML file that provides which cluster to connect to and how.")]
-    config   : PathBuf,
     /// Defines the path to the image to launch.
     #[clap(name="IMAGE_PATH", help="The image .tar file to push to the registry.")]
     image    : PathBuf,
@@ -112,6 +109,9 @@ struct K8sLaunchArguments {
     #[clap(name="REGISTRY", help="The address of the registry to push to.")]
     registry : Address,
 
+    /// Defines the path to the Kubernetes config to use to connect.
+    #[clap(short, long, default_value="~/.kube/config", help="The Kubernetes config YAML file that provides which cluster to connect to and how.")]
+    config   : PathBuf,
     /// If given, ignores any certificates and junk when pushing containers.
     #[clap(short, long, help="If given, makes the backend image pusher ignore certificates.")]
     insecure : bool,
@@ -177,8 +177,9 @@ async fn main() {
                 };
 
                 // Load the Kubernetes config file
-                debug!("Loading Kubernetes config file '{}'...", launch.config.display());
-                let config: Config = match read_config_async(&launch.config).await {
+                let config_path: PathBuf = shellexpand::tilde(&launch.config.to_string_lossy()).as_ref().into();
+                debug!("Loading Kubernetes config file '{}'...", config_path.display());
+                let config: Config = match read_config_async(&config_path).await {
                     Ok(config) => config,
                     Err(err)   =>{ error!("{}", err.trace()); std::process::exit(1); },
                 };
@@ -193,7 +194,7 @@ async fn main() {
                 // Attempt to resolve the image file
                 debug!("Resolving image source '{}'...", launch.image.display());
                 let image: Image = Image::new(&package.name, Some(&package.version), None::<String>);
-                let source: ImageSource = match resolve_image_source(&image, ImageSource::Path(launch.image.clone()), launch.registry.clone(), auth, launch.insecure).await {
+                let source: ImageSource = match resolve_image_source(&image, ImageSource::Path(launch.image.clone()), launch.registry.clone(), auth.clone(), launch.insecure).await {
                     Ok(source) => source,
                     Err(err)   => { error!("{}", err.trace()); std::process::exit(1); },
                 };
@@ -204,20 +205,40 @@ async fn main() {
                     Ok(client) => client,
                     Err(err)   => { error!("{}", err.trace()); std::process::exit(1); },
                 };
-                let conn: Connection<Job> = client.connect("default");
+
+                // Create a secret for the registry
+                let secret: Option<Handle<Secret>> = match auth {
+                    Some(auth) => {
+                        // Attempt to create the secret
+                        debug!("Creating Docker registry credential secret...");
+                        let scope: Scope<Secret> = client.scope("default");
+                        match scope.create_registry_secret(launch.registry, auth).await {
+                            Ok(handle) => Some(handle),
+                            Err(err)   => { error!("{}", err.trace()); std::process::exit(1); },
+                        }
+                    },
+
+                    None => None,
+                };
 
                 // Launch the job!
                 debug!("Spawning job...");
-                let handle: JobHandle = match conn.spawn(ExecuteInfo {
-                    name : "ABC".into(),
+                let scope: Scope<Pod> = client.scope("default");
+                let handle: Handle<Pod> = match scope.spawn(ExecuteInfo {
                     image,
                     image_source : source,
 
                     command : vec![],
-                }).await {
+                }, secret.as_ref()).await {
                     Ok(handle) => handle,
                     Err(err)   => { error!("{}", err.trace()); std::process::exit(1); },
                 };
+
+                // Detach the job, since this command only launches it
+                println!("Launched package {}{} (as pod '{}')", style(package.name).bold().blue(), if !package.version.is_latest() { style(package.version).bold().blue().to_string() } else { String::new() }, handle.detach());
+
+                // Destroy the secret, since we won't need it anymore
+                if let Some(secret) = secret { if let Err(err) = secret.terminate().await { error!("{}", err.trace()); std::process::exit(1); } }
             },
         },
     }

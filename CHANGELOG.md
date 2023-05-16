@@ -2,6 +2,13 @@
 
 All notable changes to the Brane framework will be documented in this file.
 
+## [2.1.0] - 2023-05-16
+### Changed
+- Bumped `brane-tsk` packages to newest version (base64).
+
+### Fixed
+- Kubernetes backend support (it used to work, got broken in 1.0.0+)
+
 ## [2.0.0] - 2023-02-27
 ### Added
 - Profiling reports to (parts of) the framework. These can be used to examine the framework's performance from a development perspective.

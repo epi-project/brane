@@ -12,7 +12,7 @@ name = "cli"
 
 [dependencies]
 async-trait = "0.1"
-base64 = "0.13"
+base64 = "0.21"
 base64ct = { version = "1.5.3", features = ["alloc"] }
 bollard = "0.13"
 chrono = "0.4"
@@ -23,7 +23,7 @@ hex-literal = "0.4"
 hyper = "0.14"
 indicatif = "0.17"
 k8s-openapi = { version = "0.18", default_features = false, features = ["v1_23"] }
-kube = { version = "0.82", default_features = false, features = ["client"] }
+kube = { version = "0.82", default_features = false, features = ["client", "runtime", "rustls-tls"] }
 log = "0.4"
 prost = "0.11"
 rand = "0.8"
@@ -50,6 +50,7 @@ specifications = { path = "../specifications" }
 clap = { version = "4.2", features = ["derive"] }
 console = "0.15"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
+shellexpand = "3.1"
 
 
 # [build-dependencies]

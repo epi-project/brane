@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    15 May 2023, 16:53:44
+//    16 May 2023, 17:08:11
 //  Auto updated?
 //    Yes
 // 
@@ -12,26 +12,35 @@
 //!   Provides an API for running Brane tasks on a Kubernetes backend.
 // 
 
+use std::any::type_name;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
+use std::mem;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Output, Stdio};
 use std::str::FromStr as _;
 
 pub use kube::Config;
-pub use k8s_openapi::api::core::v1::Pod;
+pub use k8s_openapi::api::core::v1::{Pod, Secret};
 pub use k8s_openapi::api::batch::v1::Job;
+use base64::Engine as _;
 use enum_debug::EnumDebug;
 use hex_literal::hex;
+use futures_util::{StreamExt as _, TryStreamExt as _};
 use k8s_openapi::NamespaceResourceScope;
-use kube::api::{Api, PostParams, Resource};
+use k8s_openapi::api::core::v1::PodCondition;
+use kube::api::{Api, DeleteParams, PostParams, Resource, WatchParams};
+use kube::core::WatchEvent;
 use kube::config::{Kubeconfig, KubeConfigOptions};
+use kube::runtime::wait::{await_condition, Condition};
 use log::{debug, info, warn};
 use rand::Rng as _;
-use rand::distributions::Alphanumeric;
+use rand::distributions::Uniform;
+use serde::de::DeserializeOwned;
 use serde_json::json;
 use tokio::fs as tfs;
 
+use brane_shr::errors::ErrorTrace as _;
 use brane_shr::fs::{download_file_async, set_executable, unarchive_async, DownloadSecurity};
 use specifications::address::Address;
 use specifications::container::Image;
@@ -239,23 +248,50 @@ impl Error for ClientError {
 
 /// Defines errors that occur when working with connections.
 #[derive(Debug)]
-pub enum ConnectionError {
+pub enum ScopeError {
+    /// Failed to spawn a kubernetes secret.
+    CreateSecret{ registry: Address, id: String, err: kube::Error },
     /// Failed to spawn the Kubernetes job
     CreateJob{ name: String, version: Version, id: String, err: kube::Error },
 }
-impl Display for ConnectionError {
+impl Display for ScopeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use ConnectionError::*;
+        use ScopeError::*;
         match self {
+            CreateSecret { registry, id, .. }   => write!(f, "Failed to create a Docker registry secret with ID '{id}' for registry '{registry}'"),
             CreateJob { name, version, id, .. } => write!(f, "Failed to launch package {}:{} as Kubernetes job with ID '{}'", name, version, id),
         }
     }
 }
-impl Error for ConnectionError {
+impl Error for ScopeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        use ConnectionError::*;
+        use ScopeError::*;
         match self {
-            CreateJob { err, .. } => Some(err),
+            CreateSecret { err, .. } => Some(err),
+            CreateJob { err, .. }    => Some(err),
+        }
+    }
+}
+
+/// Defines errors that may occur when working with the Handle.
+#[derive(Debug)]
+pub enum HandleError {
+    /// Failed to terminate the pod.
+    TerminatePod{ id: String, err: kube::Error },
+}
+impl Display for HandleError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use HandleError::*;
+        match self {
+            TerminatePod { id, .. } => write!(f, "Failed to terminate pod '{id}'"),
+        }
+    }
+}
+impl Error for HandleError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use HandleError::*;
+        match self {
+            TerminatePod{ err, .. } => Some(err),
         }
     }
 }
@@ -329,22 +365,123 @@ async fn ensure_crane_exe(path: impl AsRef<Path>, temp_dir: impl AsRef<Path>) ->
 
 
 
+// /// Creates a Kubernetes job description file that we use to launch a job.
+// /// 
+// /// # Arguments
+// /// - `einfo`: The [`ExecuteInfo`] struct that describes the job.
+// /// 
+// /// # Returns
+// /// A tuple of the ID of this job, and the actual [`Job`] struct describing the job.
+// fn create_k8s_job(einfo: ExecuteInfo) -> (String, Job) {
+//     // Generate an identifier for this job.
+//     let id: String = format!("{}-{}-{}", einfo.image.name, einfo.image.version.map(|v| v.to_string().replace('.', "_")).unwrap_or("latest".into()), rand::thread_rng().sample_iter(Alphanumeric).take(8).map(char::from).collect::<String>());
+
+//     // Create the Job
+//     let job: Job = serde_json::from_value(json!({
+//         // Define the kind of this YAML file
+//         "apiVersion": "batch/v1",
+//         "kind": "Job",
+
+//         // Define the job ID
+//         "metadata": {
+//             "name": id,
+//         },
+
+//         // Now define the rest of the job
+//         "spec": {
+//             "backoffLimit": 3,
+//             "ttlSecondsAfterFinished": 120,
+//             "template": {
+//                 "spec": {
+//                     "containers": [{
+//                         "name": id,
+//                         "image": einfo.image_source.into_registry(),
+//                         "args": einfo.command,
+//                         // "env": <>,
+//                         "securityContext": {
+//                             "capabilities": {
+//                                 "drop": ["all"],
+//                                 "add": ["SYS_TIME"],
+//                             },
+//                             "privileged": false,
+//                         },
+//                     }],
+//                     "restartPolicy": "Never",
+//                 }
+//             }
+//         },
+//     })).unwrap();
+
+//     // Now we can generate the struct efficiently using the JSON macro.
+//     (id, job)
+// }
+
+/// Creates a Kubernetes secret description file that we use to create a Docker registry secret.
+/// 
+/// # Arguments
+/// - `registry`: The [`Address`] of the registry to login to.
+/// - `auth`: The [`RegistryAuth`] that describes what kind of secret to add.
+/// 
+/// # Returns
+/// A tuple of the ID of the secret and the actual [`Secret`] struct describing it.
+fn create_k8s_registry_secret(registry: impl AsRef<Address>, auth: RegistryAuth) -> (String, Secret) {
+    // Generate an identifier for this secret
+    let registry: &Address = registry.as_ref();
+    let id: String = format!("docker-registry-{}", rand::thread_rng().sample_iter(Uniform::new(0, 26 + 10)).take(8).map(|i: u8| if i < 10 { (i + '0' as u8) as char } else { (i - 10 + 'a' as u8) as char }).collect::<String>());
+
+    // Create a base64-encoded variation of the Docker config
+    let docker_config: String = match auth {
+        RegistryAuth::Basic(basic) => {
+            // Create the Base64-encoded username/password
+            let bbasic: String = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", basic.username, basic.password));
+
+            // Use that to create the base64-encoded config
+            base64::engine::general_purpose::STANDARD.encode(format!("{{ \"auths\": {{ \"{registry}\": {{ \"auth\": \"{bbasic}\" }} }} }}"))
+        },
+    };
+
+    // Create the Secret
+    let secret: Secret = serde_json::from_value(json!({
+        // Define the kind of this YAML file
+        "apiVersion": "v1",
+        "kind": "Secret",
+
+        // Define the name of the secret
+        "metadata": {
+            "name": id,
+        },
+
+        // Now define the secret's contents
+        "data": {
+            ".dockerconfigjson": docker_config,
+        },
+        "type": "kubernetes.io/dockerconfigjson",
+    })).unwrap();
+
+    // Return the ID and the secret now
+    (id, secret)
+}
+
 /// Creates a Kubernetes job description file that we use to launch a job.
 /// 
 /// # Arguments
 /// - `einfo`: The [`ExecuteInfo`] struct that describes the job.
+/// - `secret`: The name of the secret which we (might) need to download the container.
 /// 
 /// # Returns
-/// A tuple of the ID of this job, and the actual [`Job`] struct describing the job.
-fn create_k8s_job(einfo: ExecuteInfo) -> (String, Job) {
-    // Generate an identifier for this job.
-    let id: String = format!("{}-{}-{}", einfo.image.name, einfo.image.version.map(|v| v.to_string().replace('.', "_")).unwrap_or("latest".into()), rand::thread_rng().sample_iter(Alphanumeric).take(8).map(char::from).collect::<String>());
+/// A tuple of the ID of this job, and the actual [`Pod`] struct describing the job.
+fn create_k8s_pod(einfo: ExecuteInfo, secret: Option<String>) -> (String, Pod) {
+    // Generate an identifier for this job by sanitizing the parts we want
+    // (Note: jeez Kubernetes is pedantic about its names... Regex that determines what to allow: `[a-z0-9]([-a-z0-9]*[a-z0-9])?`)
+    let name: String = einfo.image.name.chars().filter_map(|c| if c >= 'A' && c <= 'Z' { Some((c as u8 - 'A' as u8 + 'a' as u8) as char) } else if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') { Some(c) } else { None }).collect::<String>();
+    let version: String = einfo.image.version.map(|v| v.to_string().replace('.', "")).unwrap_or("latest".into());
+    let id: String = format!("{}-{}-{}", name, version, rand::thread_rng().sample_iter(Uniform::new(0, 26 + 10)).take(8).map(|i: u8| if i < 10 { (i + '0' as u8) as char } else { (i - 10 + 'a' as u8) as char }).collect::<String>());
 
-    // Create the Job
-    let job: Job = serde_json::from_value(json!({
+    // Define the main JSON body
+    let mut body: serde_json::Value = json!({
         // Define the kind of this YAML file
-        "apiVersion": "batch/v1",
-        "kind": "Job",
+        "apiVersion": "v1",
+        "kind": "Pod",
 
         // Define the job ID
         "metadata": {
@@ -353,31 +490,32 @@ fn create_k8s_job(einfo: ExecuteInfo) -> (String, Job) {
 
         // Now define the rest of the job
         "spec": {
-            "backoffLimit": 3,
-            "ttlSecondsAfterFinished": 120,
-            "template": {
-                "spec": {
-                    "containers": [{
-                        "name": id,
-                        "image": einfo.image_source.into_registry(),
-                        "args": einfo.command,
-                        // "env": <>,
-                        "securityContext": {
-                            "capabilities": {
-                                "drop": ["all"],
-                                "add": ["SYS_TIME"],
-                            },
-                            "privileged": false,
-                        },
-                    }],
-                    "restartPolicy": "Never",
-                }
-            }
+            "containers": [{
+                "name": id,
+                "image": einfo.image_source.into_registry(),
+                "args": einfo.command,
+                // "env": <>,
+                "securityContext": {
+                    "capabilities": {
+                        "drop": ["all"],
+                        "add": ["SYS_TIME"],
+                    },
+                    "privileged": false,
+                },
+            }],
         },
-    })).unwrap();
+    });
+
+    // Potentially add in the secret
+    if let Some(secret) = secret {
+        body["spec"]["imagePullSecrets"] = json!([{ "name": secret }]);
+    }
+
+    // Create the Job
+    let pod: Pod = serde_json::from_value(body).unwrap();
 
     // Now we can generate the struct efficiently using the JSON macro.
-    (id, job)
+    (id, pod)
 }
 
 
@@ -399,6 +537,7 @@ fn create_k8s_job(einfo: ExecuteInfo) -> (String, Job) {
 /// This function may error if we failed to read the config file or if it was invalid.
 pub async fn read_config_async(path: impl AsRef<Path>) -> Result<Config, ConfigError> {
     let path: &Path = path.as_ref();
+    debug!("Reading Kubernetes config '{}'...", path.display());
 
     // Read the file to a string
     let raw: String = match tfs::read_to_string(path).await {
@@ -504,6 +643,7 @@ pub async fn resolve_image_source(name: impl AsRef<Image>, source: impl Into<Ima
     if !output.status.success() { return Err(ResolveError::PushFailure { path, image: address, err: Box::new(ResolveError::CommandFailure { what: cmd, status: output.status, stdout: String::from_utf8_lossy(&output.stdout).into(), stderr: String::from_utf8_lossy(&output.stderr).into() }) }); }
 
     // Done
+    debug!("Resolved local image '{}' to remote image '{}'", path.display(), address);
     Ok(ImageSource::Registry(address))
 }
 
@@ -524,8 +664,6 @@ pub struct K8sOptions {
 /// Defines a struct that describes everything we need to know about a job for a Kubernetes task.
 #[derive(Clone, Debug)]
 pub struct ExecuteInfo {
-    /// The name of the container-to-be.
-    pub name         : String,
     /// The image name to use for the container.
     pub image        : Image,
     /// The location where we import (as file) or create (from repo) the image from.
@@ -575,8 +713,11 @@ impl Client {
     /// This function errors if we failed to create a [`kube::Client`] from the given `config`.
     #[inline]
     pub fn new(config: impl Into<Config>) -> Result<Self, ClientError> {
+        let config: Config = config.into();
+        debug!("Creating client to cluster '{}'", config.cluster_url);
+
         // Attempt to create a client from the given config
-        let client: kube::Client = match kube::Client::try_from(config.into()) {
+        let client: kube::Client = match kube::Client::try_from(config) {
             Ok(client) => client,
             Err(err)   => { return Err(ClientError::CreateClient{ err }); },
         };
@@ -605,6 +746,7 @@ impl Client {
         };
 
         // Create a client from that
+        debug!("Creating client to cluster '{}'", config.cluster_url);
         let client: kube::Client = match kube::Client::try_from(config) {
             Ok(client) => client,
             Err(err)   => { return Err(ClientError::CreateClient { err }); },
@@ -618,21 +760,23 @@ impl Client {
 
 
 
-    /// Instantiates a connection with the remote cluster.
+    /// Creates a scope so that we can use to send requests while knowing what kind of resource we're talking about.
     /// 
     /// # Generic arguments
-    /// - `R`: The type of [`Resource`] to make this connection for. This scopes the connection to a particular set of things you can do.
+    /// - `R`: The type of [`Resource`] to make this scopes for. This scopes the connection to a particular set of namespace/resources you can do.
     /// 
     /// # Arguments
     /// - `namespace`: The Kubernetes namespace to use for the request.
     /// 
     /// # Returns
-    /// A new [`Connection`] representing it.
+    /// A new [`Scope`] representing it.
     #[inline]
-    pub fn connect<R: Resource<Scope = NamespaceResourceScope>>(&self, namespace: impl AsRef<str>) -> Connection<R> where R::DynamicType: Default {
+    pub fn scope<R: Resource<Scope = NamespaceResourceScope>>(&self, namespace: impl AsRef<str>) -> Scope<R> where R::DynamicType: Default {
         // We create the requested API interface and return that
-        Connection {
-            api : Api::namespaced(self.client.clone(), namespace.as_ref()),
+        let namespace: &str = namespace.as_ref();
+        debug!("Creating client scope for resource '{}' and namespace '{}'", type_name::<R>(), namespace);
+        Scope {
+            api : Api::namespaced(self.client.clone(), namespace),
         }
     }
 }
@@ -648,54 +792,233 @@ impl Debug for Client {
 
 
 
-/// Represents a "connection" between the client and the Kubernetes cluster (at least conceptually).
+/// Represents a client that has a certain resource scope and namespace within a Kubernetes cluster (at least conceptually).
 /// 
 /// # Generic arguments
 /// - `K`: 
 #[derive(Debug)]
-pub struct Connection<R> {
+pub struct Scope<R> {
     /// The [`Api`] abstraction with which we connect.
     api : Api<R>,
 }
 
-impl Connection<Job> {
+// impl Connection<Job> {
+//     /// Launches a given job in Kubernetes.
+//     /// 
+//     /// # Arguments
+//     /// - `einfo`: The [`ExecuteInfo`] that describes the job to launch.
+//     /// 
+//     /// # Returns
+//     /// A new [`JobHandle`] struct that can be used to cancel a job or otherwise manage it.
+//     /// 
+//     /// # Errors
+//     /// This function errors if we failed to push the container to the local registry (if it was a file), connect to the cluster or if Kubernetes failed to launch the job.
+//     pub async fn spawn(&self, einfo: ExecuteInfo) -> Result<JobHandle, ConnectionError> {
+//         info!("Spawning package task '{}' from '{}' on Kubernetes backend", einfo.name, einfo.image);
+
+//         // Assert the container has been uploaded
+//         if !matches!(einfo.image_source, ImageSource::Registry(_)) { panic!("Non-Registry ImageSource must have been resolved before calling Connection::spawn"); }
+
+//         // Prepare the Kubernetes config file.
+//         let image: Image = einfo.image.clone();
+//         let (id, job): (String, Job) = create_k8s_job(einfo);
+
+//         // Submit the job
+//         if let Err(err) = self.api.create(&PostParams::default(), &job).await {
+//             return Err(ConnectionError::CreateJob{ name: image.name, version: image.version.map(|v| Version::from_str(&v).ok()).flatten().unwrap_or(Version::latest()), id, err });
+//         }
+
+//         // Done
+//         Ok(JobHandle{ connection: self, id })
+//     }
+// }
+
+impl Scope<Secret> {
+    /// Creates a Docker credentials secret in Kubernetes.
+    /// 
+    /// # Arguments
+    /// - `registry`: The address of the registry to connect to.
+    /// - `auth`: The method of authenticating with the registry.
+    /// 
+    /// # Returns
+    /// A new [`Handle<Secret>`] struct that can be used to destroy the secret or otherwise manage it.
+    /// 
+    /// # Errors
+    /// This function errors if we failed to connect to the cluster or the cluster failed to create it somehow.
+    pub async fn create_registry_secret(&self, registry: Address, auth: RegistryAuth) -> Result<Handle<Secret>, ScopeError> {
+        info!("Creating Docker registry secret on Kubernetes backend");
+
+        // Prepare the Kubernetes secrets file
+        let (id, secret): (String, Secret) = create_k8s_registry_secret(&registry, auth);
+
+        // Submit the secret
+        debug!("Creating secret '{id}'...");
+        if let Err(err) = self.api.create(&PostParams::default(), &secret).await {
+            return Err(ScopeError::CreateSecret{ registry, id, err });
+        }
+
+        // // Wait until the pod is created
+        // debug!("Waiting for secret '{id}' to be created...");
+        // let mut stream = match self.api.watch(&WatchParams::default().fields(&format!("metadata.name={id}")), "0").await {
+        //     Ok(stream) => stream.boxed(),
+        //     Err(err)   => { return Err(ScopeError::Wait { resource: type_name::<Secret>().into(), id, err }); },
+        // };
+        // while let Some(item) = stream.try_next().await.map_err(|err| ScopeError::Wait { resource: type_name::<Secret>().into(), id: id.clone(), err })? {
+        //     match item {
+        //         WatchEvent::Added(_)   => { break; },
+        //         WatchEvent::Error(err) => { return Err(ScopeError::CreateFailure { resource: type_name::<Secret>().into(), id, err }); },
+
+        //         // Ignore the rest
+        //         _ => {},
+        //     }
+        // }
+
+        // Done
+        info!("Successfully created secret '{id}'");
+        Ok(Handle{ api: self.api.clone(), id })
+    }
+}
+impl Scope<Pod> {
     /// Launches a given job in Kubernetes.
     /// 
     /// # Arguments
     /// - `einfo`: The [`ExecuteInfo`] that describes the job to launch.
+    /// - `registry_secret`: An optional [`Handle<Secret>`] that, when given, will use the referenced secret when pulling the image for this pod.
     /// 
     /// # Returns
-    /// A new [`JobHandle`] struct that can be used to cancel a job or otherwise manage it.
+    /// A new [`Handle<Pod>`] struct that can be used to cancel a job or otherwise manage it.
     /// 
     /// # Errors
     /// This function errors if we failed to push the container to the local registry (if it was a file), connect to the cluster or if Kubernetes failed to launch the job.
-    pub async fn spawn(&self, einfo: ExecuteInfo) -> Result<JobHandle, ConnectionError> {
-        info!("Spawning package task '{}' from '{}' on Kubernetes backend", einfo.name, einfo.image);
+    pub async fn spawn(&self, einfo: ExecuteInfo, registry_secret: Option<&Handle<Secret>>) -> Result<Handle<Pod>, ScopeError> {
+        info!("Spawning package task from '{}' on Kubernetes backend", einfo.image);
 
         // Assert the container has been uploaded
-        if !matches!(einfo.image_source, ImageSource::Registry(_)) { panic!("Non-Registry ImageSource must have been resolved before calling Connection::spawn"); }
+        if !matches!(einfo.image_source, ImageSource::Registry(_)) { panic!("Non-Registry ImageSource must have been resolved before calling Scope::spawn"); }
 
         // Prepare the Kubernetes config file.
         let image: Image = einfo.image.clone();
-        let (id, job): (String, Job) = create_k8s_job(einfo);
+        let (id, pod): (String, Pod) = create_k8s_pod(einfo, registry_secret.map(|handle| handle.id.clone()));
 
         // Submit the job
-        if let Err(err) = self.api.create(&PostParams::default(), &job).await {
-            return Err(ConnectionError::CreateJob{ name: image.name, version: image.version.map(|v| Version::from_str(&v).ok()).flatten().unwrap_or(Version::latest()), id, err });
+        debug!("Launching pod '{id}'...");
+        if let Err(err) = self.api.create(&PostParams::default(), &pod).await {
+            return Err(ScopeError::CreateJob{ name: image.name, version: image.version.map(|v| Version::from_str(&v).ok()).flatten().unwrap_or(Version::latest()), id, err });
         }
 
+        // // Wait until the pod is created
+        // debug!("Waiting for pod '{id}' to be created...");
+        // let mut stream = match self.api.watch(&WatchParams::default().fields(&format!("metadata.name={id}")), "0").await {
+        //     Ok(stream) => stream.boxed(),
+        //     Err(err)   => { return Err(ScopeError::Wait { resource: type_name::<Pod>().into(), id, err }); },
+        // };
+        // while let Some(item) = stream.try_next().await.map_err(|err| ScopeError::Wait { resource: type_name::<Pod>().into(), id: id.clone(), err })? {
+        //     match item {
+        //         WatchEvent::Added(_)   => { break; },
+        //         WatchEvent::Error(err) => { return Err(ScopeError::CreateFailure { resource: type_name::<Pod>().into(), id, err }); },
+
+        //         // Ignore the rest
+        //         _ => {},
+        //     }
+        // }
+
+        // let status = match self.api.get_status(&id).await {
+        //     Ok(status) => status,
+        //     Err(err)   => { panic!("{err}"); },
+        // };
+        // println!("Status: {status:?}");
+        // std::process::exit(1);
+
+        // // Wait until the secret is created
+        // if let Err(err) = await_condition(self.api.clone(), &id, move |obj: Option<&Pod>| {
+        //     // See how far we get matching the pod with what we want
+        //     if let Some(pod) = obj {
+        //         if let Some(status) = &pod.status {
+        //             status.
+        //         }
+        //     }
+
+        //     // Otherwise, this party ain't workin'
+        //     false
+        // }).await {
+        //     return Err(ScopeError::Wait { resource: "Pod".into(), id, err });
+        // }
+
         // Done
-        Ok(JobHandle{ connection: self, id })
+        info!("Successfully spawned job '{id}'");
+        Ok(Handle{ api: self.api.clone(), id })
     }
 }
 
 
 
-/// Represents a job that is currently running within a Kubernetes cluster.
+/// Represents a resource that is currently present within a Kubernetes cluster.
 #[derive(Debug)]
-pub struct JobHandle<'c> {
+pub struct Handle<R: 'static + Clone + Debug + DeserializeOwned> {
     /// The connection of which we are a part.
-    connection : &'c Connection<Job>,
-    /// The ID of the job we manage.
-    id         : String,
+    api : Api<R>,
+    /// The ID of the resource we manage.
+    id  : String,
+}
+
+impl<R: 'static + Clone + Debug + DeserializeOwned> Handle<R> {
+    /// Detached this handle from the job, not destroying it when we're going down.
+    /// 
+    /// Note that this will keep the pod running indefinitely, until you [`Scope::attach`] to it again.
+    /// 
+    /// # Returns
+    /// The job ID that you can use to attach to the job again later.
+    pub fn detach(mut self) -> String {
+        // Get the id
+        let id: String = mem::take(&mut self.id);
+
+        // Drop without calling the destructor (which will drop the job) forgetting
+        mem::forget(self);
+        id
+    }
+
+    /// Cancels the job by terminating it (and thus consuming the handle).
+    /// 
+    /// # Errors
+    /// This function may error if we failed to terminate the job.
+    pub async fn terminate(mut self) -> Result<(), HandleError> {
+        // Attempt to delete the pod
+        debug!("Deleting resource '{}'...", self.id);
+        if let Err(err) = self.api.delete(&self.id, &DeleteParams::default()).await {
+            return Err(HandleError::TerminatePod{ id: mem::take(&mut self.id), err });
+        }
+
+        // Now drop ourselves without calling the destructor
+        mem::forget(self);
+        Ok(())
+    }
+}
+impl<R: 'static + Clone + Debug + DeserializeOwned> Drop for Handle<R> {
+    fn drop(&mut self) {
+        // Take what we need
+        let api: Api<R> = self.api.clone();
+        let id: String = mem::take(&mut self.id);
+
+        // Spawn a task that does this for us
+        tokio::spawn(async move {
+            debug!("Deleting resource '{id}'...");
+            if let Err(err) = api.delete(&id, &DeleteParams::default()).await {
+                warn!("{}", HandleError::TerminatePod{ id, err }.trace());
+            }
+        });
+    }
+}
+
+impl Handle<Pod> {
+    /// Waits until the pod's job is completed.
+    /// 
+    /// # Returns
+    /// A tuple with the return code, stdout and stderr of the pod, respectively.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to connect to the cluster or if we failed to follow the given pod (because it does not exist, for example).
+    #[inline]
+    pub fn join(&self) -> Result<(i32, String, String), HandleError> {
+        Ok((42, "Hello there!".into(), "General Kenobi!".into()))
+    }
 }
