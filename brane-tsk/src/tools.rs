@@ -4,13 +4,15 @@
 //  Created:
 //    31 Oct 2022, 13:59:36
 //  Last edited:
-//    09 Nov 2022, 11:32:52
+//    17 May 2023, 15:42:28
 //  Auto updated?
 //    Yes
 // 
 //  Description:
 //!   Contains generic tools to use across the use-cases.
 // 
+
+use base64::Engine as _;
 
 use crate::errors::ExecuteError;
 
@@ -30,7 +32,7 @@ pub fn decode_base64(raw: impl AsRef<str>) -> Result<String, ExecuteError> {
     let raw: &str = raw.as_ref();
 
     // First, try to decode the raw base64
-    let input: Vec<u8> = match base64::decode(raw) {
+    let input: Vec<u8> = match base64::engine::general_purpose::STANDARD.decode(raw) {
         Ok(bin)     => bin,
         Err(reason) => { return Err(ExecuteError::Base64DecodeError{ raw: raw.into(), err: reason }); }
     };

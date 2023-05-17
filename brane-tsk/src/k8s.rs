@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    16 May 2023, 17:08:11
+//    17 May 2023, 15:49:51
 //  Auto updated?
 //    Yes
 // 
@@ -26,13 +26,12 @@ pub use k8s_openapi::api::batch::v1::Job;
 use base64::Engine as _;
 use enum_debug::EnumDebug;
 use hex_literal::hex;
-use futures_util::{StreamExt as _, TryStreamExt as _};
+use futures_util::TryStreamExt as _;
 use k8s_openapi::NamespaceResourceScope;
-use k8s_openapi::api::core::v1::PodCondition;
-use kube::api::{Api, DeleteParams, PostParams, Resource, WatchParams};
-use kube::core::WatchEvent;
+use k8s_openapi::api::core::v1::{ContainerState, ContainerStateRunning, ContainerStateTerminated, ContainerStateWaiting, ContainerStatus};
+use kube::api::{Api, DeleteParams, LogParams, PostParams, Resource};
 use kube::config::{Kubeconfig, KubeConfigOptions};
-use kube::runtime::wait::{await_condition, Condition};
+use kube::runtime::wait::await_condition;
 use log::{debug, info, warn};
 use rand::Rng as _;
 use rand::distributions::Uniform;
@@ -278,12 +277,21 @@ impl Error for ScopeError {
 pub enum HandleError {
     /// Failed to terminate the pod.
     TerminatePod{ id: String, err: kube::Error },
+    /// Failed to wait for the pod to become Ready.
+    WaitReady{ id: String, err: kube::runtime::wait::Error },
+    /// Failed to pull the image on the Kubernetes side.
+    PullImage{ id: String, err: Option<String> },
+    /// Failed to read the pod's logs.
+    ReadLogs{ id: String, err: kube::Error },
 }
 impl Display for HandleError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use HandleError::*;
         match self {
             TerminatePod { id, .. } => write!(f, "Failed to terminate pod '{id}'"),
+            WaitReady{ id, .. }     => write!(f, "Failed to wait for pod '{id}' to become ready"),
+            PullImage{ id, err }    => write!(f, "Failed to pull the image for pod '{}'{}", id, if let Some(message) = err { format!(": {message}") } else { String::new() }),
+            ReadLogs{ id, .. }      => write!(f, "Failed to read logs of pod '{id}'"),
         }
     }
 }
@@ -292,6 +300,9 @@ impl Error for HandleError {
         use HandleError::*;
         match self {
             TerminatePod{ err, .. } => Some(err),
+            WaitReady{ err, .. }    => Some(err),
+            PullImage{ .. }         => None,
+            ReadLogs{ err, .. }     => Some(err),
         }
     }
 }
@@ -364,57 +375,6 @@ async fn ensure_crane_exe(path: impl AsRef<Path>, temp_dir: impl AsRef<Path>) ->
 }
 
 
-
-// /// Creates a Kubernetes job description file that we use to launch a job.
-// /// 
-// /// # Arguments
-// /// - `einfo`: The [`ExecuteInfo`] struct that describes the job.
-// /// 
-// /// # Returns
-// /// A tuple of the ID of this job, and the actual [`Job`] struct describing the job.
-// fn create_k8s_job(einfo: ExecuteInfo) -> (String, Job) {
-//     // Generate an identifier for this job.
-//     let id: String = format!("{}-{}-{}", einfo.image.name, einfo.image.version.map(|v| v.to_string().replace('.', "_")).unwrap_or("latest".into()), rand::thread_rng().sample_iter(Alphanumeric).take(8).map(char::from).collect::<String>());
-
-//     // Create the Job
-//     let job: Job = serde_json::from_value(json!({
-//         // Define the kind of this YAML file
-//         "apiVersion": "batch/v1",
-//         "kind": "Job",
-
-//         // Define the job ID
-//         "metadata": {
-//             "name": id,
-//         },
-
-//         // Now define the rest of the job
-//         "spec": {
-//             "backoffLimit": 3,
-//             "ttlSecondsAfterFinished": 120,
-//             "template": {
-//                 "spec": {
-//                     "containers": [{
-//                         "name": id,
-//                         "image": einfo.image_source.into_registry(),
-//                         "args": einfo.command,
-//                         // "env": <>,
-//                         "securityContext": {
-//                             "capabilities": {
-//                                 "drop": ["all"],
-//                                 "add": ["SYS_TIME"],
-//                             },
-//                             "privileged": false,
-//                         },
-//                     }],
-//                     "restartPolicy": "Never",
-//                 }
-//             }
-//         },
-//     })).unwrap();
-
-//     // Now we can generate the struct efficiently using the JSON macro.
-//     (id, job)
-// }
 
 /// Creates a Kubernetes secret description file that we use to create a Docker registry secret.
 /// 
@@ -651,6 +611,20 @@ pub async fn resolve_image_source(name: impl AsRef<Image>, source: impl Into<Ima
 
 
 
+/***** HELPER STRUCTURES *****/
+/// Abstracts over the possible container states.
+#[derive(Clone, Debug, EnumDebug)]
+pub enum ContainerStateKind {
+    /// The container is running
+    Running(ContainerStateRunning),
+    Waiting(ContainerStateWaiting),
+    Terminated(ContainerStateTerminated),
+}
+
+
+
+
+
 /***** AUXILLARY STRUCTURES *****/
 /// Defines a struct with K8s-specific options to pass to this API.
 #[derive(Clone, Debug)]
@@ -802,36 +776,21 @@ pub struct Scope<R> {
     api : Api<R>,
 }
 
-// impl Connection<Job> {
-//     /// Launches a given job in Kubernetes.
-//     /// 
-//     /// # Arguments
-//     /// - `einfo`: The [`ExecuteInfo`] that describes the job to launch.
-//     /// 
-//     /// # Returns
-//     /// A new [`JobHandle`] struct that can be used to cancel a job or otherwise manage it.
-//     /// 
-//     /// # Errors
-//     /// This function errors if we failed to push the container to the local registry (if it was a file), connect to the cluster or if Kubernetes failed to launch the job.
-//     pub async fn spawn(&self, einfo: ExecuteInfo) -> Result<JobHandle, ConnectionError> {
-//         info!("Spawning package task '{}' from '{}' on Kubernetes backend", einfo.name, einfo.image);
-
-//         // Assert the container has been uploaded
-//         if !matches!(einfo.image_source, ImageSource::Registry(_)) { panic!("Non-Registry ImageSource must have been resolved before calling Connection::spawn"); }
-
-//         // Prepare the Kubernetes config file.
-//         let image: Image = einfo.image.clone();
-//         let (id, job): (String, Job) = create_k8s_job(einfo);
-
-//         // Submit the job
-//         if let Err(err) = self.api.create(&PostParams::default(), &job).await {
-//             return Err(ConnectionError::CreateJob{ name: image.name, version: image.version.map(|v| Version::from_str(&v).ok()).flatten().unwrap_or(Version::latest()), id, err });
-//         }
-
-//         // Done
-//         Ok(JobHandle{ connection: self, id })
-//     }
-// }
+impl<R: Clone + Debug + DeserializeOwned> Scope<R> {
+    /// Attaches to the resources with the given ID, returning a handle for it.
+    /// 
+    /// # Arguments
+    /// - `id`: The name/identifier of the resource to attach to.
+    /// 
+    /// # Returns
+    /// A new [`Handle<R>`] that can be used to manage a resource of that kind.
+    pub fn attach(&self, id: impl Into<String>) -> Handle<R> {
+        Handle {
+            api : self.api.clone(),
+            id  : id.into(),
+        }
+    }
+}
 
 impl Scope<Secret> {
     /// Creates a Docker credentials secret in Kubernetes.
@@ -1000,7 +959,7 @@ impl<R: 'static + Clone + Debug + DeserializeOwned> Drop for Handle<R> {
         let id: String = mem::take(&mut self.id);
 
         // Spawn a task that does this for us
-        tokio::spawn(async move {
+        futures::executor::block_on(async move {
             debug!("Deleting resource '{id}'...");
             if let Err(err) = api.delete(&id, &DeleteParams::default()).await {
                 warn!("{}", HandleError::TerminatePod{ id, err }.trace());
@@ -1010,6 +969,117 @@ impl<R: 'static + Clone + Debug + DeserializeOwned> Drop for Handle<R> {
 }
 
 impl Handle<Pod> {
+    /// Blocks the thread until the pod reports it is ready.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to connect to the cluster or if we failed to await the given pod.
+    pub async fn wait_ready(&self) -> Result<(), HandleError> {
+        // Wait until the container gets its first state (i.e., it is scheduled, or at least attempted)
+        debug!("Waiting for pod '{}' to reach 'Ready'...", self.id);
+        let mut pod: Pod = loop {
+            // Wait until the a state is returned
+            match await_condition(self.api.clone(), &self.id, |obj: Option<&Pod>| {
+                if let Some(pod) = obj {
+                    if let Some(status) = &pod.status {
+                        if let Some(statuses) = &status.container_statuses {
+                            if statuses.len() == 1 { return statuses[0].state.is_some(); }
+                            else if statuses.len() > 1 { warn!("Pod '{}' has more than one containers (assumption falsified)", self.id); return statuses[0].state.is_some(); }
+                        }
+                    }
+                }
+
+                // If we didn't return, one of the above is not present
+                false
+            }).await {
+                Ok(Some(pod)) => { break pod; },
+                Ok(None)      => { continue; },
+                Err(err)      => { return Err(HandleError::WaitReady { id: self.id.clone(), err }); },
+            }
+        };
+
+        // Now match on the state found in the pod
+        let mut times: usize = 1;
+        loop {
+            // Match the most recent state
+            let status : ContainerStatus = pod.status.unwrap().container_statuses.unwrap().swap_remove(0);
+            let state  : ContainerState  = status.state.unwrap();
+            match (state.running, state.waiting, state.terminated) {
+                (Some(_), None, None) => {
+                    // It's definitely ready at this point
+                    info!("Pod '{}' reached 'Ready'", self.id);
+                    return Ok(());
+                },
+
+                (None, Some(_), None) => {
+                    // Consider if the pod was terminated before, since that might indicate errors
+                    if let Some(ContainerState{ terminated: Some(terminated), .. }) = status.last_state {
+                        // Consider why the POD was terminated
+                        if let Some(reason) = &terminated.reason {
+                            if reason == "ImagePullBackOff" {
+                                return Err(HandleError::PullImage{ id: self.id.clone(), err: terminated.message });
+                            }
+                        }
+
+                        // Otherwise, we assume it's some other kind of backoff we won't care about until we join
+                        info!("Pod '{}' is terminated (which is a kind of ready)", self.id);
+                        if let Some(reason) = terminated.reason { debug!("Pod '{}' is terminated because of {}{}", self.id, reason, if let Some(message) = terminated.message { format!(": {message}") } else { String::new() }) }
+                        return Ok(());
+                    }
+
+                    // Otherwise, the POD is waiting after a non-terminated; let us assume this means it needs some more cooking time
+                    info!("Pod '{}' is waiting after something else than termination; assuming it needs more time", self.id);
+                },
+
+                (None, None, Some(terminated)) => {
+                    // Otherwise, we assume it's some other kind of backoff we won't care about until we join
+                    info!("Pod '{}' is terminated (which is a kind of ready)", self.id);
+                    if let Some(reason) = terminated.reason { debug!("Pod '{}' is terminated because of {}{}", self.id, reason, if let Some(message) = terminated.message { format!(": {message}") } else { String::new() }) }
+                    return Ok(());
+                },
+
+                _ => { panic!("Assumption that only one of running, waiting, terminated is active falsified"); }
+            }
+
+            // If we made it this far, then we have to wait until the wait becomes something else
+            times += 1;
+            debug!("Waiting for pod '{}' to reach 'Ready' (x{})...", self.id, times);
+            pod = loop {
+                // Wait until the a state is returned
+                match await_condition(self.api.clone(), &self.id, |obj: Option<&Pod>| {
+                    if let Some(pod) = obj {
+                        if let Some(status) = &pod.status {
+                            if let Some(statuses) = &status.container_statuses {
+                                // Check there is a container to get the status of
+                                if statuses.len() == 1 {
+                                    if let Some(state) = &statuses[0].state {
+                                        // Match the state to discover if we can return (that is, any state that is not a wait after a non-terminated)
+                                        match (&state.running, &state.waiting, &state.terminated) {
+                                            (Some(_), None, None) |
+                                            (None, None, Some(_)) => { return true; },
+                                            (None, Some(_), None) => { return matches!(&statuses[0].last_state, Some(ContainerState{ terminated: Some(_), .. })) },
+
+                                            _ => { panic!("Assumption that only one of running, waiting, terminated is active falsified"); },
+                                        }
+                                    }
+                                } else if statuses.len() > 1 {
+                                    warn!("Pod '{}' has more than one containers (assumption falsified)", self.id);
+                                    return statuses[0].state.is_some();
+                                }
+                            }
+                        }
+                    }
+    
+                    // If we didn't return, one of the above is not present
+                    false
+                }).await {
+                    Ok(Some(pod)) => { break pod; },
+                    Ok(None)      => { continue; },
+                    Err(err)      => { return Err(HandleError::WaitReady { id: self.id.clone(), err }); },
+                }
+            };
+        }
+    }
+
     /// Waits until the pod's job is completed.
     /// 
     /// # Returns
@@ -1017,8 +1087,44 @@ impl Handle<Pod> {
     /// 
     /// # Errors
     /// This function may error if we failed to connect to the cluster or if we failed to follow the given pod (because it does not exist, for example).
-    #[inline]
-    pub fn join(&self) -> Result<(i32, String, String), HandleError> {
+    pub async fn join(self) -> Result<(i32, String, String), HandleError> {
+        // Wait until the POD completes running
+        let pod: Pod = loop {
+            // Wait until the pod reports terminated, for whatever reason
+            match await_condition(self.api.clone(), &self.id, |obj: Option<&Pod>| {
+                if let Some(pod) = obj {
+                    if let Some(status) = &pod.status {
+                        if let Some(statuses) = &status.container_statuses {
+                            if statuses.len() == 1 { if let Some(state) = &statuses[0].state { return state.terminated.is_some(); } }
+                            else if statuses.len() > 1 { warn!("Pod '{}' has more than one containers (assumption falsified)", self.id); if let Some(state) = &statuses[0].state { return state.terminated.is_some(); } }
+                        }
+                    }
+                }
+
+                // If we didn't return, one of the above is not present
+                false
+            }).await {
+                Ok(Some(pod)) => { break pod; },
+                Ok(None)      => { continue; },
+                Err(err)      => { return Err(HandleError::WaitReady { id: self.id.clone(), err }); },
+            }
+        };
+
+        // Get the termination code
+        let terminate: ContainerStateTerminated = pod.status.unwrap().container_statuses.unwrap().swap_remove(0).state.unwrap().terminated.unwrap();
+
+        // Attach to the POD and collect the logs for the duration of its runtime
+        let mut stdout: String = String::new();
+        let mut stderr: String = String::new();
+        let mut stream = match self.api.log_stream(&self.id, &LogParams::default().).await {
+            Ok(stream) => stream,
+            Err(err)   => { return Err(HandleError::ReadLogs{ id: self.id.clone(), err }); },
+        };
+        while let Some(entry) = stream.try_next().await.map_err(|err| HandleError::ReadLogs { id: self.id.clone(), err })? {
+            
+        }
+
+        // Done!
         Ok((42, "Hello there!".into(), "General Kenobi!".into()))
     }
 }
