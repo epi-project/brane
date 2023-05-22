@@ -4,7 +4,7 @@
 //  Created:
 //    17 Feb 2022, 10:27:28
 //  Last edited:
-//    10 May 2023, 16:34:47
+//    22 May 2023, 13:55:59
 //  Auto updated?
 //    Yes
 // 
@@ -18,6 +18,7 @@ use std::path::PathBuf;
 
 use reqwest::StatusCode;
 
+use brane_shr::errors::ErrorTrace as _;
 use brane_shr::formatters::PrettyListFormatter;
 use specifications::package::{PackageInfoError, PackageKindError};
 use specifications::container::{ContainerInfoError, Image, LocalContainerInfoError};
@@ -1013,19 +1014,10 @@ impl From<std::io::Error> for RunError {
 /// Collects errors during the test subcommand.
 #[derive(Debug)]
 pub enum TestError {
-    /// A package defines the same function as a builtin
-    PackageDefinesBuiltin{ name: String, version: Version, duplicate: String },
-    /// Failed to query the function to run.
-    FunctionQueryError{ err: std::io::Error },
-
-    /// Failed to ask the user for confirmation
-    YesNoQueryError{ err: std::io::Error },
     /// Failed to get the local data index.
     DataIndexError{ err: brane_tsk::local::Error },
-    /// Failed to query the user.
-    ValueQueryError{ res_type: &'static str, err: std::io::Error },
-    /// Failed to resolve a given class' name.
-    UndefinedClass{ name: String },
+    /// Failed to prompt the user for the function/input selection.
+    InputError { err: brane_tsk::input::Error },
 
     /// Failed to create a temporary directory
     TempDirError{ err: std::io::Error },
@@ -1054,13 +1046,8 @@ impl Display for TestError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use TestError::*;
         match self {
-            PackageDefinesBuiltin{ name, version, duplicate } => write!(f, "Package '{name}' (version {version}) attempts to re-define builtin class '{duplicate}'"),
-            FunctionQueryError{ err }                         => write!(f, "Failed to query the user (you) for which function to run: {err}"),
-
-            YesNoQueryError{ err }           => write!(f, "Failed to query the user (you) for confirmation: {err}"),
-            DataIndexError{ err }            => write!(f, "Failed to load local data index: {err}"),
-            ValueQueryError{ res_type, err } => write!(f, "Failed to query the user (you) for a value of type {res_type}: {err}"),
-            UndefinedClass{ name }           => write!(f, "Encountered undefined class '{name}'"),
+            DataIndexError{ err } => write!(f, "Failed to load local data index: {err}"),
+            InputError { err }    => write!(f, "Failed to ask the user (you!) for input: {}", err.trace()),
 
             TempDirError{ err }                    => write!(f, "Failed to create temporary results directory: {err}"),
             DatasetUnavailable{ name, locs }       => write!(f, "Dataset '{}' is unavailable{}", name, if !locs.is_empty() { format!("; however, locations {} do (try to get download permission to those datasets)", locs.iter().map(|l| format!("'{l}'")).collect::<Vec<String>>().join(", ")) } else { String::new() }),

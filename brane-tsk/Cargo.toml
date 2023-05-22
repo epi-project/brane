@@ -16,6 +16,8 @@ base64 = "0.21"
 base64ct = { version = "1.5.3", features = ["alloc"] }
 bollard = "0.13"
 chrono = "0.4"
+console = "0.15"
+dialoguer = "0.10"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
 futures-util = "0.3"
 graphql_client = "0.10"
@@ -48,8 +50,9 @@ specifications = { path = "../specifications" }
 
 [dev-dependencies]
 clap = { version = "4.2", features = ["derive"] }
-console = "0.15"
+dirs-2 = "3.0"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
+lazy_static = "1.4"
 shellexpand = "3.1"
 
 

@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    22 May 2023, 11:54:28
+//    22 May 2023, 14:21:53
 //  Auto updated?
 //    Yes
 // 
@@ -471,6 +471,7 @@ fn create_k8s_pod(einfo: ExecuteInfo, secret: Option<String>) -> (String, Pod) {
                     },
                     "privileged": false,
                 },
+                "imagePullPolicy": "Always",
             }],
         },
     });
@@ -875,44 +876,6 @@ impl Scope<Pod> {
             return Err(ScopeError::CreateJob{ name: image.name, version: image.version.map(|v| Version::from_str(&v).ok()).flatten().unwrap_or(Version::latest()), id, err });
         }
 
-        // // Wait until the pod is created
-        // debug!("Waiting for pod '{id}' to be created...");
-        // let mut stream = match self.api.watch(&WatchParams::default().fields(&format!("metadata.name={id}")), "0").await {
-        //     Ok(stream) => stream.boxed(),
-        //     Err(err)   => { return Err(ScopeError::Wait { resource: type_name::<Pod>().into(), id, err }); },
-        // };
-        // while let Some(item) = stream.try_next().await.map_err(|err| ScopeError::Wait { resource: type_name::<Pod>().into(), id: id.clone(), err })? {
-        //     match item {
-        //         WatchEvent::Added(_)   => { break; },
-        //         WatchEvent::Error(err) => { return Err(ScopeError::CreateFailure { resource: type_name::<Pod>().into(), id, err }); },
-
-        //         // Ignore the rest
-        //         _ => {},
-        //     }
-        // }
-
-        // let status = match self.api.get_status(&id).await {
-        //     Ok(status) => status,
-        //     Err(err)   => { panic!("{err}"); },
-        // };
-        // println!("Status: {status:?}");
-        // std::process::exit(1);
-
-        // // Wait until the secret is created
-        // if let Err(err) = await_condition(self.api.clone(), &id, move |obj: Option<&Pod>| {
-        //     // See how far we get matching the pod with what we want
-        //     if let Some(pod) = obj {
-        //         if let Some(status) = &pod.status {
-        //             status.
-        //         }
-        //     }
-
-        //     // Otherwise, this party ain't workin'
-        //     false
-        // }).await {
-        //     return Err(ScopeError::Wait { resource: "Pod".into(), id, err });
-        // }
-
         // Done
         info!("Successfully spawned job '{id}'");
         Ok(Handle{ api: self.api.clone(), id })
@@ -1151,11 +1114,15 @@ impl Handle<Pod> {
             // Do we really not have any way to distinguish? That's actually a little unfortunate :/
 
             // OK, let's do it ourselves then - we adapt branelet to simply prefix its messages with what is necessary
-            let line: Cow<str> = String::from_utf8_lossy(&entry);
-            if &line.as_ref()[..OUTPUT_PREFIX.len()] == OUTPUT_PREFIX {
-                stdout.push_str(line.as_ref());
-            } else {
-                stderr.push_str(line.as_ref());
+            let entry: Cow<str> = String::from_utf8_lossy(&entry);
+            for line in entry.lines() {
+                if line.len() >= OUTPUT_PREFIX.len() && &line[..OUTPUT_PREFIX.len()] == OUTPUT_PREFIX {
+                    stdout.push_str(&line[OUTPUT_PREFIX.len()..]);
+                    stdout.push('\n');
+                } else {
+                    stderr.push_str(line);
+                    stderr.push('\n');
+                }
             }
         }
 

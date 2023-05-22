@@ -4,7 +4,7 @@
 //  Created:
 //    15 May 2023, 11:15:47
 //  Last edited:
-//    22 May 2023, 11:29:15
+//    22 May 2023, 14:15:57
 //  Auto updated?
 //    Yes
 // 
@@ -13,23 +13,38 @@
 //!   the worker without having to spin up a service and send it requests.
 // 
 
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::{Path, PathBuf};
 
+use base64::Engine as _;
 use clap::{Parser, Subcommand};
 use console::style;
 use humanlog::{DebugMode, HumanLogger};
 use log::{debug, error, info};
 
+use brane_exe::FullValue;
 use brane_shr::errors::ErrorTrace as _;
 use specifications::address::Address;
 use specifications::container::Image;
+use specifications::data::DataIndex;
 use specifications::package::PackageInfo;
 use specifications::version::Version;
 
+use brane_tsk::input::prompt_for_input;
 use brane_tsk::docker::ImageSource;
 use brane_tsk::k8s::{read_config_async, resolve_image_source, BasicAuth, Client, Config, ExecuteInfo, Handle, Pod, RegistryAuth, Scope, Secret};
+
+
+/***** CONSTANTS *****/
+lazy_static::lazy_static!{
+    /// The default directory with the local datasets.
+    static ref DEFAULT_DATASETS_PATH: String = dirs_2::data_local_dir().unwrap().join("brane").join("data").to_string_lossy().into_owned();
+}
+
+
+
 
 
 /***** ERRORS *****/
@@ -81,6 +96,19 @@ impl Error for K8sError {
 /// # Errors
 /// This function errors if we failed to spawn the task.
 async fn k8s_launch(package: &PackageInfo, launch: impl LaunchArgs) -> Result<(Handle<Pod>, Option<Handle<Secret>>), K8sError> {
+    // Collect a local data index
+    debug!("Fetching locally available data...");
+    let data_index: DataIndex = match brane_tsk::local::get_data_index(launch.datasets()) {
+        Ok(index) => index,
+        Err(err)  => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
+    };
+    // Query the user to find the function & input arguments
+    debug!("Prompting the user (you!) for input");
+    let (function, args): (String, HashMap<String, FullValue>) = match prompt_for_input(&data_index, package) {
+        Ok(res)  => res,
+        Err(err) => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
+    };
+
     // Deduce the auth method from the input
     let auth: Option<RegistryAuth> = match (launch.username(), launch.password()) {
         (Some(username), Some(password)) => Some(RegistryAuth::Basic(BasicAuth{ username: username.clone(), password: password.clone() })),
@@ -135,7 +163,18 @@ async fn k8s_launch(package: &PackageInfo, launch: impl LaunchArgs) -> Result<(H
         image,
         image_source : source,
 
-        command : vec![],
+        command : vec![
+            "-d".into(),
+            "--application-id".into(),
+            "unspecified".into(),
+            "--location-id".into(),
+            "test-location".into(),
+            "--job-id".into(),
+            "unspecified".into(),
+            package.kind.into(),
+            function,
+            base64::engine::general_purpose::STANDARD.encode(serde_json::to_string(&args).unwrap()),
+        ],
     }, secret.as_ref()).await {
         Ok(handle) => handle,
         Err(err)   => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
@@ -203,7 +242,7 @@ async fn k8s_join(package: &PackageInfo, job: Handle<Pod>, secret: Option<Handle
 
     // Read the PODs logs, done
     match job.join().await {
-        Ok(res)  => { error!("Done joining"); Ok(res) },
+        Ok(res)  => Ok(res),
         Err(err) => Err(K8sError::JoinPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }),
     }
 }
@@ -220,8 +259,11 @@ trait LaunchArgs {
     /// Returns the registry we are launching through.
     fn registry(&self) -> &Address;
 
+    /// Returns the path to the local data registry.
+    fn datasets(&self) -> &Path;
     /// Returns the path to the Kubernetes config.
     fn config(&self) -> &Path;
+
     /// Returns whether or not to enable insecure mode for the registry.
     fn insecure(&self) -> bool;
     /// Returns the username of the registry user, if any.
@@ -327,9 +369,13 @@ struct K8sLaunchArguments {
     #[clap(name="REGISTRY", help="The address of the registry to push to.")]
     registry : Address,
 
+    /// Defines the path to the local datasets folder.
+    #[clap(short, long, default_value=(*DEFAULT_DATASETS_PATH).as_str(), help="The path to the folder that contains the locally available datasets.")]
+    datasets : PathBuf,
     /// Defines the path to the Kubernetes config to use to connect.
     #[clap(short, long, default_value="~/.kube/config", help="The Kubernetes config YAML file that provides which cluster to connect to and how.")]
     config   : PathBuf,
+
     /// If given, ignores any certificates and junk when pushing containers.
     #[clap(short, long, help="If given, makes the backend image pusher ignore certificates.")]
     insecure : bool,
@@ -347,7 +393,10 @@ impl LaunchArgs for K8sLaunchArguments {
     fn registry(&self) -> &Address { &self.registry }
 
     #[inline]
+    fn datasets(&self) -> &Path { &self.datasets }
+    #[inline]
     fn config(&self) -> &Path { &self.config }
+
     #[inline]
     fn insecure(&self) -> bool { self.insecure }
     #[inline]
@@ -387,9 +436,13 @@ struct K8sRunArguments {
     #[clap(name="REGISTRY", help="The address of the registry to push to.")]
     registry : Address,
 
+    /// Defines the path to the local datasets folder.
+    #[clap(short, long, default_value=(*DEFAULT_DATASETS_PATH).as_str(), help="The path to the folder that contains the locally available datasets.")]
+    datasets : PathBuf,
     /// Defines the path to the Kubernetes config to use to connect.
     #[clap(short, long, default_value="~/.kube/config", help="The Kubernetes config YAML file that provides which cluster to connect to and how.")]
     config   : PathBuf,
+
     /// If given, ignores any certificates and junk when pushing containers.
     #[clap(short, long, help="If given, makes the backend image pusher ignore certificates.")]
     insecure : bool,
@@ -407,7 +460,10 @@ impl LaunchArgs for K8sRunArguments {
     fn registry(&self) -> &Address { &self.registry }
 
     #[inline]
+    fn datasets(&self) -> &Path { &self.datasets }
+    #[inline]
     fn config(&self) -> &Path { &self.config }
+
     #[inline]
     fn insecure(&self) -> bool { self.insecure }
     #[inline]

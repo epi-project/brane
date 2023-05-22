@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:53:43
 //  Last edited:
-//    22 May 2023, 10:30:10
+//    22 May 2023, 14:11:13
 //  Auto updated?
 //    Yes
 // 
@@ -213,7 +213,12 @@ async fn run(
             //     if let Err(err) = callback.finished(output).await { log::error!("Could not update driver on Finished: {}", err); }
             // } else {
                 // Print to stdout as (base64-encoded) JSON
-                println!("{}{}", if std::env::vars().find(|(name, value)| name == OUTPUT_PREFIX_NAME && value == "1").is_some() { OUTPUT_PREFIX } else { "" }, base64::encode(output));
+                if std::env::vars().find(|(name, value)| name == OUTPUT_PREFIX_NAME && value == "1").is_some() {
+                    debug!("Writing output prefix enabled");
+                    println!("{}{}", OUTPUT_PREFIX, base64::encode(output));
+                } else {
+                    println!("{}", base64::encode(output));
+                }
             // }
 
             Ok(0)

@@ -4,7 +4,7 @@
 //  Created:
 //    18 Nov 2022, 14:46:51
 //  Last edited:
-//    18 Nov 2022, 15:39:38
+//    22 May 2023, 13:39:32
 //  Auto updated?
 //    Yes
 // 
@@ -134,15 +134,15 @@ pub fn get_package_index(packages: impl AsRef<Path>) -> Result<PackageIndex, Err
 /// Returns the an index of locally available datasets.
 /// 
 /// # Arguments
-/// - `packages_path`: The path to the directory that we read the packages from.
+/// - `datasets_path`: The path to the directory that we read the packages from.
 /// 
 /// # Returns
-/// A PackageIndex if we could retrieve it, or a PackageError if we failed.
+/// A [`DataIndex`] if we could retrieve it, or an [`Error`] if we failed.
 /// 
 /// # Errors
 /// This function may error if we failed to read the local data folder or if the data folder was incorrectly laid out.
-pub fn get_data_index(datasets: impl AsRef<Path>) -> Result<DataIndex, Error> {
-    let datasets_path: &Path = datasets.as_ref();
+pub fn get_data_index(datasets_path: impl AsRef<Path>) -> Result<DataIndex, Error> {
+    let datasets_path: &Path = datasets_path.as_ref();
 
     // Start reading the directory
     let dirs: ReadDir = match fs::read_dir(datasets_path) {
