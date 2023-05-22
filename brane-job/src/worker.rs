@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    10 May 2023, 16:34:52
+//    22 May 2023, 16:05:27
 //  Auto updated?
 //    Yes
 // 
@@ -392,9 +392,9 @@ async fn preprocess_transfer_tar_local(worker_cfg: &WorkerConfig, proxy: Arc<Pro
 async fn preprocess_transfer_tar_k8s(kinfo: K8sOptions, location: Location, address: impl AsRef<str>, prof: ProfileScopeHandle<'_>) -> Result<AccessKind, PreprocessError> {
     debug!("Preprocessing by executing a data transfer");
     let address: &str  = address.as_ref();
-    debug!("Downloading from {} ({}) to Kubernetes cluster @ '{}'", location, address, kinfo.cluster_address);
+    debug!("Downloading from {} ({}) to Kubernetes cluster", location, address);
 
-
+    
 
     // Done
     Ok(())
@@ -435,9 +435,9 @@ pub async fn preprocess_transfer_tar(worker_cfg: &WorkerConfig, proxy: Arc<Proxy
             Err(PreprocessError::UnsupportedBackend{ what: "SSH" })
         },
 
-        Credentials::Kubernetes { cluster_address, registry_address, config } => {
+        Credentials::Kubernetes { registry_address, config } => {
             // Prepare the Kubernetes options
-            let kinfo: K8sOptions = K8sOptions { cluster_address, registry_address, config };
+            let kinfo: K8sOptions = K8sOptions { registry_address, config };
 
             // Call the function
             preprocess_transfer_tar_k8s(kinfo, location, address, prof).await
@@ -1088,10 +1088,9 @@ async fn execute_task(worker_cfg: &WorkerConfig, proxy: Arc<ProxyClient>, tx: Se
             return Ok(())
         },
 
-        Credentials::Kubernetes { cluster_address, registry_address, config } => {
+        Credentials::Kubernetes { registry_address, config } => {
             // Prepare the options for the Kubernetes client
             let kinfo: K8sOptions = K8sOptions {
-                cluster_address,
                 registry_address,
                 config,
             };

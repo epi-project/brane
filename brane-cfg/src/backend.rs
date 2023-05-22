@@ -4,7 +4,7 @@
 //  Created:
 //    18 Oct 2022, 13:50:11
 //  Last edited:
-//    08 May 2023, 12:58:21
+//    22 May 2023, 14:24:23
 //  Auto updated?
 //    Yes
 // 
@@ -55,8 +55,6 @@ pub enum Credentials {
     },
     /// Defines that this job node connects to a backend Kubernetes cluster.
     Kubernetes {
-        /// The address or URL of the machine to connect to. Should include the port if so.
-        cluster_address  : Address,
         /// The address of the Docker registry that we push container images to.
         registry_address : Address,
         /// The path to the Kubernetes config file to connect with.
