@@ -2,12 +2,13 @@
 
 All notable changes to the Brane framework will be documented in this file.
 
-## [2.1.0] - 2023-05-16
+## [3.0.0] - 2023-05-22
 ### Changed
 - Bumped `brane-tsk` packages to newest version (base64).
 
 ### Fixed
 - Kubernetes backend support (it used to work, got broken in 1.0.0+)
+  - To do so, `branelet` has added the `ENABLE_STDOUT_PREFIX` environment variable to allow the Kubernetes engine to distinguish between actual output and logging. As a consequence, all packages have to be rebuilt, which is a [**breaking change**].
 
 ## [2.0.0] - 2023-02-27
 ### Added

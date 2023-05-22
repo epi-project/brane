@@ -4,7 +4,7 @@
 //  Created:
 //    15 May 2023, 11:15:47
 //  Last edited:
-//    17 May 2023, 12:03:39
+//    22 May 2023, 11:29:15
 //  Auto updated?
 //    Yes
 // 
@@ -15,7 +15,7 @@
 
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FResult};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 use console::style;
@@ -80,10 +80,10 @@ impl Error for K8sError {
 /// 
 /// # Errors
 /// This function errors if we failed to spawn the task.
-async fn k8s_launch(package: &PackageInfo, launch: K8sLaunchArguments) -> Result<(Handle<Pod>, Option<Handle<Secret>>), K8sError> {
+async fn k8s_launch(package: &PackageInfo, launch: impl LaunchArgs) -> Result<(Handle<Pod>, Option<Handle<Secret>>), K8sError> {
     // Deduce the auth method from the input
-    let auth: Option<RegistryAuth> = match (launch.username, launch.password) {
-        (Some(username), Some(password)) => Some(RegistryAuth::Basic(BasicAuth{ username, password })),
+    let auth: Option<RegistryAuth> = match (launch.username(), launch.password()) {
+        (Some(username), Some(password)) => Some(RegistryAuth::Basic(BasicAuth{ username: username.clone(), password: password.clone() })),
         (None, None)                     => None,
 
         // Anything else should never occur
@@ -91,7 +91,7 @@ async fn k8s_launch(package: &PackageInfo, launch: K8sLaunchArguments) -> Result
     };
 
     // Load the Kubernetes config file
-    let config_path: PathBuf = shellexpand::tilde(&launch.config.to_string_lossy()).as_ref().into();
+    let config_path: PathBuf = shellexpand::tilde(&launch.config().to_string_lossy()).as_ref().into();
     debug!("Loading Kubernetes config file '{}'...", config_path.display());
     let config: Config = match read_config_async(&config_path).await {
         Ok(config) => config,
@@ -99,9 +99,9 @@ async fn k8s_launch(package: &PackageInfo, launch: K8sLaunchArguments) -> Result
     };
 
     // Attempt to resolve the image file
-    debug!("Resolving image source '{}'...", launch.image.display());
+    debug!("Resolving image source '{}'...", launch.image().display());
     let image: Image = Image::new(&package.name, Some(&package.version), None::<String>);
-    let source: ImageSource = match resolve_image_source(&image, ImageSource::Path(launch.image.clone()), launch.registry.clone(), auth.clone(), launch.insecure).await {
+    let source: ImageSource = match resolve_image_source(&image, ImageSource::Path(launch.image().into()), launch.registry().clone(), auth.clone(), launch.insecure()).await {
         Ok(source) => source,
         Err(err)   => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
     };
@@ -119,7 +119,7 @@ async fn k8s_launch(package: &PackageInfo, launch: K8sLaunchArguments) -> Result
             // Attempt to create the secret
             debug!("Creating Docker registry credential secret...");
             let scope: Scope<Secret> = client.scope("default");
-            match scope.create_registry_secret(launch.registry, auth).await {
+            match scope.create_registry_secret(launch.registry(), auth).await {
                 Ok(handle) => Some(handle),
                 Err(err)   => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
             }
@@ -203,9 +203,31 @@ async fn k8s_join(package: &PackageInfo, job: Handle<Pod>, secret: Option<Handle
 
     // Read the PODs logs, done
     match job.join().await {
-        Ok(res)  => Ok(res),
+        Ok(res)  => { error!("Done joining"); Ok(res) },
         Err(err) => Err(K8sError::JoinPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }),
     }
+}
+
+
+
+
+
+/***** HELPER TRAITS *****/
+/// Abstracts over the kind of join or run arguments.
+trait LaunchArgs {
+    /// Returns the image we are launching.
+    fn image(&self) -> &Path;
+    /// Returns the registry we are launching through.
+    fn registry(&self) -> &Address;
+
+    /// Returns the path to the Kubernetes config.
+    fn config(&self) -> &Path;
+    /// Returns whether or not to enable insecure mode for the registry.
+    fn insecure(&self) -> bool;
+    /// Returns the username of the registry user, if any.
+    fn username(&self) -> &Option<String>;
+    /// Returns the password of the registry user, if any.
+    fn password(&self) -> &Option<String>;
 }
 
 
@@ -236,6 +258,8 @@ enum CliSubcommand {
     K8s(K8sArguments),
 }
 
+
+
 /// Defines the arguments relating to the K8s-subcommand.
 #[derive(Debug, Parser)]
 struct K8sArguments {
@@ -243,6 +267,7 @@ struct K8sArguments {
     #[clap(subcommand)]
     subcommand : K8sSubcommand,
 }
+
 /// Defines the subcommands relating to Kubernetes.
 #[derive(Debug, Subcommand)]
 enum K8sSubcommand {
@@ -256,7 +281,12 @@ enum K8sSubcommand {
     /// Attaches to a launched job with the given parameters.
     #[clap(name = "join", about = "Joins a launched POD and reaps its results.")]
     Join(K8sJoinArguments),
+    /// Launches, then joins a job with the given parameters.
+    #[clap(name = "run", about = "Launches, then joins a giben job on the Kubernetes backend.")]
+    Run(K8sRunArguments),
 }
+
+
 
 /// Defines the arguments to push a package to a local registry.
 #[derive(Debug, Parser)]
@@ -282,7 +312,9 @@ struct K8sPushArguments {
     password : Option<String>,
 }
 
-/// Defines the arguments to push a package to a local registry.
+
+
+/// Defines the arguments to launch a job.
 #[derive(Debug, Parser)]
 struct K8sLaunchArguments {
     /// Defines the path to the image to launch.
@@ -308,7 +340,23 @@ struct K8sLaunchArguments {
     #[clap(short, long, requires="username", help="If given, use a username/password pair to login to the registry. Note that this one must always appear with '--username'")]
     password : Option<String>,
 }
-/// Defines the arguments to push a package to a local registry.
+impl LaunchArgs for K8sLaunchArguments {
+    #[inline]
+    fn image(&self) -> &Path { &self.image }
+    #[inline]
+    fn registry(&self) -> &Address { &self.registry }
+
+    #[inline]
+    fn config(&self) -> &Path { &self.config }
+    #[inline]
+    fn insecure(&self) -> bool { self.insecure }
+    #[inline]
+    fn username(&self) -> &Option<String> { &self.username }
+    #[inline]
+    fn password(&self) -> &Option<String> { &self.password }
+}
+
+/// Defines the arguments to join a job.
 #[derive(Debug, Parser)]
 struct K8sJoinArguments {
     /// Defines the path to the package.yml to attach to.
@@ -324,6 +372,48 @@ struct K8sJoinArguments {
     /// Defines a secret to join as well.
     #[clap(short, long, help="If given, will join a secret with this name, too.")]
     secret : Option<String>,
+}
+
+/// Defines the arguments to run (launch & join) a job.
+#[derive(Debug, Parser)]
+struct K8sRunArguments {
+    /// Defines the path to the image to launch.
+    #[clap(name="IMAGE_PATH", help="The image .tar file to push to the registry.")]
+    image    : PathBuf,
+    /// Defines the path to the package.yml to launch.
+    #[clap(name="PACKAGE_YML_PATH", help="The package.yml file that describes the container.")]
+    package  : PathBuf,
+    /// Defines the registry address to push to.
+    #[clap(name="REGISTRY", help="The address of the registry to push to.")]
+    registry : Address,
+
+    /// Defines the path to the Kubernetes config to use to connect.
+    #[clap(short, long, default_value="~/.kube/config", help="The Kubernetes config YAML file that provides which cluster to connect to and how.")]
+    config   : PathBuf,
+    /// If given, ignores any certificates and junk when pushing containers.
+    #[clap(short, long, help="If given, makes the backend image pusher ignore certificates.")]
+    insecure : bool,
+    /// The user's username, if using basic auth.
+    #[clap(short, long, requires="password", help="If given, use a username/password pair to login to the registry. Note that this one must always appear with '--password'")]
+    username : Option<String>,
+    /// The user's password, if using basic auth.
+    #[clap(short, long, requires="username", help="If given, use a username/password pair to login to the registry. Note that this one must always appear with '--username'")]
+    password : Option<String>,
+}
+impl LaunchArgs for K8sRunArguments {
+    #[inline]
+    fn image(&self) -> &Path { &self.image }
+    #[inline]
+    fn registry(&self) -> &Address { &self.registry }
+
+    #[inline]
+    fn config(&self) -> &Path { &self.config }
+    #[inline]
+    fn insecure(&self) -> bool { self.insecure }
+    #[inline]
+    fn username(&self) -> &Option<String> { &self.username }
+    #[inline]
+    fn password(&self) -> &Option<String> { &self.password }
 }
 
 
@@ -409,6 +499,47 @@ async fn main() {
 
                 // Now join those
                 println!("Joining package {}{}...", style(&package.name).bold().blue(), if !package.version.is_latest() { format!(":{}", style(package.version).bold().blue()) } else { String::new() });
+                let (code, stdout, stderr): (i32, String, String) = match k8s_join(&package, handle, secret).await {
+                    Ok(res)  => res,
+                    Err(err) => { error!("{}", err.trace()); std::process::exit(1); },
+                };
+
+                // Done!
+                println!("Package {}{} returned exit code {}", style(&package.name).bold().blue(), if !package.version.is_latest() { format!(":{}", style(package.version).bold().blue()) } else { String::new() }, style(code).bold().blue());
+                println!();
+                println!("{}", style("stdout").dim());
+                println!("{}", style((0..80).map(|_| '-').collect::<String>()).dim());
+                println!("{stdout}");
+                println!("{}", style((0..80).map(|_| '-').collect::<String>()).dim());
+                println!();
+                println!("{}", style("stderr").dim());
+                println!("{}", style((0..80).map(|_| '-').collect::<String>()).dim());
+                println!("{stderr}");
+                println!("{}", style((0..80).map(|_| '-').collect::<String>()).dim());
+                println!();
+            },
+            K8sSubcommand::Run(run) => {
+                info!("Running image {} (package {}) to cluster through registry {}", run.image.display(), run.package.display(), run.registry);
+
+                // Load the package YAML
+                debug!("Loading package.yml '{}'...", run.package.display());
+                let package: PackageInfo = match PackageInfo::from_path(run.package.clone()) {
+                    Ok(package) => package,
+                    Err(err)    => { error!("{}", err.trace()); std::process::exit(1); },
+                };
+
+                // Launch the pod
+                let (handle, secret): (Handle<Pod>, Option<Handle<Secret>>) = match k8s_launch(&package, run).await {
+                    Ok(res)  => res,
+                    Err(err) => { error!("{}", err.trace()); std::process::exit(1); },
+                };
+                println!("Launched package {}{} (as pod '{}')", style(&package.name).bold().blue(), if !package.version.is_latest() { format!(":{}", style(package.version).bold().blue()) } else { String::new() }, handle.id());
+                // If there is a secret, also mention that
+                if let Some(secret) = &secret {
+                    println!("{}", style(format!("(Created registry secret '{}' to launch it as well)", secret.id())).dim());
+                }
+
+                // Now use the handles to join
                 let (code, stdout, stderr): (i32, String, String) = match k8s_join(&package, handle, secret).await {
                     Ok(res)  => res,
                     Err(err) => { error!("{}", err.trace()); std::process::exit(1); },

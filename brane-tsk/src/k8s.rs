@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    17 May 2023, 19:20:43
+//    22 May 2023, 11:54:28
 //  Auto updated?
 //    Yes
 // 
@@ -13,6 +13,7 @@
 // 
 
 use std::any::type_name;
+use std::borrow::Cow;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::mem;
@@ -101,6 +102,11 @@ pub const CRANE_TAR_URL_ARM64: &'static str = "https://github.com/google/go-cont
 pub const CRANE_PATH: &'static str = "/tmp/crane";
 /// The checksum of the executable.
 pub const CRANE_TAR_CHECKSUM: [u8; 32] = hex!("d4710014a3bd135eb1d4a9142f509cfd61d2be242e5f5785788e404448a4f3f2");
+
+/// Defines the name of the output prefix environment variable.
+const OUTPUT_PREFIX_NAME: &str = "ENABLE_STDOUT_PREFIX";
+/// The thing we prefix to the output stdout so the Kubernetes engine can recognize valid output when it sees it.
+const OUTPUT_PREFIX: &str = "[OUTPUT] ";
 
 
 
@@ -454,7 +460,10 @@ fn create_k8s_pod(einfo: ExecuteInfo, secret: Option<String>) -> (String, Pod) {
                 "name": id,
                 "image": einfo.image_source.into_registry(),
                 "args": einfo.command,
-                // "env": <>,
+                "env": [{
+                    "name": OUTPUT_PREFIX_NAME,
+                    "value": "1",
+                }],
                 "securityContext": {
                     "capabilities": {
                         "drop": ["all"],
@@ -804,8 +813,9 @@ impl Scope<Secret> {
     /// 
     /// # Errors
     /// This function errors if we failed to connect to the cluster or the cluster failed to create it somehow.
-    pub async fn create_registry_secret(&self, registry: Address, auth: RegistryAuth) -> Result<Handle<Secret>, ScopeError> {
-        info!("Creating Docker registry secret on Kubernetes backend");
+    pub async fn create_registry_secret(&self, registry: impl AsRef<Address>, auth: RegistryAuth) -> Result<Handle<Secret>, ScopeError> {
+        let registry: &Address = registry.as_ref();
+        info!("Creating Docker registry secret for registry '{registry}' on Kubernetes backend");
 
         // Prepare the Kubernetes secrets file
         let (id, secret): (String, Secret) = create_k8s_registry_secret(&registry, auth);
@@ -813,7 +823,7 @@ impl Scope<Secret> {
         // Submit the secret
         debug!("Creating secret '{id}'...");
         if let Err(err) = self.api.create(&PostParams::default(), &secret).await {
-            return Err(ScopeError::CreateSecret{ registry, id, err });
+            return Err(ScopeError::CreateSecret{ registry: registry.clone(), id, err });
         }
 
         // // Wait until the pod is created
@@ -938,11 +948,17 @@ impl<R: 'static + Clone + Debug + DeserializeOwned> Handle<R> {
 
     /// Cancels the job by terminating it (and thus consuming the handle).
     /// 
+    /// Note that this function is strongly preferred over simply [`Drop`]ing this handle, for two reasons:
+    /// - You can gracefully handle errors occurring when terminating the handle
+    /// - We can await the termination happening.
+    /// 
+    /// In the case of [`Drop`], we have to call [`tokio:spawn()`] since it's not an async function - and this means that, if the main terminates before the task does, we cannot guarantee it completes.
+    /// 
     /// # Errors
     /// This function may error if we failed to terminate the job.
     pub async fn terminate(mut self) -> Result<(), HandleError> {
         // Attempt to delete the pod
-        debug!("Deleting resource '{}'...", self.id);
+        debug!("Deleting {} resource '{}'...", type_name::<R>(), self.id);
         if let Err(err) = self.api.delete(&self.id, &DeleteParams::default()).await {
             return Err(HandleError::TerminatePod{ id: mem::take(&mut self.id), err });
         }
@@ -951,16 +967,25 @@ impl<R: 'static + Clone + Debug + DeserializeOwned> Handle<R> {
         mem::forget(self);
         Ok(())
     }
+
+
+
+    /// Returns the ID in this handle.
+    /// 
+    /// Note that you should use this for debugging purposes only. All management should go through the `Handle`.
+    #[inline]
+    pub fn id(&self) -> &str { &self.id }
 }
 impl<R: 'static + Clone + Debug + DeserializeOwned> Drop for Handle<R> {
     fn drop(&mut self) {
-        // Take what we need
+        // Take what we need from self
         let api: Api<R> = self.api.clone();
         let id: String = mem::take(&mut self.id);
 
-        // Spawn a task that does this for us
-        futures::executor::block_on(async move {
-            debug!("Deleting resource '{id}'...");
+        // Spawn a task that does this for us in the background
+        // However, there is no guarantee that any tasks running here will actually complete before `main()` does. This is probably fine within the context of `brane-job`, but annoying in CLI situations. Thus, [`Handle::terminate()`] should be preferred wherever possible.
+        tokio::spawn(async move {
+            debug!("Deleting {} resource '{}'...", type_name::<R>(), id);
             if let Err(err) = api.delete(&id, &DeleteParams::default()).await {
                 warn!("{}", HandleError::TerminatePod{ id, err }.trace());
             }
@@ -1089,6 +1114,7 @@ impl Handle<Pod> {
     /// This function may error if we failed to connect to the cluster or if we failed to follow the given pod (because it does not exist, for example).
     pub async fn join(self) -> Result<(i32, String, String), HandleError> {
         // Wait until the POD completes running
+        debug!("Waiting until pod '{}' terminates...", self.id);
         let pod: Pod = loop {
             // Wait until the pod reports terminated, for whatever reason
             match await_condition(self.api.clone(), &self.id, |obj: Option<&Pod>| {
@@ -1110,21 +1136,35 @@ impl Handle<Pod> {
             }
         };
 
-        // Get the termination code
+        // Get the termination code (the unwraps are safe because we include them in the conditions above)
         let terminate: ContainerStateTerminated = pod.status.unwrap().container_statuses.unwrap().swap_remove(0).state.unwrap().terminated.unwrap();
 
         // Attach to the POD and collect the logs for the duration of its runtime
+        debug!("Reading pod '{}' logs", self.id);
         let mut stdout: String = String::new();
         let mut stderr: String = String::new();
-        let mut stream = match self.api.log_stream(&self.id, &LogParams::default().).await {
+        let mut stream = match self.api.log_stream(&self.id, &LogParams::default()).await {
             Ok(stream) => stream,
             Err(err)   => { return Err(HandleError::ReadLogs{ id: self.id.clone(), err }); },
         };
         while let Some(entry) = stream.try_next().await.map_err(|err| HandleError::ReadLogs { id: self.id.clone(), err })? {
-            
+            // Do we really not have any way to distinguish? That's actually a little unfortunate :/
+
+            // OK, let's do it ourselves then - we adapt branelet to simply prefix its messages with what is necessary
+            let line: Cow<str> = String::from_utf8_lossy(&entry);
+            if &line.as_ref()[..OUTPUT_PREFIX.len()] == OUTPUT_PREFIX {
+                stdout.push_str(line.as_ref());
+            } else {
+                stderr.push_str(line.as_ref());
+            }
         }
 
+        // Now we can delete ourselves
+        let id: String = self.id.clone();
+        if let Err(err) = self.terminate().await { warn!("{}", err.trace()); };
+
         // Done!
-        Ok((42, "Hello there!".into(), "General Kenobi!".into()))
+        debug!("Joined pod '{}' (which returned status {})", id, terminate.exit_code);
+        Ok((terminate.exit_code, stdout, stderr))
     }
 }

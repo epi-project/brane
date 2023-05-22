@@ -944,7 +944,6 @@ dependencies = [
  "clap 4.2.1",
  "console",
  "enum-debug",
- "futures",
  "futures-util",
  "graphql_client",
  "hex-literal",
