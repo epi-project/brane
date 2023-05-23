@@ -4,7 +4,7 @@
 //  Created:
 //    18 Oct 2022, 13:50:11
 //  Last edited:
-//    22 May 2023, 14:24:23
+//    23 May 2023, 15:22:15
 //  Auto updated?
 //    Yes
 // 
@@ -28,7 +28,7 @@ use crate::spec::YamlConfig;
 /***** AUXILLARY *****/
 /// Defines the possible credentials we may encounter.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", tag = "kind")]
+#[serde(rename_all = "snake_case")]
 pub enum Credentials {
     // Job node acting as a node
     /// Defines that this job node connects to the "backend" by simply spinning up the local Docker daemon.

@@ -3,8 +3,12 @@
 All notable changes to the Brane framework will be documented in this file.
 
 ## [3.0.0] - 2023-05-22
+### Added
+- An extensive description of the `brane-prx` service in the generated docs.
+
 ### Changed
 - Bumped `brane-tsk` packages to newest version (base64).
+- The `backend.yml` file to use the default tagging option in serde (i.e., use `!<variant>` instead of the `kind`-field) [**breaking change**].
 
 ### Fixed
 - Kubernetes backend support (it used to work, got broken in 1.0.0+)
