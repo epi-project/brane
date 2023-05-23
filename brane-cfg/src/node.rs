@@ -4,7 +4,7 @@
 //  Created:
 //    28 Feb 2023, 10:01:27
 //  Last edited:
-//    16 Mar 2023, 16:18:10
+//    23 May 2023, 17:14:24
 //  Auto updated?
 //    Yes
 // 
@@ -367,7 +367,7 @@ pub struct WorkerServices {
     #[serde(alias = "registry")]
     pub reg : PublicService,
     /// Defines the job (local driver) service.
-    #[serde(alias = "driver")]
+    #[serde(alias = "delegate")]
     pub job : PublicService,
     /// Defines the checker service.
     #[serde(alias = "checker")]
