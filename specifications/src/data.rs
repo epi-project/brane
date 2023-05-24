@@ -4,7 +4,7 @@
 //  Created:
 //    26 Aug 2022, 15:53:28
 //  Last edited:
-//    01 Mar 2023, 09:43:43
+//    24 May 2023, 12:07:16
 //  Auto updated?
 //    Yes
 // 
@@ -245,7 +245,7 @@ impl AvailabilityKind {
 
 /// Defines possible ways of accessing datasets.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum AccessKind {
     /// Simply by file and thus path (namely, the given).
     File {
