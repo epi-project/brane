@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:55:30
 //  Last edited:
-//    22 May 2023, 10:28:14
+//    25 May 2023, 20:43:21
 //  Auto updated?
 //    Yes
 // 
@@ -453,6 +453,10 @@ async fn complete(
     // Convert the bytes to text
     let stdout = String::from_utf8_lossy(&stdout_text).to_string();
     let stderr = String::from_utf8_lossy(&stderr_text).to_string();
+
+    // Always print stdout/stderr
+    debug!("Job stdout (unprocessed):\n{}\n{}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), stdout, (0..80).map(|_| '-').collect::<String>());
+    debug!("Job stderr (unprocessed):\n{}\n{}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), stdout, (0..80).map(|_| '-').collect::<String>());
 
     // If the process failed, return it does
     if !status.success() {
