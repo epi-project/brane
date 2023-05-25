@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:34:05
 //  Last edited:
-//    10 May 2023, 16:34:44
+//    25 May 2023, 20:11:00
 //  Auto updated?
 //    Yes
 // 
@@ -83,9 +83,9 @@ impl VmPlugin for OfflinePlugin {
 
         // First, we query the global state to find the result directory and required indices
         let get = prof.time("Information retrieval");
-        let (docker_opts, package_dir, results_dir, pindex): (DockerOptions, PathBuf, PathBuf, Arc<PackageIndex>) = {
+        let (docker_opts, package_dir, results_dir, pindex, keep_container): (DockerOptions, PathBuf, PathBuf, Arc<PackageIndex>, bool) = {
             let state: RwLockReadGuard<GlobalState> = global.read().unwrap();
-            (state.docker_opts.clone(), state.package_dir.clone(), state.results_dir.clone(), state.pindex.clone())
+            (state.docker_opts.clone(), state.package_dir.clone(), state.results_dir.clone(), state.pindex.clone(), state.keep_containers)
         };
 
         // Next, we resolve the package
@@ -128,7 +128,7 @@ impl VmPlugin for OfflinePlugin {
 
         // We can now execute the task on the local Docker daemon
         debug!("Executing task '{}'...", info.name);
-        let (code, stdout, stderr) = match prof.time_fut("execution", docker::run_and_wait(docker_opts, einfo, false)).await {
+        let (code, stdout, stderr) = match prof.time_fut("execution", docker::run_and_wait(docker_opts, einfo, keep_container)).await {
             Ok(res)  => res,
             Err(err) => { return Err(ExecuteError::DockerError{ name: info.name.into(), image: Box::new(image), err }); }
         };
@@ -282,6 +282,7 @@ impl OfflineVm {
     /// 
     /// # Arguments
     /// - `docker_opts`: The information we need to connect to the local Docker daemon.
+    /// - `keep_containers`: Whether to keep containers after execution completes or not.
     /// - `package_dir`: The directory where packages (and thus images) are stored.
     /// - `dataset_dir`: The directory where datasets (and thus committed results) are stored.
     /// - `results_dir`: The directory where temporary results are stored.
@@ -291,10 +292,11 @@ impl OfflineVm {
     /// # Returns
     /// A new OfflineVm instance with one coherent state.
     #[inline]
-    pub fn new(docker_opts: DockerOptions, package_dir: impl Into<PathBuf>, dataset_dir: impl Into<PathBuf>, results_dir: impl Into<PathBuf>, package_index: Arc<PackageIndex>, data_index: Arc<DataIndex>) -> Self {
+    pub fn new(docker_opts: DockerOptions, keep_containers: bool, package_dir: impl Into<PathBuf>, dataset_dir: impl Into<PathBuf>, results_dir: impl Into<PathBuf>, package_index: Arc<PackageIndex>, data_index: Arc<DataIndex>) -> Self {
         Self {
             state : Self::new_state(GlobalState {
                 docker_opts,
+                keep_containers,
 
                 package_dir : package_dir.into(),
                 dataset_dir : dataset_dir.into(),

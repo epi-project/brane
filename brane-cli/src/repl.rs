@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:47
 //  Last edited:
-//    13 Apr 2023, 10:29:53
+//    25 May 2023, 20:13:43
 //  Auto updated?
 //    Yes
 // 
@@ -181,10 +181,11 @@ impl Validator for ReplHelper {
 /// - `clear`: Whether or not to clear the history of the REPL before beginning.
 /// - `profile`: If given, prints the profile timings to stdout if available.
 /// - `docker_opts`: The DockerOpts that determines how we connect to the local Docker dameon.
+/// - `keep_containers`: Whether to keep containers after execution or not.
 /// 
 /// # Errors
 /// This function errors if we could not properly read from/write to the terminal. Additionally, it may error if any of the given statements fails for whatever reason.
-pub async fn start(proxy_addr: Option<String>, remote: bool, attach: Option<AppId>, language: Language, clear: bool, profile: bool, docker_opts: DockerOptions) -> Result<(), Error> {
+pub async fn start(proxy_addr: Option<String>, remote: bool, attach: Option<AppId>, language: Language, clear: bool, profile: bool, docker_opts: DockerOptions, keep_containers: bool) -> Result<(), Error> {
     // Build the config for the rustyline REPL.
     let config = Config::builder()
         .history_ignore_space(true)
@@ -236,7 +237,7 @@ pub async fn start(proxy_addr: Option<String>, remote: bool, attach: Option<AppI
         // Run the thing
         remote_repl(&mut rl, info.api.to_string(), info.drv.to_string(), proxy_addr, attach, options, profile).await?;
     } else {
-        local_repl(&mut rl, options, docker_opts).await?;
+        local_repl(&mut rl, options, docker_opts, keep_containers).await?;
     }
 
     // Try to save the history if we exited cleanly
@@ -333,12 +334,13 @@ async fn remote_repl(rl: &mut Editor<ReplHelper>, api_endpoint: impl AsRef<str>,
 /// - `rl`: The REPL interface we use to do the R-part of a REPL.
 /// - `parse_opts`: The ParseOptions that specify how to parse the incoming source.
 /// - `docker_opts`: The DockerOpts that determines how we connect to the local Docker dameon.
+/// - `keep_containers`: Whether to keep containers after execution or not.
 /// 
 /// # Returns
 /// Nothing, but does print results and such to stdout. Might also produce new datasets.
-async fn local_repl(rl: &mut Editor<ReplHelper>, parse_opts: ParserOptions, docker_opts: DockerOptions) -> Result<(), Error> {
+async fn local_repl(rl: &mut Editor<ReplHelper>, parse_opts: ParserOptions, docker_opts: DockerOptions, keep_containers: bool) -> Result<(), Error> {
     // First we initialize the remote thing
-    let mut state: OfflineVmState = match initialize_offline_vm(parse_opts, docker_opts) {
+    let mut state: OfflineVmState = match initialize_offline_vm(parse_opts, docker_opts, keep_containers) {
         Ok(state) => state,
         Err(err)  => { return Err(Error::InitializeError{ what: "offline VM", err }); },
     };

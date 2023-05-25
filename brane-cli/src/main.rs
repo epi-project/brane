@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    19 Apr 2023, 12:16:51
+//    25 May 2023, 20:15:57
 //  Auto updated?
 //    Yes
 // 
@@ -216,18 +216,21 @@ enum SubCommand {
         /// The Docker socket location.
         #[cfg(unix)]
         #[clap(short='s', long, default_value = "/var/run/docker.sock", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(windows)]
         #[clap(short='s', long, default_value = "//./pipe/docker_engine", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(not(any(unix, windows)))]
         #[clap(short='s', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker client version.
         #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
-        client_version : ClientVersion,
+        client_version  : ClientVersion,
+        /// Whether to keep container after running or not.
+        #[clap(short='k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
+        keep_containers : bool,
     },
 
     #[clap(name = "run", about = "Run a DSL script locally")]
@@ -251,18 +254,21 @@ enum SubCommand {
         /// The Docker socket location.
         #[cfg(unix)]
         #[clap(short='s', long, default_value = "/var/run/docker.sock", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(windows)]
         #[clap(short='s', long, default_value = "//./pipe/docker_engine", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(not(any(unix, windows)))]
         #[clap(short='s', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker client version.
         #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
-        client_version : ClientVersion,
+        client_version  : ClientVersion,
+        /// Whether to keep container after running or not.
+        #[clap(short='k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
+        keep_containers : bool,
     },
 
     #[clap(name = "test", about = "Test a package locally")]
@@ -277,18 +283,21 @@ enum SubCommand {
         /// The Docker socket location.
         #[cfg(unix)]
         #[clap(short='s', long, default_value = "/var/run/docker.sock", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(windows)]
         #[clap(short='s', long, default_value = "//./pipe/docker_engine", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(not(any(unix, windows)))]
         #[clap(short='s', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker client version.
         #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
-        client_version : ClientVersion,
+        client_version  : ClientVersion,
+        /// Whether to keep container after running or not.
+        #[clap(short='k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
+        keep_containers : bool,
     },
 
     #[clap(name = "search", about = "Search a registry for packages")]
@@ -772,14 +781,14 @@ async fn run(options: Cli) -> Result<(), CliError> {
             // Now delegate the parsed pairs to the actual remove() function
             if let Err(err) = packages::remove(force, parsed, DockerOptions{ socket: docker_socket, version: client_version }).await { return Err(CliError::PackageError{ err }); };
         }
-        Repl { proxy_addr, bakery, clear, remote, attach, profile, docker_socket, client_version } => {
-            if let Err(err) = repl::start(proxy_addr, remote, attach, if bakery { Language::Bakery } else { Language::BraneScript }, clear, profile, DockerOptions{ socket: docker_socket, version: client_version }).await { return Err(CliError::ReplError{ err }); };
+        Repl { proxy_addr, bakery, clear, remote, attach, profile, docker_socket, client_version, keep_containers } => {
+            if let Err(err) = repl::start(proxy_addr, remote, attach, if bakery { Language::Bakery } else { Language::BraneScript }, clear, profile, DockerOptions{ socket: docker_socket, version: client_version }, keep_containers).await { return Err(CliError::ReplError{ err }); };
         }
-        Run { proxy_addr, bakery, file, dry_run, remote, profile, docker_socket, client_version } => {
-            if let Err(err) = run::handle(proxy_addr, if bakery { Language::Bakery } else { Language::BraneScript }, file, dry_run, remote, profile, DockerOptions{ socket: docker_socket, version: client_version }).await { return Err(CliError::RunError{ err }); };
+        Run { proxy_addr, bakery, file, dry_run, remote, profile, docker_socket, client_version, keep_containers } => {
+            if let Err(err) = run::handle(proxy_addr, if bakery { Language::Bakery } else { Language::BraneScript }, file, dry_run, remote, profile, DockerOptions{ socket: docker_socket, version: client_version }, keep_containers).await { return Err(CliError::RunError{ err }); };
         }
-        Test { name, version, show_result, docker_socket, client_version } => {
-            if let Err(err) = test::handle(name, version, show_result, DockerOptions{ socket: docker_socket, version: client_version }).await { return Err(CliError::TestError{ err }); };
+        Test { name, version, show_result, docker_socket, client_version, keep_containers } => {
+            if let Err(err) = test::handle(name, version, show_result, DockerOptions{ socket: docker_socket, version: client_version }, keep_containers).await { return Err(CliError::TestError{ err }); };
         }
         Search { term } => {
             if let Err(err) = registry::search(term).await { return Err(CliError::OtherError{ err }); };

@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    13 Apr 2023, 10:31:15
+//    25 May 2023, 20:12:09
 //  Auto updated?
 //    Yes
 // 
@@ -229,13 +229,14 @@ pub fn initialize_dummy_vm(options: ParserOptions) -> Result<DummyVmState, Error
 /// # Arguments
 /// - `parse_opts`: The ParserOptions that describe how to parse the given source.
 /// - `docker_opts`: The configuration of our Docker client.
+/// - `keep_containers`: Whether to keep the containers after execution or not.
 /// 
 /// # Returns
 /// The newly created virtual machine together with associated states as an OfflineVmState.
 /// 
 /// # Errors
 /// This function errors if we failed to get the new package indices or other information.
-pub fn initialize_offline_vm(parse_opts: ParserOptions, docker_opts: DockerOptions) -> Result<OfflineVmState, Error> {
+pub fn initialize_offline_vm(parse_opts: ParserOptions, docker_opts: DockerOptions, keep_containers: bool) -> Result<OfflineVmState, Error> {
     // Get the directory with the packages
     let packages_dir = match ensure_packages_dir(false) {
         Ok(dir)  => dir,
@@ -285,7 +286,7 @@ pub fn initialize_offline_vm(parse_opts: ParserOptions, docker_opts: DockerOptio
         source  : String::new(),
         options : parse_opts,
 
-        vm : Some(OfflineVm::new(docker_opts, packages_dir, datasets_dir, temp_dir_path, package_index, data_index)),
+        vm : Some(OfflineVm::new(docker_opts, keep_containers, packages_dir, datasets_dir, temp_dir_path, package_index, data_index)),
     })
 }
 
@@ -718,10 +719,11 @@ pub async fn process_instance_result(api_endpoint: impl AsRef<str>, proxy_addr: 
 /// - `file`: The file to read and run. Can also be '-', in which case it is read from stdin instead.
 /// - `profile`: If given, prints the profile timings to stdout if available.
 /// - `docker_opts`: The options with which we connect to the local Docker daemon.
+/// - `keep_containers`: Whether to keep containers after execution or not.
 /// 
 /// # Returns
 /// Nothing, but does print results and such to stdout. Might also produce new datasets.
-pub async fn handle(proxy_addr: Option<String>, language: Language, file: PathBuf, dummy: bool, remote: bool, profile: bool, docker_opts: DockerOptions) -> Result<(), Error> {
+pub async fn handle(proxy_addr: Option<String>, language: Language, file: PathBuf, dummy: bool, remote: bool, profile: bool, docker_opts: DockerOptions, keep_containers: bool) -> Result<(), Error> {
     // Either read the file or read stdin
     let (what, source_code): (Cow<str>, String) = if file == PathBuf::from("-") {
         let mut result: String = String::new();
@@ -749,7 +751,7 @@ pub async fn handle(proxy_addr: Option<String>, language: Language, file: PathBu
             // Run the thing
             remote_run(info.api.to_string(), info.drv.to_string(), proxy_addr, options, what, source_code, profile).await
         } else {
-            local_run(options, docker_opts, what, source_code).await
+            local_run(options, docker_opts, what, source_code, keep_containers).await
         }
     } else {
         dummy_run(options, what, source_code).await
@@ -789,15 +791,16 @@ async fn dummy_run(options: ParserOptions, what: impl AsRef<str>, source: impl A
 /// - `docker_opts`: The options with which we connect to the local Docker daemon.
 /// - `what`: A description of the source we're reading (e.g., the filename or `<stdin>`)
 /// - `source`: The source code to read.
+/// - `keep_containers`: Whether to keep containers after execution or not.
 /// 
 /// # Returns
 /// Nothing, but does print results and such to stdout. Might also produce new datasets.
-async fn local_run(parse_opts: ParserOptions, docker_opts: DockerOptions, what: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), Error> {
+async fn local_run(parse_opts: ParserOptions, docker_opts: DockerOptions, what: impl AsRef<str>, source: impl AsRef<str>, keep_containers: bool) -> Result<(), Error> {
     let what      : &str  = what.as_ref();
     let source    : &str  = source.as_ref();
 
     // First we initialize the remote thing
-    let mut state: OfflineVmState = initialize_offline_vm(parse_opts, docker_opts)?;
+    let mut state: OfflineVmState = initialize_offline_vm(parse_opts, docker_opts, keep_containers)?;
     // Next, we run the VM (one snippet only ayway)
     let res: FullValue = run_offline_vm(&mut state, what, source).await?;
     // Then, we collect and process the result

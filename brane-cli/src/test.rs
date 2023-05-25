@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 16:23:37
 //  Last edited:
-//    22 May 2023, 13:56:04
+//    25 May 2023, 20:12:59
 //  Auto updated?
 //    Yes
 // 
@@ -78,13 +78,14 @@ fn write_value(value: FullValue) -> String {
 /// - `version`: The version of the package to test.
 /// - `show_result`: Whether or not to `cat` the resulting file if any.
 /// - `docker_opts`: The options we use to connect to the local Docker daemon.
+/// - `keep_containers`: Whether to keep containers after execution or not.
 /// 
 /// # Returns
 /// Nothing, but does do a whole dance of querying the user and executing a package based on that.
 /// 
 /// # Errors
 /// This function errors if any part of that dance failed.
-pub async fn handle(name: impl Into<String>, version: Version, show_result: Option<PathBuf>, docker_opts: DockerOptions) -> Result<(), TestError> {
+pub async fn handle(name: impl Into<String>, version: Version, show_result: Option<PathBuf>, docker_opts: DockerOptions, keep_containers: bool) -> Result<(), TestError> {
     let name: String = name.into();
 
     // Read the package info of the given package
@@ -98,7 +99,7 @@ pub async fn handle(name: impl Into<String>, version: Version, show_result: Opti
     };
 
     // Run the test for this info
-    let output: FullValue = test_generic(package_info, show_result, docker_opts).await?;
+    let output: FullValue = test_generic(package_info, show_result, docker_opts, keep_containers).await?;
 
     // Print it, done
     println!("Result: {} [{}]", style(format!("{output}")).bold().cyan(), style(format!("{}", output.data_type())).bold());
@@ -113,10 +114,11 @@ pub async fn handle(name: impl Into<String>, version: Version, show_result: Opti
 /// - `info`: The PackageInfo that describes the package to test.
 /// - `show_result`: Whether or not to `cat` the resulting file if any.
 /// - `docker_opts`: The options we use to connect to the local Docker daemon.
+/// - `keep_containers`: Whether to keep containers after execution or not.
 /// 
 /// # Returns
 /// The value of the chosen function in that package (which may be Void this time).
-pub async fn test_generic(info: PackageInfo, show_result: Option<PathBuf>, docker_opts: DockerOptions) -> Result<FullValue, TestError> {
+pub async fn test_generic(info: PackageInfo, show_result: Option<PathBuf>, docker_opts: DockerOptions, keep_containers: bool) -> Result<FullValue, TestError> {
     // Get the local datasets directory
     let datasets_dir: PathBuf = match ensure_datasets_dir(true) {
         Ok(dir)  => dir,
@@ -146,7 +148,7 @@ pub async fn test_generic(info: PackageInfo, show_result: Option<PathBuf>, docke
     );
 
     // We run it by spinning up an offline VM
-    let mut state: OfflineVmState = match initialize_offline_vm(ParserOptions::bscript(), docker_opts) {
+    let mut state: OfflineVmState = match initialize_offline_vm(ParserOptions::bscript(), docker_opts, keep_containers) {
         Ok(state) => state,
         Err(err)  => { return Err(TestError::InitializeError{ err }); },
     };

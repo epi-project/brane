@@ -4,7 +4,7 @@
 //  Created:
 //    28 Nov 2022, 15:56:23
 //  Last edited:
-//    13 Apr 2023, 12:23:03
+//    25 May 2023, 20:11:05
 //  Auto updated?
 //    Yes
 // 
@@ -126,7 +126,9 @@ impl FromStr for Hostname {
 #[derive(Clone, Debug)]
 pub struct GlobalState {
     /// The information we want to know for Docker
-    pub docker_opts : DockerOptions,
+    pub docker_opts     : DockerOptions,
+    /// Whether to keep containers after execution or not
+    pub keep_containers : bool,
 
     /// The path to the directory where packages (and thus container images) are stored for this session.
     pub package_dir : PathBuf,
