@@ -4,6 +4,7 @@ All notable changes to the Brane framework will be documented in this file.
 
 ## [3.0.0] - 2023-05-22
 ### Added
+- The `branectl wizard` subcommand, which interactively goes through the steps of setting up a node.
 - An extensive description of the `brane-prx` service in the generated docs.
 - The `--keep-containers` options to `brane run`, `brane repl` and `brane test` to keep containers around for debugging after running.
 

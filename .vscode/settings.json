@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "Dockerfile.*": "dockerfile",
-    }
+    },
+    "rust-analyzer.showUnlinkedFileNotification": false
 }

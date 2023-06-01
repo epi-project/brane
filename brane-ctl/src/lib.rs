@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:12
 //  Last edited:
-//    28 Mar 2023, 10:26:20
+//    01 Jun 2023, 12:45:33
 //  Auto updated?
 //    Yes
 // 
@@ -22,3 +22,4 @@ pub mod download;
 pub mod generate;
 pub mod lifetime;
 pub mod packages;
+pub mod wizard;
