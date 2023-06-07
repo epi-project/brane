@@ -512,7 +512,7 @@ fn preprocess_arg(data_dir: Option<impl AsRef<Path>>, results_dir: impl AsRef<Pa
 async fn create_and_start_container(docker: &Docker, info: &ExecuteInfo) -> Result<String, Error> {
     // Generate unique (temporary) container name
     let container_name: String = format!("{}-{}", info.name, &uuid::Uuid::new_v4().to_string()[..6]);
-    let create_options = CreateContainerOptions { name: &container_name };
+    let create_options = CreateContainerOptions { name: &container_name, platform: None };
 
     // Extract device requests from the capabilities
     #[allow(clippy::unnecessary_filter_map)]

@@ -533,7 +533,6 @@ pub struct ContainerInfo {
     pub unpack       : Option<Vec<String>>,
 }
 
-#[allow(unused)]
 impl ContainerInfo {
     /// **Edited: now returning ContainerInfoErrors.**
     /// 

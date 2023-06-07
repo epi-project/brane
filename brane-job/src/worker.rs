@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    01 Jun 2023, 12:42:04
+//    07 Jun 2023, 17:00:14
 //  Auto updated?
 //    Yes
 // 
@@ -35,10 +35,12 @@ use tokio::sync::mpsc::{self, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Response, Request, Status};
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use brane_ast::Workflow;
 use brane_ast::locations::Location;
 use brane_ast::ast::{ComputeTaskDef, DataName, TaskDef};
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::node::{NodeConfig, WorkerConfig};
 use brane_cfg::policies::{ContainerPolicy, PolicyFile};
@@ -806,7 +808,7 @@ async fn execute_task_local(worker_cfg: &WorkerConfig, dinfo: DockerOptions, tx:
             "unspecified".into(),
             tinfo.kind.unwrap().into(),
             tinfo.name.clone(),
-            base64::encode(params),
+            STANDARD.encode(params),
         ],
         binds,
         tinfo.requirements,

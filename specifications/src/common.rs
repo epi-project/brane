@@ -3,7 +3,6 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display, Formatter};
 use std::string::ToString;
 
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JValue};
 use serde_with::skip_serializing_none;
@@ -304,6 +303,17 @@ impl From<()> for Value {
     }
 }
 
+#[derive(Debug)]
+pub struct CastError {
+    what: &'static str,
+}
+impl Display for CastError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "Value does not contain a {}", self.what)
+    }
+}
+impl std::error::Error for CastError {}
+
 impl Value {
     ///
     ///
@@ -364,44 +374,44 @@ impl Value {
     ///
     ///
     ///
-    pub fn as_bool(&self) -> Result<bool> {
+    pub fn as_bool(&self) -> Result<bool, CastError> {
         if let Value::Boolean(b) = self {
             Ok(*b)
         } else {
-            Err(anyhow!("Value does not contain a boolean."))
+            Err(CastError{ what: "boolean" })
         }
     }
 
     ///
     ///
     ///
-    pub fn as_f64(&self) -> Result<f64> {
+    pub fn as_f64(&self) -> Result<f64, CastError> {
         if let Value::Real(f) = self {
             Ok(*f)
         } else {
-            Err(anyhow!("Value does not contain a real (float)."))
+            Err(CastError{ what: "real" })
         }
     }
 
     ///
     ///
     ///
-    pub fn as_i64(&self) -> Result<i64> {
+    pub fn as_i64(&self) -> Result<i64, CastError> {
         if let Value::Integer(i) = self {
             Ok(*i)
         } else {
-            Err(anyhow!("Value does not contain an integer."))
+            Err(CastError{ what: "integer" })
         }
     }
 
     ///
     ///
     ///
-    pub fn as_string(&self) -> Result<String> {
+    pub fn as_string(&self) -> Result<String, CastError> {
         if let Value::Unicode(s) = self {
             Ok(s.clone())
         } else {
-            Err(anyhow!("Value does not contain a string."))
+            Err(CastError{ what: "string" })
         }
     }
 

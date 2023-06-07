@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::str::FromStr;
+use std::time::Duration;
 
 use anyhow::Result;
 use chrono::DateTime;
@@ -131,7 +132,7 @@ pub async fn pull(
         let progress = ProgressBar::new(content_length);
         progress.set_style(
             ProgressStyle::default_bar()
-                .template("Downloading... [{elapsed_precise}] {bar:40.cyan/blue} {percent}/100%")
+                .template("Downloading... [{elapsed_precise}] {bar:40.cyan/blue} {percent}/100%").unwrap()
                 .progress_chars("##-"),
         );
         while let Some(chunk) = match package_archive.chunk().await {
@@ -309,8 +310,8 @@ pub async fn push(packages: Vec<(String, Version)>) -> Result<(), RegistryError>
 
         // We do a nice progressbar while compressing the package
         let progress = ProgressBar::new(0);
-        progress.set_style(ProgressStyle::default_bar().template("Compressing... [{elapsed_precise}]"));
-        progress.enable_steady_tick(250);
+        progress.set_style(ProgressStyle::default_bar().template("Compressing... [{elapsed_precise}]").unwrap());
+        progress.enable_steady_tick(Duration::from_millis(250));
 
         // Create package tarball, effectively compressing it
         let gz = GzEncoder::new(&temp_file, Compression::fast());
@@ -334,8 +335,8 @@ pub async fn push(packages: Vec<(String, Version)>) -> Result<(), RegistryError>
         debug!("Pushing package '{}' to '{}'...", temp_path.display(), url);
         let request = Client::new().post(&url);
         let progress = ProgressBar::new(0);
-        progress.set_style(ProgressStyle::default_bar().template("Uploading...   [{elapsed_precise}]"));
-        progress.enable_steady_tick(250);
+        progress.set_style(ProgressStyle::default_bar().template("Uploading...   [{elapsed_precise}]").unwrap());
+        progress.enable_steady_tick(Duration::from_millis(250));
 
         // Re-open the temporary file we've just written to
         // let handle = match TokioFile::open(&temp_file).await {

@@ -4,7 +4,7 @@
 //  Created:
 //    04 Oct 2022, 11:09:56
 //  Last edited:
-//    07 Jun 2023, 15:15:34
+//    07 Jun 2023, 16:27:48
 //  Auto updated?
 //    Yes
 // 
@@ -135,66 +135,3 @@ impl Display for NodeKindParseError {
     }
 }
 impl Error for NodeKindParseError {}
-
-
-
-/// Defines general errors for configs.
-#[derive(Debug)]
-pub enum ConfigError<E: Debug> {
-    /// Failed to create the output file.
-    OutputCreateError{ path: PathBuf, err: std::io::Error },
-    /// Failed to open the input file.
-    InputOpenError{ path: PathBuf, err: std::io::Error },
-    /// Failed to read the input file.
-    InputReadError{ path: PathBuf, err: std::io::Error },
-
-    /// Failed to serialize the config to a string.
-    StringSerializeError{ err: E },
-    /// Failed to serialize the config to a given writer.
-    WriterSerializeError{ err: E },
-    /// Failed to serialize the config to a given file.
-    FileSerializeError{ path: PathBuf, err: E },
-
-    /// Failed to deserialize a string to the config.
-    StringDeserializeError{ err: E },
-    /// Failed to deserialize a reader to the config.
-    ReaderDeserializeError{ err: E },
-    /// Failed to deserialize a file to the config.
-    FileDeserializeError{ path: PathBuf, err: E },
-}
-impl<E: Error> Display for ConfigError<E> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use ConfigError::*;
-        match self {
-            OutputCreateError{ path, .. } => write!(f, "Failed to create output file '{}'", path.display()),
-            InputOpenError{ path, .. }    => write!(f, "Failed to open input file '{}'", path.display()),
-            InputReadError{ path, .. }    => write!(f, "Failed to read input file '{}'", path.display()),
-
-            StringSerializeError{ .. }     => write!(f, "Failed to serialize to string"),
-            WriterSerializeError{ .. }     => write!(f, "Failed to serialize to a writer"),
-            FileSerializeError{ path, .. } => write!(f, "Failed to serialize to output file '{}'", path.display()),
-
-            StringDeserializeError{ .. }     => write!(f, "Failed to deserialize from string"),
-            ReaderDeserializeError{ .. }     => write!(f, "Failed to deserialize from a reader"),
-            FileDeserializeError{ path, .. } => write!(f, "Failed to deserialize from input file '{}'", path.display()),
-        }
-    }
-}
-impl<E: 'static + Error> Error for ConfigError<E> {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        use ConfigError::*;
-        match self {
-            OutputCreateError{ err, .. } => Some(err),
-            InputOpenError{ err, .. }    => Some(err),
-            InputReadError{ err, .. }    => Some(err),
-
-            StringSerializeError{ err }   => Some(err),
-            WriterSerializeError{ err }   => Some(err),
-            FileSerializeError{ err, .. } => Some(err),
-
-            StringDeserializeError{ err }   => Some(err),
-            ReaderDeserializeError{ err }   => Some(err),
-            FileDeserializeError{ err, .. } => Some(err),
-        }
-    }
-}

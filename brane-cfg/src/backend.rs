@@ -21,8 +21,8 @@ use serde::{Deserialize, Serialize};
 use specifications::address::Address;
 use specifications::package::Capability;
 
-pub use crate::spec::YamlError as Error;
-use crate::spec::YamlConfig;
+pub use crate::info::YamlError as Error;
+use crate::info::YamlInfo;
 
 
 /***** AUXILLARY *****/
@@ -88,4 +88,4 @@ impl BackendFile {
     #[inline]
     pub fn hash_containers(&self) -> bool { self.hash_containers.unwrap_or(true) }
 }
-impl<'de> YamlConfig<'de> for BackendFile {}
+impl<'de> YamlInfo<'de> for BackendFile {}

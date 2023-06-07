@@ -29,7 +29,7 @@ use rand::Rng as _;
 use rand::distributions::Alphanumeric;
 use serde::Serialize;
 
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::infra::{InfraFile, InfraLocation};
 use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::node::{self, CentralConfig, CentralPaths, CentralServices, ExternalService, KafkaService, NodeConfig, NodeSpecificConfig, PrivateService, PrivateOrExternalService, ProxyPaths, ProxyServices, PublicService, WorkerConfig, WorkerPaths, WorkerServices};

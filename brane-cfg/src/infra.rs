@@ -18,8 +18,8 @@ use serde::{Deserialize, Serialize};
 
 use specifications::address::Address;
 
-pub use crate::spec::YamlError as Error;
-use crate::spec::YamlConfig;
+pub use crate::info::YamlError as Error;
+use crate::info::YamlInfo;
 
 
 /***** AUXILLARY *****/
@@ -88,7 +88,7 @@ impl InfraFile {
     pub fn iter_mut(&mut self) -> std::collections::hash_map::IterMut<String, InfraLocation> { self.into_iter() }
 
 }
-impl<'de> YamlConfig<'de> for InfraFile {}
+impl<'de> YamlInfo<'de> for InfraFile {}
 
 impl IntoIterator for InfraFile {
     type Item     = (String, InfraLocation);

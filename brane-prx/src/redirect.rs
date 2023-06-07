@@ -4,7 +4,7 @@
 //  Created:
 //    23 Nov 2022, 11:26:46
 //  Last edited:
-//    09 Mar 2023, 18:37:20
+//    07 Jun 2023, 16:29:35
 //  Auto updated?
 //    Yes
 // 
@@ -28,7 +28,7 @@ use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
 use url::Url;
 
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::certs::{load_certstore, load_identity};
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig};
 use brane_cfg::proxy::ProxyProtocol;

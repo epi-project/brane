@@ -26,7 +26,7 @@ use dirs_2::config_dir;
 use enum_debug::EnumDebug as _;
 use log::{debug, info};
 
-use brane_cfg::spec::Config;
+use brane_cfg::info::Info;
 use brane_cfg::node::{self, NodeConfig, NodeKind, NodeSpecificConfig};
 use brane_cfg::proxy::{ForwardConfig, ProxyConfig, ProxyProtocol};
 use brane_shr::input::{confirm, input, input_map, input_path, select, FileHistory};
@@ -81,7 +81,7 @@ pub enum Error {
     /// Failed to create a new file.
     ConfigCreate { path: PathBuf, err: std::io::Error },
     /// Failed to generate a configuration file.
-    ConfigSerialize { path: PathBuf, err: brane_cfg::spec::YamlError },
+    ConfigSerialize { path: PathBuf, err: brane_cfg::info::YamlError },
     /// Failed to write to the config file.
     ConfigWrite { path: PathBuf, err: std::io::Error },
     /// Failed to generate a directory.
@@ -147,7 +147,7 @@ impl error::Error for Error {
 /// This function may panic if the given path has no filename.
 fn write_config<C>(config: C, path: impl AsRef<Path>, url: impl AsRef<str>) -> Result<(), Error>
 where
-    C: Config<Error = serde_yaml::Error>,
+    C: Info<Error = serde_yaml::Error>,
 {
     let path: &Path = path.as_ref();
     let url: &str = url.as_ref();

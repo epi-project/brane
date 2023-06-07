@@ -9,7 +9,7 @@ name = "branectl"
 path = "src/main.rs"
 
 [dependencies]
-bollard = "0.13"
+bollard = "0.14"
 clap = { version = "4.0.24", features = ["derive","env"] }
 console = "0.15"
 dirs-2 = "3.0"

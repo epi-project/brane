@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:47
 //  Last edited:
-//    25 May 2023, 20:13:43
+//    07 Jun 2023, 16:59:07
 //  Auto updated?
 //    Yes
 // 
@@ -16,12 +16,13 @@ use std::borrow::Cow::{self, Borrowed, Owned};
 use std::fs;
 
 use log::warn;
+use rustyline::{CompletionType, Config, Context, EditMode, Editor};
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::{Hinter, HistoryHinter};
+use rustyline::history::DefaultHistory;
 use rustyline::validate::{self, MatchingBracketValidator, Validator};
-use rustyline::{CompletionType, Config, Context, EditMode, Editor};
 use rustyline_derive::Helper;
 
 use brane_ast::ParserOptions;
@@ -264,7 +265,7 @@ pub async fn start(proxy_addr: Option<String>, remote: bool, attach: Option<AppI
 /// 
 /// # Returns
 /// Nothing, but does print results and such to stdout. Might also produce new datasets.
-async fn remote_repl(rl: &mut Editor<ReplHelper>, api_endpoint: impl AsRef<str>, drv_endpoint: impl AsRef<str>, proxy_addr: Option<String>, attach: Option<AppId>, options: ParserOptions, profile: bool) -> Result<(), Error> {
+async fn remote_repl(rl: &mut Editor<ReplHelper, DefaultHistory>, api_endpoint: impl AsRef<str>, drv_endpoint: impl AsRef<str>, proxy_addr: Option<String>, attach: Option<AppId>, options: ParserOptions, profile: bool) -> Result<(), Error> {
     let api_endpoint: &str  = api_endpoint.as_ref();
     let drv_endpoint: &str  = drv_endpoint.as_ref();
 
@@ -287,7 +288,9 @@ async fn remote_repl(rl: &mut Editor<ReplHelper>, api_endpoint: impl AsRef<str>,
         match rl.readline(&p) {
             Ok(line) => {
                 // The command checked out, so add it to the history
-                rl.add_history_entry(&line.replace('\n', " "));
+                if let Err(err) = rl.add_history_entry(&line.replace('\n', " ")) {
+                    warn!("Failed to update REPL history: {err}");
+                }
 
                 // Fetch REPL magicks
                 if let Some(quit) = repl_magicks(&line) { if quit { break; } else { continue; } }
@@ -338,7 +341,7 @@ async fn remote_repl(rl: &mut Editor<ReplHelper>, api_endpoint: impl AsRef<str>,
 /// 
 /// # Returns
 /// Nothing, but does print results and such to stdout. Might also produce new datasets.
-async fn local_repl(rl: &mut Editor<ReplHelper>, parse_opts: ParserOptions, docker_opts: DockerOptions, keep_containers: bool) -> Result<(), Error> {
+async fn local_repl(rl: &mut Editor<ReplHelper, DefaultHistory>, parse_opts: ParserOptions, docker_opts: DockerOptions, keep_containers: bool) -> Result<(), Error> {
     // First we initialize the remote thing
     let mut state: OfflineVmState = match initialize_offline_vm(parse_opts, docker_opts, keep_containers) {
         Ok(state) => state,
@@ -358,7 +361,9 @@ async fn local_repl(rl: &mut Editor<ReplHelper>, parse_opts: ParserOptions, dock
         match rl.readline(&p) {
             Ok(line) => {
                 // The command checked out, so add it to the history
-                rl.add_history_entry(&line.replace('\n', " "));
+                if let Err(err) = rl.add_history_entry(&line.replace('\n', " ")) {
+                    warn!("Failed to update REPL history: {err}");
+                }
 
                 // Fetch REPL magicks
                 if let Some(quit) = repl_magicks(&line) { if quit { break; } else { continue; } }

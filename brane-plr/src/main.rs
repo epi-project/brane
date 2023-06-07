@@ -4,7 +4,7 @@
 //  Created:
 //    17 Oct 2022, 17:27:16
 //  Last edited:
-//    28 Feb 2023, 16:21:56
+//    07 Jun 2023, 16:29:28
 //  Auto updated?
 //    Yes
 // 
@@ -32,7 +32,7 @@ use clap::Parser;
 use dotenvy::dotenv;
 use log::{debug, error, info, LevelFilter};
 
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::node::{CentralConfig, NodeConfig};
 
 use brane_plr::planner::planner_server;

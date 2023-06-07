@@ -139,7 +139,7 @@ pub enum GenerateError {
     /// Failed to write the header to the new file.
     FileHeaderWriteError{ what: &'static str, path: PathBuf, err: std::io::Error },
     /// Failed to write the main body to the new file.
-    FileBodyWriteError{ what: &'static str, path: PathBuf, err: brane_cfg::spec::YamlError },
+    FileBodyWriteError{ what: &'static str, path: PathBuf, err: brane_cfg::info::YamlError },
 
     /// The given location is unknown.
     UnknownLocation{ loc: String },
@@ -206,7 +206,7 @@ pub enum LifetimeError {
     DockerComposeWriteError{ path: PathBuf, err: std::io::Error },
 
     /// Failed to read the `proxy.yml` file.
-    ProxyReadError{ err: brane_cfg::spec::YamlError },
+    ProxyReadError{ err: brane_cfg::info::YamlError },
     /// Failed to open the extra hosts file.
     HostsFileCreateError{ path: PathBuf, err: std::io::Error },
     /// Failed to write to the extra hosts file.
@@ -223,7 +223,7 @@ pub enum LifetimeError {
     MissingProxyService,
 
     /// Failed to load the given node config file.
-    NodeConfigLoadError{ err: brane_cfg::spec::YamlError },
+    NodeConfigLoadError{ err: brane_cfg::info::YamlError },
     /// Failed to connect to the local Docker daemon.
     DockerConnectError{ err: brane_tsk::errors::DockerError },
     /// The given start command (got) did not match the one in the `node.yml` file (expected).
@@ -274,7 +274,7 @@ impl Error for LifetimeError {}
 #[derive(Debug)]
 pub enum PackagesError {
     /// Failed to load the given node config file.
-    NodeConfigLoadError{ err: brane_cfg::spec::YamlError },
+    NodeConfigLoadError{ err: brane_cfg::info::YamlError },
     /// The given node type is not supported for this operation.
     /// 
     /// The `what` should fill in the `<WHAT>` in: "Cannot <WHAT> on a ... node"
@@ -315,7 +315,7 @@ impl Error for PackagesError {}
 #[derive(Debug)]
 pub enum UnpackError {
     /// Failed to get the NodeConfig file.
-    NodeConfigError{ err: brane_cfg::spec::YamlError },
+    NodeConfigError{ err: brane_cfg::info::YamlError },
     /// Failed to write the given file.
     FileWriteError{ what: &'static str, path: PathBuf, err: std::io::Error },
     /// Failed to create the target directory.

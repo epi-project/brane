@@ -5,8 +5,8 @@ authors = { workspace = true }
 edition = "2018"
 
 [dependencies]
-base64 = "0.13"
-bollard = "0.13"
+base64 = "0.21"
+bollard = "0.14"
 chrono = "0.4"
 clap = { version = "4.0.24", features = ["derive","env"] }
 dotenvy = "0.15"
@@ -24,7 +24,7 @@ serde_json_any_key = "2.0.0"
 serde_yaml = "0.9"
 tokio = { version = "1", features = [] }
 tokio-stream = "0.1"
-tonic = "0.8"
+tonic = "0.9"
 # xenon-rs = "0.4"
 
 brane-ast = { path = "../brane-ast" }

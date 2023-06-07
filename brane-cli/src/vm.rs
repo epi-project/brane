@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:34:05
 //  Last edited:
-//    25 May 2023, 20:11:00
+//    07 Jun 2023, 16:59:36
 //  Auto updated?
 //    Yes
 // 
@@ -18,6 +18,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use chrono::Utc;
 use log::{debug, info};
 use tokio::fs as tfs;
@@ -119,7 +121,7 @@ impl VmPlugin for OfflinePlugin {
                 "1".into(),
                 pinfo.kind.into(),
                 info.name.into(),
-                base64::encode(params),
+                STANDARD.encode(params),
             ],
             binds,
             network      : Network::None,

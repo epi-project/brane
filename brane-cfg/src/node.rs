@@ -26,7 +26,7 @@ use specifications::address::Address;
 
 pub use crate::errors::NodeConfigError as Error;
 use crate::errors::NodeKindParseError;
-use crate::spec::YamlConfig;
+use crate::info::YamlInfo;
 
 
 /***** AUXILLARY *****/
@@ -78,7 +78,7 @@ pub struct NodeConfig {
     /// Any node-specific config
     pub node : NodeSpecificConfig,
 }
-impl<'de> YamlConfig<'de> for NodeConfig {}
+impl<'de> YamlInfo<'de> for NodeConfig {}
 
 
 

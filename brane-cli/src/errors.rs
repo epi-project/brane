@@ -135,7 +135,7 @@ pub enum BuildError {
     /// Could not write to the DockerFile string.
     DockerfileStrWriteError{ err: std::fmt::Error },
     /// A given filepath escaped the working directory
-    UnsafePath{ path: String },
+    UnsafePath{ path: PathBuf },
     /// The entrypoint executable referenced was not found
     MissingExecutable{ path: PathBuf },
 
@@ -267,7 +267,7 @@ impl Display for BuildError {
             LockCreateError{ name, err } => write!(f, "Failed to create lockfile for package '{name}': {err}"),
 
             DockerfileStrWriteError{ err } => write!(f, "Could not write to the internal DockerFile: {err}"),
-            UnsafePath{ path }             => write!(f, "File '{path}' tries to escape package working directory; consider moving Brane's working directory up (using --workdir) and avoid '..'"),
+            UnsafePath{ path }             => write!(f, "File '{}' tries to escape package working directory; consider moving Brane's working directory up (using --workdir) and avoid '..'", path.display()),
             MissingExecutable{ path }      => write!(f, "Could not find the package entrypoint '{}'", path.display()),
 
             DockerfileCreateError{ path, err }                  => write!(f, "Could not create Dockerfile '{}': {}", path.display(), err),
