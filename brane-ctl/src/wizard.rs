@@ -4,7 +4,7 @@
 //  Created:
 //    01 Jun 2023, 12:43:20
 //  Last edited:
-//    06 Jun 2023, 19:04:36
+//    07 Jun 2023, 09:05:24
 //  Auto updated?
 //    Yes
 // 
@@ -74,13 +74,13 @@ pub fn setup() -> Result<(), Error> {
     println!();
 
     // Select the path where we will go to
-    let path: PathBuf = match input_path("1. Select the location of the node configuration files", "./") {
+    let path: PathBuf = match input_path("1. Select the location of the node configuration files", None::<PathBuf>) {
         Ok(path) => path,
         Err(err) => { return Err(Error::Input { what: "config path", err }); },
     };
 
     // Let us query the user for the type of node
-    let kind: NodeKind = match select("1. Select the type of node to generate", [ NodeKind::Central, NodeKind::Worker, NodeKind::Proxy ]) {
+    let kind: NodeKind = match select("2. Select the type of node to generate", [ NodeKind::Central, NodeKind::Worker, NodeKind::Proxy ]) {
         Ok(kind) => kind,
         Err(err) => { return Err(Error::Input { what: "node kind", err }); },
     };
