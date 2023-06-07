@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 17:27:52
 //  Last edited:
-//    13 Apr 2023, 10:27:48
+//    07 Jun 2023, 10:47:12
 //  Auto updated?
 //    Yes
 // 
@@ -122,6 +122,39 @@ impl FromStr for ResolvableNodeKind {
 /// Defines an _inclusive_ range of numbers.
 #[derive(Clone, Debug)]
 pub struct InclusiveRange<T>(pub RangeInclusive<T>);
+
+impl<T> InclusiveRange<T> {
+    /// Constructor for the InclusiveRange.
+    /// 
+    /// # Arguments
+    /// - `start`: The start value (inclusive) of the range.
+    /// - `end`: The end value (inclusive) of the range.
+    /// 
+    /// # Returns
+    /// A new InclusiveRange instance.
+    /// 
+    /// # Panics
+    /// This function panics if `start > end`.
+    #[inline]
+    #[track_caller]
+    pub fn new(start: T, end: T) -> Self
+    where
+        T: Display + PartialOrd,
+    {
+        // Assert they are ordered correctly
+        if start > end { panic!("`start` cannot be later than `end` ({start} > {end})"); }
+
+        // Create a new instance
+        Self(RangeInclusive::new(start, end))
+    }
+}
+
+impl<T: Display> Display for InclusiveRange<T> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        write!(f, "{}-{}", self.0.start(), self.0.end())
+    }
+}
 impl<T: FromStr + PartialOrd> FromStr for InclusiveRange<T> where T::Err: 'static + Send + Sync + std::error::Error, {
     type Err = InclusiveRangeParseError;
 
