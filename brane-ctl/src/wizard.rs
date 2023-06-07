@@ -4,7 +4,7 @@
 //  Created:
 //    01 Jun 2023, 12:43:20
 //  Last edited:
-//    07 Jun 2023, 15:50:15
+//    07 Jun 2023, 16:05:50
 //  Auto updated?
 //    Yes
 // 
@@ -27,7 +27,7 @@ use enum_debug::EnumDebug as _;
 use log::{debug, info};
 
 use brane_cfg::spec::Config;
-use brane_cfg::node::NodeKind;
+use brane_cfg::node::{self, NodeConfig, NodeKind, NodeSpecificConfig};
 use brane_cfg::proxy::{ForwardConfig, ProxyConfig, ProxyProtocol};
 use brane_shr::input::{confirm, input, input_map, input_path, select, FileHistory};
 use specifications::address::Address;
@@ -69,6 +69,10 @@ macro_rules! generate_dir {
 /// Defines errors that relate to the wizard.
 #[derive(Debug)]
 pub enum Error {
+    /// Failed to query the user for the node config file.
+    NodeConfigQuery { err: Box<Self> },
+    /// Failed to write the node config file.
+    NodeConfigWrite { err: Box<Self> },
     /// Failed to query the user for the proxy config file.
     ProxyConfigQuery { err: Box<Self> },
     /// Failed to write the proxy config file.
@@ -91,6 +95,8 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use Error::*;
         match self {
+            NodeConfigQuery { .. }  => write!(f, "Failed to query node configuration"),
+            NodeConfigWrite { .. }  => write!(f, "Failed to write node config file"),
             ProxyConfigQuery { .. } => write!(f, "Failed to query proxy service configuration"),
             ProxyConfigWrite { .. } => write!(f, "Failed to write proxy service config file"),
 
@@ -106,6 +112,8 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn 'static + error::Error)> {
         use Error::*;
         match self {
+            NodeConfigQuery { err }  => Some(err),
+            NodeConfigWrite { err }  => Some(err),
             ProxyConfigQuery { err } => Some(err),
             ProxyConfigWrite { err } => Some(err),
 
@@ -267,6 +275,34 @@ pub fn query_proxy_config() -> Result<ProxyConfig, Error> {
     })
 }
 
+/// Queries the user for the node file configuration.
+/// 
+/// # Returns
+/// A new [`NodeConfig`] that reflects the user's choices.
+/// 
+/// # Errors
+/// This function may error if we failed to query the user.
+pub fn query_proxy_node_config() -> Result<NodeConfig, Error> {
+    // Construct the ProxyConfig to return it
+    Ok(NodeConfig {
+        hostnames : HashMap::new(),
+        node      : NodeSpecificConfig::Proxy(node::ProxyConfig {
+            paths : node::ProxyPaths {
+                certs : "".into(),
+                proxy : "".into(),
+            },
+            services : node::ProxyServices {
+                prx : node::PublicService {
+                    name    : "brane-prx".into(),
+                    address : Address::Hostname("test.com".into(), 42),
+                    bind    : std::net::SocketAddr::V4(std::net::SocketAddrV4::new(std::net::Ipv4Addr::new(0, 0, 0, 0), 0)),
+                    external_address : Address::Hostname("test.com".into(), 42),
+                },
+            },
+        }),
+    })
+}
+
 
 
 
@@ -365,6 +401,17 @@ pub fn setup() -> Result<(), Error> {
             let proxy_path: PathBuf = config_dir.join("proxy.yml");
             if let Err(err) = write_config(cfg, proxy_path, "https://wiki.enablingpersonalizedinterventions.nl/user-guide/config/admins/proxy.html") {
                 return Err(Error::ProxyConfigWrite { err: Box::new(err) });
+            }
+
+            // Now we generate the node.yml file
+            println!("=== node.yml ===");
+            let node: NodeConfig = match query_proxy_node_config() {
+                Ok(node) => node,
+                Err(err) => { return Err(Error::NodeConfigQuery { err: Box::new(err) }); },
+            };
+            let node_path: PathBuf = path.join("node.yml");
+            if let Err(err) = write_config(node, node_path, "https://wiki.enablingpersonalizedinterventions.nl/user-guide/config/admins/node.html") {
+                return Err(Error::NodeConfigWrite { err: Box::new(err) });
             }
         },
     }
