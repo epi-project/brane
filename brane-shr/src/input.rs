@@ -4,7 +4,7 @@
 //  Created:
 //    06 Jun 2023, 18:38:50
 //  Last edited:
-//    07 Jun 2023, 09:07:07
+//    07 Jun 2023, 10:11:25
 //  Auto updated?
 //    Yes
 // 
@@ -89,20 +89,49 @@ impl Completion for FileAutocompleter {
             };
 
             // Filter the entry
-            let entry: OsString = entry.file_name();
-            let entry: Cow<str> = entry.to_string_lossy();
-            if entry.len() < filter.len() || &entry[..filter.len()] != filter { continue; }
+            let sentry: OsString = entry.file_name();
+            let sentry: Cow<str> = sentry.to_string_lossy();
+            if sentry.len() < filter.len() || &sentry[..filter.len()] != filter { continue; }
+
+            // Otherwise, add it as a possibility
+            // Before we do, add an optional '/' if this is a directory
+            let sentry: String = if entry.path().is_dir() {
+                format!("{dir}{sentry}/")
+            } else {
+                format!("{dir}{sentry}")
+            };
 
             // Otherwise, add it as possibility
-            targets.push(entry.into());
+            targets.push(sentry);
         }
 
-        // We now only complete if there is exactly one entry
-        if targets.len() == 1 {
-            Some(targets.swap_remove(0))
-        } else {
-            None
+        // The guess is the largest complete part of all entries
+        let mut common: Option<(String, usize)> = None;
+        for target in targets {
+            // Check if we already saw a target
+            if let Some((value, length)) = &mut common {
+                // Truncate the length to be the smallest of the two
+                *length = std::cmp::min(target.len(), *length);
+
+                // Compare this with the new value to find the largest subset
+                let (mut new, mut old) = (target[..*length].char_indices(), value[..*length].chars());
+                while let (Some((i, c1)), Some(c2)) = (new.next(), old.next()) {
+                    if c1 != c2 {
+                        // We update the prefix length to encapsulate the largest part
+                        *length = i;
+                    }
+                }
+            } else {
+                let target_len: usize = target.len();
+                common = Some((target, target_len));
+            }
         }
+
+        // Return what we found
+        common.map(|(mut p, l)| {
+            p.truncate(l);
+            p
+        })
     }
 }
 
@@ -133,7 +162,7 @@ pub fn input_path(prompt: impl Display, default: Option<impl Into<PathBuf>>) -> 
     }
 
     // Run the prompt
-    match input.interact() {
+    match input.interact_text() {
         Ok(path) => Ok(path.into()),
         Err(err) => Err(Error::Text { err }),
     }

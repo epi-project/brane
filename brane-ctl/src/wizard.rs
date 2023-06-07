@@ -4,7 +4,7 @@
 //  Created:
 //    01 Jun 2023, 12:43:20
 //  Last edited:
-//    07 Jun 2023, 09:05:24
+//    07 Jun 2023, 10:01:33
 //  Auto updated?
 //    Yes
 // 
@@ -78,6 +78,8 @@ pub fn setup() -> Result<(), Error> {
         Ok(path) => path,
         Err(err) => { return Err(Error::Input { what: "config path", err }); },
     };
+    debug!("Configuration directory: '{}'", path.display());
+    println!();
 
     // Let us query the user for the type of node
     let kind: NodeKind = match select("2. Select the type of node to generate", [ NodeKind::Central, NodeKind::Worker, NodeKind::Proxy ]) {
