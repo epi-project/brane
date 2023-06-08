@@ -4,7 +4,7 @@
 //  Created:
 //    07 Jun 2023, 16:22:04
 //  Last edited:
-//    07 Jun 2023, 16:22:09
+//    08 Jun 2023, 15:34:20
 //  Auto updated?
 //    Yes
 // 
@@ -24,6 +24,7 @@ pub mod data;
 pub mod driving;
 pub mod errors;
 pub mod package;
+pub mod packages_new;
 pub mod planning;
 pub mod profiling;
 pub mod version;
