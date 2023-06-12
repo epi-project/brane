@@ -20,6 +20,7 @@ tokio = { version = "1.20", features = [] }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
 brane-ast = { path = "../brane-ast" }
+brane-dsl = { path = "../brane-dsl" }
 brane-shr = { path = "../brane-shr" }
 specifications = { path = "../specifications" }
 

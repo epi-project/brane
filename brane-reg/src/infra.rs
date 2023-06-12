@@ -21,9 +21,9 @@ use warp::http::HeaderValue;
 use warp::hyper::Body;
 use warp::reply::Response;
 
-use brane_cfg::config::Config as _;
 use brane_cfg::backend::BackendFile;
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig, WorkerConfig};
+use brane_shr::info::Info as _;
 use specifications::package::Capability;
 
 use crate::spec::Context;

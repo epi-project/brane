@@ -20,10 +20,10 @@ use std::sync::{Arc, RwLock};
 
 use brane_ast::locations::Location;
 use brane_ast::ast::{DataName, SymTable};
+use brane_shr::version::Version;
 use specifications::data::{AccessKind, PreprocessKind};
 use specifications::package::Capability;
 use specifications::profiling::ProfileScopeHandle;
-use specifications::version::Version;
 
 use crate::value::FullValue;
 use crate::frame_stack::FrameStack;

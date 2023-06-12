@@ -16,7 +16,6 @@
 // 
 
 // Declare submodules
-pub mod address;
 pub mod arch;
 pub mod common;
 pub mod container;
@@ -27,5 +26,4 @@ pub mod package;
 pub mod packages_new;
 pub mod planning;
 pub mod profiling;
-pub mod version;
 pub mod working;

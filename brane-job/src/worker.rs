@@ -40,7 +40,6 @@ use base64::engine::general_purpose::STANDARD;
 use brane_ast::Workflow;
 use brane_ast::locations::Location;
 use brane_ast::ast::{ComputeTaskDef, DataName, TaskDef};
-use brane_cfg::config::Config as _;
 use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::node::{NodeConfig, WorkerConfig};
 use brane_cfg::policies::{ContainerPolicy, PolicyFile};
@@ -49,6 +48,8 @@ use brane_prx::spec::NewPathRequestTlsOptions;
 use brane_prx::client::ProxyClient;
 use brane_shr::formatters::BlockFormatter;
 use brane_shr::fs::{copy_dir_recursively_async, unarchive_async};
+use brane_shr::info::Info as _;
+use brane_shr::version::Version;
 use brane_tsk::errors::{AuthorizeError, CommitError, ExecuteError, PreprocessError};
 use brane_tsk::spec::JobStatus;
 use brane_tsk::tools::decode_base64;
@@ -58,7 +59,6 @@ use specifications::container::{Image, VolumeBind};
 use specifications::data::{AccessKind, AssetInfo};
 use specifications::package::{Capability, PackageIndex, PackageInfo, PackageKind};
 use specifications::profiling::{ProfileReport, ProfileScopeHandle};
-use specifications::version::Version;
 use specifications::working::{CommitReply, CommitRequest, ExecuteReply, ExecuteRequest, JobService, PreprocessKind, PreprocessReply, PreprocessRequest, TaskStatus, TransferRegistryTar};
 
 

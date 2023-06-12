@@ -11,7 +11,7 @@ use serde_with::skip_serializing_none;
 
 use crate::common::{CallPattern, Parameter, Type};
 use crate::package::{Capability, PackageKind};
-use crate::version::Version;
+use brane_shr::version::Version;
 
 
 /***** CUSTOM TYPES *****/

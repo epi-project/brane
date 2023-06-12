@@ -21,12 +21,12 @@ use humanlog::{DebugMode, HumanLogger};
 use log::error;
 
 use brane_cfg::proxy::{ForwardConfig, ProxyProtocol};
+use brane_shr::address::Address;
 use brane_shr::errors::ErrorTrace as _;
+use brane_shr::version::Version;
 use brane_tsk::docker::{ClientVersion, DockerOptions};
-use specifications::address::Address;
 use specifications::arch::Arch;
 use specifications::package::Capability;
-use specifications::version::Version;
 
 use brane_ctl::spec::{API_DEFAULT_VERSION, DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair, ResolvableNodeKind, StartOpts, StartSubcommand};
 use brane_ctl::{download, generate, lifetime, packages, unpack, wizard};

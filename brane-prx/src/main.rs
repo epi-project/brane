@@ -22,9 +22,9 @@ use dotenvy::dotenv;
 use log::{debug, error, info, LevelFilter};
 use warp::Filter;
 
-use brane_cfg::config::Config as _;
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig};
 use brane_cfg::proxy::ProxyConfig;
+use brane_shr::info::Info as _;
 
 use brane_prx::spec::Context;
 use brane_prx::ports::PortAllocator;

@@ -4,7 +4,7 @@
 //  Created:
 //    09 Nov 2022, 11:12:06
 //  Last edited:
-//    12 May 2023, 12:01:17
+//    12 Jun 2023, 13:44:36
 //  Auto updated?
 //    Yes
 // 
@@ -32,9 +32,8 @@ use tokio::io::{self as tio, AsyncWriteExt};
 use tokio_stream::StreamExt;
 use tokio_tar::{Archive, Builder, Entries, Entry};
 
-use specifications::version::Version;
-
 use crate::formatters::Capitalizeable;
+use crate::version::Version;
 
 
 /***** TESTS *****/

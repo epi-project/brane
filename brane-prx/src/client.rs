@@ -21,7 +21,7 @@ use log::{debug, info};
 use reqwest::{Client, Response, Request};
 use url::Url;
 
-use specifications::address::Address;
+use brane_shr::address::Address;
 use specifications::package::PackageIndex;
 use specifications::working::{Error as JobServiceError, JobServiceClient};
 

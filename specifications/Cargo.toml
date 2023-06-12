@@ -29,3 +29,5 @@ strum = "0.24"
 strum_macros = "0.24"
 tonic = "0.9"
 uuid = { version = "0.8", features = ["serde", "v4"] }
+
+brane-shr = { path = "../brane-shr" }

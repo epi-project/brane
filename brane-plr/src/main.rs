@@ -32,8 +32,8 @@ use clap::Parser;
 use dotenvy::dotenv;
 use log::{debug, error, info, LevelFilter};
 
-use brane_cfg::config::Config as _;
 use brane_cfg::node::{CentralConfig, NodeConfig};
+use brane_shr::info::Info as _;
 
 use brane_plr::planner::planner_server;
 

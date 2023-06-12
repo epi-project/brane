@@ -20,10 +20,10 @@ use std::str::FromStr;
 
 use log::{debug, info, warn};
 
-use brane_cfg::config::Config as _;
 use brane_cfg::node::{NodeConfig, NodeKind, NodeSpecificConfig};
+use brane_shr::info::Info as _;
+use brane_shr::version::Version;
 use brane_tsk::docker;
-use specifications::version::Version;
 
 pub use crate::errors::PackagesError as Error;
 

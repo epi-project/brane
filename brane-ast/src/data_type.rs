@@ -18,6 +18,8 @@ use std::fmt::{Display, Formatter, Result as FResult};
 
 use serde::{Deserialize, Serialize};
 
+use specifications::packages_new;
+
 use crate::spec::BuiltinClasses;
 
 
@@ -260,7 +262,6 @@ impl From<Box<brane_dsl::DataType>> for Box<DataType> {
         Self::from(&value)
     }
 }
-
 impl From<&Box<brane_dsl::DataType>> for Box<DataType> {
     #[inline]
     fn from(value: &Box<brane_dsl::DataType>) -> Self {
@@ -268,48 +269,43 @@ impl From<&Box<brane_dsl::DataType>> for Box<DataType> {
     }
 }
 
-impl From<&str> for DataType {
-    fn from(value: &str) -> Self {
-        // First: any arrays are done recursively
-        if !value.is_empty() && &value[..1] == "[" && &value[value.len() - 1..] == "]" {
-            return Self::Array{ elem_type: Box::new(Self::from(&value[1..value.len() - 1])) };
-        } else if value.len() >= 2 && &value[value.len() - 2..] == "[]" {
-            return Self::Array{ elem_type: Box::new(Self::from(&value[..value.len() - 2])) };
-        }
-
-        // Otherwise, match literals & classes
-        use DataType::*;
+impl From<packages_new::DataTypeKind> for DataType {
+    #[inline]
+    fn from(value: packages_new::DataTypeKind) -> Self {
+        use packages_new::DataTypeKind::*;
         match value {
-            // Literal types
-            "bool" | "boolean" => Boolean,
-            "int"  | "integer" => Integer,
-            "float" | "real"   => Real,
-            "string"           => String,
+            Boolean => Self::Boolean,
+            Integer => Self::Integer,
+            Real    => Self::Real,
+            String  => Self::String,
 
-            // The rest is always a class unless it's data or an intermediate result
-            value => if value == BuiltinClasses::Data.name() {
-                Data
-            } else if value == BuiltinClasses::IntermediateResult.name() {
-                IntermediateResult
-            } else {
-                Class{ name: value.into() }
-            },
+            Data               => Self::Data,
+            IntermediateResult => Self::IntermediateResult,
+
+            Array { elem_type } => Self::Array { elem_type: Box::new(Self::from(*elem_type)) },
+            Class { name }      => Self::Class { name },
         }
     }
 }
-
-impl From<&String> for DataType {
+impl From<&packages_new::DataTypeKind> for DataType {
     #[inline]
-    fn from(value: &String) -> Self {
-        // Use the string-one
-        Self::from(value.as_str())
+    fn from(value: &packages_new::DataTypeKind) -> Self {
+        use packages_new::DataTypeKind::*;
+        match value {
+            Boolean => Self::Boolean,
+            Integer => Self::Integer,
+            Real    => Self::Real,
+            String  => Self::String,
+
+            Data               => Self::Data,
+            IntermediateResult => Self::IntermediateResult,
+
+            Array { elem_type } => Self::Array { elem_type: Box::new(Self::from(elem_type.as_ref())) },
+            Class { name }      => Self::Class { name: name.clone() },
+        }
     }
 }
-
-impl From<String> for DataType {
+impl From<&mut packages_new::DataTypeKind> for DataType {
     #[inline]
-    fn from(value: String) -> Self {
-        // Use the string-one
-        Self::from(value.as_str())
-    }
+    fn from(value: &mut packages_new::DataTypeKind) -> Self { Self::from(&*value) }
 }

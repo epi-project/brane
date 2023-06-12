@@ -18,7 +18,7 @@ use std::rc::Rc;
 use std::str::FromStr;
 
 use enum_debug::EnumDebug;
-use specifications::version::{ParseError, Version};
+use brane_shr::version::{ParseError, Version};
 
 use crate::spec::{TextPos, TextRange};
 use crate::data_type::DataType;

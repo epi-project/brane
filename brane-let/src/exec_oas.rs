@@ -20,8 +20,8 @@ use tokio::time::{self, Duration};
 
 use brane_exe::FullValue;
 use brane_oas::OpenAPI;
+use brane_shr::version::Version;
 use specifications::package::{PackageInfo, PackageKind};
-use specifications::version::Version;
 
 // use crate::callback::Callback;
 use crate::common::{assert_input, HEARTBEAT_DELAY, Map, PackageResult, PackageReturnState};

@@ -21,7 +21,7 @@ use log::{debug, info};
 use scylla::IntoTypedRows;
 use uuid::Uuid;
 
-use specifications::version::Version;
+use brane_shr::version::Version;
 
 use crate::spec::Context;
 use crate::packages::PackageUdt;

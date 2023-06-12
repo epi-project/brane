@@ -27,9 +27,10 @@ use brane_ast::DataType;
 use brane_ast::spec::BuiltinClasses;
 use brane_ast::ast::{ClassDef, VarDef};
 use brane_exe::FullValue;
+use brane_shr::version::Version;
 use specifications::data::DataIndex;
 use specifications::package::PackageInfo;
-use specifications::version::Version;
+use specifications::packages_new::DataTypeKind;
 
 
 /***** ERRORS *****/
@@ -106,7 +107,7 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
 
         props : t.1.properties.iter().map(|p| VarDef {
             name      : p.name.clone(),
-            data_type : DataType::from(&p.data_type),
+            data_type : DataType::from(DataTypeKind::from(&p.data_type)),
         }).collect(),
         methods : vec![]
     })).collect();
@@ -143,7 +144,7 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
         println!("\nPlease provide input for the chosen function:\n");
         for p in &function.parameters {
             // Prompt for that data type
-            let value: FullValue = prompt_for_param(data_index, package, format!("{} [{}]", p.name, p.data_type), &p.name, DataType::from(&p.data_type), p.optional.unwrap_or(false), None, &types)?;
+            let value: FullValue = prompt_for_param(data_index, package, format!("{} [{}]", p.name, p.data_type), &p.name, DataType::from(DataTypeKind::from(&p.data_type)), p.optional.unwrap_or(false), None, &types)?;
             args.insert(p.name.clone(), value);
         }
     }

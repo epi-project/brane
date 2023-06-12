@@ -30,7 +30,7 @@ use uuid::Uuid;
 
 use crate::common::{Function, Type};
 use crate::container::ContainerInfo;
-use crate::version::Version;
+use brane_shr::version::Version;
 
 
 /***** CUSTOM TYPES *****/

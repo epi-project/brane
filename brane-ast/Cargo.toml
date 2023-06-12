@@ -4,6 +4,7 @@ version = { workspace = true }
 edition = "2021"
 authors = [ "Tim Müller" ]
 
+
 [dependencies]
 console = "0.15"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }

@@ -21,10 +21,10 @@ use warp::{Rejection, Reply};
 use warp::http::{HeaderValue, Response};
 use warp::hyper::Body;
 
-use brane_cfg::config::Config as _;
 use brane_cfg::infra::InfraFile;
 use brane_cfg::node::NodeConfig;
 use brane_prx::spec::NewPathRequestTlsOptions;
+use brane_shr::info::Info as _;
 use specifications::data::{AssetInfo, DataInfo};
 
 pub use crate::errors::DataError as Error;

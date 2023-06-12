@@ -23,10 +23,9 @@ use serde::{Deserialize, Serialize};
 use serde::de::{self, Deserializer, Visitor};
 use serde::ser::Serializer;
 
-use specifications::address::Address;
-
-pub use crate::config::YamlError as Error;
-use crate::config::YamlInfo;
+pub use brane_shr::info::YamlError as Error;
+use brane_shr::address::Address;
+use brane_shr::info::YamlInfo;
 
 
 /***** ERRORS *****/
@@ -148,7 +147,7 @@ impl Default for ProxyConfig {
         }
     }
 }
-impl<'de> YamlInfo<'de> for ProxyConfig {}
+impl YamlInfo for ProxyConfig {}
 
 
 

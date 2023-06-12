@@ -14,8 +14,8 @@
 
 use std::path::Path;
 
-use brane_cfg::config::Config as _;
 use brane_cfg::infra::InfraFile;
+use brane_shr::info::Info as _;
 
 pub use crate::errors::VerifyError as Error;
 

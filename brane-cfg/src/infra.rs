@@ -16,10 +16,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use specifications::address::Address;
+use brane_shr::address::Address;
 
-pub use crate::config::YamlError as Error;
-use crate::config::YamlInfo;
+pub use brane_shr::info::YamlError as Error;
+use brane_shr::info::YamlInfo;
 
 
 /***** AUXILLARY *****/
@@ -88,7 +88,7 @@ impl InfraFile {
     pub fn iter_mut(&mut self) -> std::collections::hash_map::IterMut<String, InfraLocation> { self.into_iter() }
 
 }
-impl<'de> YamlInfo<'de> for InfraFile {}
+impl YamlInfo for InfraFile {}
 
 impl IntoIterator for InfraFile {
     type Item     = (String, InfraLocation);

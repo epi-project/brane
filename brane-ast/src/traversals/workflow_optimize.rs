@@ -4,7 +4,7 @@
 //  Created:
 //    19 Oct 2022, 11:19:39
 //  Last edited:
-//    23 Dec 2022, 16:36:20
+//    12 Jun 2023, 13:48:18
 //  Auto updated?
 //    Yes
 // 
@@ -21,7 +21,7 @@ use crate::ast_unresolved::UnresolvedWorkflow;
 #[cfg(test)]
 mod tests {
     use brane_dsl::ParserOptions;
-    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files};
+    use brane_dsl::utils::{create_data_index, create_package_index, test_on_dsl_files};
     use specifications::data::DataIndex;
     use specifications::package::PackageIndex;
     use super::*;

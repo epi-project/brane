@@ -24,12 +24,12 @@ use tonic::Status;
 
 use brane_ast::locations::{Location, Locations};
 use brane_ast::ast::DataName;
+use brane_shr::address::Address;
 use brane_shr::formatters::{BlockFormatter, Capitalizeable};
-use specifications::address::Address;
+use brane_shr::version::Version;
 use specifications::container::Image;
 use specifications::package::Capability;
 use specifications::planning::PlanningStatusKind;
-use specifications::version::Version;
 use specifications::driving::ExecuteReply;
 // The TaskReply is here for legacy reasons; bad name
 use specifications::working::{ExecuteReply as TaskReply, TaskStatus};
@@ -163,7 +163,7 @@ pub enum PreprocessError {
 
     // Instance only (client-side)
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_cfg::config::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_shr::info::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.
@@ -320,7 +320,7 @@ pub enum ExecuteError {
     /// Failed to update the client of a status change.
     ClientUpdateError{ status: TaskStatus, err: tokio::sync::mpsc::error::SendError<Result<TaskReply, Status>> },
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_cfg::config::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_shr::info::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.
@@ -493,7 +493,7 @@ pub enum CommitError {
 
     // Instance-only (client side)
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_cfg::config::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_shr::info::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.
@@ -703,7 +703,7 @@ pub enum LocalError {
     /// Found a version entry who's path could not be split into a filename
     UnreadableVersionEntry{ path: PathBuf },
     /// The name of version directory in a package's dir is not a valid version
-    IllegalVersionEntry{ package: String, version: String, err: specifications::version::ParseError },
+    IllegalVersionEntry{ package: String, version: String, err: brane_shr::version::ParseError },
     /// The given package has no versions registered to it
     NoVersions{ package: String },
 
@@ -762,7 +762,7 @@ pub enum ApiError {
     /// Failed to parse the package kind in a package info.
     PackageKindParseError{ address: String, index: usize, raw: String, err: specifications::package::PackageKindError },
     /// Failed to parse the package's version in a package info.
-    VersionParseError{ address: String, index: usize, raw: String, err: specifications::version::ParseError },
+    VersionParseError{ address: String, index: usize, raw: String, err: brane_shr::version::ParseError },
     /// Failed to create a package index from the given infos.
     PackageIndexError{ address: String, err: specifications::package::PackageIndexError },
 

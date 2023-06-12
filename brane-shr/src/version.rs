@@ -4,7 +4,7 @@
 //  Created:
 //    23 Mar 2022, 15:15:12
 //  Last edited:
-//    10 Apr 2023, 11:28:06
+//    12 Jun 2023, 13:44:17
 //  Auto updated?
 //    Yes
 // 
@@ -100,34 +100,34 @@ mod tests {
 
 
 
-    #[test]
-    fn test_semver() {
-        // Make sure the from (consuming) makes sense
-        let semversion = semver::Version::new(42, 21, 10);
-        let version    = Version::from(semversion.clone());
-        assert_eq!(semversion.major, version.major);
-        assert_eq!(semversion.minor, version.minor);
-        assert_eq!(semversion.patch, version.patch);
+    // #[test]
+    // fn test_semver() {
+    //     // Make sure the from (consuming) makes sense
+    //     let semversion = semver::Version::new(42, 21, 10);
+    //     let version    = Version::from(semversion.clone());
+    //     assert_eq!(semversion.major, version.major);
+    //     assert_eq!(semversion.minor, version.minor);
+    //     assert_eq!(semversion.patch, version.patch);
 
-        // Make sure the from (reference) makes sense
-        let semversion = semver::Version::new(10, 21, 42);
-        let version    = Version::from(&semversion);
-        assert_eq!(semversion.major, version.major);
-        assert_eq!(semversion.minor, version.minor);
-        assert_eq!(semversion.patch, version.patch);
+    //     // Make sure the from (reference) makes sense
+    //     let semversion = semver::Version::new(10, 21, 42);
+    //     let version    = Version::from(&semversion);
+    //     assert_eq!(semversion.major, version.major);
+    //     assert_eq!(semversion.minor, version.minor);
+    //     assert_eq!(semversion.patch, version.patch);
 
-        // Check the eq
-        assert_eq!(Version::new(42, 21, 10), semver::Version::new(42, 21, 10));
-        assert_ne!(Version::latest(), semver::Version::new(u64::MAX, u64::MAX, u64::MAX));
+    //     // Check the eq
+    //     assert_eq!(Version::new(42, 21, 10), semver::Version::new(42, 21, 10));
+    //     assert_ne!(Version::latest(), semver::Version::new(u64::MAX, u64::MAX, u64::MAX));
 
-        // Check the ord
-        assert!(Version::new(42, 21, 10) > semver::Version::new(42, 21, 9));
-        assert!(Version::new(42, 21, 10) > semver::Version::new(42, 20, 10));
-        assert!(Version::new(42, 21, 10) > semver::Version::new(41, 21, 10));
-        assert!(Version::new(42, 21, 10) < semver::Version::new(42, 21, 11));
-        assert!(Version::new(42, 21, 10) < semver::Version::new(42, 22, 10));
-        assert!(Version::new(42, 21, 10) < semver::Version::new(43, 21, 10));
-    }
+    //     // Check the ord
+    //     assert!(Version::new(42, 21, 10) > semver::Version::new(42, 21, 9));
+    //     assert!(Version::new(42, 21, 10) > semver::Version::new(42, 20, 10));
+    //     assert!(Version::new(42, 21, 10) > semver::Version::new(41, 21, 10));
+    //     assert!(Version::new(42, 21, 10) < semver::Version::new(42, 21, 11));
+    //     assert!(Version::new(42, 21, 10) < semver::Version::new(42, 22, 10));
+    //     assert!(Version::new(42, 21, 10) < semver::Version::new(43, 21, 10));
+    // }
 
 
 
@@ -548,56 +548,56 @@ impl From<&mut Version> for Version {
 
 
 
-impl PartialEq<semver::Version> for Version {
-    #[inline]
-    fn eq(&self, other: &semver::Version) -> bool {
-        !self.is_latest() &&
-        self.major == other.major &&
-        self.minor == other.minor &&
-        self.patch == other.patch
-    }
-}
+// impl PartialEq<semver::Version> for Version {
+//     #[inline]
+//     fn eq(&self, other: &semver::Version) -> bool {
+//         !self.is_latest() &&
+//         self.major == other.major &&
+//         self.minor == other.minor &&
+//         self.patch == other.patch
+//     }
+// }
 
-impl PartialOrd<semver::Version> for Version {
-    #[inline]
-    fn partial_cmp(&self, other: &semver::Version) -> Option<Ordering> {
-        // Do not compare if latest
-        if self.is_latest() { return None; }
+// impl PartialOrd<semver::Version> for Version {
+//     #[inline]
+//     fn partial_cmp(&self, other: &semver::Version) -> Option<Ordering> {
+//         // Do not compare if latest
+//         if self.is_latest() { return None; }
 
-        // Compare the major number
-        let order = self.major.cmp(&other.major);
-        if order.is_ne() { return Some(order); }
+//         // Compare the major number
+//         let order = self.major.cmp(&other.major);
+//         if order.is_ne() { return Some(order); }
 
-        // Compare the minor number
-        let order = self.minor.cmp(&other.minor);
-        if order.is_ne() { return Some(order); }
+//         // Compare the minor number
+//         let order = self.minor.cmp(&other.minor);
+//         if order.is_ne() { return Some(order); }
 
-        // Compare the patch
-        Some(self.patch.cmp(&other.patch))
-    }
-}
+//         // Compare the patch
+//         Some(self.patch.cmp(&other.patch))
+//     }
+// }
 
-impl From<semver::Version> for Version {
-    #[inline]
-    fn from(version: semver::Version) -> Self {
-        Self {
-            major : version.major,
-            minor : version.minor,
-            patch : version.patch,
-        }
-    }
-}
+// impl From<semver::Version> for Version {
+//     #[inline]
+//     fn from(version: semver::Version) -> Self {
+//         Self {
+//             major : version.major,
+//             minor : version.minor,
+//             patch : version.patch,
+//         }
+//     }
+// }
 
-impl From<&semver::Version> for Version {
-    #[inline]
-    fn from(version: &semver::Version) -> Self {
-        Self {
-            major : version.major,
-            minor : version.minor,
-            patch : version.patch,
-        }
-    }
-}
+// impl From<&semver::Version> for Version {
+//     #[inline]
+//     fn from(version: &semver::Version) -> Self {
+//         Self {
+//             major : version.major,
+//             minor : version.minor,
+//             patch : version.patch,
+//         }
+//     }
+// }
 
 
 

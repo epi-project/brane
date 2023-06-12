@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 15:24:54
 //  Last edited:
-//    01 Mar 2023, 10:57:51
+//    12 Jun 2023, 13:48:18
 //  Auto updated?
 //    Yes
 // 
@@ -22,9 +22,9 @@ use brane_dsl::{DataType, SymbolTable, TextRange};
 use brane_dsl::data_type::{ClassSignature, FunctionSignature};
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, SymbolTableEntry, VarEntry};
 use brane_dsl::ast::{Block, Expr, Identifier, Literal, Node, Program, Stmt};
+use brane_shr::version::Version;
 use specifications::data::DataIndex;
 use specifications::package::{PackageIndex, PackageInfo};
-use specifications::version::Version;
 
 pub use crate::errors::ResolveError as Error;
 use crate::errors::AstError;
@@ -36,7 +36,7 @@ use crate::state::CompileState;
 #[cfg(test)]
 pub mod tests {
     use brane_dsl::ParserOptions;
-    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files};
+    use brane_dsl::utils::{create_data_index, create_package_index, test_on_dsl_files};
     use specifications::package::PackageIndex;
     use super::*;
     use super::super::print::symbol_tables;

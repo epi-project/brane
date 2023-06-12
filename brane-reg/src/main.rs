@@ -21,8 +21,8 @@ use log::{debug, error, info, LevelFilter};
 use rustls::Certificate;
 use warp::Filter;
 
-use brane_cfg::config::Config as _;
 use brane_cfg::node::{NodeConfig, WorkerConfig};
+use brane_shr::info::Info as _;
 
 use brane_reg::spec::Context;
 use brane_reg::server::serve_with_auth;

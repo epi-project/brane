@@ -21,7 +21,7 @@ use enum_debug::EnumDebug as _;
 
 use brane_ast::{DataType, MergeStrategy};
 use brane_ast::ast::DataName;
-use specifications::version::Version;
+use brane_shr::version::Version;
 
 
 /***** HELPER FUNCTIONS *****/

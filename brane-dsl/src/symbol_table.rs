@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::mem;
 use std::rc::Rc;
 
+use brane_shr::version::Version;
 use specifications::package::Capability;
-use specifications::version::Version;
 
 pub use crate::errors::SymbolTableError as Error;
 use crate::spec::TextRange;

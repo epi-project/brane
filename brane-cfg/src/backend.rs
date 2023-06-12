@@ -18,11 +18,11 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use specifications::address::Address;
+use brane_shr::address::Address;
 use specifications::package::Capability;
 
-pub use crate::config::YamlError as Error;
-use crate::config::YamlInfo;
+pub use brane_shr::info::YamlError as Error;
+use brane_shr::info::YamlInfo;
 
 
 /***** AUXILLARY *****/
@@ -88,4 +88,4 @@ impl BackendFile {
     #[inline]
     pub fn hash_containers(&self) -> bool { self.hash_containers.unwrap_or(true) }
 }
-impl<'de> YamlInfo<'de> for BackendFile {}
+impl YamlInfo for BackendFile {}

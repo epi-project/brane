@@ -27,8 +27,8 @@ use prettytable::Table;
 use prettytable::format::FormatBuilder;
 use serde::{Deserialize, Serialize};
 
+use brane_shr::address::Address;
 use brane_shr::formatters::PrettyListFormatter;
-use specifications::address::Address;
 
 pub use crate::errors::InstanceError as Error;
 use crate::spec::Hostname;

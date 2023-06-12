@@ -33,7 +33,7 @@ pub mod tests {
     use brane_ast::state::CompileState;
     use brane_ast::traversals::print::ast;
     use brane_ast::fetcher::SnippetFetcher;
-    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files_async};
+    use brane_dsl::utils::{create_data_index, create_package_index, test_on_dsl_files_async};
     use specifications::data::DataIndex;
     use specifications::package::PackageIndex;
     use super::*;

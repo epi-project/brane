@@ -29,7 +29,7 @@ use crate::parser::ast::Program;
 /***** TESTS *****/
 #[cfg(test)]
 pub mod tests {
-    use brane_shr::utilities::{create_package_index, test_on_dsl_files};
+    use crate::utils::{create_package_index, test_on_dsl_files};
     use super::*;
 
 

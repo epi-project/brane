@@ -16,8 +16,8 @@
 use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 
-pub use crate::config::YamlError as Error;
-use crate::config::YamlInfo;
+pub use brane_shr::info::YamlError as Error;
+use brane_shr::info::YamlInfo;
 
 
 /***** LIBRARY *****/
@@ -29,7 +29,7 @@ pub struct PolicyFile {
     /// The containers to allow
     pub containers : Vec<ContainerPolicy>,
 }
-impl<'de> YamlInfo<'de> for PolicyFile {}
+impl YamlInfo for PolicyFile {}
 
 
 

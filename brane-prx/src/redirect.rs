@@ -28,11 +28,11 @@ use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
 use url::Url;
 
-use brane_cfg::config::Config as _;
 use brane_cfg::certs::{load_certstore, load_identity};
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig};
 use brane_cfg::proxy::ProxyProtocol;
-use specifications::address::Address;
+use brane_shr::address::Address;
+use brane_shr::info::Info as _;
 
 pub use crate::errors::RedirectError as Error;
 use crate::spec::{Context, NewPathRequestTlsOptions};

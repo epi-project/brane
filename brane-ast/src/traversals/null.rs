@@ -4,7 +4,7 @@
 //  Created:
 //    19 Dec 2022, 10:04:38
 //  Last edited:
-//    19 Jan 2023, 10:32:24
+//    12 Jun 2023, 13:48:18
 //  Auto updated?
 //    Yes
 // 
@@ -23,7 +23,7 @@ use crate::errors::AstError;
 #[cfg(test)]
 mod tests {
     use brane_dsl::ParserOptions;
-    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files};
+    use brane_dsl::utils::{create_data_index, create_package_index, test_on_dsl_files};
     use specifications::data::DataIndex;
     use specifications::package::PackageIndex;
     use super::*;

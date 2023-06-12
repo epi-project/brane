@@ -25,12 +25,12 @@ use humanlog::{DebugMode, HumanLogger};
 use log::{debug, error, info};
 
 use brane_exe::FullValue;
+use brane_shr::address::Address;
 use brane_shr::errors::ErrorTrace as _;
-use specifications::address::Address;
+use brane_shr::version::Version;
 use specifications::container::Image;
 use specifications::data::DataIndex;
 use specifications::package::PackageInfo;
-use specifications::version::Version;
 
 use brane_tsk::input::prompt_for_input;
 use brane_tsk::docker::ImageSource;

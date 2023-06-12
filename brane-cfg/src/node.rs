@@ -23,9 +23,9 @@ use std::str::FromStr;
 use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 
-use specifications::address::Address;
+use brane_shr::address::Address;
 
-use crate::config::YamlInfo;
+use brane_shr::info::YamlInfo;
 
 
 /***** ERRORS *****/
@@ -153,7 +153,7 @@ pub struct NodeConfig {
     /// Any node-specific config
     pub node : NodeSpecificConfig,
 }
-impl<'de> YamlInfo<'de> for NodeConfig {}
+impl YamlInfo for NodeConfig {}
 
 
 

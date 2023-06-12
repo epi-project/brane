@@ -20,7 +20,7 @@ use console::{style, Style};
 use brane_dsl::{DataType, TextRange};
 use brane_dsl::spec::MergeStrategy;
 use brane_dsl::ast::Expr;
-use specifications::version::Version;
+use brane_shr::version::Version;
 
 use crate::spec::BuiltinClasses;
 
@@ -490,7 +490,7 @@ impl Error for SanityError {}
 #[derive(Debug)]
 pub enum ResolveError {
     /// Failed to parse a package version number.
-    VersionParseError{ err: specifications::version::ParseError, range: TextRange },
+    VersionParseError{ err: brane_shr::version::ParseError, range: TextRange },
     /// The given package/version pair was not found.
     UnknownPackageError{ name: String, version: Version, range: TextRange },
     /// Failed to declare an imported package function

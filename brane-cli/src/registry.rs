@@ -21,9 +21,9 @@ use tokio::fs::File as TokioFile;
 use tokio_util::codec::{BytesCodec, FramedRead};
 use uuid::Uuid;
 
+use brane_shr::version::Version;
 use brane_tsk::local::get_package_versions;
 use specifications::package::{PackageKind, PackageInfo};
-use specifications::version::Version;
 
 use crate::errors::RegistryError;
 use crate::utils::{get_packages_dir, ensure_package_dir, ensure_packages_dir};

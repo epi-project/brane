@@ -22,6 +22,7 @@ mod parser;
 pub mod errors;
 pub mod spec;
 pub mod data_type;
+pub mod utils;
 pub mod location;
 pub mod symbol_table;
 pub mod compiler;

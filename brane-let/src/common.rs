@@ -20,6 +20,7 @@ use brane_ast::DataType;
 use brane_exe::FullValue;
 use specifications::common::Parameter;
 use specifications::package::PackageKind;
+use specifications::packages_new::DataTypeKind;
 
 
 /***** CONSTANTS *****/
@@ -121,7 +122,7 @@ pub fn assert_input(
     // Search through all the allowed parameters
     for p in parameters {
         // Get the expected type, but skip mounts(?)
-        let expected_type = DataType::from(p.data_type.as_str());
+        let expected_type = DataType::from(DataTypeKind::from(p.data_type.as_str()));
 
         // Check if the user specified it
         let argument = match arguments.get(&p.name) {

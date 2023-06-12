@@ -23,10 +23,10 @@ use log::{debug, info, warn};
 use tempfile::TempDir;
 
 use brane_shr::fs::{download_file_async, move_path_async, unarchive_async, DownloadSecurity};
+use brane_shr::version::Version;
 use brane_tsk::docker::{connect_local, ensure_image, save_image, Docker, DockerOptions, ImageSource};
 use specifications::arch::Arch;
 use specifications::container::Image;
-use specifications::version::Version;
 
 pub use crate::errors::DownloadError as Error;
 use crate::spec::DownloadServicesSubcommand;

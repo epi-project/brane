@@ -20,9 +20,9 @@ use reqwest::StatusCode;
 
 use brane_shr::errors::ErrorTrace as _;
 use brane_shr::formatters::PrettyListFormatter;
+use brane_shr::version::{ParseError as VersionParseError, Version};
 use specifications::package::{PackageInfoError, PackageKindError};
 use specifications::container::{ContainerInfoError, Image, LocalContainerInfoError};
-use specifications::version::{ParseError as VersionParseError, Version};
 
 
 /***** GLOBALS *****/
@@ -74,7 +74,7 @@ pub enum CliError {
     /// Could not resolve a string to a package kind
     IllegalPackageKind{ kind: String, err: PackageKindError },
     /// Could not parse a NAME:VERSION pair
-    PackagePairParseError{ raw: String, err: specifications::version::ParseError },
+    PackagePairParseError{ raw: String, err: brane_shr::version::ParseError },
 }
 impl Display for CliError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -638,7 +638,7 @@ pub enum InstanceError {
     /// The given instance name is invalid.
     IllegalInstanceName{ raw: String, illegal_char: char },
     /// Failed to parse an address from the hostname (and a little modification).
-    AddressParseError{ err: specifications::address::AddressParseError },
+    AddressParseError{ err: brane_shr::address::AddressParseError },
     /// Failed to send a request to the remote instance.
     RequestError{ address: String, err: reqwest::Error },
     /// The remote instance was not alive (at least, API/health was not)
@@ -735,7 +735,7 @@ pub enum PackageError {
     /// Failed to get the versions of a package
     VersionsError{ name: String, dir: PathBuf, err: std::io::Error },
     /// Failed to parse the version of a package
-    VersionParseError{ name: String, raw: String, err: specifications::version::ParseError },
+    VersionParseError{ name: String, raw: String, err: brane_shr::version::ParseError },
     /// Failed to load the PackageInfo of the given package
     PackageInfoError{ path: PathBuf, err: specifications::package::PackageInfoError },
     /// The given PackageInfo has no digest set
@@ -797,7 +797,7 @@ pub enum RegistryError {
     /// Could not parse the kind as a proper PackageInfo kind
     KindParseError{ url: String, raw: String, err: specifications::package::PackageKindError },
     /// Could not parse the version as a proper PackageInfo version
-    VersionParseError{ url: String, raw: String, err: specifications::version::ParseError },
+    VersionParseError{ url: String, raw: String, err: brane_shr::version::ParseError },
     /// Could not parse the list of requirements of the package.
     RequirementParseError{ url: String, raw: String, err: serde_json::Error },
     /// Could not parse the functions as proper PackageInfo functions
@@ -1092,7 +1092,7 @@ pub enum VersionError {
     /// Could not get the host architecture
     HostArchError{ err: specifications::arch::ArchError },
     /// Could not parse a Version number.
-    VersionParseError{ raw: String, err: specifications::version::ParseError },
+    VersionParseError{ raw: String, err: brane_shr::version::ParseError },
 
     /// Could not discover if the instance existed.
     InstanceInfoExistsError{ err: InstanceError },

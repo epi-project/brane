@@ -21,9 +21,9 @@ use log::LevelFilter;
 use log::{debug, error, info};
 use tonic::transport::Server;
 
-use brane_cfg::config::Config as _;
 use brane_cfg::node::{NodeConfig, WorkerConfig};
 use brane_prx::client::ProxyClient;
+use brane_shr::info::Info as _;
 use specifications::working::JobServiceServer;
 
 use brane_job::worker::WorkerServer;

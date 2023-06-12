@@ -4,7 +4,7 @@
 //  Created:
 //    15 Sep 2022, 08:26:20
 //  Last edited:
-//    01 Mar 2023, 10:58:00
+//    12 Jun 2023, 13:48:18
 //  Auto updated?
 //    Yes
 // 
@@ -33,12 +33,12 @@ use crate::state::{ClassState, CompileState, FunctionState, TableState, TaskStat
 #[cfg(test)]
 mod tests {
     use brane_dsl::ParserOptions;
-    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files};
     use specifications::data::DataIndex;
     use specifications::package::PackageIndex;
     use super::*;
     use super::super::print::symbol_tables;
     use crate::{compile_snippet_to, CompileResult, CompileStage};
+    use brane_dsl::utils::{create_data_index, create_package_index, test_on_dsl_files};
     use crate::state::CompileState;
 
 

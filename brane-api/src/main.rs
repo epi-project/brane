@@ -23,9 +23,9 @@ use log::{debug, error, info, LevelFilter};
 use scylla::{Session, SessionBuilder};
 use warp::Filter;
 
-use brane_cfg::config::Config as _;
 use brane_cfg::node::{CentralConfig, NodeConfig};
 use brane_prx::client::ProxyClient;
+use brane_shr::info::Info as _;
 
 use brane_api::errors::ApiError;
 use brane_api::spec::Context;

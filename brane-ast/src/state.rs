@@ -24,8 +24,8 @@ use brane_dsl::{DataType, TextRange};
 use brane_dsl::data_type::{ClassSignature, FunctionSignature};
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, SymbolTable, VarEntry};
 use brane_dsl::ast::Data;
+use brane_shr::version::Version;
 use specifications::package::Capability;
-use specifications::version::Version;
 
 use crate::spec::{BuiltinClasses, BuiltinFunctions};
 use crate::ast::{ClassDef, ComputeTaskDef, Edge, FunctionDef, SymTable, TaskDef, VarDef};

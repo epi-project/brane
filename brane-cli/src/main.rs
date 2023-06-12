@@ -28,11 +28,11 @@ use log::LevelFilter;
 use tempfile::tempdir;
 
 use brane_dsl::Language;
+use brane_shr::version::Version as SemVersion;
 use brane_tsk::spec::AppId;
 use brane_tsk::docker::{ClientVersion, DockerOptions};
 use specifications::arch::Arch;
 use specifications::package::PackageKind;
-use specifications::version::Version as SemVersion;
 
 use brane_cli::{build_ecu, build_oas, certs, data, instance, packages, registry, repl, run, test, verify, version};
 use brane_cli::errors::{CliError, ImportError};

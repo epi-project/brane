@@ -26,9 +26,9 @@ use serde::{Deserialize, Serialize};
 use serde_json_any_key::any_key_map;
 
 use brane_dsl::spec::MergeStrategy;
+use brane_shr::version::Version;
 use specifications::data::AvailabilityKind;
 use specifications::package::Capability;
-use specifications::version::Version;
 
 use crate::errors::DataNameDeserializeError;
 use crate::data_type::DataType;

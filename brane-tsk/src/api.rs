@@ -21,10 +21,10 @@ use graphql_client::{GraphQLQuery, Response};
 use reqwest::Client;
 use uuid::Uuid;
 
+use brane_shr::version::Version;
 use specifications::common::{Function, Type};
 use specifications::data::{DataIndex, DataInfo};
 use specifications::package::{PackageKind, PackageIndex, PackageInfo};
-use specifications::version::Version;
 
 pub use crate::errors::ApiError as Error;
 

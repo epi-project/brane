@@ -21,9 +21,9 @@ use clap::Subcommand;
 use enum_debug::EnumDebug;
 
 use brane_cfg::node::NodeKind;
+use brane_shr::address::Address;
+use brane_shr::version::Version;
 use brane_tsk::docker::{ClientVersion, ImageSource};
-use specifications::address::Address;
-use specifications::version::Version;
 
 use crate::errors::{InclusiveRangeParseError, PairParseError};
 

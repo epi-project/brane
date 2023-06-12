@@ -39,10 +39,10 @@ use warp::hyper::body::{Bytes, Sender};
 use warp::reply::Response;
 use warp::{http::StatusCode, Rejection, Reply};
 
-use brane_cfg::config::Config as _;
 use brane_cfg::node::{CentralConfig, NodeConfig, NodeKind};
+use brane_shr::info::Info as _;
+use brane_shr::version::Version;
 use specifications::package::PackageInfo;
-use specifications::version::Version;
 
 pub use crate::errors::PackageError as Error;
 use crate::spec::Context;
