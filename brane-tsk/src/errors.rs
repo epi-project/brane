@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    10 May 2023, 16:34:50
+//    12 Jun 2023, 11:18:38
 //  Auto updated?
 //    Yes
 // 
@@ -163,7 +163,7 @@ pub enum PreprocessError {
 
     // Instance only (client-side)
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_cfg::info::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_cfg::config::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.
@@ -320,7 +320,7 @@ pub enum ExecuteError {
     /// Failed to update the client of a status change.
     ClientUpdateError{ status: TaskStatus, err: tokio::sync::mpsc::error::SendError<Result<TaskReply, Status>> },
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_cfg::info::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_cfg::config::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.
@@ -493,7 +493,7 @@ pub enum CommitError {
 
     // Instance-only (client side)
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_cfg::info::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_cfg::config::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.

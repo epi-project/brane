@@ -16,5 +16,4 @@ tokio = { version = "1", features = [] }
 x509-parser = "0.15"
 
 brane-ast      = { path = "../brane-ast" }
-brane-shr      = { path = "../brane-shr" }
 specifications = { path = "../specifications" }

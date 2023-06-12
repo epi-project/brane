@@ -4,7 +4,7 @@
 //  Created:
 //    17 Oct 2022, 15:18:32
 //  Last edited:
-//    07 Jun 2023, 16:29:37
+//    12 Jun 2023, 11:20:06
 //  Auto updated?
 //    Yes
 // 
@@ -39,7 +39,7 @@ use warp::hyper::body::{Bytes, Sender};
 use warp::reply::Response;
 use warp::{http::StatusCode, Rejection, Reply};
 
-use brane_cfg::info::Info as _;
+use brane_cfg::config::Config as _;
 use brane_cfg::node::{CentralConfig, NodeConfig, NodeKind};
 use specifications::package::PackageInfo;
 use specifications::version::Version;

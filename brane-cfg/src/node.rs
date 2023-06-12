@@ -4,7 +4,7 @@
 //  Created:
 //    28 Feb 2023, 10:01:27
 //  Last edited:
-//    23 May 2023, 17:14:24
+//    12 Jun 2023, 11:49:33
 //  Auto updated?
 //    Yes
 // 
@@ -14,6 +14,7 @@
 // 
 
 use std::collections::HashMap;
+use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
@@ -24,9 +25,83 @@ use serde::{Deserialize, Serialize};
 
 use specifications::address::Address;
 
-pub use crate::errors::NodeConfigError as Error;
-use crate::errors::NodeKindParseError;
-use crate::info::YamlInfo;
+use crate::config::YamlInfo;
+
+
+/***** ERRORS *****/
+/// Errors that relate to a NodeConfig.
+#[derive(Debug)]
+pub enum Error {
+    /// Failed to open the given config path.
+    FileOpenError{ path: PathBuf, err: std::io::Error },
+    /// Failed to read from the given config path.
+    FileReadError{ path: PathBuf, err: std::io::Error },
+    /// Failed to parse the given file.
+    FileParseError{ path: PathBuf, err: serde_yaml::Error },
+
+    /// Failed to open the given config path.
+    FileCreateError{ path: PathBuf, err: std::io::Error },
+    /// Failed to write to the given config path.
+    FileWriteError{ path: PathBuf, err: std::io::Error },
+    /// Failed to serialze the NodeConfig.
+    ConfigSerializeError{ err: serde_yaml::Error },
+
+    /// Failed to write to the given writer.
+    WriterWriteError{ err: std::io::Error },
+}
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use Error::*;
+        match self {
+            FileOpenError{ path, .. }  => write!(f, "Failed to open the node config file '{}'", path.display()),
+            FileReadError{ path, .. }  => write!(f, "Failed to read the ndoe config file '{}'", path.display()),
+            FileParseError{ path, .. } => write!(f, "Failed to parse node config file '{}' as YAML", path.display()),
+
+            FileCreateError{ path, .. } => write!(f, "Failed to create the node config file '{}'", path.display()),
+            FileWriteError{ path, .. }  => write!(f, "Failed to write to the ndoe config file '{}'", path.display()),
+            ConfigSerializeError{ .. }  => write!(f, "Failed to serialize node config to YAML"),
+
+            WriterWriteError{ .. } => write!(f, "Failed to write to given writer"),
+        }
+    }
+}
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        use Error::*;
+        match self {
+            FileOpenError { err, .. }  => Some(err),
+            FileReadError { err, .. }  => Some(err),
+            FileParseError { err, .. } => Some(err),
+
+            FileCreateError { err, .. }  => Some(err),
+            FileWriteError { err, .. }   => Some(err),
+            ConfigSerializeError { err } => Some(err),
+
+            WriterWriteError { err } => Some(err),
+        }
+    }
+}
+
+
+
+/// Defines errors that may occur when parsing node kind strings.
+#[derive(Debug)]
+pub enum NodeKindParseError {
+    /// The given NodeKind was unknown to us.
+    UnknownNodeKind{ raw: String },
+}
+impl Display for NodeKindParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use NodeKindParseError::*;
+        match self {
+            UnknownNodeKind{ raw } => write!(f, "Unknown node kind '{raw}'"),
+        }
+    }
+}
+impl error::Error for NodeKindParseError {}
+
+
+
 
 
 /***** AUXILLARY *****/

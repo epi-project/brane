@@ -4,7 +4,7 @@
 //  Created:
 //    17 Oct 2022, 15:15:36
 //  Last edited:
-//    16 Mar 2023, 16:56:25
+//    12 Jun 2023, 11:20:15
 //  Auto updated?
 //    Yes
 // 
@@ -23,7 +23,7 @@ use log::{debug, error, info, LevelFilter};
 use scylla::{Session, SessionBuilder};
 use warp::Filter;
 
-use brane_cfg::info::Info as _;
+use brane_cfg::config::Config as _;
 use brane_cfg::node::{CentralConfig, NodeConfig};
 use brane_prx::client::ProxyClient;
 

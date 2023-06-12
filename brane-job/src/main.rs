@@ -4,7 +4,7 @@
 //  Created:
 //    18 Oct 2022, 13:47:17
 //  Last edited:
-//    16 Mar 2023, 16:56:01
+//    12 Jun 2023, 11:20:21
 //  Auto updated?
 //    Yes
 // 
@@ -21,7 +21,7 @@ use log::LevelFilter;
 use log::{debug, error, info};
 use tonic::transport::Server;
 
-use brane_cfg::info::Info as _;
+use brane_cfg::config::Config as _;
 use brane_cfg::node::{NodeConfig, WorkerConfig};
 use brane_prx::client::ProxyClient;
 use specifications::working::JobServiceServer;

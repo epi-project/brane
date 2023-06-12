@@ -4,7 +4,7 @@
 //  Created:
 //    04 Oct 2022, 11:04:33
 //  Last edited:
-//    10 Mar 2023, 15:52:45
+//    12 Jun 2023, 11:18:45
 //  Auto updated?
 //    Yes
 // 
@@ -18,8 +18,8 @@ use serde::{Deserialize, Serialize};
 
 use specifications::address::Address;
 
-pub use crate::info::YamlError as Error;
-use crate::info::YamlInfo;
+pub use crate::config::YamlError as Error;
+use crate::config::YamlInfo;
 
 
 /***** AUXILLARY *****/

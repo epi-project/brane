@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:47
 //  Last edited:
-//    16 Mar 2023, 17:28:16
+//    12 Jun 2023, 11:20:09
 //  Auto updated?
 //    Yes
 // 
@@ -29,7 +29,7 @@ use rand::Rng as _;
 use rand::distributions::Alphanumeric;
 use serde::Serialize;
 
-use brane_cfg::info::Info as _;
+use brane_cfg::config::Config as _;
 use brane_cfg::infra::{InfraFile, InfraLocation};
 use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::node::{self, CentralConfig, CentralPaths, CentralServices, ExternalService, KafkaService, NodeConfig, NodeSpecificConfig, PrivateService, PrivateOrExternalService, ProxyPaths, ProxyServices, PublicService, WorkerConfig, WorkerPaths, WorkerServices};

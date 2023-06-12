@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    07 Jun 2023, 17:00:14
+//    12 Jun 2023, 11:20:16
 //  Auto updated?
 //    Yes
 // 
@@ -40,7 +40,7 @@ use base64::engine::general_purpose::STANDARD;
 use brane_ast::Workflow;
 use brane_ast::locations::Location;
 use brane_ast::ast::{ComputeTaskDef, DataName, TaskDef};
-use brane_cfg::info::Info as _;
+use brane_cfg::config::Config as _;
 use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::node::{NodeConfig, WorkerConfig};
 use brane_cfg::policies::{ContainerPolicy, PolicyFile};

@@ -4,7 +4,7 @@
 //  Created:
 //    09 Mar 2023, 15:15:47
 //  Last edited:
-//    16 Mar 2023, 15:39:53
+//    12 Jun 2023, 11:49:45
 //  Auto updated?
 //    Yes
 // 
@@ -13,6 +13,7 @@
 // 
 
 use std::collections::HashMap;
+use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::ops::RangeInclusive;
 use std::str::FromStr;
@@ -24,9 +25,29 @@ use serde::ser::Serializer;
 
 use specifications::address::Address;
 
-pub use crate::info::YamlError as Error;
-use crate::errors::ProxyProtocolParseError;
-use crate::info::YamlInfo;
+pub use crate::config::YamlError as Error;
+use crate::config::YamlInfo;
+
+
+/***** ERRORS *****/
+/// Defines errors that may occur when parsing proxy protocol strings.
+#[derive(Debug)]
+pub enum ProxyProtocolParseError {
+    /// The protocol (version) is unknown to us.
+    UnknownProtocol{ raw: String },
+}
+impl Display for ProxyProtocolParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use ProxyProtocolParseError::*;
+        match self {
+            UnknownProtocol{ raw } => write!(f, "Unknown proxy protocol '{raw}'"),
+        }
+    }
+}
+impl error::Error for ProxyProtocolParseError {}
+
+
+
 
 
 /***** AUXILLARY *****/

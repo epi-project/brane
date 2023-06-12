@@ -4,7 +4,7 @@
 //  Created:
 //    07 Jun 2023, 16:23:43
 //  Last edited:
-//    08 Jun 2023, 15:31:54
+//    12 Jun 2023, 11:18:51
 //  Auto updated?
 //    Yes
 // 
@@ -27,7 +27,7 @@ use serde::de::{self, Deserializer, Visitor};
 
 use specifications::version::Version;
 
-use crate::info::YamlInfo;
+use crate::config::YamlInfo;
 
 
 /***** ERRORS *****/

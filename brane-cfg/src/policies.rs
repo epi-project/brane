@@ -4,7 +4,7 @@
 //  Created:
 //    01 Dec 2022, 09:20:32
 //  Last edited:
-//    27 Mar 2023, 11:45:02
+//    12 Jun 2023, 11:18:40
 //  Auto updated?
 //    Yes
 // 
@@ -16,8 +16,8 @@
 use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 
-pub use crate::info::YamlError as Error;
-use crate::info::YamlInfo;
+pub use crate::config::YamlError as Error;
+use crate::config::YamlInfo;
 
 
 /***** LIBRARY *****/

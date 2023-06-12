@@ -4,7 +4,7 @@
 //  Created:
 //    22 Nov 2022, 11:19:22
 //  Last edited:
-//    13 Apr 2023, 10:28:07
+//    12 Jun 2023, 11:20:07
 //  Auto updated?
 //    Yes
 // 
@@ -30,7 +30,7 @@ use rand::Rng;
 use rand::distributions::Alphanumeric;
 use serde::{Deserialize, Serialize};
 
-use brane_cfg::info::Info as _;
+use brane_cfg::config::Config as _;
 use brane_cfg::proxy::ProxyConfig;
 use brane_cfg::node::{CentralPaths, CentralServices, NodeConfig, NodeKind, NodeSpecificConfig, PrivateOrExternalService, ProxyPaths, ProxyServices, WorkerPaths, WorkerServices};
 use brane_tsk::docker::{ensure_image, get_digest, DockerOptions, ImageSource};

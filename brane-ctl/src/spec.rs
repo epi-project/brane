@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 17:27:52
 //  Last edited:
-//    07 Jun 2023, 10:47:12
+//    12 Jun 2023, 11:50:15
 //  Auto updated?
 //    Yes
 // 
@@ -106,7 +106,7 @@ impl Display for ResolvableNodeKind {
     }
 }
 impl FromStr for ResolvableNodeKind {
-    type Err = brane_cfg::errors::NodeKindParseError;
+    type Err = brane_cfg::node::NodeKindParseError;
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {

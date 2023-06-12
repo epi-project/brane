@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    07 Jun 2023, 16:29:26
+//    12 Jun 2023, 11:20:03
 //  Auto updated?
 //    Yes
 // 
@@ -36,7 +36,7 @@ use reqwest::Response;
 use brane_ast::Workflow;
 use brane_ast::locations::Locations;
 use brane_ast::ast::{ComputeTaskDef, DataName, Edge, SymTable, TaskDef};
-use brane_cfg::info::Info as _;
+use brane_cfg::config::Config as _;
 use brane_cfg::infra::InfraFile;
 use brane_cfg::node::{CentralConfig, NodeConfig};
 use brane_shr::kafka::{ensure_topics, restore_committed_offsets};

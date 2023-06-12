@@ -4,7 +4,7 @@
 //  Created:
 //    28 Feb 2023, 10:07:36
 //  Last edited:
-//    07 Jun 2023, 16:29:22
+//    12 Jun 2023, 11:20:02
 //  Auto updated?
 //    Yes
 // 
@@ -29,7 +29,7 @@ use tokio::io::AsyncReadExt as _;
 /***** ERRORS *****/
 /// Defines general errors for configs.
 #[derive(Debug)]
-pub enum InfoError<E: Debug> {
+pub enum ConfigError<E: Debug> {
     /// Failed to create the output file.
     OutputCreateError{ path: PathBuf, err: std::io::Error },
     /// Failed to open the input file.
@@ -51,9 +51,9 @@ pub enum InfoError<E: Debug> {
     /// Failed to deserialize a file to the config.
     FileDeserializeError{ path: PathBuf, err: E },
 }
-impl<E: Error> Display for InfoError<E> {
+impl<E: Error> Display for ConfigError<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use InfoError::*;
+        use ConfigError::*;
         match self {
             OutputCreateError{ path, .. } => write!(f, "Failed to create output file '{}'", path.display()),
             InputOpenError{ path, .. }    => write!(f, "Failed to open input file '{}'", path.display()),
@@ -69,9 +69,9 @@ impl<E: Error> Display for InfoError<E> {
         }
     }
 }
-impl<E: 'static + Error> Error for InfoError<E> {
+impl<E: 'static + Error> Error for ConfigError<E> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        use InfoError::*;
+        use ConfigError::*;
         match self {
             OutputCreateError{ err, .. } => Some(err),
             InputOpenError{ err, .. }    => Some(err),
@@ -95,7 +95,7 @@ impl<E: 'static + Error> Error for InfoError<E> {
 /***** LIBRARY *****/
 /// Defines a serializable struct that we typically use for structs that are directly read and written to disk.
 #[async_trait]
-pub trait Info: Clone + Debug {
+pub trait Config: Clone + Debug {
     /// The types of errors that may be thrown by the serialization function(s).
     type Error : Error;
 
@@ -111,7 +111,7 @@ pub trait Info: Clone + Debug {
     /// 
     /// # Errors
     /// This function may error if the serialization failed.
-    fn to_string(&self, pretty: bool) -> Result<String, InfoError<Self::Error>>;
+    fn to_string(&self, pretty: bool) -> Result<String, ConfigError<Self::Error>>;
     /// Serializes this Config to a reader.
     /// 
     /// # Arguments
@@ -120,7 +120,7 @@ pub trait Info: Clone + Debug {
     /// 
     /// # Errors
     /// This function may error if the serialization failed or if we failed to write to the given writer.
-    fn to_writer(&self, writer: impl Write, pretty: bool) -> Result<(), InfoError<Self::Error>>;
+    fn to_writer(&self, writer: impl Write, pretty: bool) -> Result<(), ConfigError<Self::Error>>;
 
     /// Deserializes the given string to an instance of ourselves.
     /// 
@@ -132,7 +132,7 @@ pub trait Info: Clone + Debug {
     /// 
     /// # Errors
     /// This function may fail if the input string was invalid for this object.
-    fn from_string(raw: impl AsRef<str>) -> Result<Self, InfoError<Self::Error>>;
+    fn from_string(raw: impl AsRef<str>) -> Result<Self, ConfigError<Self::Error>>;
     /// Deserializes the contents of the given reader to an instance of ourselves.
     /// 
     /// # Arguments
@@ -143,7 +143,7 @@ pub trait Info: Clone + Debug {
     /// 
     /// # Errors
     /// This function may fail if we failed to read from the reader or if its contents were invalid for this object.
-    fn from_reader(reader: impl Read) -> Result<Self, InfoError<Self::Error>>;
+    fn from_reader(reader: impl Read) -> Result<Self, ConfigError<Self::Error>>;
 
 
     // Globally deduced
@@ -156,19 +156,19 @@ pub trait Info: Clone + Debug {
     /// 
     /// # Errors
     /// This function may error if the serialization failed or if we failed to create and/or write to the file.
-    fn to_path(&self, path: impl AsRef<Path>) -> Result<(), InfoError<Self::Error>> {
+    fn to_path(&self, path: impl AsRef<Path>) -> Result<(), ConfigError<Self::Error>> {
         let path: &Path = path.as_ref();
 
         // Attempt to create the new file
         let handle: File = match File::create(path) {
             Ok(handle) => handle,
-            Err(err)   => { return Err(InfoError::OutputCreateError { path: path.into(), err }); },
+            Err(err)   => { return Err(ConfigError::OutputCreateError { path: path.into(), err }); },
         };
 
         // Write it using the child function, wrapping the error that may occur
         match self.to_writer(handle, true) {
             Ok(_)                                         => Ok(()),
-            Err(InfoError::WriterSerializeError{ err }) => Err(InfoError::FileSerializeError { path: path.into(), err }),
+            Err(ConfigError::WriterSerializeError{ err }) => Err(ConfigError::FileSerializeError { path: path.into(), err }),
             Err(err)                                      => Err(err),
         }
     }
@@ -180,19 +180,19 @@ pub trait Info: Clone + Debug {
     /// 
     /// # Errors
     /// This function may fail if we failed to open/read from the file or if its contents were invalid for this object.
-    fn from_path(path: impl AsRef<Path>) -> Result<Self, InfoError<Self::Error>> {
+    fn from_path(path: impl AsRef<Path>) -> Result<Self, ConfigError<Self::Error>> {
         let path: &Path = path.as_ref();
 
         // Attempt to open the given file
         let handle: File = match File::open(path) {
             Ok(handle) => handle,
-            Err(err)   => { return Err(InfoError::InputOpenError { path: path.into(), err }); },
+            Err(err)   => { return Err(ConfigError::InputOpenError { path: path.into(), err }); },
         };
 
         // Write it using the child function, wrapping the error that may occur
         match Self::from_reader(handle) {
             Ok(config)                                    => Ok(config),
-            Err(InfoError::ReaderDeserializeError{ err }) => Err(InfoError::FileDeserializeError { path: path.into(), err }),
+            Err(ConfigError::ReaderDeserializeError{ err }) => Err(ConfigError::FileDeserializeError { path: path.into(), err }),
             Err(err)                                      => Err(err),
         }
     }
@@ -205,7 +205,7 @@ pub trait Info: Clone + Debug {
     /// 
     /// # Errors
     /// This function may fail if we failed to open/read from the file or if its contents were invalid for this object.
-    async fn from_path_async(path: impl Send + AsRef<Path>) -> Result<Self, InfoError<Self::Error>> {
+    async fn from_path_async(path: impl Send + AsRef<Path>) -> Result<Self, ConfigError<Self::Error>> {
         let path: &Path = path.as_ref();
 
         // Read the file to a string
@@ -213,19 +213,19 @@ pub trait Info: Clone + Debug {
             // Attempt to open the given file
             let mut handle: TFile = match TFile::open(path).await {
                 Ok(handle) => handle,
-                Err(err)   => { return Err(InfoError::InputOpenError { path: path.into(), err }); },
+                Err(err)   => { return Err(ConfigError::InputOpenError { path: path.into(), err }); },
             };
 
             // Read everything to a string
             let mut raw: String = String::new();
-            if let Err(err) = handle.read_to_string(&mut raw).await { return Err(InfoError::InputReadError{ path: path.into(), err }); }
+            if let Err(err) = handle.read_to_string(&mut raw).await { return Err(ConfigError::InputReadError{ path: path.into(), err }); }
             raw
         };
 
         // Write it using the child function, wrapping the error that may occur
         match Self::from_string(raw) {
             Ok(config)                                    => Ok(config),
-            Err(InfoError::ReaderDeserializeError{ err }) => Err(InfoError::FileDeserializeError { path: path.into(), err }),
+            Err(ConfigError::ReaderDeserializeError{ err }) => Err(ConfigError::FileDeserializeError { path: path.into(), err }),
             Err(err)                                      => Err(err),
         }
     }
@@ -235,36 +235,36 @@ pub trait Info: Clone + Debug {
 
 /// A marker trait that will let the compiler implement `Config` for this object using the `serde_yaml` backend.
 pub trait YamlInfo<'de>: Clone + Debug + Deserialize<'de> + Serialize {}
-impl<T: DeserializeOwned + Serialize + for<'de> YamlInfo<'de>> Info for T {
+impl<T: DeserializeOwned + Serialize + for<'de> YamlInfo<'de>> Config for T {
     type Error = serde_yaml::Error;
 
 
-    fn to_string(&self, _pretty: bool) -> Result<String, InfoError<Self::Error>> {
+    fn to_string(&self, _pretty: bool) -> Result<String, ConfigError<Self::Error>> {
         match serde_yaml::to_string(self) {
             Ok(raw)  => Ok(raw),
-            Err(err) => Err(InfoError::StringSerializeError { err }),
+            Err(err) => Err(ConfigError::StringSerializeError { err }),
         }
     }
-    fn to_writer(&self, writer: impl Write, _pretty: bool) -> Result<(), InfoError<Self::Error>> {
+    fn to_writer(&self, writer: impl Write, _pretty: bool) -> Result<(), ConfigError<Self::Error>> {
         match serde_yaml::to_writer(writer, self) {
             Ok(raw)  => Ok(raw),
-            Err(err) => Err(InfoError::WriterSerializeError { err }),
+            Err(err) => Err(ConfigError::WriterSerializeError { err }),
         }
     }
 
-    fn from_string(raw: impl AsRef<str>) -> Result<Self, InfoError<Self::Error>> {
+    fn from_string(raw: impl AsRef<str>) -> Result<Self, ConfigError<Self::Error>> {
         match serde_yaml::from_str(raw.as_ref()) {
             Ok(config) => Ok(config),
-            Err(err)   => Err(InfoError::WriterSerializeError { err }),
+            Err(err)   => Err(ConfigError::WriterSerializeError { err }),
         }
     }
-    fn from_reader(reader: impl Read) -> Result<Self, InfoError<Self::Error>> {
+    fn from_reader(reader: impl Read) -> Result<Self, ConfigError<Self::Error>> {
         match serde_yaml::from_reader(reader) {
             Ok(config) => Ok(config),
-            Err(err)   => Err(InfoError::WriterSerializeError { err }),
+            Err(err)   => Err(ConfigError::WriterSerializeError { err }),
         }
     }
 }
 
 /// A type alias for the ConfigError for the YamlConfig.
-pub type YamlError = InfoError<serde_yaml::Error>;
+pub type YamlError = ConfigError<serde_yaml::Error>;
