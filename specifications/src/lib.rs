@@ -22,6 +22,7 @@ pub mod container;
 pub mod data;
 pub mod driving;
 pub mod errors;
+pub mod index;
 pub mod package;
 pub mod packages_new;
 pub mod planning;

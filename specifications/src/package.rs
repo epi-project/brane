@@ -17,7 +17,6 @@ use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use enum_debug::EnumDebug;
 // use semver::Version;

@@ -4571,7 +4571,6 @@ dependencies = [
 name = "specifications"
 version = "2.0.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "base64 0.21.0",
  "brane-shr",
@@ -4593,6 +4592,7 @@ dependencies = [
  "serde_yaml 0.9.19",
  "strum",
  "strum_macros",
+ "tokio",
  "tonic",
  "uuid 0.8.2",
 ]
