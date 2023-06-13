@@ -537,6 +537,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "brane-ast-c"
+version = "2.0.0"
+dependencies = [
+ "brane-ast",
+]
+
+[[package]]
 name = "brane-cc"
 version = "2.0.0"
 dependencies = [

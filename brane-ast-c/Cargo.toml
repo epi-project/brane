@@ -1,0 +1,14 @@
+[package]
+name = "brane-ast-c"
+version = { workspace = true }
+edition = "2021"
+authors = { workspace = true }
+description = "Wrapper around `brane-ast` that provides C-bindings. This allows the BraneScript compiler to be used in `brane-ide`."
+
+
+[[lib]]
+
+
+
+[dependencies]
+brane-ast = { path = "../brane-ast" }
