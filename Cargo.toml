@@ -30,6 +30,7 @@ members = [
 
     ### EXTERNAL LIBRARIES ###
     # These crates provide wrappers around other crates to make them C/C++-compatible.
+    "brane-tsk-c",
     "brane-ast-c",
 
 

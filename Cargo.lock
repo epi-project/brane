@@ -541,6 +541,9 @@ name = "brane-ast-c"
 version = "2.0.0"
 dependencies = [
  "brane-ast",
+ "humanlog",
+ "libc",
+ "log",
 ]
 
 [[package]]
@@ -1003,6 +1006,13 @@ dependencies = [
  "tokio-util 0.7.7",
  "tonic",
  "uuid 0.8.2",
+]
+
+[[package]]
+name = "brane-tsk-c"
+version = "2.0.0"
+dependencies = [
+ "brane-tsk",
 ]
 
 [[package]]

@@ -12,4 +12,8 @@ crate-type = ["rlib", "cdylib"]
 
 
 [dependencies]
+humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
+libc = "0.2"
+log = "0.4"
+
 brane-ast = { path = "../brane-ast" }
