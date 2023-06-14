@@ -7,7 +7,8 @@ description = "Wrapper around `brane-ast` that provides C-bindings. This allows 
 
 
 [[lib]]
-
+name       = "brane-ast"
+crate-type = ["rlib", "cdylib"]
 
 
 [dependencies]
