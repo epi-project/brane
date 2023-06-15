@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 11:48:13
 //  Last edited:
-//    14 Jun 2023, 18:14:16
+//    15 Jun 2023, 19:33:15
 //  Auto updated?
 //    Yes
 // 
@@ -23,7 +23,9 @@ use std::sync::Once;
 use humanlog::{DebugMode, HumanLogger};
 use log::{debug, info};
 
+use brane_ast::{CompileResult, Error as AstError, ParserOptions, Warning as AstWarning};
 use brane_ast::ast::Workflow;
+use brane_ast::state::CompileState;
 
 
 /***** CONSTANTS *****/
@@ -57,19 +59,7 @@ fn init_logger() {
 
 
 
-/***** ERRORS *****/
-/// Defines the error type returned by this library.
-#[derive(Clone, Debug)]
-pub struct Error {
-    /// The error message.
-    msg : CString,
-}
-
-
-
-
-
-/***** LIBRARY *****/
+/***** LIBRARY FUNCTIONS *****/
 /// Returns the BRANE version for which this compiler is valid.
 /// 
 /// # Returns
@@ -82,37 +72,165 @@ pub extern "C" fn version() -> *const c_char {
 
 
 
+
+
+/***** LIBRARY ERROR *****/
+/// Defines the error type returned by this library.
+#[derive(Debug)]
+pub struct Error {
+    /// Any custom error message to print that is not from the compiler itself.
+    msg   : Option<String>,
+    /// The warning messages to print.
+    warns : Vec<AstWarning>,
+    /// The error messages to print.
+    errs  : Vec<AstError>,
+}
+
+
+
+
+
+/***** LIBRARY COMPILER *****/
+#[derive(Debug)]
+pub struct Compiler {
+    /// The compile state to use in between snippets.
+    state : CompileState,
+}
+
+
+
+/// Constructor for the Compiler.
+/// 
+/// # Returns
+/// A new [`Compiler`] instance.
+#[no_mangle]
+pub extern "C" fn compiler_new() -> *const Compiler {
+    init_logger();
+    info!("Constructing BraneScript compiler v{}...", env!("CARGO_PKG_VERSION"));
+
+    // // Load the package index
+    // debug!("Loading package index from '{}'...");
+    // let pindex: PackageIndex = 
+
+    // // Load the data index
+    // debug!("Loading data index from '{}'...");
+    // let dindex: DataIndex = 
+
+    // Construct a new Compiler and return it as a pointer
+    Box::into_raw(Box::new(Compiler {
+        state : CompileState::new(),
+    }))
+}
+
+/// Destructor for the Compiler.
+/// 
+/// SAFETY: You _must_ call this destructor yourself.
+/// 
+/// # Arguments
+/// - `compiler`: The [`Compiler`] to free.
+#[no_mangle]
+pub unsafe extern "C" fn compiler_free(compiler: *mut Compiler) {
+    init_logger();
+    info!("Destroying BraneScript compiler...");
+
+    // Take ownership of the compiler and then drop it to destroy
+    Box::from_raw(compiler);
+}
+
+
+
 /// Compiles the given BraneScript snippet to the BRANE Workflow Representation.
 /// 
 /// Note that the representation is returned as JSON, and not really meant to be inspected from C-code.
 /// Use other functions in this library instead to ensure you are compatible with the latest WR version.
 /// 
 /// # Arguments
+/// - `compiler`: The [`Compiler`] to compile with. Essentially this determines which previous compile state to use.
 /// - `bs`: The raw BraneScript snippet to parse.
 /// - `wr`: Will point to the compiled JSON string when done. **Note**: Has to be manually [`free()`](libc::free())ed.
 /// 
 /// # Returns
-/// [`NULL`](std::ptr::null())
-/// 
-/// # Errors
-/// If this function errors, typically because the given snippet is invalid BraneScript, then an [`Error`]-struct is returned instead containing information about what happened.
-pub extern "C" fn compile(bs: *const c_char, wr: *mut *mut c_char) -> *const Error {
+/// An [`Error`]-struct that may or may not contain any generated errors. If [`error_err_occurred()`] is true, though, then `wr` will point to [`NULL`](std::ptr::null()).
+#[no_mangle]
+pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, bs: *const c_char, wr: *mut *mut c_char) -> *const Error {
     // Initialize the logger if we hadn't already
     init_logger();
-    info!("Compiling snippet with BraneScript compiler v{}", env!("CARGO_PKG_VERSION"));
+    let mut err: Box<Error> = Box::new(Error { msg: None, warns: vec![], errs: vec![] });
+    info!("Compiling snippet...");
+
+
+
+    /* INPUT */
+    // Cast the Compiler pointer to a Compiler reference
+    debug!("Reading compiler input...");
+    let compiler: &mut Compiler = &mut *compiler;
 
     // Get the input as a Rust string
-    let bs: &CStr = unsafe { CStr::from_ptr(bs) };
+    let bs: &CStr = CStr::from_ptr(bs);
     let bs: &str = match bs.to_str() {
-        Ok(bs)   => bs,
-        Err(err) => { return Box::into_raw(Box::new(Error { msg: CString::new(format!("Input string is not valid UTF-8: {err}")).unwrap() })) },
+        Ok(bs) => bs,
+        Err(e) => {
+            err.msg = Some(format!("Input string is not valid UTF-8: {e}"));
+            return Box::into_raw(err);
+        },
     };
 
+    // Set the output string to avoid confusion
+    *wr = std::ptr::null_mut();
+
+
+
+    /* COMPILE */
     // Compile that using `brane-ast`
-    let workflow: Workflow = match brane_ast::compile_snippet(state, reader, package_index, data_index, options) {
+    debug!("Compiling snippet...");
+    let workflow: Workflow = match brane_ast::compile_snippet(&mut compiler.state, bs.as_bytes(), package_index, data_index, &ParserOptions::bscript()) {
+        CompileResult::Workflow(workflow, warns) => {
+            err.warns = warns;
+            workflow
+        },
 
+        CompileResult::Eof(e) => {
+            err.errs = vec![ e ];
+            return Box::into_raw(err);
+        },
+        CompileResult::Err(errs) => {
+            err.errs = errs;
+            return Box::into_raw(err);
+        },
+
+        CompileResult::Program(_, _)    |
+        CompileResult::Unresolved(_, _) => { unreachable!(); },
     };
 
-    // OK, nothing to error!
-    std::ptr::null()
+
+
+    /* SERIALIZE */
+    // Store the serialized workflow as a C-string
+    debug!("Serializing workflow...");
+    let workflow: String = match serde_json::to_string(&workflow) {
+        Ok(workflow) => workflow,
+        Err(e)       => {
+            err.msg = Some(format!("Failed to serialize workflow: {e}"));
+            return Box::into_raw(err);
+        },
+    };
+    let workflow: CString = match CString::new(workflow) {
+        Ok(workflow) => workflow,
+        Err(e)       => {
+            err.msg = Some(format!("Failed to convert serialized workflow to a C-compatible string: {e}"));
+            return Box::into_raw(err);
+        },
+    };
+
+    // Allocate the proper space (we do the copy a bit around-the-bend to be compatible with a C-style free).
+    let n_chars: usize = libc::strlen(workflow.as_ptr());
+    let target: *mut c_char = libc::malloc(n_chars + 1) as *mut c_char;
+
+    // Write the workflow there
+    libc::strncpy(target, workflow.as_ptr(), n_chars);
+    *wr = target;
+
+    // OK, return the error struct!
+    debug!("Compilation success");
+    Box::into_raw(err)
 }

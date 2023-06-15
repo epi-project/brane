@@ -544,6 +544,8 @@ dependencies = [
  "humanlog",
  "libc",
  "log",
+ "serde_json",
+ "specifications",
 ]
 
 [[package]]
