@@ -4,7 +4,7 @@
 //  Created:
 //    12 Jun 2023, 17:13:25
 //  Last edited:
-//    12 Jun 2023, 18:13:40
+//    15 Jun 2023, 19:50:41
 //  Auto updated?
 //    Yes
 // 
@@ -31,6 +31,7 @@ use tokio::fs::{self as tfs, DirEntry as TDirEntry, ReadDir as TReadDir};
 
 use brane_shr::address::Address;
 use brane_shr::info::{Info, Interface};
+use brane_shr::version::Version;
 
 
 /***** ERRORS *****/
@@ -89,13 +90,15 @@ impl<E: 'static + error::Error> error::Error for Error<E> {
 
 
 /***** LIBRARY *****/
-/// Defines a trait providing common implementations for the various indices.
-#[async_trait]
-pub trait Index<I: Interface>: Clone + Debug + From<HashMap<String, Self::Info>> {
-    /// The [`Info`] that this Index concerns itself with.
-    type Info: Send + Sync + Info<I>;
+/// Defines an index/registry of a given Info.
+pub struct Index<I, N> {
+    /// The map of indices that represents the registry.
+    infos      : HashMap<String, HashMap<Version, I>>,
+    /// Phantom interface data
+    _interface : std::marker::PhantomData<N>,
+}
 
-
+impl<I: Info<N>, N: Interface> Index<I, N> {
     /// Constructor for the Index that creates it from the information in the given directory.
     /// 
     /// It considers every nested directory to be a separate entry in the index.
@@ -113,20 +116,20 @@ pub trait Index<I: Interface>: Clone + Debug + From<HashMap<String, Self::Info>>
     /// 
     /// # Errors
     /// This function may error if something about the directory -or reading the directory- was wrong.
-    fn local(directory: impl Send + Sync + AsRef<Path>, file: impl Send + Sync + AsRef<Path>) -> Result<Self, Error<I::Error>> {
+    pub fn local(directory: impl Send + Sync + AsRef<Path>, file: impl Send + Sync + AsRef<Path>) -> Result<Self, Error<N::Error>> {
         let directory: &Path = directory.as_ref();
         let file: &Path = file.as_ref();
         info!("Starting local construction of {} from '{}' (looking for '{}' files)", std::any::type_name::<Self>(), directory.display(), file.display());
 
         // Attempt to start reading the directory
-        let read_dir: ReadDir = match fs::read_dir(directory) {
+        let entries: ReadDir = match fs::read_dir(directory) {
             Ok(entries) => entries,
             Err(err)    => { return Err(Error::DirRead { path: directory.into(), err }); },
         };
 
         // Read every one of them
-        let mut entries: HashMap<String, Self::Info> = HashMap::new();
-        for (i, entry) in read_dir.enumerate() {
+        let mut infos: HashMap<String, HashMap<Version, I>> = HashMap::new();
+        for (i, entry) in entries.enumerate() {
             // Attempt to unwrap the entry
             let entry: DirEntry = match entry {
                 Ok(entry) => entry,
@@ -147,18 +150,28 @@ pub trait Index<I: Interface>: Clone + Debug + From<HashMap<String, Self::Info>>
             debug!("Found info file '{}'", info_path.display());
 
             // Attempt to load it
-            let info: Self::Info = match Self::Info::from_path(&info_path) {
+            let info: I = match I::from_path(&info_path) {
                 Ok(info) => info,
                 Err(err) => { return Err(Error::InfoDeserialize { path: info_path, err }); },
             };
+            let name: &str       = info.name();
+            let version: Version = info.version();
 
             // Add the entry under its directory name
-            entries.insert(entry.file_name().to_string_lossy().into(), info);
+            if let Some(versions) = infos.get_mut(name) {
+                versions.insert(version, info);
+            } else {
+                infos.insert(name.into(), HashMap::from([ (version, info) ]));
+            }
         }
 
         // Done!
-        Ok(entries.into())
+        Ok(Self {
+            infos,
+            _interface : Default::default(),
+        })
     }
+
     /// Constructor for the Index that creates it from the information in the given directory using [`tokio`]'s async library.
     /// 
     /// It considers every nested directory to be a separate entry in the index.
@@ -174,13 +187,13 @@ pub trait Index<I: Interface>: Clone + Debug + From<HashMap<String, Self::Info>>
     /// 
     /// # Errors
     /// This function may error if something about the directory -or reading the directory- was wrong.
-    async fn local_async(directory: impl Send + Sync + AsRef<Path>, file: impl Send + Sync + AsRef<Path>) -> Result<Self, Error<I::Error>> {
+    pub async fn local_async(directory: impl Send + Sync + AsRef<Path>, file: impl Send + Sync + AsRef<Path>) -> Result<Self, Error<N::Error>> {
         let directory: &Path = directory.as_ref();
         let file: &Path = file.as_ref();
         info!("Starting local construction of {} from '{}' (looking for '{}' files)", std::any::type_name::<Self>(), directory.display(), file.display());
 
         // Attempt to start reading the directory
-        let mut read_dir: TReadDir = match tfs::read_dir(directory).await {
+        let mut entries: TReadDir = match tfs::read_dir(directory).await {
             Ok(entries) => entries,
             Err(err)    => { return Err(Error::DirRead { path: directory.into(), err }); },
         };
@@ -188,8 +201,8 @@ pub trait Index<I: Interface>: Clone + Debug + From<HashMap<String, Self::Info>>
         // Read every one of them
         debug!("Iterating through '{}'...", directory.display());
         let mut i: usize = 0;
-        let mut entries: HashMap<String, Self::Info> = HashMap::new();
-        while let Some(entry) = read_dir.next_entry().await.transpose() {
+        let mut infos: HashMap<String, I> = HashMap::new();
+        while let Some(entry) = entries.next_entry().await.transpose() {
             // Attempt to unwrap the entry
             let entry: TDirEntry = match entry {
                 Ok(entry) => entry,
@@ -212,18 +225,21 @@ pub trait Index<I: Interface>: Clone + Debug + From<HashMap<String, Self::Info>>
             debug!("Found info file '{}'", info_path.display());
 
             // Attempt to load it
-            let info: Self::Info = match Self::Info::from_path(&info_path) {
+            let info: I = match I::from_path(&info_path) {
                 Ok(info) => info,
                 Err(err) => { return Err(Error::InfoDeserialize { path: info_path, err }); },
             };
 
             // Add the entry under its directory name
-            entries.insert(entry.file_name().to_string_lossy().into(), info);
+            infos.insert(entry.file_name().to_string_lossy().into(), info);
             i += 1;
         }
 
         // Done!
-        Ok(entries.into())
+        Ok(Self {
+            infos,
+            _interface : Default::default(),
+        })
     }
 
     /// Constructor for the Index that creates it by sending a request to a particular remote.
@@ -238,7 +254,7 @@ pub trait Index<I: Interface>: Clone + Debug + From<HashMap<String, Self::Info>>
     /// 
     /// # Errors
     /// This function may error if we failed to reach the remote, the remote returned an error or the remote returned a wrong format.
-    fn remote(address: impl AsRef<Address>) -> Result<Self, Error<I::Error>> {
+    pub fn remote(address: impl AsRef<Address>) -> Result<Self, Error<N::Error>> {
         let address: &Address = address.as_ref();
         info!("Starting remote construction of {} from '{}'", std::any::type_name::<Self>(), address);
 
@@ -257,14 +273,18 @@ pub trait Index<I: Interface>: Clone + Debug + From<HashMap<String, Self::Info>>
         debug!("Remote returned:\n{}\n{res}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>());
 
         // Attempt to parse the result as a map
-        let entries: HashMap<String, Self::Info> = match serde_json::from_str(&res) {
-            Ok(entries) => entries,
-            Err(err)    => { return Err(Error::GetRequestJson { address: address.into(), err }); },
+        let infos: HashMap<String, I> = match serde_json::from_str(&res) {
+            Ok(infos) => infos,
+            Err(err)  => { return Err(Error::GetRequestJson { address: address.into(), err }); },
         };
 
         // Done
-        Ok(entries.into())
+        Ok(Self {
+            infos,
+            _interface : Default::default(),
+        })
     }
+
     /// Constructor for the Index that creates it by sending a request to a particular remote using [`tokio`]'s async library.
     /// 
     /// It assumes that the host will send back a [`HashMap<String, Self::Info>`], which is then turned into a `Self` using [`From<HashMap<OsString, Self::Info>>`].
@@ -277,7 +297,7 @@ pub trait Index<I: Interface>: Clone + Debug + From<HashMap<String, Self::Info>>
     /// 
     /// # Errors
     /// This function may error if we failed to reach the remote, the remote returned an error or the remote returned a wrong format.
-    async fn remote_async(address: impl Send + Sync + AsRef<Address>) -> Result<Self, Error<I::Error>> {
+    pub async fn remote_async(address: impl Send + Sync + AsRef<Address>) -> Result<Self, Error<N::Error>> {
         let address: &Address = address.as_ref();
         info!("Starting remote construction of {} from '{}'", std::any::type_name::<Self>(), address);
 
@@ -296,12 +316,66 @@ pub trait Index<I: Interface>: Clone + Debug + From<HashMap<String, Self::Info>>
         debug!("Remote returned:\n{}\n{res}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>());
 
         // Attempt to parse the result as a map
-        let entries: HashMap<String, Self::Info> = match serde_json::from_str(&res) {
+        let entries: HashMap<String, I> = match serde_json::from_str(&res) {
             Ok(entries) => entries,
             Err(err)    => { return Err(Error::GetRequestJson { address: address.into(), err }); },
         };
 
         // Done
-        Ok(entries.into())
+        Ok(Self {
+            infos      : entries,
+            _interface : Default::default(),
+        })
+    }
+
+
+
+    /// Find the latest version of the given package in this index.
+    /// 
+    /// # Arguments
+    /// - `identifier`: The string identifier of the info to look for.
+    /// 
+    /// # Returns
+    /// The latest [`Version`] of the given package, or [`None`] if no such package exists.
+    fn find_latest(&self, identifier: impl AsRef<str>) -> Option<Version> {
+        
+    }
+
+
+
+    /// Provides access to the info with the given identifier and version number.
+    /// 
+    /// # Arguments
+    /// - `identifier`: The string identifier of the info to look for.
+    /// - `version`: The [`Version`]-number of the info.
+    /// 
+    /// # Returns
+    /// A reference to the internal info, or [`None`] if no such info is found in this index.
+    fn get(&self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<&I> {
+        
+    }
+
+    /// Provides mutable access to the info with the given identifier and version number.
+    /// 
+    /// # Arguments
+    /// - `identifier`: The string identifier of the info to look for.
+    /// - `version`: The [`Version`]-number of the info.
+    /// 
+    /// # Returns
+    /// A mutable reference to the internal info, or [`None`] if no such info is found in this index.
+    fn get_mut(&mut self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<&mut I> {
+
+    }
+
+    /// Removes the info with the given identifier and version number.
+    /// 
+    /// # Arguments
+    /// - `identifier`: The string identifier of the info to look for.
+    /// - `version`: The [`Version`]-number of the info.
+    /// 
+    /// # Returns
+    /// The info that was removed, or [`None`] if we did not know it.
+    fn remove(&mut self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<I> {
+        
     }
 }

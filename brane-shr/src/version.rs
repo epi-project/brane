@@ -4,7 +4,7 @@
 //  Created:
 //    23 Mar 2022, 15:15:12
 //  Last edited:
-//    12 Jun 2023, 13:44:17
+//    15 Jun 2023, 19:51:20
 //  Auto updated?
 //    Yes
 // 
@@ -275,7 +275,7 @@ impl<'de> Visitor<'de> for VersionVisitor {
 
 /***** VERSION *****/
 /// Implements the Version, which is used to keep track of package versions.
-#[derive(Clone, Copy, Debug, Eq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Version {
     /// The major version number. If all three are set to u64::MAX, is interpreted as an unresolved 'latest' version number.
     pub major : u64,
@@ -411,15 +411,6 @@ impl Default for Version {
     #[inline]
     fn default() -> Self {
         Self::new(0, 0, 0)
-    }
-}
-
-impl PartialEq for Version {
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        self.major == other.major &&
-        self.minor == other.minor &&
-        self.patch == other.patch
     }
 }
 
