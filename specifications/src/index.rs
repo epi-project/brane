@@ -4,7 +4,7 @@
 //  Created:
 //    12 Jun 2023, 17:13:25
 //  Last edited:
-//    15 Jun 2023, 19:50:41
+//    18 Jun 2023, 18:17:45
 //  Auto updated?
 //    Yes
 // 
@@ -23,15 +23,16 @@ use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::fs::{self, DirEntry, ReadDir};
 use std::path::{Path, PathBuf};
 
-use async_trait::async_trait;
 use log::{debug, info, warn};
 use reqwest::StatusCode;
 use reqwest::blocking as breqwest;
 use tokio::fs::{self as tfs, DirEntry as TDirEntry, ReadDir as TReadDir};
 
 use brane_shr::address::Address;
-use brane_shr::info::{Info, Interface};
+use brane_shr::info::{Info, Interface, YamlInterface};
 use brane_shr::version::Version;
+
+use crate::packages_new::PackageMetadata;
 
 
 /***** ERRORS *****/
@@ -89,6 +90,33 @@ impl<E: 'static + error::Error> error::Error for Error<E> {
 
 
 
+/***** AUXILLARY *****/
+/// Info that serves specifically for [`Index`]es.
+pub trait IndexInfo {
+    /// Returns the name of the object this info defines.
+    /// 
+    /// # Returns
+    /// An immutable reference to the internal string.
+    fn name(&self) -> &str;
+
+    /// Returns the version of the object this info defines.
+    /// 
+    /// # Returns
+    /// A [`Version`] that can be used to disambiguate versions. Should not return [`Version::latest()`].
+    fn version(&self) -> Version;
+}
+
+impl IndexInfo for PackageMetadata {
+    #[inline]
+    fn name(&self) -> &str { self.name.as_str() }
+    #[inline]
+    fn version(&self) -> Version { self.version }
+}
+
+
+
+
+
 /***** LIBRARY *****/
 /// Defines an index/registry of a given Info.
 pub struct Index<I, N> {
@@ -98,7 +126,7 @@ pub struct Index<I, N> {
     _interface : std::marker::PhantomData<N>,
 }
 
-impl<I: Info<N>, N: Interface> Index<I, N> {
+impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
     /// Constructor for the Index that creates it from the information in the given directory.
     /// 
     /// It considers every nested directory to be a separate entry in the index.
@@ -157,9 +185,12 @@ impl<I: Info<N>, N: Interface> Index<I, N> {
             let name: &str       = info.name();
             let version: Version = info.version();
 
-            // Add the entry under its directory name
+            // Add the entry sorted by name, then version
             if let Some(versions) = infos.get_mut(name) {
-                versions.insert(version, info);
+                if let Some(old) = versions.insert(version, info) {
+                    // Should never occur, I guess, but essentially just to assert this is indeed the case
+                    warn!("Duplicate info '{}':{} encountered", old.name(), old.version());
+                }
             } else {
                 infos.insert(name.into(), HashMap::from([ (version, info) ]));
             }
@@ -201,7 +232,7 @@ impl<I: Info<N>, N: Interface> Index<I, N> {
         // Read every one of them
         debug!("Iterating through '{}'...", directory.display());
         let mut i: usize = 0;
-        let mut infos: HashMap<String, I> = HashMap::new();
+        let mut infos: HashMap<String, HashMap<Version, I>> = HashMap::new();
         while let Some(entry) = entries.next_entry().await.transpose() {
             // Attempt to unwrap the entry
             let entry: TDirEntry = match entry {
@@ -229,9 +260,18 @@ impl<I: Info<N>, N: Interface> Index<I, N> {
                 Ok(info) => info,
                 Err(err) => { return Err(Error::InfoDeserialize { path: info_path, err }); },
             };
+            let name: &str       = info.name();
+            let version: Version = info.version();
 
-            // Add the entry under its directory name
-            infos.insert(entry.file_name().to_string_lossy().into(), info);
+            // Add the entry sorted by name, then version
+            if let Some(versions) = infos.get_mut(name) {
+                if let Some(old) = versions.insert(version, info) {
+                    // Should never occur, I guess, but essentially just to assert this is indeed the case
+                    warn!("Duplicate info '{}':{} encountered", old.name(), old.version());
+                }
+            } else {
+                infos.insert(name.into(), HashMap::from([ (version, info) ]));
+            }
             i += 1;
         }
 
@@ -273,7 +313,7 @@ impl<I: Info<N>, N: Interface> Index<I, N> {
         debug!("Remote returned:\n{}\n{res}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>());
 
         // Attempt to parse the result as a map
-        let infos: HashMap<String, I> = match serde_json::from_str(&res) {
+        let infos: HashMap<String, HashMap<Version, I>> = match serde_json::from_str(&res) {
             Ok(infos) => infos,
             Err(err)  => { return Err(Error::GetRequestJson { address: address.into(), err }); },
         };
@@ -316,7 +356,7 @@ impl<I: Info<N>, N: Interface> Index<I, N> {
         debug!("Remote returned:\n{}\n{res}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>());
 
         // Attempt to parse the result as a map
-        let entries: HashMap<String, I> = match serde_json::from_str(&res) {
+        let entries: HashMap<String, HashMap<Version, I>> = match serde_json::from_str(&res) {
             Ok(entries) => entries,
             Err(err)    => { return Err(Error::GetRequestJson { address: address.into(), err }); },
         };
@@ -337,8 +377,16 @@ impl<I: Info<N>, N: Interface> Index<I, N> {
     /// 
     /// # Returns
     /// The latest [`Version`] of the given package, or [`None`] if no such package exists.
-    fn find_latest(&self, identifier: impl AsRef<str>) -> Option<Version> {
-        
+    #[inline]
+    pub fn find_latest(&self, identifier: impl AsRef<str>) -> Option<Version> {
+        // Simply iterate to find it
+        self.infos.get(identifier.as_ref()).map(|versions| {
+            let mut latest: Option<Version> = None;
+            for version in versions.keys() {
+                if latest.is_none() || *version > latest.unwrap() { latest = Some(*version); }
+            }
+            latest
+        }).flatten()
     }
 
 
@@ -351,8 +399,9 @@ impl<I: Info<N>, N: Interface> Index<I, N> {
     /// 
     /// # Returns
     /// A reference to the internal info, or [`None`] if no such info is found in this index.
-    fn get(&self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<&I> {
-        
+    #[inline]
+    pub fn get(&self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<&I> {
+        self.infos.get(identifier.as_ref()).map(|versions| versions.get(version.as_ref())).flatten()
     }
 
     /// Provides mutable access to the info with the given identifier and version number.
@@ -363,8 +412,9 @@ impl<I: Info<N>, N: Interface> Index<I, N> {
     /// 
     /// # Returns
     /// A mutable reference to the internal info, or [`None`] if no such info is found in this index.
-    fn get_mut(&mut self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<&mut I> {
-
+    #[inline]
+    pub fn get_mut(&mut self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<&mut I> {
+        self.infos.get_mut(identifier.as_ref()).map(|versions| versions.get_mut(version.as_ref())).flatten()
     }
 
     /// Removes the info with the given identifier and version number.
@@ -375,7 +425,13 @@ impl<I: Info<N>, N: Interface> Index<I, N> {
     /// 
     /// # Returns
     /// The info that was removed, or [`None`] if we did not know it.
-    fn remove(&mut self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<I> {
-        
+    #[inline]
+    pub fn remove(&mut self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<I> {
+        self.infos.get_mut(identifier.as_ref()).map(|versions| versions.remove(version.as_ref())).flatten()
     }
 }
+
+
+
+/// Defines an [`Index`] over YAML packages.
+pub type PackageIndex = Index<YamlInterface, PackageMetadata>;
