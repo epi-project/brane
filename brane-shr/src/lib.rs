@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2022, 16:21:24
 //  Last edited:
-//    12 Jun 2023, 13:42:26
+//    18 Jun 2023, 18:25:26
 //  Auto updated?
 //    Yes
 // 
@@ -25,5 +25,6 @@ pub mod info;
 pub mod input;
 pub mod jobs;
 pub mod kafka;
+pub mod serialize;
 pub mod utilities;
 pub mod version;
