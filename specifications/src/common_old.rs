@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JValue};
 use serde_with::skip_serializing_none;
 
-use crate::package::{PackageKind, Capability};
+use crate::package_old::{PackageKind, Capability};
 use brane_shr::version::Version;
 
 

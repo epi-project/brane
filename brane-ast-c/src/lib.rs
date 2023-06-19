@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 11:48:13
 //  Last edited:
-//    15 Jun 2023, 19:33:15
+//    19 Jun 2023, 09:45:22
 //  Auto updated?
 //    Yes
 // 
@@ -181,56 +181,57 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, bs: *const c_
 
 
     /* COMPILE */
-    // Compile that using `brane-ast`
-    debug!("Compiling snippet...");
-    let workflow: Workflow = match brane_ast::compile_snippet(&mut compiler.state, bs.as_bytes(), package_index, data_index, &ParserOptions::bscript()) {
-        CompileResult::Workflow(workflow, warns) => {
-            err.warns = warns;
-            workflow
-        },
+    // // Compile that using `brane-ast`
+    // debug!("Compiling snippet...");
+    // let workflow: Workflow = match brane_ast::compile_snippet(&mut compiler.state, bs.as_bytes(), package_index, data_index, &ParserOptions::bscript()) {
+    //     CompileResult::Workflow(workflow, warns) => {
+    //         err.warns = warns;
+    //         workflow
+    //     },
 
-        CompileResult::Eof(e) => {
-            err.errs = vec![ e ];
-            return Box::into_raw(err);
-        },
-        CompileResult::Err(errs) => {
-            err.errs = errs;
-            return Box::into_raw(err);
-        },
+    //     CompileResult::Eof(e) => {
+    //         err.errs = vec![ e ];
+    //         return Box::into_raw(err);
+    //     },
+    //     CompileResult::Err(errs) => {
+    //         err.errs = errs;
+    //         return Box::into_raw(err);
+    //     },
 
-        CompileResult::Program(_, _)    |
-        CompileResult::Unresolved(_, _) => { unreachable!(); },
-    };
+    //     CompileResult::Program(_, _)    |
+    //     CompileResult::Unresolved(_, _) => { unreachable!(); },
+    // };
 
 
 
-    /* SERIALIZE */
-    // Store the serialized workflow as a C-string
-    debug!("Serializing workflow...");
-    let workflow: String = match serde_json::to_string(&workflow) {
-        Ok(workflow) => workflow,
-        Err(e)       => {
-            err.msg = Some(format!("Failed to serialize workflow: {e}"));
-            return Box::into_raw(err);
-        },
-    };
-    let workflow: CString = match CString::new(workflow) {
-        Ok(workflow) => workflow,
-        Err(e)       => {
-            err.msg = Some(format!("Failed to convert serialized workflow to a C-compatible string: {e}"));
-            return Box::into_raw(err);
-        },
-    };
+    // /* SERIALIZE */
+    // // Store the serialized workflow as a C-string
+    // debug!("Serializing workflow...");
+    // let workflow: String = match serde_json::to_string(&workflow) {
+    //     Ok(workflow) => workflow,
+    //     Err(e)       => {
+    //         err.msg = Some(format!("Failed to serialize workflow: {e}"));
+    //         return Box::into_raw(err);
+    //     },
+    // };
+    // let workflow: CString = match CString::new(workflow) {
+    //     Ok(workflow) => workflow,
+    //     Err(e)       => {
+    //         err.msg = Some(format!("Failed to convert serialized workflow to a C-compatible string: {e}"));
+    //         return Box::into_raw(err);
+    //     },
+    // };
 
-    // Allocate the proper space (we do the copy a bit around-the-bend to be compatible with a C-style free).
-    let n_chars: usize = libc::strlen(workflow.as_ptr());
-    let target: *mut c_char = libc::malloc(n_chars + 1) as *mut c_char;
+    // // Allocate the proper space (we do the copy a bit around-the-bend to be compatible with a C-style free).
+    // let n_chars: usize = libc::strlen(workflow.as_ptr());
+    // let target: *mut c_char = libc::malloc(n_chars + 1) as *mut c_char;
 
-    // Write the workflow there
-    libc::strncpy(target, workflow.as_ptr(), n_chars);
-    *wr = target;
+    // // Write the workflow there
+    // libc::strncpy(target, workflow.as_ptr(), n_chars);
+    // *wr = target;
 
-    // OK, return the error struct!
-    debug!("Compilation success");
-    Box::into_raw(err)
+    // // OK, return the error struct!
+    // debug!("Compilation success");
+    // Box::into_raw(err)
+    std::ptr::null()
 }

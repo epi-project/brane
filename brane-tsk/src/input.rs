@@ -4,7 +4,7 @@
 //  Created:
 //    22 May 2023, 13:13:51
 //  Last edited:
-//    22 May 2023, 13:52:42
+//    19 Jun 2023, 09:46:30
 //  Auto updated?
 //    Yes
 // 
@@ -30,7 +30,7 @@ use brane_exe::FullValue;
 use brane_shr::version::Version;
 use specifications::data::DataIndex;
 use specifications::package::PackageInfo;
-use specifications::packages_new::DataTypeKind;
+use specifications::packages::DataTypeKind;
 
 
 /***** ERRORS *****/

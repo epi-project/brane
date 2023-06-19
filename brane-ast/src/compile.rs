@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 18:12:44
 //  Last edited:
-//    19 Dec 2022, 10:07:53
+//    19 Jun 2023, 10:19:45
 //  Auto updated?
 //    Yes
 // 
@@ -16,8 +16,7 @@ use std::fmt::{Display, Formatter, Result as FResult};
 
 use brane_dsl::{Error as ParseError, ParserOptions};
 use brane_dsl::ast::Program;
-use specifications::data::DataIndex;
-use specifications::package::PackageIndex;
+use specifications::index::{DataIndex, PackageIndex};
 
 pub use crate::errors::AstError as Error;
 pub use crate::warnings::AstWarning as Warning;

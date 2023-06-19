@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 09:51:07
 //  Last edited:
-//    01 Mar 2023, 09:48:45
+//    19 Jun 2023, 10:17:05
 //  Auto updated?
 //    Yes
 // 
@@ -16,7 +16,7 @@
 use nom::InputLength;
 
 use nom::error::VerboseErrorKind;
-use specifications::package::PackageIndex;
+use specifications::index::PackageIndex;
 
 pub use crate::errors::ParseError as Error;
 use crate::errors;
@@ -29,7 +29,8 @@ use crate::parser::ast::Program;
 /***** TESTS *****/
 #[cfg(test)]
 pub mod tests {
-    use crate::utils::{create_package_index, test_on_dsl_files};
+    use specifications::index::PackageIndex;
+    use crate::utils::{TESTS_PACKAGES_DIR, test_on_dsl_files};
     use super::*;
 
 
@@ -43,7 +44,7 @@ pub mod tests {
             println!("File '{}' gave us:", path.display());
 
             // Read the package index
-            let pindex: PackageIndex = create_package_index();
+            let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "package.yml").unwrap_or_else(|err| panic!("Failed to load local package index: {err}"));
 
             // Create a compiler and compile it;
             let res: Program = match parse(code, &pindex, &ParserOptions::bscript()) {
@@ -67,7 +68,7 @@ pub mod tests {
             println!("File '{}' gave us:", path.display());
 
             // Read the package index
-            let pindex: PackageIndex = create_package_index();
+            let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "package.yml").unwrap_or_else(|err| panic!("Failed to load local package index: {err}"));
 
             // Create a compiler and compile it;
             let res: Program = match parse(code, &pindex, &ParserOptions::bakery()) {

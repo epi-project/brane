@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 12:15:06
 //  Last edited:
-//    01 Mar 2023, 10:58:29
+//    19 Jun 2023, 09:51:32
 //  Auto updated?
 //    Yes
 // 
@@ -22,7 +22,7 @@ use reqwest::Client;
 use uuid::Uuid;
 
 use brane_shr::version::Version;
-use specifications::common::{Function, Type};
+use specifications::common_old::{Function, Type};
 use specifications::data::{DataIndex, DataInfo};
 use specifications::package::{PackageKind, PackageIndex, PackageInfo};
 

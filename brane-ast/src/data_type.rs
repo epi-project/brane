@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 12:02:57
 //  Last edited:
-//    17 Jan 2023, 15:13:15
+//    19 Jun 2023, 09:46:11
 //  Auto updated?
 //    Yes
 // 
@@ -18,7 +18,7 @@ use std::fmt::{Display, Formatter, Result as FResult};
 
 use serde::{Deserialize, Serialize};
 
-use specifications::packages_new;
+use specifications::packages;
 
 use crate::spec::BuiltinClasses;
 
@@ -269,10 +269,10 @@ impl From<&Box<brane_dsl::DataType>> for Box<DataType> {
     }
 }
 
-impl From<packages_new::DataTypeKind> for DataType {
+impl From<packages::DataTypeKind> for DataType {
     #[inline]
-    fn from(value: packages_new::DataTypeKind) -> Self {
-        use packages_new::DataTypeKind::*;
+    fn from(value: packages::DataTypeKind) -> Self {
+        use packages::DataTypeKind::*;
         match value {
             Boolean => Self::Boolean,
             Integer => Self::Integer,
@@ -287,10 +287,10 @@ impl From<packages_new::DataTypeKind> for DataType {
         }
     }
 }
-impl From<&packages_new::DataTypeKind> for DataType {
+impl From<&packages::DataTypeKind> for DataType {
     #[inline]
-    fn from(value: &packages_new::DataTypeKind) -> Self {
-        use packages_new::DataTypeKind::*;
+    fn from(value: &packages::DataTypeKind) -> Self {
+        use packages::DataTypeKind::*;
         match value {
             Boolean => Self::Boolean,
             Integer => Self::Integer,
@@ -305,7 +305,7 @@ impl From<&packages_new::DataTypeKind> for DataType {
         }
     }
 }
-impl From<&mut packages_new::DataTypeKind> for DataType {
+impl From<&mut packages::DataTypeKind> for DataType {
     #[inline]
-    fn from(value: &mut packages_new::DataTypeKind) -> Self { Self::from(&*value) }
+    fn from(value: &mut packages::DataTypeKind) -> Self { Self::from(&*value) }
 }

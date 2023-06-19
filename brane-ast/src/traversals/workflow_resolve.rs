@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 17:36:21
 //  Last edited:
-//    12 Jun 2023, 13:48:18
+//    19 Jun 2023, 10:22:12
 //  Auto updated?
 //    Yes
 // 
@@ -30,8 +30,7 @@ use crate::state::CompileState;
 mod tests {
     use brane_dsl::ParserOptions;
     use brane_dsl::utils::{create_data_index, create_package_index, test_on_dsl_files};
-    use specifications::data::DataIndex;
-    use specifications::package::PackageIndex;
+    use specifications::index::{DataIndex, PackageIndex};
     use super::*;
     use super::super::print::ast;
     use crate::{compile_program_to, CompileResult, CompileStage};
@@ -46,8 +45,8 @@ mod tests {
             println!("File '{}' gave us:", path.display());
 
             // Load the package index
-            let pindex: PackageIndex = create_package_index();
-            let dindex: DataIndex    = create_data_index();
+            let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "package.yml").unwrap_or_else(|err| panic!("Failed to create local PackageIndex: {err}"));
+            let dindex: DataIndex    = DataIndex::local(TESTS_PACKAGES_DIR, "data.yml").unwrap_or_else(|err| panic!("Failed to create local DataIndex: {err}"));
 
             // Run up to this traversal
             let workflow: Workflow = match compile_program_to(code.as_bytes(), &pindex, &dindex, &ParserOptions::bscript(), CompileStage::WorkflowResolve) {

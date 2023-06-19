@@ -4,7 +4,7 @@
 //  Created:
 //    08 Jun 2023, 15:33:55
 //  Last edited:
-//    18 Jun 2023, 18:27:34
+//    19 Jun 2023, 09:53:41
 //  Auto updated?
 //    Yes
 // 
@@ -12,7 +12,7 @@
 //!   Defines file structures for packages and containers.
 // 
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::str::FromStr;
@@ -24,6 +24,8 @@ use serde::de::{self, Deserializer, Visitor};
 use brane_shr::info::{JsonInfo, YamlInfo};
 use brane_shr::serialize::Identifier;
 use brane_shr::version::Version;
+
+use crate::capabilities::Capability;
 
 
 /***** ERRORS *****/
@@ -774,11 +776,14 @@ pub struct RunStep(Vec<String>);
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FunctionEcu {
     /// How to capture the output of the function.
-    pub capture : OutputCapture,
+    pub capture      : OutputCapture,
     /// Any additional environment variables to override or set for this function only.
-    pub env     : HashMap<String, String>,
+    pub env          : HashMap<String, String>,
     /// Any command-line arguments to give for this function.
-    pub command : Vec<String>,
+    pub command      : Vec<String>,
+    /// Capabilities required by this package.
+    #[serde(alias = "required", alias = "required_capabilities")]
+    pub capabilities : HashSet<Capability>,
 }
 
 /// Defines how the output of a function may be captured.

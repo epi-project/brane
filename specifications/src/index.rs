@@ -4,7 +4,7 @@
 //  Created:
 //    12 Jun 2023, 17:13:25
 //  Last edited:
-//    18 Jun 2023, 18:17:45
+//    19 Jun 2023, 10:15:46
 //  Auto updated?
 //    Yes
 // 
@@ -29,10 +29,11 @@ use reqwest::blocking as breqwest;
 use tokio::fs::{self as tfs, DirEntry as TDirEntry, ReadDir as TReadDir};
 
 use brane_shr::address::Address;
-use brane_shr::info::{Info, Interface, YamlInterface};
+use brane_shr::info::{Info, Interface, JsonInterface};
 use brane_shr::version::Version;
 
-use crate::packages_new::PackageMetadata;
+use crate::data_new::DataMetadata;
+use crate::packages::PackageMetadata;
 
 
 /***** ERRORS *****/
@@ -112,6 +113,12 @@ impl IndexInfo for PackageMetadata {
     #[inline]
     fn version(&self) -> Version { self.version }
 }
+impl IndexInfo for DataMetadata {
+    #[inline]
+    fn name(&self) -> &str { self.name.as_str() }
+    #[inline]
+    fn version(&self) -> Version { self.version }
+}
 
 
 
@@ -119,6 +126,7 @@ impl IndexInfo for PackageMetadata {
 
 /***** LIBRARY *****/
 /// Defines an index/registry of a given Info.
+#[derive(Clone, Debug)]
 pub struct Index<I, N> {
     /// The map of indices that represents the registry.
     infos      : HashMap<String, HashMap<Version, I>>,
@@ -141,6 +149,9 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
     /// 
     /// # Returns
     /// A new instance of Self.
+    /// 
+    /// # Warning
+    /// This function may emit warnings (using [`log::warn`]) if there are duplicate entries for an identifier/version pair on the disk.
     /// 
     /// # Errors
     /// This function may error if something about the directory -or reading the directory- was wrong.
@@ -215,6 +226,9 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
     /// 
     /// # Returns
     /// A new instance of Self.
+    /// 
+    /// # Warning
+    /// This function may emit warnings (using [`log::warn`]) if there are duplicate entries for an identifier/version pair on the disk.
     /// 
     /// # Errors
     /// This function may error if something about the directory -or reading the directory- was wrong.
@@ -368,6 +382,39 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
         })
     }
 
+    /// Constructor for the Index that creates it from a list of already parsed infos.
+    /// 
+    /// # Arguments
+    /// - `infos`: The list of info structs to store in this new index.
+    /// 
+    /// # Returns
+    /// A new instance of Self.
+    /// 
+    /// # Warning
+    /// This function may emit warnings (using [`log::warn`]) if there are duplicate entries for an identifier/version pair in the given list.
+    pub fn from_infos(infos: impl IntoIterator<Item = I>) -> Self {
+        let iter = infos.into_iter();
+
+        // Iterate over them to insert them in a map
+        let mut infos: HashMap<String, HashMap<Version, I>> = HashMap::with_capacity(iter.size_hint().0);
+        for info in iter {
+            // We add the entry in two steps, one for every layer of map
+            if let Some(versions) = infos.get_mut(info.name()) {
+                if let Some(old) = versions.insert(info.version(), info) {
+                    warn!("Duplicate info '{}':{} encountered", old.name(), old.version());
+                }
+            } else {
+                infos.insert(info.name().into(), HashMap::from([ (info.version(), info) ]));
+            }
+        }
+
+        // Ok!
+        Self {
+            infos,
+            _interface : Default::default(),
+        }
+    }
+
 
 
     /// Find the latest version of the given package in this index.
@@ -433,5 +480,7 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
 
 
 
-/// Defines an [`Index`] over YAML packages.
-pub type PackageIndex = Index<YamlInterface, PackageMetadata>;
+/// Defines an [`Index`] over JSON packages.
+pub type PackageIndex = Index<PackageMetadata, JsonInterface>;
+/// Defines an [`Index`] over JSON datasets.
+pub type DataIndex = Index<DataMetadata, JsonInterface>;

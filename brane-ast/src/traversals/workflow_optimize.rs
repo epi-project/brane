@@ -4,7 +4,7 @@
 //  Created:
 //    19 Oct 2022, 11:19:39
 //  Last edited:
-//    12 Jun 2023, 13:48:18
+//    19 Jun 2023, 10:22:08
 //  Auto updated?
 //    Yes
 // 
@@ -22,8 +22,7 @@ use crate::ast_unresolved::UnresolvedWorkflow;
 mod tests {
     use brane_dsl::ParserOptions;
     use brane_dsl::utils::{create_data_index, create_package_index, test_on_dsl_files};
-    use specifications::data::DataIndex;
-    use specifications::package::PackageIndex;
+    use specifications::index::{DataIndex, PackageIndex};
     use super::*;
     use super::super::print::ast_unresolved;
     use crate::{compile_snippet_to, CompileResult, CompileStage};
@@ -39,8 +38,8 @@ mod tests {
             println!("File '{}' gave us:", path.display());
 
             // Load the package index
-            let pindex: PackageIndex = create_package_index();
-            let dindex: DataIndex    = create_data_index();
+            let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "package.yml").unwrap_or_else(|err| panic!("Failed to create local PackageIndex: {err}"));
+            let dindex: DataIndex    = DataIndex::local(TESTS_PACKAGES_DIR, "data.yml").unwrap_or_else(|err| panic!("Failed to create local DataIndex: {err}"));
 
             // First, compile but not resolve
             let mut state: CompileState = CompileState::new();

@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 11:32:04
 //  Last edited:
-//    12 Jun 2023, 13:48:18
+//    19 Jun 2023, 10:21:25
 //  Auto updated?
 //    Yes
 // 
@@ -37,8 +37,7 @@ use crate::state::{CompileState, TableState};
 #[cfg(test)]
 mod tests {
     use brane_dsl::ParserOptions;
-    use specifications::data::DataIndex;
-    use specifications::package::PackageIndex;
+    use specifications::index::{DataIndex, PackageIndex};
     use super::*;
     use super::super::print::ast_unresolved;
     use crate::{compile_snippet_to, CompileResult, CompileStage};
@@ -54,8 +53,8 @@ mod tests {
             println!("File '{}' gave us:", path.display());
 
             // Load the package index
-            let pindex: PackageIndex = create_package_index();
-            let dindex: DataIndex    = create_data_index();
+            let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "package.yml").unwrap_or_else(|err| panic!("Failed to create local PackageIndex: {err}"));
+            let dindex: DataIndex    = DataIndex::local(TESTS_PACKAGES_DIR, "data.yml").unwrap_or_else(|err| panic!("Failed to create local DataIndex: {err}"));
 
             // Run up to this traversal
             let mut state: CompileState = CompileState::new();

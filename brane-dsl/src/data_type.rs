@@ -4,7 +4,7 @@
 //  Created:
 //    23 Aug 2022, 20:34:33
 //  Last edited:
-//    17 Jan 2023, 15:14:01
+//    19 Jun 2023, 10:29:23
 //  Auto updated?
 //    Yes
 // 
@@ -271,4 +271,43 @@ impl Display for DataType {
             Class(n)    => write!(f, "Class<{n}>"),
         }
     }
+}
+
+impl From<specifications::packages::DataTypeKind> for DataType {
+    fn from(value: specifications::packages::DataTypeKind) -> Self {
+        use specifications::packages::DataTypeKind::*;
+        match value {
+            Boolean => Self::Boolean,
+            Integer => Self::Integer,
+            Real    => Self::Real,
+            String  => Self::String,
+
+            Data               => Self::Class("Data".into()),
+            IntermediateResult => Self::Class("IntermediateResult".into()),
+
+            Array { elem_type } => Self::Array(Box::new(Self::from(*elem_type))),
+            Class { name }      => Self::Class(name),
+        }
+    }
+}
+impl From<&specifications::packages::DataTypeKind> for DataType {
+    fn from(value: &specifications::packages::DataTypeKind) -> Self {
+        use specifications::packages::DataTypeKind::*;
+        match value {
+            Boolean => Self::Boolean,
+            Integer => Self::Integer,
+            Real    => Self::Real,
+            String  => Self::String,
+
+            Data               => Self::Class("Data".into()),
+            IntermediateResult => Self::Class("IntermediateResult".into()),
+
+            Array { elem_type } => Self::Array(Box::new(Self::from(elem_type.as_ref()))),
+            Class { name }      => Self::Class(name.clone()),
+        }
+    }
+}
+impl From<&mut specifications::packages::DataTypeKind> for DataType {
+    #[inline]
+    fn from(value: &mut specifications::packages::DataTypeKind) -> Self { Self::from(&*value) }
 }

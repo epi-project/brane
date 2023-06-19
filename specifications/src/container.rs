@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
-use crate::common::{CallPattern, Parameter, Type};
-use crate::package::{Capability, PackageKind};
+use crate::common_old::{CallPattern, Parameter, Type};
+use crate::package_old::{Capability, PackageKind};
 use brane_shr::version::Version;
 
 

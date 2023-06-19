@@ -2,7 +2,7 @@
 name = "brane-dsl"
 version = { workspace = true }
 authors = { workspace = true }
-edition = "2018"
+edition = "2021"
 
 
 [dependencies]
