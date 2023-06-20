@@ -4,7 +4,7 @@
 //  Created:
 //    19 Jun 2023, 17:14:11
 //  Last edited:
-//    19 Jun 2023, 17:18:09
+//    20 Jun 2023, 17:12:28
 //  Auto updated?
 //    Yes
 // 
@@ -13,7 +13,6 @@
 // 
 
 // Declare the modules of the various sub-definitions
-
-
-
-/// 
+pub mod metadata;
+pub mod backend;
+pub mod frontend;
