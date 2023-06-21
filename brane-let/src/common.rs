@@ -4,7 +4,7 @@
 //  Created:
 //    14 Feb 2022, 14:21:21
 //  Last edited:
-//    21 Jun 2023, 12:28:44
+//    21 Jun 2023, 16:59:46
 //  Auto updated?
 //    Yes
 // 
@@ -18,8 +18,7 @@ use log::debug;
 
 use brane_ast::DataType;
 use brane_exe::FullValue;
-use specifications::packages::common::Parameter;
-use specifications::packages::common::{DataTypeKind, PackageKind};
+use specifications::packages::common::{PackageKind, Parameter};
 
 
 /***** CONSTANTS *****/

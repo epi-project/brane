@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:53:43
 //  Last edited:
-//    22 May 2023, 14:11:13
+//    21 Jun 2023, 17:02:00
 //  Auto updated?
 //    Yes
 // 
@@ -93,7 +93,7 @@ enum SubCommand {
 
 
 /***** ENTRYPOINT *****/
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     // Parse the arguments
     dotenv().ok();

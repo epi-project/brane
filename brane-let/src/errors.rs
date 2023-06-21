@@ -4,7 +4,7 @@
 //  Created:
 //    11 Feb 2022, 13:09:23
 //  Last edited:
-//    21 Jun 2023, 12:23:24
+//    21 Jun 2023, 17:08:39
 //  Auto updated?
 //    Yes
 // 
@@ -17,7 +17,6 @@ use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::PathBuf;
 
 use brane_ast::DataType;
-use specifications::container::LocalContainerInfoError;
 use specifications::packages::common::PackageKind;
 
 
@@ -25,6 +24,9 @@ use specifications::packages::common::PackageKind;
 /// Generic, top-level errors for the brane-let application.
 #[derive(Debug)]
 pub enum LetError {
+    /// A function has an empty entrypoint.
+    EmptyEntrypoint { function: String },
+
     /// Could not launch the JuiceFS executable
     JuiceFSLaunchError{ command: String, err: std::io::Error },
     /// The JuiceFS executable didn't complete successfully
@@ -43,7 +45,7 @@ pub enum LetError {
     ArgumentsJSONError{ err: serde_json::Error },
 
     /// Could not load a ContainerInfo file.
-    LocalContainerInfoError{ path: PathBuf, err: LocalContainerInfoError },
+    LocalContainerInfoError{ path: PathBuf, err: brane_shr::info::JsonError },
     /// Could not load a PackageInfo file.
     PackageInfoError{ err: anyhow::Error },
     /// Missing the 'functions' property in the package info YAML
@@ -120,6 +122,8 @@ impl Display for LetError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use LetError::*;
         match self {
+            EmptyEntrypoint { function } => write!(f, "Function '{function}' has no entrypoint set"),
+
             JuiceFSLaunchError{ command, err }            => write!(f, "Could not run JuiceFS command '{command}': {err}"),
             JuiceFSError{ command, code, stdout, stderr } => write!(f, "JuiceFS command '{}' returned exit code {}:\n\nstdout:\n{}\n{}\n{}\n\nstderr:\n{}\n{}\n{}\n\n", command, code, (0..80).map(|_| '-').collect::<String>(), stdout, (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>(), stderr,(0..80).map(|_| '-').collect::<String>()),
 

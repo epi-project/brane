@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:55:30
 //  Last edited:
-//    21 Jun 2023, 12:36:03
+//    21 Jun 2023, 17:27:38
 //  Auto updated?
 //    Yes
 // 
@@ -13,6 +13,7 @@
 //!   Ecu/Code-type).
 // 
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
@@ -24,7 +25,9 @@ use tokio::process::{Command as TokioCommand, Child as TokioChild};
 use tokio::time::{self, Duration};
 
 use brane_exe::FullValue;
-use specifications::packages::internal::PackageInfo;
+use brane_shr::info::Info as _;
+use brane_shr::serialize::Identifier;
+use specifications::packages::internal::{CaptureChannel, Function, PackageInfo};
 
 // use crate::callback::Callback;
 use crate::common::{assert_input, HEARTBEAT_DELAY, Map, PackageResult, PackageReturnState};
@@ -85,7 +88,7 @@ pub async fn handle(
     };
 
     // Launch the job
-    let (command, process) = match start(&container_info, &function, &arguments, &working_dir) {
+    let process = match start(&container_info, &function, &arguments, &working_dir) {
         Ok(result) => {
             // if let Some(callback) = callback {
             //     if let Err(err) = callback.started().await { warn!("Could not update driver on Started: {}", err); }
@@ -153,33 +156,32 @@ pub async fn handle(
 /// **Returns**  
 ///  * On success, a tuple with (in order):
 ///    * The PackageInfo struct representing the local_container.yml in this package
-///    * The function represented as an Action that we should execute
-///    * A list of Parmaters describing the function's _output_
+///    * The identifier of the function to execute, which refers to the [`PackageInfo`].
 ///  * On failure:
 ///    * A LetError describing what went wrong.
 fn initialize(
     function: &str,
     arguments: &Map<FullValue>,
     working_dir: &Path
-) -> Result<(PackageInfo, Function), LetError> {
+) -> Result<(PackageInfo, Identifier), LetError> {
     debug!("Reading local_container.yml...");
     // Get the container info from the path
-    let container_info_path = working_dir.join("local_container.yml");
-    let container_info = match LocalContainerInfo::from_path(container_info_path.clone()) {
+    let info_path = working_dir.join("package.yml");
+    let info = match PackageInfo::from_path(info_path.clone()) {
         Ok(container_info) => container_info,
-        Err(err)           => { return Err(LetError::LocalContainerInfoError{ path: container_info_path, err }); }
+        Err(err)           => { return Err(LetError::LocalContainerInfoError{ path: info_path, err }); }
     };
 
     // Resolve the function we're supposed to call
-    let action = match container_info.actions.get(function) {
+    let function: Identifier = Identifier::from(function);
+    let action = match info.functions.get(&function) {
         Some(action) => action.clone(),
-        None         => { return Err(LetError::UnknownFunction{ function: function.to_string(), package: container_info.name, kind: container_info.kind }) }
+        None         => { return Err(LetError::UnknownFunction{ function: function.to_string(), package: info.metadata.name.into(), kind: info.kind }) }
     };
 
     // Extract the list of function parameters
-    let function_input = action.input.clone().unwrap_or_default();
     // Make sure the input matches what we expect
-    assert_input(&function_input, arguments, function, &container_info.name, container_info.kind)?;
+    assert_input(&action.input, arguments, &function, &info.metadata.name, info.kind)?;
 
 
 
@@ -187,7 +189,7 @@ fn initialize(
     let init_sh = working_dir.join("init.sh");
     if !init_sh.exists() {
         // No need; the user doesn't require an additional setup
-        return Ok((container_info, action));
+        return Ok((info, function));
     }
 
     // Otherwise, run the init.sh script
@@ -203,7 +205,7 @@ fn initialize(
     }
 
     // Initialization complete!
-    Ok((container_info, action))
+    Ok((info, function))
 }
 
 
@@ -213,52 +215,53 @@ fn initialize(
 /***** EXECUTION *****/
 /// Starts the given function in the background, returning the process handle.
 /// 
-/// **Arguments**
-///  * `container_info`: The LocalContainerInfo representing the container.yml of this package.
-///  * `function`: The function to call.
+/// # Arguments
+///  * `info`: The LocalContainerInfo representing the container.yml of this package.
+///  * `function`: The function to call. Note that it is guaranteed to exist in `info.functions` by the previous function.
 ///  * `arguments`: The arguments to pass to the function.
 ///  * `working_dir`: The working directory for the function.
 /// 
-/// **Returns**  
-/// The ActionCommand used + a process handle on success, or a LetError on failure.
+/// # Returns
+/// The handle to the running process
 fn start(
-    container_info: &LocalContainerInfo,
-    function: &Action,
+    info: &PackageInfo,
+    function: &Identifier,
     arguments: &Map<FullValue>,
     working_dir: &Path,
-) -> Result<(ActionCommand, TokioChild), LetError> {
-    // Determine entrypoint and, optionally, command and arguments
-    let entrypoint = &container_info.entrypoint.exec;
-    let command = function.command.clone().unwrap_or_else(|| ActionCommand {
-        args: Default::default(),
-        capture: None,
-    });
-    let entrypoint_path = working_dir.join(entrypoint);
-    let entrypoint_path = match entrypoint_path.canonicalize() {
-        Ok(entrypoint_path) => entrypoint_path,
-        Err(err)            => { return Err(LetError::EntrypointPathError{ path: entrypoint_path, err }); }
-    };
+) -> Result<TokioChild, LetError> {
+    // Get the function we are running
+    let f: &Function = info.functions.get(function).unwrap();
 
-    // Prepare the actual subprocess crate command to execute
-    // No idea what is happening here precisely, so disabling it until I run into it missing >:)
-    // let command = if entrypoint_path.is_file() {
-    //     Exec::cmd(entrypoint_path)
-    // } else {
-    //     let segments = entrypoint.split_whitespace().collect::<Vec<&str>>();
-    //     let entrypoint_path = working_dir.join(&segments[0]).canonicalize()?;
+    // Preprocess the first argument of the implementation to be prefixed with a `./` if it exists in the working directory
+    if f.implementation.entrypoint.is_empty() { return Err(LetError::EmptyEntrypoint { function: function.into() }); }
+    let mut exe: Cow<str> = Cow::Borrowed(&f.implementation.entrypoint[0]);
+    if !exe.starts_with(".") && !exe.starts_with("/") {
+        // Check if it occurs in this folder
+        let entrypoint_path: PathBuf = working_dir.join(exe.as_ref());
+        if entrypoint_path.exists() {
+            exe = entrypoint_path.to_string_lossy();
+        }
+    }
 
-    //     Exec::cmd(entrypoint_path).args(&segments[1..])
-    // };
-    let mut exec_command = TokioCommand::new(entrypoint_path);
+    // Run the first argument in the entrypoint as the executable, then add the rest for the arguments
+    let mut exec_command: TokioCommand = TokioCommand::new(exe.as_ref());
+    if f.implementation.entrypoint.len() > 1 { exec_command.args(&f.implementation.entrypoint[1..]); }
 
-    // Construct the environment variables
+    // Then add any other arguments specified by the user
+    exec_command.args(&f.implementation.args);
+
+    // Set the CWD for this command, as well as any environment variables
+    exec_command.current_dir(working_dir);
+    exec_command.envs(&f.implementation.env);
+
+    // Collect the arguments and set them as environment
+    // TODO: Change this to be with stdin and the likes
     let envs = construct_envs(arguments)?;
-    debug!("Using environment variables:\n{:#?}", envs);
-    let envs: Vec<_> = envs.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-
-    // Finally, prepare the subprocess
-    exec_command.args(&command.args);
     exec_command.envs(envs);
+
+    // Set what of the program to capture.
+
+    // Set some final props and launch it
     exec_command.stdout(Stdio::piped());
     exec_command.stderr(Stdio::piped());
     let process = match exec_command.spawn() {
@@ -267,7 +270,7 @@ fn start(
     };
 
     // Done, return the process!!
-    Ok((command, process))
+    Ok(process)
 }
 
 /// **Edited: now returning LetErrors.**
@@ -384,28 +387,32 @@ fn construct_envs(
 /// 
 /// **Arguments**
 ///  * `process`: The handle to the asynchronous tokio process.
+///  - `info`: The [`PackageInfo`] that we use to decide the capture channel and mode.
+///  - `function`: The function to run in the given `info`. Guaranteed to exist in `info.functions`.
 ///  * `callback`: A Callback object to send heartbeats with.
 /// 
 /// **Returns**  
 /// The PackageReturnState describing how the call went on success, or a LetError on failure.
 async fn complete(
     process: TokioChild,
+    info: &PackageInfo,
+    function: &Identifier,
     // callback: &mut Option<&mut Callback>,
 ) -> Result<PackageReturnState, LetError> {
     let mut process = process;
 
     // Handle waiting for the subprocess and doing heartbeats in a neat way, using select
-    let status = loop {
+    let status: Result<_, _> = 'wait: loop {
         // Prepare the timer
         let sleep = time::sleep(Duration::from_millis(HEARTBEAT_DELAY));
         tokio::pin!(sleep);
 
         // Wait for either the timer or the process
-        let status = loop {
+        loop {
             tokio::select! {
                 status = process.wait() => {
                     // Process is finished!
-                    break Some(status);
+                    break 'wait status;
                 },
                 _ = &mut sleep => {
                     // // Timeout occurred; send the heartbeat and continue
@@ -413,15 +420,9 @@ async fn complete(
                     //     if let Err(err) = callback.heartbeat().await { warn!("Could not update driver on Heartbeat: {}", err); }
                     //     else { debug!("Sent Heartbeat to driver."); }
                     // }
-
-                    // Stop without result
-                    break None;
                 },
             }
         };
-
-        // If we have a result, break from the main loop; otherwise, try again
-        if let Some(status) = status { break status; }
     };
 
     // Match the status result
@@ -464,6 +465,11 @@ async fn complete(
         if status.signal().is_some() { return Ok(PackageReturnState::Stopped{ signal: status.signal().unwrap() }); }
         return Ok(PackageReturnState::Failed{ code: status.code().unwrap_or(-1), stdout, stderr });
     }
+
+    // Based on the capture channel, decide what to mark as the result
+    let result: String = match info.functions.get(function).unwrap().implementation.capture.channel {
+        CaptureChannel::Both => 
+    };
 
     // Otherwise, it was a success, so return it as such!
     Ok(PackageReturnState::Finished{ stdout })

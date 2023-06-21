@@ -4,7 +4,7 @@
 //  Created:
 //    21 Jun 2023, 12:05:15
 //  Last edited:
-//    21 Jun 2023, 12:34:05
+//    21 Jun 2023, 17:05:55
 //  Auto updated?
 //    Yes
 // 
@@ -21,7 +21,17 @@ use brane_shr::info::JsonInfo;
 use brane_shr::serialize::Identifier;
 use brane_shr::version::Version;
 
-use super::common::{Class, Function, PackageKind, PackageMetadata};
+use super::common::{self, PackageKind, PackageMetadata};
+
+
+/***** TYPES *****/
+/// Re-export of the Function since there is only one flavour anyway in this cast.
+pub type Function = common::Function<FunctionEcu>;
+/// Re-export of the Class since there is only one flavour anyway in this cast.
+pub type Class = common::Class<FunctionEcu>;
+
+
+
 
 
 /***** HELPER FUNCTIONS *****/
@@ -44,9 +54,9 @@ pub struct PackageInfo {
     pub kind     : PackageKind,
 
     /// Defines the functions, each of which define kind-specific implementation details to launch the package. Note, though, that branelet only works for ECU-packages, so no choice there.
-    pub functions  : HashMap<Identifier, Function<FunctionEcu>>,
+    pub functions  : HashMap<Identifier, Function>,
     /// Defines the functions, each of which define kind-specific implementation details to launch the package. Note, though, that branelet only works for ECU-packages, so no choice there.
-    pub classes    : HashMap<Identifier, Class<FunctionEcu>>,
+    pub classes    : HashMap<Identifier, Class>,
 }
 impl PackageInfo {
     /// Constructor for the PackageInfo.
@@ -63,7 +73,7 @@ impl PackageInfo {
     /// # Returns
     /// A new instance of Self.
     #[inline]
-    pub fn new<S: Into<String>>(name: impl Into<Identifier>, version: impl Into<Version>, owners: Option<impl IntoIterator<Item = S>>, description: Option<impl Into<String>>, kind: PackageKind, functions: HashMap<Identifier, Function<FunctionEcu>>, classes: HashMap<Identifier, Class<FunctionEcu>>) -> Self {
+    pub fn new<S: Into<String>>(name: impl Into<Identifier>, version: impl Into<Version>, owners: Option<impl IntoIterator<Item = S>>, description: Option<impl Into<String>>, kind: PackageKind, functions: HashMap<Identifier, Function>, classes: HashMap<Identifier, Class>) -> Self {
         Self {
             metadata : PackageMetadata {
                 name        : name.into(),
