@@ -4,7 +4,7 @@
 //  Created:
 //    22 May 2023, 10:13:10
 //  Last edited:
-//    22 May 2023, 10:23:37
+//    21 Jun 2023, 12:34:28
 //  Auto updated?
 //    Yes
 // 
@@ -18,4 +18,3 @@ pub mod errors;
 pub mod common;
 pub mod exec_ecu;
 pub mod exec_nop;
-pub mod exec_oas;

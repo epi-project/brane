@@ -4,7 +4,7 @@
 //  Created:
 //    26 Aug 2022, 18:26:40
 //  Last edited:
-//    01 Feb 2023, 14:22:55
+//    21 Jun 2023, 11:30:30
 //  Auto updated?
 //    Yes
 // 
@@ -21,8 +21,8 @@ use std::sync::{Arc, RwLock};
 use brane_ast::locations::Location;
 use brane_ast::ast::{DataName, SymTable};
 use brane_shr::version::Version;
+use specifications::capabilities::Capability;
 use specifications::data::{AccessKind, PreprocessKind};
-use specifications::package::Capability;
 use specifications::profiling::ProfileScopeHandle;
 
 use crate::value::FullValue;

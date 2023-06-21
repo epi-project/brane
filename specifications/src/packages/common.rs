@@ -1,21 +1,21 @@
-//  METADATA.rs
+//  COMMON.rs
 //    by Lut99
 // 
 //  Created:
-//    20 Jun 2023, 17:11:06
+//    21 Jun 2023, 10:08:46
 //  Last edited:
-//    20 Jun 2023, 17:17:23
+//    21 Jun 2023, 12:27:06
 //  Auto updated?
 //    Yes
 // 
 //  Description:
-//!   Defines the metadata that we want/need to know of a package. This is
-//!   shared in both the front-facing version of the package info, as well
-//!   as the backend.
+//!   Defines parts of the file specification re-used across the
+//!   frontend/backend.
 // 
 
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter, Result as FResult};
+use std::error::Error;
+use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::str::FromStr;
 
 use enum_debug::EnumDebug;
@@ -26,8 +26,84 @@ use brane_shr::serialize::Identifier;
 use brane_shr::version::Version;
 
 
+/***** ERRORS *****/
+/// Defines the errors that may occur when parsing [`PackageKind`]s.
+#[derive(Debug)]
+pub enum PackageKindParseError {
+    /// An unknown package kind was given.
+    UnknownKind { raw: String },
+}
+impl Display for PackageKindParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use PackageKindParseError::*;
+        match self {
+            UnknownKind { raw } => writeln!(f, "Unknown package kind '{raw}'"),
+        }
+    }
+}
+impl Error for PackageKindParseError {}
+
+
+
+
+
 /***** LIBRARY *****/
-/// Defines what we need to know for the backend only.
+/// Enumerates the possible package kinds.
+#[derive(Clone, Copy, Debug, Deserialize, EnumDebug, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PackageKind {
+    /// It's executable code
+    Ecu,
+    /// It's a BraneScript/Bakery package
+    Dsl,
+    /// It's a Common Workflow Language package.
+    Cwl,
+}
+impl PackageKind {
+    /// Returns whether this kind is an Executable Container Unit (ECU) or not.
+    /// 
+    /// # Returns
+    /// True if it is, false if it isn't.
+    pub fn is_ecu(&self) -> bool { matches!(self, Self::Ecu) }
+    /// Returns whether this kind is a BraneScript/Bakery package or not.
+    /// 
+    /// # Returns
+    /// True if it is, false if it isn't.
+    pub fn is_dsl(&self) -> bool { matches!(self, Self::Dsl) }
+    /// Returns whether this kind is an Common Workflow Language package (CWL) or not.
+    /// 
+    /// # Returns
+    /// True if it is, false if it isn't.
+    pub fn is_cwl(&self) -> bool { matches!(self, Self::Cwl) }
+}
+impl Display for PackageKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use PackageKind::*;
+        match self {
+            Ecu => write!(f, "Executable Container Unit"),
+            Dsl => write!(f, "BraneScript/Bakery"),
+            Cwl => write!(f, "Common Workflow Language"),
+        }
+    }
+}
+impl FromStr for PackageKind {
+    type Err = PackageKindParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ecu" => Ok(Self::Ecu),
+            "dsl" => Ok(Self::Dsl),
+            "cwl" => Ok(Self::Cwl),
+            s     => Err(PackageKindParseError::UnknownKind { raw: s.into() }),
+        }
+    }
+}
+
+
+
+/// Defines what we know about a package that is implementation-agnostic.
+/// 
+/// Note that this is not really true. We typically also know about [`Function`]s and [`Class`]es.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PackageMetadata {
     /// The name/programming ID of this package.
@@ -38,30 +114,27 @@ pub struct PackageMetadata {
     pub owners      : Option<Vec<String>>,
     /// A short description of the package.
     pub description : Option<String>,
-
-    /// The functions that this package supports.
-    #[serde(alias = "actions")]
-    pub functions : HashMap<String, Function>,
-    /// The classes/types that this package adds.
-    #[serde(alias = "types")]
-    pub classes   : HashMap<String, Class>,
 }
 
 
 
-/// Defines the layout of a function definition.
+/// Defines a function's metadata.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Function {
+pub struct Function<I> {
     /// An optional description of the function.
     #[serde(default = "String::new")]
     pub description : String,
 
     /// The inputs of this function.
-    #[serde(alias = "params", alias = "parameters")]
+    #[serde(alias = "params", alias = "parameters", default = "Vec::new")]
     pub input  : Vec<Parameter>,
     /// The outputs of this function, as a map of key name to type.
-    #[serde(alias = "returns")]
+    #[serde(alias = "returns", default = "HashMap::new")]
     pub output : HashMap<Identifier, DataType>,
+
+    /// The remainder -the implementation- is left to the generic parameter.
+    #[serde(flatten)]
+    pub implementation : I,
 }
 
 
@@ -226,17 +299,20 @@ impl FromStr for DataTypeKind {
 
 
 
-/// Defines the layout of a class definition.
+/// Defines a custom class within a package.
+/// 
+/// # Generic parameters
+/// - `I`: Some serializable struct that describes the layout of the part that describes how to implement a function (e.g., CLI-arguments to pass, environment variabels to set, etc).
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Class {
+pub struct Class<I> {
     /// An optional description of the class.
     #[serde(default = "String::new")]
     pub description : String,
 
     /// The properties for this class, as a map of name to value.
-    #[serde(alias = "fields")]
-    pub props   : HashMap<String, DataType>,
+    #[serde(alias = "fields", default = "HashMap::new")]
+    pub props   : HashMap<Identifier, DataType>,
     /// The functions defined in this class, as a map of name to definition.
-    #[serde(alias = "functions", alias = "actions")]
-    pub methods : HashMap<String, Function>,
+    #[serde(alias = "functions", alias = "actions", default = "HashMap::new")]
+    pub methods : HashMap<Identifier, Function<I>>,
 }

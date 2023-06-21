@@ -10,37 +10,32 @@ name: epi
 version: 1.0.0
 kind: ecu
 
-# Dependencies to install in the container (as Ubuntu packages)
-dependencies:
-- python3
-
-# Specify the files that are part of the package. All entries will be resolved to relative to the container.yml file (by default)
-files:
-- epi.sh
+steps:
+- dependencies:
+  - python3
+- files:
+  - epi.sh
 
 # Define the entrypoint: i.e., which file to call when the package function(s) are run
 entrypoint:
-  kind: task
   exec: epi.sh
 
 # Define the functions in this package
 actions:
   'local_compute':
-    command:
-      args:
-      - local_compute
+    args:
+    - local_compute
     # It takes the local dataset
     input:
     - type: Data
       name: input
     # It outputs the local result
     output:
-    - type: IntermediateResult
-      name: output
+      output:
+        type: IntermediateResult
   'aggregate':
-    command:
-      args:
-      - aggregate
+    args:
+    - aggregate
     # It takes two datasets
     input:
     - type: IntermediateResult
@@ -49,5 +44,5 @@ actions:
       name: rhs
     # It outputs the global result
     output:
-    - type: IntermediateResult
-      name: output
+      output:
+        type: IntermediateResult

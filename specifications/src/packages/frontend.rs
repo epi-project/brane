@@ -4,7 +4,7 @@
 //  Created:
 //    20 Jun 2023, 17:12:20
 //  Last edited:
-//    20 Jun 2023, 17:26:19
+//    21 Jun 2023, 12:22:37
 //  Auto updated?
 //    Yes
 // 
@@ -14,10 +14,8 @@
 //!   run it.
 // 
 
-use std::collections::{HashMap, HashSet};
-use std::error::Error;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FResult};
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use enum_debug::EnumDebug;
@@ -27,39 +25,185 @@ use serde::de::{self, Deserializer, Visitor};
 use brane_shr::info::YamlInfo;
 use brane_shr::serialize::Identifier;
 
-use crate::capabilities::Capability;
-use super::metadata::PackageMetadata;
+use super::common::{Class, Function, PackageKind, PackageMetadata};
+use super::{backend, internal};
 
 
-/***** ERRORS *****/
-/// Defines the errors that may occur when parsing [`PackageKind`]s.
-#[derive(Debug)]
-pub enum PackageKindParseError {
-    /// An unknown package kind was given.
-    UnknownKind { raw: String },
-}
-impl Display for PackageKindParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use PackageKindParseError::*;
-        match self {
-            UnknownKind { raw } => writeln!(f, "Unknown package kind '{raw}'"),
-        }
+/***** TESTS *****/
+#[cfg(test)]
+mod tests {
+    use brane_shr::errors::ErrorTrace as _;
+    use brane_shr::info::Info as _;
+    use super::*;
+
+    #[test]
+    fn test_package_info_frontend_hello_world() {
+        // Define the simple hello world string
+        let container_yml: &str = r#"
+name: hello_world
+version: 1.0.0
+kind: ecu
+
+functions:
+  hello_world:
+    run:
+    - hello_world.sh
+    output:
+      message:
+        type: string
+
+build:
+- copy:
+  - hello_world.sh
+"#;
+
+        // Attempt to parse that without errors
+        let info: PackageInfo = match PackageInfo::from_string(container_yml) {
+            Ok(info) => info,
+            Err(err) => { panic!("Failed to parse input YAML: {}", err.trace()); },
+        };
+        println!("\n{info:#?}");
+    }
+
+    #[test]
+    fn test_package_info_frontend_base64() {
+        // Define the simple hello world string
+        let container_yml: &str = r#"
+name: base64
+version: 1.0.0
+kind: ecu
+
+functions:
+  encode:
+    run:
+    - python3
+    - code.py
+    args:
+    - encode
+    input:
+    - name: input
+      type: string
+    output:
+      output:
+        type: string
+  decode:
+    run:
+    - python3
+    - code.py
+    args:
+    - decode
+    input:
+    - name: input
+      type: string
+    output:
+      output:
+        type: string
+
+entrypoint:
+  file: code.py
+
+build:
+- dependencies:
+  - python3
+  - python3-yaml
+
+- copy:
+  - code.py
+"#;
+
+        // Attempt to parse that without errors
+        let info: PackageInfo = match PackageInfo::from_string(container_yml) {
+            Ok(info) => info,
+            Err(err) => { panic!("Failed to parse input YAML: {}", err.trace()); },
+        };
+        println!("\n{info:#?}");
+    }
+
+    #[test]
+    fn test_package_info_frontend_epi() {
+        // Define the simple hello world string
+        let container_yml: &str = r#"
+name: epi
+version: 1.0.0
+kind: ecu
+owners:
+- Rosanne Turner
+description: |
+  Package used for implementing the EPI Proof-of-Concept (PoC). This PoC
+  runs a local compute on two partitions of the same data that live at
+  different hospitals. Then, at the location of a trusted third-party, a global
+  step is executed.
+
+
+
+build:
+# Install the base dependencies in apt
+- dependencies:
+  - build-essential
+  - dirmngr
+  - gnupg
+  - apt-transport-https
+  - ca-certificates
+  - software-properties-common
+  - libxml2-dev
+  - libssl-dev
+  - libcurl4-openssl-dev
+  - pkg-config
+
+# Install R and the required packages
+- run:
+  - |
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9 && \
+    add-apt-repository 'deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/' && \
+    apt install -y r-base && \
+    rm -rf /var/lib/apt/lists/*
+  - mkdir -p /Rlibs && mkdir -p /opt/wd && echo ".libPaths(\"/Rlibs\")" > /opt/wd/.Rprofile
+  - echo "install.packages(\"tidyverse\", lib=\"/Rlibs\")" | R --save
+
+- copy:
+  - run.sh
+  - central code stratified confidence sequence.R
+  - local code stratified confidence sequence.R
+  - stratifiedConfidenceFunctions POC.R
+  - POC helper functions.R
+
+
+
+functions:
+  local_scs:
+    run:
+    - run.sh
+    args:
+    - local_scs
+    input:
+    - name: input
+      type: Data
+    output:
+      output:
+        type: IntermediateResult
+  central_scs:
+    run:
+    - run.sh
+    args:
+    - central_scs
+    input:
+    - name: inputs
+      type: IntermediateResult[]
+    output:
+      output:
+        type: IntermediateResult
+    capture:
+      mode: marked
+"#;
+
+        // Attempt to parse that without errors
+        let info: PackageInfo = match PackageInfo::from_string(container_yml) {
+            Ok(info) => info,
+            Err(err) => { panic!("Failed to parse input YAML: {}", err.trace()); },
+        };
+        println!("\n{info:#?}");
     }
 }
-impl Error for PackageKindParseError {}
-
-
-
-
-
-/***** HELPER FUNCTIONS *****/
-/// Defines the default base image to use.
-#[inline]
-fn default_base_image() -> Image { Image::new("ubuntu", Some("22.04"), None::<String>) }
-
-/// Defines the default package manager.
-#[inline]
-fn default_package_manager() -> PackageManager { PackageManager::Auto }
 
 
 
@@ -82,73 +226,16 @@ impl<'a> Display for ImageDockerFormatter<'a> {
 
 
 
-/***** AUXILLARY *****/
-/// Enumerates the possible package kinds.
-#[derive(Clone, Copy, Debug, EnumDebug, Eq, Hash, PartialEq)]
-pub enum PackageKind {
-    /// It's executable code
-    Ecu,
-    /// It's a BraneScript/Bakery package
-    Dsl,
-    /// It's a Common Workflow Language package.
-    Cwl,
-}
-
-impl PackageKind {
-    /// Returns whether this kind is an Executable Container Unit (ECU) or not.
-    /// 
-    /// # Returns
-    /// True if it is, false if it isn't.
-    pub fn is_ecu(&self) -> bool { matches!(self, Self::Ecu) }
-    /// Returns whether this kind is a BraneScript/Bakery package or not.
-    /// 
-    /// # Returns
-    /// True if it is, false if it isn't.
-    pub fn is_dsl(&self) -> bool { matches!(self, Self::Dsl) }
-    /// Returns whether this kind is an Common Workflow Language package (CWL) or not.
-    /// 
-    /// # Returns
-    /// True if it is, false if it isn't.
-    pub fn is_cwl(&self) -> bool { matches!(self, Self::Cwl) }
-}
-
-impl Display for PackageKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use PackageKind::*;
-        match self {
-            Ecu => write!(f, "Executable Container Unit"),
-            Dsl => write!(f, "BraneScript/Bakery"),
-            Cwl => write!(f, "Common Workflow Language"),
-        }
-    }
-}
-impl FromStr for PackageKind {
-    type Err = PackageKindParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "ecu" => Ok(Self::Ecu),
-            "dsl" => Ok(Self::Dsl),
-            "cwl" => Ok(Self::Cwl),
-            s     => Err(PackageKindParseError::UnknownKind { raw: s.into() }),
-        }
-    }
-}
-
-
-
-
-
 /***** LIBRARY *****/
 /// Defines the `package.yml` file's layout.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PackageInfo {
-    /// Anything common is also for internal usage, so we defer to the [`PackageMetadata`] struct.
+    /// What we know about this package that is implementation-agnostic (e.g., name, version, ...)
     #[serde(flatten)]
-    pub metadata : PackageMetadata,
-    /// The rest is kind-specific
-    #[serde(alias = "implementation", alias = "contents")]
-    pub layout   : PackageSpecificInfo,
+    pub metadata       : PackageMetadata,
+    /// This defines everything implementation-specific about the package.
+    #[serde(flatten)]
+    pub implementation : PackageBuildInfo,
 }
 impl YamlInfo for PackageInfo {}
 
@@ -156,8 +243,8 @@ impl YamlInfo for PackageInfo {}
 
 /// Defines what we need to know per package type public-facing.
 #[derive(Clone, Debug, Deserialize, EnumDebug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PackageSpecificInfo {
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PackageBuildInfo {
     /// It's a container.
     Ecu(EcuInfo),
     /// It's a BraneScript/Bakery package.
@@ -165,14 +252,14 @@ pub enum PackageSpecificInfo {
     /// It's a CWL package.
     Cwl(CwlInfo),
 }
-impl PackageSpecificInfo {
+impl PackageBuildInfo {
     /// Returns an enum that can be used to represent the kind of this info.
     /// 
     /// # Returns
     /// A [`PackageKind`] that represents the kind of this info.
     #[inline]
     pub fn kind(&self) -> PackageKind {
-        use PackageSpecificInfo::*;
+        use PackageBuildInfo::*;
         match self {
             Ecu(_) => PackageKind::Ecu,
             Dsl(_) => PackageKind::Dsl,
@@ -298,30 +385,40 @@ impl PackageSpecificInfo {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EcuInfo {
     /// Defines the base image to use for the container
-    #[serde(alias = "image", default = "default_base_image")]
+    #[serde(alias = "image", default = "Image::info_default")]
     pub base            : Image,
     /// Defines the package manager to use.
-    #[serde(alias = "dependency_resolver", default = "default_package_manager")]
+    #[serde(alias = "dependency_resolver", default = "PackageManager::info_default")]
     pub package_manager : PackageManager,
 
     /// Sets any environment variables while building this container.
-    #[serde(alias = "build_args")]
+    #[serde(alias = "build_args", default = "HashMap::new")]
     pub args  : HashMap<String, String>,
     /// Sets any environment variables while building this container _and_ beyond.
-    #[serde(alias = "environment")]
+    #[serde(alias = "environment", default = "HashMap::new")]
     pub env   : HashMap<String, String>,
     /// Defines the steps to do in the container.
-    #[serde(alias = "build")]
+    #[serde(alias = "build", default = "Vec::new")]
     pub steps : Vec<BuildStep>,
 
-    /// Defines the command to run as entrypoint to the container.
-    pub entrypoint : Entrypoint,
     /// Defines optional ecu-specific options for each function
-    #[serde(alias = "actions")]
-    pub functions  : HashMap<Identifier, FunctionEcu>,
+    #[serde(alias = "actions", default = "HashMap::new")]
+    pub functions  : HashMap<Identifier, Function<FunctionEcu>>,
     /// Defines optional ecu-specific options for each class
-    #[serde(alias = "types")]
-    pub classes    : HashMap<Identifier, ClassEcu>,
+    #[serde(alias = "types", default = "HashMap::new")]
+    pub classes    : HashMap<Identifier, Class<FunctionEcu>>,
+}
+
+
+/// Defines the implementation of a Function for ECU packages.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct FunctionEcu {
+    /// Defines the part necessary for launching the container.
+    #[serde(flatten)]
+    pub backend  : backend::FunctionEcu,
+    /// Defines the part necessary for branelet.
+    #[serde(flatten)]
+    pub internal : internal::FunctionEcu,
 }
 
 
@@ -337,6 +434,19 @@ pub struct Image {
     pub digest  : Option<String>,
 }
 impl Image {
+    /// Returns the default image used in the [`PackageInfo`].
+    /// 
+    /// # Returns
+    /// A new instance of Self used in the package info.
+    #[inline]
+    fn info_default() -> Self {
+        Self {
+            name    : "ubuntu".into(),
+            version : Some("22.04".into()),
+            digest  : None,
+        }
+    }
+
     /// Constructor for the Image that instantiates it with the given name.
     /// 
     /// # Arguments
@@ -459,6 +569,14 @@ pub enum PackageManager {
     /// Alpine's apk
     Apk,
 }
+impl PackageManager {
+    /// Returns the default package manager used in the [`PackageInfo`].
+    /// 
+    /// # Returns
+    /// A new instance of Self used in the package info.
+    #[inline]
+    fn info_default() -> Self { Self::Auto }
+}
 impl From<String> for PackageManager {
     #[inline]
     fn from(value: String) -> Self { Self::from(value.as_str()) }
@@ -521,16 +639,6 @@ impl FromStr for PackageManager {
     fn from_str(s: &str) -> Result<Self, Self::Err> { Ok(Self::from(s)) }
 }
 
-/// Defines the possible types of entrypoint to specify.
-#[derive(Clone, Debug, Deserialize, EnumDebug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Entrypoint {
-    /// Defines a particular file to run
-    File(PathBuf),
-    /// Defines a particular command to run.
-    Command(Vec<String>),
-}
-
 
 /// Defines a possible buildstep for the container.
 #[derive(Clone, Debug, Deserialize, EnumDebug, Serialize)]
@@ -564,67 +672,6 @@ pub struct InstallStep(Vec<String>);
 /// The only field for this struct is the list of commands to run.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RunStep(Vec<String>);
-
-
-/// Defines the layout of a class definition.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct FunctionEcu {
-    /// How to capture the output of the function.
-    pub capture      : OutputCapture,
-    /// Any additional environment variables to override or set for this function only.
-    pub env          : HashMap<String, String>,
-    /// Any command-line arguments to give for this function.
-    pub command      : Vec<String>,
-    /// Capabilities required by this package.
-    #[serde(alias = "required", alias = "required_capabilities")]
-    pub capabilities : HashSet<Capability>,
-}
-
-/// Defines how the output of a function may be captured.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct OutputCapture {
-    /// Defines what to capture (stdout or stderr).
-    #[serde(alias = "stream")]
-    pub channel : CaptureChannel,
-    /// Defines the method of capturing.
-    #[serde(alias = "method")]
-    pub kind    : CaptureKind,
-}
-
-/// Defines what to capture from a container.
-#[derive(Clone, Debug, Deserialize, EnumDebug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CaptureChannel {
-    /// Capture nothing
-    Nothing,
-    /// Capture stdout only
-    Stdout,
-    /// Capture stderr only
-    Stderr,
-    /// Capture both
-    Both,
-}
-
-/// Defines how to capture the input stream.
-#[derive(Clone, Debug, Deserialize, EnumDebug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CaptureKind {
-    /// Captures the entire stream.
-    #[serde(rename = "complete")]
-    Full,
-    /// Captures everything in between start/stop area.
-    #[serde(rename = "marked")]
-    Area,
-    /// Captures everything prefixed by a special string (`~~> `).
-    Prefixed,
-}
-
-
-/// Defines the layout of a class definition.
-/// 
-/// The only field in this struct defines a further map to specify additional properties per method in the class.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ClassEcu(HashMap<String, FunctionEcu>);
 
 
 

@@ -4,7 +4,7 @@
 //  Created:
 //    12 Jun 2023, 14:55:22
 //  Last edited:
-//    12 Jun 2023, 14:55:22
+//    21 Jun 2023, 12:01:30
 //  Auto updated?
 //    Yes
 // 
@@ -359,7 +359,7 @@ pub trait Info<I: Interface>: Clone + Debug + for<'de> Deserialize<'de> + Serial
     fn from_reader(reader: impl Read) -> Result<Self, Error<I::Error>> {
         match I::from_reader(reader) {
             Ok(res)  => Ok(res),
-            Err(err) => Err(Error::StringDeserializeError { err }),
+            Err(err) => Err(Error::ReaderDeserializeError { err }),
         }
     }
 
@@ -409,9 +409,9 @@ pub trait Info<I: Interface>: Clone + Debug + for<'de> Deserialize<'de> + Serial
 
         // Write it using the child function, wrapping the error that may occur
         match Self::from_reader(handle) {
-            Ok(config)                                    => Ok(config),
+            Ok(config)                                => Ok(config),
             Err(Error::ReaderDeserializeError{ err }) => Err(Error::FileDeserializeError { path: path.into(), err }),
-            Err(err)                                      => Err(err),
+            Err(err)                                  => Err(err),
         }
     }
     /// Deserializes this Config from the file at the given path, with the reading part done asynchronously.
@@ -442,9 +442,9 @@ pub trait Info<I: Interface>: Clone + Debug + for<'de> Deserialize<'de> + Serial
 
         // Write it using the child function, wrapping the error that may occur
         match Self::from_string(raw) {
-            Ok(config)                                    => Ok(config),
+            Ok(config)                                => Ok(config),
             Err(Error::ReaderDeserializeError{ err }) => Err(Error::FileDeserializeError { path: path.into(), err }),
-            Err(err)                                      => Err(err),
+            Err(err)                                  => Err(err),
         }
     }
 }

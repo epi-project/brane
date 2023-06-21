@@ -4,7 +4,7 @@
 //  Created:
 //    14 Feb 2022, 14:21:21
 //  Last edited:
-//    19 Jun 2023, 09:51:38
+//    21 Jun 2023, 12:28:44
 //  Auto updated?
 //    Yes
 // 
@@ -18,9 +18,8 @@ use log::debug;
 
 use brane_ast::DataType;
 use brane_exe::FullValue;
-use specifications::common_old::Parameter;
-use specifications::package::PackageKind;
-use specifications::packages::DataTypeKind;
+use specifications::packages::common::Parameter;
+use specifications::packages::common::{DataTypeKind, PackageKind};
 
 
 /***** CONSTANTS *****/
@@ -122,19 +121,19 @@ pub fn assert_input(
     // Search through all the allowed parameters
     for p in parameters {
         // Get the expected type, but skip mounts(?)
-        let expected_type = DataType::from(DataTypeKind::from(p.data_type.as_str()));
+        let expected_type = DataType::from(&p.data_type);
 
         // Check if the user specified it
-        let argument = match arguments.get(&p.name) {
+        let argument = match arguments.get(&*p.name) {
             Some(argument) => argument,
-            None           => { return Err(LetError::MissingInputArgument{ function: function.to_string(), package: package.to_string(), kind, name: p.name.clone() }); }
+            None           => { return Err(LetError::MissingInputArgument{ function: function.to_string(), package: package.to_string(), kind, name: p.name.into() }); }
         };
 
         // Check if the type makes sense
         // Note that we make a special case for data & intermediate results, since that will be converted to a type the package is comfortable with
         let actual_type = argument.data_type();
         if !assert_type(&actual_type, &expected_type) {
-            return Err(LetError::IncompatibleTypes{ function: function.to_string(), package: package.to_string(), kind, name: p.name.clone(), expected: expected_type, got: actual_type });
+            return Err(LetError::IncompatibleTypes{ function: function.to_string(), package: package.to_string(), kind, name: p.name.into(), expected: expected_type, got: actual_type });
         }
     }
 

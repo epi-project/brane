@@ -18,3 +18,8 @@ uuid = { version = "0.8", features = ["v4"] }
 brane-dsl = { path = "../brane-dsl" }
 brane-shr = { path = "../brane-shr" }
 specifications = { path = "../specifications" }
+
+
+[dev-dependencies]
+env_logger = "0.10"
+test-log = "0.2"

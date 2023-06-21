@@ -4,7 +4,7 @@
 //  Created:
 //    16 Sep 2022, 08:22:47
 //  Last edited:
-//    01 Mar 2023, 09:50:25
+//    21 Jun 2023, 11:29:03
 //  Auto updated?
 //    Yes
 // 
@@ -25,7 +25,7 @@ use brane_dsl::data_type::{ClassSignature, FunctionSignature};
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, SymbolTable, VarEntry};
 use brane_dsl::ast::Data;
 use brane_shr::version::Version;
-use specifications::package::Capability;
+use specifications::capabilities::Capability;
 
 use crate::spec::{BuiltinClasses, BuiltinFunctions};
 use crate::ast::{ClassDef, ComputeTaskDef, Edge, FunctionDef, SymTable, TaskDef, VarDef};

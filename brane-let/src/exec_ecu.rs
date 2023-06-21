@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:55:30
 //  Last edited:
-//    25 May 2023, 20:43:21
+//    21 Jun 2023, 12:36:03
 //  Auto updated?
 //    Yes
 // 
@@ -24,7 +24,7 @@ use tokio::process::{Command as TokioCommand, Child as TokioChild};
 use tokio::time::{self, Duration};
 
 use brane_exe::FullValue;
-use specifications::container::{Action, ActionCommand, LocalContainerInfo};
+use specifications::packages::internal::PackageInfo;
 
 // use crate::callback::Callback;
 use crate::common::{assert_input, HEARTBEAT_DELAY, Map, PackageResult, PackageReturnState};
@@ -152,7 +152,7 @@ pub async fn handle(
 /// 
 /// **Returns**  
 ///  * On success, a tuple with (in order):
-///    * The LocalContainerInfo struct representing the local_container.yml in this package
+///    * The PackageInfo struct representing the local_container.yml in this package
 ///    * The function represented as an Action that we should execute
 ///    * A list of Parmaters describing the function's _output_
 ///  * On failure:
@@ -161,7 +161,7 @@ fn initialize(
     function: &str,
     arguments: &Map<FullValue>,
     working_dir: &Path
-) -> Result<(LocalContainerInfo, Action), LetError> {
+) -> Result<(PackageInfo, Function), LetError> {
     debug!("Reading local_container.yml...");
     // Get the container info from the path
     let container_info_path = working_dir.join("local_container.yml");

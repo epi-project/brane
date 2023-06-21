@@ -4,7 +4,7 @@
 //  Created:
 //    12 Jun 2023, 17:13:25
 //  Last edited:
-//    19 Jun 2023, 10:15:46
+//    21 Jun 2023, 11:39:33
 //  Auto updated?
 //    Yes
 // 
@@ -33,7 +33,7 @@ use brane_shr::info::{Info, Interface, JsonInterface};
 use brane_shr::version::Version;
 
 use crate::data_new::DataMetadata;
-use crate::packages::PackageMetadata;
+use crate::packages::backend::PackageInfo;
 
 
 /***** ERRORS *****/
@@ -107,11 +107,11 @@ pub trait IndexInfo {
     fn version(&self) -> Version;
 }
 
-impl IndexInfo for PackageMetadata {
+impl IndexInfo for PackageInfo {
     #[inline]
-    fn name(&self) -> &str { self.name.as_str() }
+    fn name(&self) -> &str { self.metadata.name.as_str() }
     #[inline]
-    fn version(&self) -> Version { self.version }
+    fn version(&self) -> Version { self.metadata.version }
 }
 impl IndexInfo for DataMetadata {
     #[inline]
@@ -195,6 +195,7 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
             };
             let name: &str       = info.name();
             let version: Version = info.version();
+            debug!("Noting '{name}':{version} in index");
 
             // Add the entry sorted by name, then version
             if let Some(versions) = infos.get_mut(name) {
@@ -276,6 +277,7 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
             };
             let name: &str       = info.name();
             let version: Version = info.version();
+            debug!("Noting '{name}':{version} in index");
 
             // Add the entry sorted by name, then version
             if let Some(versions) = infos.get_mut(name) {
@@ -331,6 +333,7 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
             Ok(infos) => infos,
             Err(err)  => { return Err(Error::GetRequestJson { address: address.into(), err }); },
         };
+        debug!("Got {} infos.", infos.len());
 
         // Done
         Ok(Self {
@@ -370,14 +373,15 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
         debug!("Remote returned:\n{}\n{res}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>());
 
         // Attempt to parse the result as a map
-        let entries: HashMap<String, HashMap<Version, I>> = match serde_json::from_str(&res) {
+        let infos: HashMap<String, HashMap<Version, I>> = match serde_json::from_str(&res) {
             Ok(entries) => entries,
             Err(err)    => { return Err(Error::GetRequestJson { address: address.into(), err }); },
         };
+        debug!("Got {} infos.", infos.len());
 
         // Done
         Ok(Self {
-            infos      : entries,
+            infos,
             _interface : Default::default(),
         })
     }
@@ -394,8 +398,10 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
     /// This function may emit warnings (using [`log::warn`]) if there are duplicate entries for an identifier/version pair in the given list.
     pub fn from_infos(infos: impl IntoIterator<Item = I>) -> Self {
         let iter = infos.into_iter();
+        info!("Starting manual construction of {}", std::any::type_name::<Self>());
 
         // Iterate over them to insert them in a map
+        debug!("Traversing given infos...");
         let mut infos: HashMap<String, HashMap<Version, I>> = HashMap::with_capacity(iter.size_hint().0);
         for info in iter {
             // We add the entry in two steps, one for every layer of map
@@ -407,6 +413,7 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
                 infos.insert(info.name().into(), HashMap::from([ (info.version(), info) ]));
             }
         }
+        debug!("Found {} infos", infos.len());
 
         // Ok!
         Self {
@@ -447,8 +454,17 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
     /// # Returns
     /// A reference to the internal info, or [`None`] if no such info is found in this index.
     #[inline]
-    pub fn get(&self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<&I> {
-        self.infos.get(identifier.as_ref()).map(|versions| versions.get(version.as_ref())).flatten()
+    pub fn get(&self, identifier: impl AsRef<str>, version: impl Into<Version>) -> Option<&I> {
+        let identifier: &str = identifier.as_ref();
+        let mut version: Version = version.into();
+
+        // Resolve the latest first, if applicable
+        if version.is_latest() {
+            version = if let Some(version) = self.find_latest(identifier) { version } else { return None; };
+        }
+
+        // Then return the info according to the this pair
+        self.infos.get(identifier).map(|versions| versions.get(version.as_ref())).flatten()
     }
 
     /// Provides mutable access to the info with the given identifier and version number.
@@ -460,8 +476,17 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
     /// # Returns
     /// A mutable reference to the internal info, or [`None`] if no such info is found in this index.
     #[inline]
-    pub fn get_mut(&mut self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<&mut I> {
-        self.infos.get_mut(identifier.as_ref()).map(|versions| versions.get_mut(version.as_ref())).flatten()
+    pub fn get_mut(&mut self, identifier: impl AsRef<str>, version: impl Into<Version>) -> Option<&mut I> {
+        let identifier: &str = identifier.as_ref();
+        let mut version: Version = version.into();
+
+        // Resolve the latest first, if applicable
+        if version.is_latest() {
+            version = if let Some(version) = self.find_latest(identifier) { version } else { return None; };
+        }
+
+        // Then return the info according to the this pair
+        self.infos.get_mut(identifier).map(|versions| versions.get_mut(version.as_ref())).flatten()
     }
 
     /// Removes the info with the given identifier and version number.
@@ -473,14 +498,23 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
     /// # Returns
     /// The info that was removed, or [`None`] if we did not know it.
     #[inline]
-    pub fn remove(&mut self, identifier: impl AsRef<str>, version: impl AsRef<Version>) -> Option<I> {
-        self.infos.get_mut(identifier.as_ref()).map(|versions| versions.remove(version.as_ref())).flatten()
+    pub fn remove(&mut self, identifier: impl AsRef<str>, version: impl Into<Version>) -> Option<I> {
+        let identifier: &str = identifier.as_ref();
+        let mut version: Version = version.into();
+
+        // Resolve the latest first, if applicable
+        if version.is_latest() {
+            version = if let Some(version) = self.find_latest(identifier) { version } else { return None; };
+        }
+
+        // Then return the info according to the this pair
+        self.infos.get_mut(identifier).map(|versions| versions.remove(version.as_ref())).flatten()
     }
 }
 
 
 
 /// Defines an [`Index`] over JSON packages.
-pub type PackageIndex = Index<PackageMetadata, JsonInterface>;
+pub type PackageIndex = Index<PackageInfo, JsonInterface>;
 /// Defines an [`Index`] over JSON datasets.
 pub type DataIndex = Index<DataMetadata, JsonInterface>;

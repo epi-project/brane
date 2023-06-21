@@ -4,7 +4,7 @@
 //  Created:
 //    11 Feb 2022, 13:09:23
 //  Last edited:
-//    22 May 2023, 10:12:51
+//    21 Jun 2023, 12:23:24
 //  Auto updated?
 //    Yes
 // 
@@ -18,7 +18,7 @@ use std::path::PathBuf;
 
 use brane_ast::DataType;
 use specifications::container::LocalContainerInfoError;
-use specifications::package::PackageKind;
+use specifications::packages::common::PackageKind;
 
 
 /***** ERRORS *****/
@@ -133,9 +133,9 @@ impl Display for LetError {
             LocalContainerInfoError{ path, err }                              => write!(f, "Could not load local container information file '{}': {}", path.display(), err),
             PackageInfoError{ err }                                           => write!(f, "Could not parse package information file from Open-API document: {err}"),
             MissingFunctionsProperty{ path }                                  => write!(f, "Missing property 'functions' in package information file '{}'", path.display()),
-            UnknownFunction{ function, package, kind }                        => write!(f, "Unknown function '{}' in package '{}' ({})", function, package, kind.pretty()),
-            MissingInputArgument{ function, package, kind, name }             => write!(f, "Parameter '{}' not specified for function '{}' in package '{}' ({})", name, function, package, kind.pretty()),
-            IncompatibleTypes{ function, package, kind, name, expected, got } => write!(f, "Type check failed for parameter '{}' of function '{}' in package '{}' ({}): expected {}, got {}", name, function, package, kind.pretty(), expected, got),
+            UnknownFunction{ function, package, kind }                        => write!(f, "Unknown function '{}' in package '{}' ({})", function, package, kind),
+            MissingInputArgument{ function, package, kind, name }             => write!(f, "Parameter '{}' not specified for function '{}' in package '{}' ({})", name, function, package, kind),
+            IncompatibleTypes{ function, package, kind, name, expected, got } => write!(f, "Type check failed for parameter '{}' of function '{}' in package '{}' ({}): expected {}, got {}", name, function, package, kind, expected, got),
             WorkdirInitLaunchError{ command, err }                            => write!(f, "Could not run init.sh ('{command}'): {err}"),
             WorkdirInitError{ command, code, stdout, stderr }                 => write!(f, "init.sh ('{}') returned exit code {}:\n\nstdout:\n{}\n{}\n{}\n\nstderr:\n{}\n{}\n{}\n\n", command, code, (0..80).map(|_| '-').collect::<String>(), stdout, (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>(), stderr,(0..80).map(|_| '-').collect::<String>()),
 

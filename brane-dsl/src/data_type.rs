@@ -4,7 +4,7 @@
 //  Created:
 //    23 Aug 2022, 20:34:33
 //  Last edited:
-//    19 Jun 2023, 10:29:23
+//    21 Jun 2023, 11:16:21
 //  Auto updated?
 //    Yes
 // 
@@ -17,6 +17,8 @@ use std::mem::discriminant;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
+
+use specifications::packages::common::DataTypeKind;
 
 
 /***** LIBRARY *****/
@@ -273,9 +275,9 @@ impl Display for DataType {
     }
 }
 
-impl From<specifications::packages::DataTypeKind> for DataType {
-    fn from(value: specifications::packages::DataTypeKind) -> Self {
-        use specifications::packages::DataTypeKind::*;
+impl From<DataTypeKind> for DataType {
+    fn from(value: DataTypeKind) -> Self {
+        use DataTypeKind::*;
         match value {
             Boolean => Self::Boolean,
             Integer => Self::Integer,
@@ -290,9 +292,9 @@ impl From<specifications::packages::DataTypeKind> for DataType {
         }
     }
 }
-impl From<&specifications::packages::DataTypeKind> for DataType {
-    fn from(value: &specifications::packages::DataTypeKind) -> Self {
-        use specifications::packages::DataTypeKind::*;
+impl From<&DataTypeKind> for DataType {
+    fn from(value: &DataTypeKind) -> Self {
+        use DataTypeKind::*;
         match value {
             Boolean => Self::Boolean,
             Integer => Self::Integer,
@@ -307,7 +309,7 @@ impl From<&specifications::packages::DataTypeKind> for DataType {
         }
     }
 }
-impl From<&mut specifications::packages::DataTypeKind> for DataType {
+impl From<&mut DataTypeKind> for DataType {
     #[inline]
-    fn from(value: &mut specifications::packages::DataTypeKind) -> Self { Self::from(&*value) }
+    fn from(value: &mut DataTypeKind) -> Self { Self::from(&*value) }
 }

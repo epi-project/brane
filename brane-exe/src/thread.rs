@@ -4,7 +4,7 @@
 //  Created:
 //    09 Sep 2022, 13:23:41
 //  Last edited:
-//    01 Mar 2023, 09:52:13
+//    21 Jun 2023, 11:31:04
 //  Auto updated?
 //    Yes
 // 
@@ -47,9 +47,8 @@ mod tests {
     use std::sync::Mutex;
     use brane_ast::{compile_program, CompileResult, ParserOptions};
     use brane_ast::traversals::print::ast;
-    use brane_dsl::utils::{create_data_index, create_package_index, test_on_dsl_files_async};
-    use specifications::data::DataIndex;
-    use specifications::package::PackageIndex;
+    use brane_dsl::utils::{TESTS_DATASETS_DIR, TESTS_PACKAGES_DIR, test_on_dsl_files_async};
+    use specifications::index::{DataIndex, PackageIndex};
     use super::*;
     use crate::dummy::{DummyPlanner, DummyPlugin, DummyState};
 
@@ -71,8 +70,8 @@ mod tests {
                 println!("File '{}' gave us:", path.display());
 
                 // Load the package index
-                let pindex: PackageIndex = create_package_index();
-                let dindex: DataIndex    = create_data_index();
+                let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "package.yml").unwrap_or_else(|err| panic!("Failed to create local PackageIndex: {err}"));
+                let dindex: DataIndex    = DataIndex::local(TESTS_DATASETS_DIR, "data.yml").unwrap_or_else(|err| panic!("Failed to create local DataIndex: {err}"));
 
                 // Compile it to a workflow
                 let workflow: Workflow = match compile_program(code.as_bytes(), &pindex, &dindex, &ParserOptions::bscript()) {

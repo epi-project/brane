@@ -4,7 +4,7 @@
 //  Created:
 //    18 Jun 2023, 18:25:39
 //  Last edited:
-//    19 Jun 2023, 17:05:19
+//    21 Jun 2023, 12:25:15
 //  Auto updated?
 //    Yes
 // 
@@ -137,6 +137,22 @@ impl DerefMut for Identifier {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
+impl From<&str> for Identifier {
+    #[inline]
+    fn from(value: &str) -> Self { Self(value.to_string()) }
+}
+impl From<&String> for Identifier {
+    #[inline]
+    fn from(value: &String) -> Self { Self(value.clone()) }
+}
+impl From<&mut String> for Identifier {
+    #[inline]
+    fn from(value: &mut String) -> Self { Self(value.clone()) }
+}
+impl From<String> for Identifier {
+    #[inline]
+    fn from(value: String) -> Self { Self(value) }
+}
 impl From<Identifier> for String {
     #[inline]
     fn from(value: Identifier) -> Self { value.0 }

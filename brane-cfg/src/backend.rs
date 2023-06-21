@@ -4,7 +4,7 @@
 //  Created:
 //    18 Oct 2022, 13:50:11
 //  Last edited:
-//    12 Jun 2023, 11:18:42
+//    21 Jun 2023, 11:29:57
 //  Auto updated?
 //    Yes
 // 
@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use brane_shr::address::Address;
-use specifications::package::Capability;
+use specifications::capabilities::Capability;
 
 pub use brane_shr::info::YamlError as Error;
 use brane_shr::info::YamlInfo;

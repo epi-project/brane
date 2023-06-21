@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 13:46:22
 //  Last edited:
-//    19 Jun 2023, 10:19:27
+//    21 Jun 2023, 11:33:01
 //  Auto updated?
 //    Yes
 // 
@@ -25,21 +25,22 @@ pub use crate::errors::AstError as Error;
 pub mod tests {
     use brane_dsl::ParserOptions;
     use brane_dsl::utils::{TESTS_DATASETS_DIR, TESTS_PACKAGES_DIR, test_on_dsl_files};
+    use brane_shr::errors::ErrorTrace as _;
     use specifications::index::{DataIndex, PackageIndex};
     use super::*;
     use crate::{compile_program_to, CompileResult, CompileStage};
 
 
     /// 'Tests' the traversal by printing the AST for every node.
-    #[test]
+    #[test_log::test]
     fn test_print() {
         test_on_dsl_files("BraneScript", |path, code| {
             println!("{}", (0..80).map(|_| '-').collect::<String>());
             println!("File '{}' gave us:", path.display());
 
             // Load the package index
-            let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "package.yml").unwrap_or_else(|err| panic!("Failed to create local PackageIndex: {err}"));
-            let dindex: DataIndex    = DataIndex::local(TESTS_PACKAGES_DIR, "data.yml").unwrap_or_else(|err| panic!("Failed to create local DataIndex: {err}"));
+            let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "container.yml").unwrap_or_else(|err| panic!("Failed to create local PackageIndex: {}", err.trace()));
+            let dindex: DataIndex    = DataIndex::local(TESTS_DATASETS_DIR, "data.yml").unwrap_or_else(|err| panic!("Failed to create local DataIndex: {}", err.trace()));
 
             // Run up to this traversal
             let program: Program = match compile_program_to(code.as_bytes(), &pindex, &dindex, &ParserOptions::bscript(), CompileStage::None) {

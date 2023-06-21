@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    23 Jan 2023, 10:42:50
+//    21 Jun 2023, 11:28:53
 //  Auto updated?
 //    Yes
 // 
@@ -27,8 +27,8 @@ use serde_json_any_key::any_key_map;
 
 use brane_dsl::spec::MergeStrategy;
 use brane_shr::version::Version;
+use specifications::capabilities::Capability;
 use specifications::data::AvailabilityKind;
-use specifications::package::Capability;
 
 use crate::errors::DataNameDeserializeError;
 use crate::data_type::DataType;
