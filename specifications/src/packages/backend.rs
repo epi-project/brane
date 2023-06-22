@@ -4,7 +4,7 @@
 //  Created:
 //    20 Jun 2023, 17:11:50
 //  Last edited:
-//    21 Jun 2023, 12:18:40
+//    22 Jun 2023, 08:48:56
 //  Auto updated?
 //    Yes
 // 
@@ -17,6 +17,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+use chrono::DateTime;
+use chrono_tz::Local;
 use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 
@@ -33,7 +35,9 @@ use super::common::{Class, Function, PackageKind, PackageMetadata};
 pub struct PackageInfo {
     /// What we know about this package that is implementation-agnostic (e.g., name, version, ...)
     #[serde(flatten)]
-    pub metadata  : PackageMetadata,
+    pub metadata : PackageMetadata,
+    /// Defines when this package was created.
+    pub created  : DateTime<Local>,
 
     /// Defines the functions, each of which define kind-specific implementation details that we need to know to launch the package.
     pub functions : HashMap<Identifier, Function<FunctionImplementation>>,

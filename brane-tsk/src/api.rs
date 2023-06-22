@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 12:15:06
 //  Last edited:
-//    19 Jun 2023, 09:51:32
+//    22 Jun 2023, 08:51:29
 //  Auto updated?
 //    Yes
 // 
@@ -24,7 +24,9 @@ use uuid::Uuid;
 use brane_shr::version::Version;
 use specifications::common_old::{Function, Type};
 use specifications::data::{DataIndex, DataInfo};
-use specifications::package::{PackageKind, PackageIndex, PackageInfo};
+use specifications::index::PackageIndex;
+use specifications::packages::backend::PackageInfo;
+use specifications::packages::common::{PackageKind, PackageMetadata};
 
 pub use crate::errors::ApiError as Error;
 
@@ -103,6 +105,9 @@ pub async fn get_package_index(endpoint: impl AsRef<str>) -> Result<PackageIndex
 
         // Throw it in a PackageInfo
         infos.push(PackageInfo {
+            metadata : PackageMetadata {
+                name : 
+            },
             created : p.created,
             id      : p.id,
             digest  : p.digest,

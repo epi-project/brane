@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:55:30
 //  Last edited:
-//    21 Jun 2023, 17:27:38
+//    22 Jun 2023, 08:44:24
 //  Auto updated?
 //    Yes
 // 
@@ -27,7 +27,7 @@ use tokio::time::{self, Duration};
 use brane_exe::FullValue;
 use brane_shr::info::Info as _;
 use brane_shr::serialize::Identifier;
-use specifications::packages::internal::{CaptureChannel, Function, PackageInfo};
+use specifications::packages::internal::{CaptureMode, Function, PackageInfo};
 
 // use crate::callback::Callback;
 use crate::common::{assert_input, HEARTBEAT_DELAY, Map, PackageResult, PackageReturnState};
@@ -70,7 +70,7 @@ pub async fn handle(
     debug!("Executing '{}' (ecu) using arguments:\n{:#?}", function, arguments);
 
     // Initialize the package
-    let (container_info, function) = match initialize(&function, &arguments, &working_dir) {
+    let (info, function) = match initialize(&function, &arguments, &working_dir) {
         Ok(results) => {
             // if let Some(callback) = callback {
             //     if let Err(err) = callback.initialized().await { warn!("Could not update driver on Initialized: {}", err); }
@@ -88,7 +88,7 @@ pub async fn handle(
     };
 
     // Launch the job
-    let process = match start(&container_info, &function, &arguments, &working_dir) {
+    let process = match start(&info, &function, &arguments, &working_dir) {
         Ok(result) => {
             // if let Some(callback) = callback {
             //     if let Err(err) = callback.started().await { warn!("Could not update driver on Started: {}", err); }
@@ -124,7 +124,7 @@ pub async fn handle(
     };
 
     // Convert the call to a PackageReturn value instead of state
-    let result = match decode(result, &command.capture) {
+    let result = match decode(result, info.functions.get(&function).unwrap().implementation.capture) {
         Ok(result) => result,
         Err(err)   => {
             // if let Some(callback) = callback {
@@ -239,7 +239,7 @@ fn start(
         // Check if it occurs in this folder
         let entrypoint_path: PathBuf = working_dir.join(exe.as_ref());
         if entrypoint_path.exists() {
-            exe = entrypoint_path.to_string_lossy();
+            exe = Cow::Owned(entrypoint_path.to_string_lossy().into_owned());
         }
     }
 
@@ -258,8 +258,6 @@ fn start(
     // TODO: Change this to be with stdin and the likes
     let envs = construct_envs(arguments)?;
     exec_command.envs(envs);
-
-    // Set what of the program to capture.
 
     // Set some final props and launch it
     exec_command.stdout(Stdio::piped());
@@ -387,16 +385,12 @@ fn construct_envs(
 /// 
 /// **Arguments**
 ///  * `process`: The handle to the asynchronous tokio process.
-///  - `info`: The [`PackageInfo`] that we use to decide the capture channel and mode.
-///  - `function`: The function to run in the given `info`. Guaranteed to exist in `info.functions`.
 ///  * `callback`: A Callback object to send heartbeats with.
 /// 
 /// **Returns**  
 /// The PackageReturnState describing how the call went on success, or a LetError on failure.
 async fn complete(
     process: TokioChild,
-    info: &PackageInfo,
-    function: &Identifier,
     // callback: &mut Option<&mut Callback>,
 ) -> Result<PackageReturnState, LetError> {
     let mut process = process;
@@ -466,11 +460,6 @@ async fn complete(
         return Ok(PackageReturnState::Failed{ code: status.code().unwrap_or(-1), stdout, stderr });
     }
 
-    // Based on the capture channel, decide what to mark as the result
-    let result: String = match info.functions.get(function).unwrap().implementation.capture.channel {
-        CaptureChannel::Both => 
-    };
-
     // Otherwise, it was a success, so return it as such!
     Ok(PackageReturnState::Finished{ stdout })
 }
@@ -487,16 +476,13 @@ async fn complete(
 /// The preprocessed stdout.
 fn preprocess_stdout(
     stdout: String,
-    mode: &Option<String>,
+    mode: CaptureMode,
 ) -> String {
-    let mode = mode.clone().unwrap_or_else(|| String::from("complete"));
-
     let mut captured = Vec::new();
-    match mode.as_str() {
-        "complete" => return stdout,
-        "marked" => {
+    match mode {
+        CaptureMode::Full => return stdout,
+        CaptureMode::Area => {
             let mut capture = false;
-
             for line in stdout.lines() {
                 if line.trim_start().starts_with(MARK_START) {
                     capture = true;
@@ -514,7 +500,7 @@ fn preprocess_stdout(
                 }
             }
         }
-        "prefixed" => {
+        CaptureMode::Prefixed => {
             for line in stdout.lines() {
                 if line.starts_with(PREFIX) {
                     let trimmed = line.trim_start_matches(PREFIX);
@@ -523,9 +509,8 @@ fn preprocess_stdout(
                 }
             }
         }
-        _ => panic!("Encountered illegal capture mode '{}'; this should never happen!", mode),
+        CaptureMode::Nothing => {},
     }
-
     captured.join("\n")
 }
 
@@ -542,7 +527,7 @@ fn preprocess_stdout(
 /// 
 /// **Returns**  
 /// The decoded return state as a PackageResult, or a LetError otherwise.
-fn decode(result: PackageReturnState, mode: &Option<String>) -> Result<PackageResult, LetError> {
+fn decode(result: PackageReturnState, mode: CaptureMode) -> Result<PackageResult, LetError> {
     // Match on the result
     match result {
         PackageReturnState::Finished{ stdout } => {

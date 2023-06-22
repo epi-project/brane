@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:53:43
 //  Last edited:
-//    21 Jun 2023, 17:02:00
+//    22 Jun 2023, 08:45:11
 //  Auto updated?
 //    Yes
 // 
@@ -25,7 +25,6 @@ use brane_let::common::PackageResult;
 use brane_let::errors::LetError;
 use brane_let::exec_ecu;
 use brane_let::exec_nop;
-use brane_let::exec_oas;
 
 
 /***** CONSTANTS *****/
@@ -76,16 +75,6 @@ enum SubCommand {
     /// Don't perform any operation and return nothing
     #[clap(name = "no-op")]
     NoOp,
-    /// Call a Web API and return output
-    #[clap(name = "oas")]
-    WebApi {
-        /// Function to execute
-        function: String,
-        /// Input arguments (encoded, as Base64'ed JSON)
-        arguments: String,
-        #[clap(short, long, env = "BRANE_WORKDIR", default_value = "/opt/wd")]
-        working_dir: PathBuf,
-    },
 }
 
 
@@ -183,11 +172,6 @@ async fn run(
             arguments,
             working_dir,
         } => exec_ecu::handle(function, decode_b64(arguments)?, working_dir).await,
-        SubCommand::WebApi {
-            function,
-            arguments,
-            working_dir,
-        } => exec_oas::handle(function, decode_b64(arguments)?, working_dir).await,
         SubCommand::NoOp {
         } => exec_nop::handle().await,
     };

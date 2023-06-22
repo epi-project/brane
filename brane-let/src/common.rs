@@ -4,7 +4,7 @@
 //  Created:
 //    14 Feb 2022, 14:21:21
 //  Last edited:
-//    21 Jun 2023, 16:59:46
+//    22 Jun 2023, 08:44:44
 //  Auto updated?
 //    Yes
 // 
@@ -125,14 +125,14 @@ pub fn assert_input(
         // Check if the user specified it
         let argument = match arguments.get(&*p.name) {
             Some(argument) => argument,
-            None           => { return Err(LetError::MissingInputArgument{ function: function.to_string(), package: package.to_string(), kind, name: p.name.into() }); }
+            None           => { return Err(LetError::MissingInputArgument{ function: function.to_string(), package: package.to_string(), kind, name: (&p.name).into() }); }
         };
 
         // Check if the type makes sense
         // Note that we make a special case for data & intermediate results, since that will be converted to a type the package is comfortable with
         let actual_type = argument.data_type();
         if !assert_type(&actual_type, &expected_type) {
-            return Err(LetError::IncompatibleTypes{ function: function.to_string(), package: package.to_string(), kind, name: p.name.into(), expected: expected_type, got: actual_type });
+            return Err(LetError::IncompatibleTypes{ function: function.to_string(), package: package.to_string(), kind, name: (&p.name).into(), expected: expected_type, got: actual_type });
         }
     }
 

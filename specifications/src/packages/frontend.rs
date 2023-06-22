@@ -4,7 +4,7 @@
 //  Created:
 //    20 Jun 2023, 17:12:20
 //  Last edited:
-//    21 Jun 2023, 17:05:07
+//    22 Jun 2023, 08:39:33
 //  Auto updated?
 //    Yes
 // 
@@ -192,8 +192,7 @@ functions:
     output:
       output:
         type: IntermediateResult
-    capture:
-      mode: marked
+    capture: marked
 "#;
 
         // Attempt to parse that without errors
@@ -553,7 +552,7 @@ impl From<&mut Image> for Image {
 }
 
 /// Defines the supported package managers by BRANE.
-#[derive(Clone, Debug, EnumDebug, Serialize)]
+#[derive(Clone, Copy, Debug, EnumDebug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PackageManager {
     // Meta options

@@ -4,7 +4,7 @@
 //  Created:
 //    21 Jun 2023, 12:05:15
 //  Last edited:
-//    21 Jun 2023, 17:05:55
+//    22 Jun 2023, 08:39:12
 //  Auto updated?
 //    Yes
 // 
@@ -104,68 +104,25 @@ pub struct FunctionEcu {
     #[serde(default = "Vec::new")]
     pub args         : Vec<String>,
     /// How to capture the output of the function.
-    #[serde(default = "OutputCapture::info_default")]
-    pub capture      : OutputCapture,
-}
-
-/// Defines how the output of a function may be captured.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct OutputCapture {
-    /// Defines what to capture (stdout or stderr).
-    #[serde(alias = "stream", default = "CaptureChannel::info_default")]
-    pub channel : CaptureChannel,
-    /// Defines the method of capturing.
-    #[serde(alias = "method", alias = "kind", default = "CaptureMode::info_default")]
-    pub mode    : CaptureMode,
-}
-impl OutputCapture {
-    /// Returns the default capture settings used in the [`PackageInfo`].
-    /// 
-    /// # Returns
-    /// A new instance of Self used in the package info.
-    #[inline]
-    pub(super) fn info_default() -> Self {
-        Self {
-            channel : CaptureChannel::info_default(),
-            mode    : CaptureMode::info_default(),
-        }
-    }
-}
-
-/// Defines what to capture from a container.
-#[derive(Clone, Debug, Deserialize, EnumDebug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CaptureChannel {
-    /// Capture nothing
-    Nothing,
-    /// Capture stdout only
-    Stdout,
-    /// Capture stderr only
-    Stderr,
-    /// Capture both
-    Both,
-}
-impl CaptureChannel {
-    /// Returns the default capture channel used in the [`PackageInfo`].
-    /// 
-    /// # Returns
-    /// A new instance of Self used in the package info.
-    #[inline]
-    pub(super) fn info_default() -> Self { Self::Stdout }
+    #[serde(default = "CaptureMode::info_default")]
+    pub capture      : CaptureMode,
 }
 
 /// Defines how to capture the input stream.
-#[derive(Clone, Debug, Deserialize, EnumDebug, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, EnumDebug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CaptureMode {
     /// Captures the entire stream.
-    #[serde(rename = "complete")]
+    #[serde(alias = "complete")]
     Full,
     /// Captures everything in between start/stop area.
-    #[serde(rename = "marked")]
+    #[serde(alias = "marked")]
     Area,
     /// Captures everything prefixed by a special string (`~~> `).
     Prefixed,
+    /// Captures... nothing!
+    #[serde(alias = "none")]
+    Nothing,
 }
 impl CaptureMode {
     /// Returns the default capture mode used in the [`PackageInfo`].

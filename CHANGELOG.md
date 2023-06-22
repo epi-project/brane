@@ -15,7 +15,9 @@ All notable changes to the Brane framework will be documented in this file.
 - `container.yml` to be more expressive, by using Docker-like vector of steps instead of fixed steps [**breaking change**].
   - The underlying code has also been completely rewritten, so expect a few other changes.
 - A lot between `brane-cfg`, `brane-shr` and `specifications` to make it more coherent and logical.
-  - The change in `container.yml` is one of these.
+
+### Removes
+- Support for OAS containers, since this no longer fits the idea of BRANE's shielded containers.
 
 ### Fixed
 - Kubernetes backend support (it used to work, got broken in 1.0.0+)

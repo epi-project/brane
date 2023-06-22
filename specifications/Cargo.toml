@@ -8,6 +8,7 @@ edition = "2021"
 async-trait = "0.1"
 base64 = "0.21"
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = { version = "0.8", features = ["serde"] }
 const_format = "0.2"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
 log = "0.4"
