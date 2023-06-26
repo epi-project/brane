@@ -4,7 +4,7 @@
 //  Created:
 //    22 May 2023, 13:13:51
 //  Last edited:
-//    19 Jun 2023, 09:46:30
+//    26 Jun 2023, 12:23:21
 //  Auto updated?
 //    Yes
 // 
@@ -27,10 +27,10 @@ use brane_ast::DataType;
 use brane_ast::spec::BuiltinClasses;
 use brane_ast::ast::{ClassDef, VarDef};
 use brane_exe::FullValue;
+use brane_shr::serialize::Identifier;
 use brane_shr::version::Version;
-use specifications::data::DataIndex;
-use specifications::package::PackageInfo;
-use specifications::packages::DataTypeKind;
+use specifications::index::DataIndex;
+use specifications::packages::backend::PackageInfo;
 
 
 /***** ERRORS *****/
@@ -100,14 +100,14 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
     function_list.sort();
 
     // Insert missing builtins in the map
-    let mut types: HashMap<String, ClassDef> = package.types.iter().map(|t| (t.0.clone(), ClassDef {
-        name    : t.1.name.clone(),
-        package : Some(package.name.clone()),
-        version : Some(package.version),
+    let mut types: HashMap<Identifier, ClassDef> = package.classes.iter().map(|(name, def)| (name.clone(), ClassDef {
+        name    : name.into(),
+        package : Some((&package.metadata.name).into()),
+        version : Some(package.metadata.version),
 
-        props : t.1.properties.iter().map(|p| VarDef {
-            name      : p.name.clone(),
-            data_type : DataType::from(DataTypeKind::from(&p.data_type)),
+        props : def.props.iter().map(|p| VarDef {
+            name      : p.0.into(),
+            data_type : DataType::from(&p.1.data_type),
         }).collect(),
         methods : vec![]
     })).collect();
@@ -121,7 +121,7 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
             // We don't care for methods anyway
             methods : vec![],
         }) {
-            return Err(Error::PackageDefinesBuiltin{ name: package.name.clone(), version: package.version, builtin: old.name });
+            return Err(Error::PackageDefinesBuiltin{ name: (&package.metadata.name).into(), version: package.metadata.version, builtin: old.name });
         }
     }
 
@@ -136,16 +136,16 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
         Err(err)  => { return Err(Error::FunctionQueryError { err }); }
     };
     let function_name = &function_list[index];
-    let function = &package.functions[function_name];
+    let function = &package.functions[&function_name.into()];
 
     // Now, with the chosen function, we will collect all of the function's arguments
     let mut args: HashMap<String, FullValue> = HashMap::new();
-    if !function.parameters.is_empty() {
+    if !function.input.is_empty() {
         println!("\nPlease provide input for the chosen function:\n");
-        for p in &function.parameters {
+        for p in &function.input {
             // Prompt for that data type
-            let value: FullValue = prompt_for_param(data_index, package, format!("{} [{}]", p.name, p.data_type), &p.name, DataType::from(DataTypeKind::from(&p.data_type)), p.optional.unwrap_or(false), None, &types)?;
-            args.insert(p.name.clone(), value);
+            let value: FullValue = prompt_for_param(data_index, package, format!("{} [{}]", p.name, p.data_type), &*p.name, DataType::from(&p.data_type), p.optional, None, &types)?;
+            args.insert((&p.name).into(), value);
         }
     }
     debug!("Arguments: {:#?}", args);
@@ -172,7 +172,7 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
 /// 
 /// # Errors
 /// This function errors if querying the user failed.
-fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl AsRef<str>, name: impl AsRef<str>, data_type: DataType, optional: bool, default: Option<FullValue>, types: &HashMap<String, ClassDef>) -> Result<FullValue, Error> {
+fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl AsRef<str>, name: impl AsRef<str>, data_type: DataType, optional: bool, default: Option<FullValue>, types: &HashMap<Identifier, ClassDef>) -> Result<FullValue, Error> {
     let what: &str = what.as_ref();
     let name: &str = name.as_ref();
 
@@ -260,9 +260,9 @@ fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl As
             }
 
             // Resolve the class
-            let def: &ClassDef = match types.get(&c_name) {
+            let def: &ClassDef = match types.get(&(&c_name).into()) {
                 Some(def) => def,
-                None      => {  return Err(Error::UndefinedClass{ name: package.name.clone(), version: package.version, class: c_name }); },
+                None      => {  return Err(Error::UndefinedClass{ name: (&package.metadata.name).into(), version: package.metadata.version, class: c_name }); },
             };
 
             // Sort the properties of said class alphabetically

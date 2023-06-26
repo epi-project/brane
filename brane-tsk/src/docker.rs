@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2022, 14:57:17
 //  Last edited:
-//    15 May 2023, 12:56:37
+//    26 Jun 2023, 12:20:06
 //  Auto updated?
 //    Yes
 // 
@@ -42,8 +42,8 @@ use tokio_util::codec::{BytesCodec, FramedRead};
 use brane_ast::ast::DataName;
 use brane_exe::FullValue;
 use specifications::container::{Image, VolumeBind};
+use specifications::capabilities::Capability;
 use specifications::data::AccessKind;
-use specifications::package::Capability;
 
 pub use crate::errors::DockerError as Error;
 use crate::errors::{ClientVersionParseError, ExecuteError};

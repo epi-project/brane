@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    22 Jun 2023, 09:07:17
+//    26 Jun 2023, 11:20:19
 //  Auto updated?
 //    Yes
 // 
@@ -311,7 +311,7 @@ enum SubCommand {
         /// The thing to upgrade.
         #[clap(subcommand)]
         subcommand : UpgradeSubcommand,
-    }
+    },
 
     #[clap(name = "unpublish", about = "Remove a package from a registry")]
     Unpublish {
@@ -528,7 +528,7 @@ enum UpgradeSubcommand {
         /// Fixes the version from which we are converting.
         #[clap(short, long, default_value = "all", help = "Whether to consider only one version when examining a file. Can be any valid BRANE version or 'auto' to use all supported versions.")]
         version   : VersionFix,
-    }
+    },
 
     #[clap(name = "data", about = "Upgrade data.yaml files to be compatible with this BRANE version.")]
     Data {
@@ -545,7 +545,7 @@ enum UpgradeSubcommand {
         /// Fixes the version from which we are converting.
         #[clap(short, long, default_value = "all", help = "Whether to consider only one version when examining a file. Can be any valid BRANE version or 'auto' to use all supported versions.")]
         version   : VersionFix,
-    }
+    },
 }
 
 /// Defines the subcommands for the verify subcommand.
@@ -841,6 +841,15 @@ async fn run(options: Cli) -> Result<(), CliError> {
         Unpublish { name, version, force } => {
             if let Err(err) = registry::unpublish(name, version, force).await { return Err(CliError::OtherError{ err }); };
         }
+        Upgrade { subcommand } => match subcommand {
+            UpgradeSubcommand::Container { path, dry_run, overwrite, version } => {
+                todo!();
+            },
+
+            UpgradeSubcommand::Data { path, dry_run, overwrite, version } => {
+                todo!();
+            },
+        },
         Verify { subcommand } => {
             // Match the subcommand in question
             use VerifySubcommand::*;

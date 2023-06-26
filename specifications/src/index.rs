@@ -4,7 +4,7 @@
 //  Created:
 //    12 Jun 2023, 17:13:25
 //  Last edited:
-//    21 Jun 2023, 11:39:33
+//    26 Jun 2023, 12:26:42
 //  Auto updated?
 //    Yes
 // 
@@ -510,6 +510,21 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
         // Then return the info according to the this pair
         self.infos.get_mut(identifier).map(|versions| versions.remove(version.as_ref())).flatten()
     }
+}
+
+impl<I, N> IntoIterator for Index<I, N> {
+    type IntoIter = std::collections::hash_map::IntoIter<Identifier, I>;
+    type Item     = (Identifier, I);
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter { self.infos.into_iter() }
+}
+impl<'i, I, N> IntoIterator for &'i Index<I, N> {
+    type IntoIter = std::collections::hash_map::Iter<'i, Identifier, I>;
+    type Item     = (&'i Identifier, &'i I);
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter { self.infos.iter() }
 }
 
 

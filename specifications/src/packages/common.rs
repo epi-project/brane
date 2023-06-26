@@ -4,7 +4,7 @@
 //  Created:
 //    21 Jun 2023, 10:08:46
 //  Last edited:
-//    21 Jun 2023, 12:27:06
+//    26 Jun 2023, 12:18:50
 //  Auto updated?
 //    Yes
 // 
@@ -42,6 +42,15 @@ impl Display for PackageKindParseError {
     }
 }
 impl Error for PackageKindParseError {}
+
+
+
+
+
+/***** HELPER FUNCTIONS *****/
+/// Returns false.
+#[inline]
+fn default_optional() -> bool { false }
 
 
 
@@ -150,6 +159,9 @@ pub struct Parameter {
     /// The data type of the value.
     #[serde(alias = "type")]
     pub data_type : DataTypeKind,
+    /// Is it optional?
+    #[serde(default = "default_optional")]
+    pub optional  : bool,
 }
 
 

@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    12 Jun 2023, 11:18:38
+//    26 Jun 2023, 11:25:43
 //  Auto updated?
 //    Yes
 // 
@@ -27,8 +27,8 @@ use brane_ast::ast::DataName;
 use brane_shr::address::Address;
 use brane_shr::formatters::{BlockFormatter, Capitalizeable};
 use brane_shr::version::Version;
+use specifications::capabilities::Capability;
 use specifications::container::Image;
-use specifications::package::Capability;
 use specifications::planning::PlanningStatusKind;
 use specifications::driving::ExecuteReply;
 // The TaskReply is here for legacy reasons; bad name
@@ -710,9 +710,9 @@ pub enum LocalError {
     /// There was an error reading entries from the packages directory
     PackagesDirReadError{ path: PathBuf, err: std::io::Error },
     /// We tried to load a package YML but failed
-    InvalidPackageYml{ package: String, path: PathBuf, err: specifications::package::PackageInfoError },
+    InvalidPackageYml{ package: String, path: PathBuf, err: brane_shr::info::JsonError },
     /// We tried to load a Package Index from a JSON value with PackageInfos but we failed
-    PackageIndexError{ err: specifications::package::PackageIndexError },
+    PackageIndexError{ err: specifications::index::Error<brane_shr::info::JsonError> },
 
     /// Failed to read the datasets folder
     DatasetsReadError{ path: PathBuf, err: std::io::Error },
@@ -760,11 +760,11 @@ pub enum ApiError {
     NoResponse{ address: String },
 
     /// Failed to parse the package kind in a package info.
-    PackageKindParseError{ address: String, index: usize, raw: String, err: specifications::package::PackageKindError },
+    PackageKindParseError{ address: String, index: usize, raw: String, err: specifications::packages::common::PackageKindParseError },
     /// Failed to parse the package's version in a package info.
     VersionParseError{ address: String, index: usize, raw: String, err: brane_shr::version::ParseError },
     /// Failed to create a package index from the given infos.
-    PackageIndexError{ address: String, err: specifications::package::PackageIndexError },
+    PackageIndexError{ address: String, err: specifications::packages::common::PackageKindParseError },
 
     /// Failed to create a data index from the given infos.
     DataIndexError{ address: String, err: specifications::data::DataIndexError },

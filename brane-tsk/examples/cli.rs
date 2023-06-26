@@ -4,7 +4,7 @@
 //  Created:
 //    15 May 2023, 11:15:47
 //  Last edited:
-//    22 May 2023, 14:15:57
+//    26 Jun 2023, 12:22:36
 //  Auto updated?
 //    Yes
 // 
@@ -29,8 +29,8 @@ use brane_shr::address::Address;
 use brane_shr::errors::ErrorTrace as _;
 use brane_shr::version::Version;
 use specifications::container::Image;
-use specifications::data::DataIndex;
-use specifications::package::PackageInfo;
+use specifications::index::DataIndex;
+use specifications::packages::backend::PackageInfo;
 
 use brane_tsk::input::prompt_for_input;
 use brane_tsk::docker::ImageSource;
@@ -98,9 +98,9 @@ impl Error for K8sError {
 async fn k8s_launch(package: &PackageInfo, launch: impl LaunchArgs) -> Result<(Handle<Pod>, Option<Handle<Secret>>), K8sError> {
     // Collect a local data index
     debug!("Fetching locally available data...");
-    let data_index: DataIndex = match brane_tsk::local::get_data_index(launch.datasets()) {
+    let data_index: DataIndex = match DataIndex::local_async(launch.datasets(), "data.yml").await {
         Ok(index) => index,
-        Err(err)  => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
+        Err(err)  => { return Err(K8sError::LaunchPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); },
     };
     // Query the user to find the function & input arguments
     debug!("Prompting the user (you!) for input");

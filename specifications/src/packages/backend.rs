@@ -4,7 +4,7 @@
 //  Created:
 //    20 Jun 2023, 17:11:50
 //  Last edited:
-//    22 Jun 2023, 08:48:56
+//    26 Jun 2023, 11:22:03
 //  Auto updated?
 //    Yes
 // 
@@ -17,8 +17,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use chrono::DateTime;
-use chrono_tz::Local;
+use chrono::{DateTime, Utc};
 use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 
@@ -37,7 +36,7 @@ pub struct PackageInfo {
     #[serde(flatten)]
     pub metadata : PackageMetadata,
     /// Defines when this package was created.
-    pub created  : DateTime<Local>,
+    pub created  : DateTime<Utc>,
 
     /// Defines the functions, each of which define kind-specific implementation details that we need to know to launch the package.
     pub functions : HashMap<Identifier, Function<FunctionImplementation>>,

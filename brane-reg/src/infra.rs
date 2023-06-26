@@ -4,7 +4,7 @@
 //  Created:
 //    05 Jan 2023, 11:35:25
 //  Last edited:
-//    12 Jun 2023, 11:20:17
+//    26 Jun 2023, 11:23:41
 //  Auto updated?
 //    Yes
 // 
@@ -24,7 +24,7 @@ use warp::reply::Response;
 use brane_cfg::backend::BackendFile;
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig, WorkerConfig};
 use brane_shr::info::Info as _;
-use specifications::package::Capability;
+use specifications::capabilities::Capability;
 
 use crate::spec::Context;
 
