@@ -4,7 +4,7 @@
 //  Created:
 //    22 May 2023, 13:13:51
 //  Last edited:
-//    26 Jun 2023, 12:23:21
+//    26 Jun 2023, 17:53:31
 //  Auto updated?
 //    Yes
 // 
@@ -281,7 +281,7 @@ fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl As
         },
         Data | IntermediateResult => {
             // Collect the given datasets
-            let mut items: Vec<&str> = data_index.iter().map(|info| info.name.as_str()).collect();
+            let mut items: Vec<&str> = data_index.iter().map(|(id, _)| id.as_str()).collect();
             items.sort();
 
             // Prepare the prompt with beautiful themes and such

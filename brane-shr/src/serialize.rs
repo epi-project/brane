@@ -4,7 +4,7 @@
 //  Created:
 //    18 Jun 2023, 18:25:39
 //  Last edited:
-//    21 Jun 2023, 16:58:11
+//    26 Jun 2023, 18:31:58
 //  Auto updated?
 //    Yes
 // 
@@ -14,10 +14,10 @@
 // 
 
 use std::error::Error;
-use std::fmt::{Display, Formatter, Result as FResult};
-use std::ops::{Deref, DerefMut};
+use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::str::FromStr;
 
+use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 use serde::de::{self, Deserializer, Visitor};
 
@@ -45,10 +45,15 @@ impl Error for IdentifierParseError {}
 
 /***** LIBRARY *****/
 /// Defines a name that only parses a few identifiers.
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize)]
-pub struct Identifier(String);
+#[derive(Clone, EnumDebug, Eq, Hash, PartialEq, Serialize)]
+pub enum Identifier<'s> {
+    /// Wraps an owned string.
+    Owned(String),
+    /// Wraps a borrowed string.
+    Borrowed(&'s str),
+}
 
-impl Identifier {
+impl<'s> Identifier<'s> {
     /// Helper function that checks if a string is valid according to the identifier.
     /// 
     /// # Returns
@@ -62,27 +67,65 @@ impl Identifier {
         }
         None
     }
-}
 
-impl Display for Identifier {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        write!(f, "{}", self.0)
+
+
+    /// Returns the Identifier as a [`str`].
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Owned(s)    => &s,
+            Self::Borrowed(s) => s,
+        }
+    }
+
+    /// Returns the Identifier as a [`String`].
+    #[inline]
+    pub fn as_string(&self) -> String {
+        match self {
+            Self::Owned(s)    => s.clone(),
+            Self::Borrowed(s) => s.into(),
+        }
+    }
+    /// Returns the Identifier and consumes it into a [`String`].
+    #[inline]
+    pub fn into_string(self) -> String {
+        match self {
+            Self::Owned(s)    => s,
+            Self::Borrowed(s) => s.into(),
+        }
     }
 }
-impl FromStr for Identifier {
+
+impl<'s> Debug for Identifier<'s> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        match self {
+            Self::Owned(s)    => write!(f, "Identifier({:?})", s),
+            Self::Borrowed(s) => write!(f, "Identifier(&{:?})", s),
+        }
+    }
+}
+impl<'s> Display for Identifier<'s> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        write!(f, "{}", self.as_str())
+    }
+}
+impl<'s> FromStr for Identifier<'s> {
     type Err = IdentifierParseError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &'s str) -> Result<Self, Self::Err> {
         // Assert it exists of only allowed characters
         if let Some(c) = Self::is_valid(s) {
             return Err(IdentifierParseError::IllegalChar { raw: s.into(), c });
         }
 
         // It's OK
-        Ok(Self(s.into()))
+        Ok(Self::Borrowed(s))
     }
 }
-impl<'de> Deserialize<'de> for Identifier {
+impl<'de> Deserialize<'de> for Identifier<'de> {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -91,7 +134,7 @@ impl<'de> Deserialize<'de> for Identifier {
         /// The Visitor for the [`Identifier`].
         struct IdentifierVisitor;
         impl<'de> Visitor<'de> for IdentifierVisitor {
-            type Value = Identifier;
+            type Value = Identifier<'de>;
 
             fn expecting(&self, f: &mut Formatter) -> FResult {
                 write!(f, "an identifier")
@@ -164,4 +207,13 @@ impl From<&Identifier> for String {
 impl From<&mut Identifier> for String {
     #[inline]
     fn from(value: &mut Identifier) -> Self { Self::from(&*value) }
+}
+
+impl AsRef<Identifier> for Identifier {
+    #[inline]
+    fn as_ref(&self) -> &Self { self }
+}
+impl AsMut<Identifier> for Identifier {
+    #[inline]
+    fn as_mut(&self) -> &Self { self }
 }

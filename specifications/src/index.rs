@@ -4,7 +4,7 @@
 //  Created:
 //    12 Jun 2023, 17:13:25
 //  Last edited:
-//    26 Jun 2023, 12:26:42
+//    26 Jun 2023, 18:06:39
 //  Auto updated?
 //    Yes
 // 
@@ -30,6 +30,7 @@ use tokio::fs::{self as tfs, DirEntry as TDirEntry, ReadDir as TReadDir};
 
 use brane_shr::address::Address;
 use brane_shr::info::{Info, Interface, JsonInterface};
+use brane_shr::serialize::Identifier;
 use brane_shr::version::Version;
 
 use crate::data_new::DataMetadata;
@@ -97,8 +98,8 @@ pub trait IndexInfo {
     /// Returns the name of the object this info defines.
     /// 
     /// # Returns
-    /// An immutable reference to the internal string.
-    fn name(&self) -> &str;
+    /// An immutable reference to the internal identifier.
+    fn name(&self) -> &Identifier;
 
     /// Returns the version of the object this info defines.
     /// 
@@ -109,13 +110,13 @@ pub trait IndexInfo {
 
 impl IndexInfo for PackageInfo {
     #[inline]
-    fn name(&self) -> &str { self.metadata.name.as_str() }
+    fn name(&self) -> &Identifier { &self.metadata.name }
     #[inline]
     fn version(&self) -> Version { self.metadata.version }
 }
 impl IndexInfo for DataMetadata {
     #[inline]
-    fn name(&self) -> &str { self.name.as_str() }
+    fn name(&self) -> &Identifier { &self.name }
     #[inline]
     fn version(&self) -> Version { self.version }
 }
@@ -129,7 +130,7 @@ impl IndexInfo for DataMetadata {
 #[derive(Clone, Debug)]
 pub struct Index<I, N> {
     /// The map of indices that represents the registry.
-    infos      : HashMap<String, HashMap<Version, I>>,
+    infos      : HashMap<Identifier, HashMap<Version, I>>,
     /// Phantom interface data
     _interface : std::marker::PhantomData<N>,
 }
@@ -167,7 +168,7 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
         };
 
         // Read every one of them
-        let mut infos: HashMap<String, HashMap<Version, I>> = HashMap::new();
+        let mut infos: HashMap<Identifier, HashMap<Version, I>> = HashMap::new();
         for (i, entry) in entries.enumerate() {
             // Attempt to unwrap the entry
             let entry: DirEntry = match entry {
@@ -193,18 +194,18 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
                 Ok(info) => info,
                 Err(err) => { return Err(Error::InfoDeserialize { path: info_path, err }); },
             };
-            let name: &str       = info.name();
+            let name: Identifier = info.name().clone();
             let version: Version = info.version();
             debug!("Noting '{name}':{version} in index");
 
             // Add the entry sorted by name, then version
-            if let Some(versions) = infos.get_mut(name) {
+            if let Some(versions) = infos.get_mut(&name) {
                 if let Some(old) = versions.insert(version, info) {
                     // Should never occur, I guess, but essentially just to assert this is indeed the case
                     warn!("Duplicate info '{}':{} encountered", old.name(), old.version());
                 }
             } else {
-                infos.insert(name.into(), HashMap::from([ (version, info) ]));
+                infos.insert(name, HashMap::from([ (version, info) ]));
             }
         }
 
@@ -247,7 +248,7 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
         // Read every one of them
         debug!("Iterating through '{}'...", directory.display());
         let mut i: usize = 0;
-        let mut infos: HashMap<String, HashMap<Version, I>> = HashMap::new();
+        let mut infos: HashMap<Identifier, HashMap<Version, I>> = HashMap::new();
         while let Some(entry) = entries.next_entry().await.transpose() {
             // Attempt to unwrap the entry
             let entry: TDirEntry = match entry {
@@ -275,12 +276,12 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
                 Ok(info) => info,
                 Err(err) => { return Err(Error::InfoDeserialize { path: info_path, err }); },
             };
-            let name: &str       = info.name();
+            let name: Identifier = info.name().clone();
             let version: Version = info.version();
             debug!("Noting '{name}':{version} in index");
 
             // Add the entry sorted by name, then version
-            if let Some(versions) = infos.get_mut(name) {
+            if let Some(versions) = infos.get_mut(&name) {
                 if let Some(old) = versions.insert(version, info) {
                     // Should never occur, I guess, but essentially just to assert this is indeed the case
                     warn!("Duplicate info '{}':{} encountered", old.name(), old.version());
@@ -329,7 +330,7 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
         debug!("Remote returned:\n{}\n{res}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>());
 
         // Attempt to parse the result as a map
-        let infos: HashMap<String, HashMap<Version, I>> = match serde_json::from_str(&res) {
+        let infos: HashMap<Identifier, HashMap<Version, I>> = match serde_json::from_str(&res) {
             Ok(infos) => infos,
             Err(err)  => { return Err(Error::GetRequestJson { address: address.into(), err }); },
         };
@@ -373,7 +374,7 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
         debug!("Remote returned:\n{}\n{res}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>());
 
         // Attempt to parse the result as a map
-        let infos: HashMap<String, HashMap<Version, I>> = match serde_json::from_str(&res) {
+        let infos: HashMap<Identifier, HashMap<Version, I>> = match serde_json::from_str(&res) {
             Ok(entries) => entries,
             Err(err)    => { return Err(Error::GetRequestJson { address: address.into(), err }); },
         };
@@ -402,15 +403,15 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
 
         // Iterate over them to insert them in a map
         debug!("Traversing given infos...");
-        let mut infos: HashMap<String, HashMap<Version, I>> = HashMap::with_capacity(iter.size_hint().0);
+        let mut infos: HashMap<Identifier, HashMap<Version, I>> = HashMap::with_capacity(iter.size_hint().0);
         for info in iter {
             // We add the entry in two steps, one for every layer of map
-            if let Some(versions) = infos.get_mut(info.name()) {
+            if let Some(versions) = infos.get_mut(&info.name()) {
                 if let Some(old) = versions.insert(info.version(), info) {
                     warn!("Duplicate info '{}':{} encountered", old.name(), old.version());
                 }
             } else {
-                infos.insert(info.name().into(), HashMap::from([ (info.version(), info) ]));
+                infos.insert(info.name().clone(), HashMap::from([ (info.version(), info) ]));
             }
         }
         debug!("Found {} infos", infos.len());
@@ -432,7 +433,7 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
     /// # Returns
     /// The latest [`Version`] of the given package, or [`None`] if no such package exists.
     #[inline]
-    pub fn find_latest(&self, identifier: impl AsRef<str>) -> Option<Version> {
+    pub fn find_latest(&self, identifier: impl AsRef<Identifier>) -> Option<Version> {
         // Simply iterate to find it
         self.infos.get(identifier.as_ref()).map(|versions| {
             let mut latest: Option<Version> = None;
@@ -454,8 +455,8 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
     /// # Returns
     /// A reference to the internal info, or [`None`] if no such info is found in this index.
     #[inline]
-    pub fn get(&self, identifier: impl AsRef<str>, version: impl Into<Version>) -> Option<&I> {
-        let identifier: &str = identifier.as_ref();
+    pub fn get(&self, identifier: impl AsRef<Identifier>, version: impl Into<Version>) -> Option<&I> {
+        let identifier: &Identifier = identifier.as_ref();
         let mut version: Version = version.into();
 
         // Resolve the latest first, if applicable
@@ -510,18 +511,41 @@ impl<I: IndexInfo + Info<N>, N: Interface> Index<I, N> {
         // Then return the info according to the this pair
         self.infos.get_mut(identifier).map(|versions| versions.remove(version.as_ref())).flatten()
     }
+
+
+
+    /// Returns an iterator over this Index by reference.
+    /// 
+    /// # Returns
+    /// An [`Iter`](std::collections::hash_map::Iter) that performs the iteration over the internal map.
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = (&Identifier, &HashMap<Version, I>>)> { self.into_iter() }
+
+    /// Returns an iterator over this Index by mutable reference.
+    /// 
+    /// # Returns
+    /// An [`IterMut`](std::collections::hash_map::IterMut) that performs the iteration over the internal map.
+    #[inline]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&Identifier, &HashMap<Version, I>>)> { self.into_iter() }
 }
 
 impl<I, N> IntoIterator for Index<I, N> {
-    type IntoIter = std::collections::hash_map::IntoIter<Identifier, I>;
-    type Item     = (Identifier, I);
+    type IntoIter = std::collections::hash_map::IntoIter<Identifier, HashMap<Version, I>>;
+    type Item     = (Identifier, HashMap<Version, I>);
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter { self.infos.into_iter() }
 }
 impl<'i, I, N> IntoIterator for &'i Index<I, N> {
-    type IntoIter = std::collections::hash_map::Iter<'i, Identifier, I>;
-    type Item     = (&'i Identifier, &'i I);
+    type IntoIter = std::collections::hash_map::Iter<'i, Identifier, HashMap<Version, I>>;
+    type Item     = (&'i Identifier, &'i HashMap<Version, I>);
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter { self.infos.iter() }
+}
+impl<'i, I, N> IntoIterator for &'i mut Index<I, N> {
+    type IntoIter = std::collections::hash_map::IterMut<'i, Identifier, HashMap<Version, I>>;
+    type Item     = (&'i Identifier, &'i mut HashMap<Version, I>);
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter { self.infos.iter() }
