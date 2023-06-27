@@ -4,7 +4,7 @@
 //  Created:
 //    22 May 2023, 13:13:51
 //  Last edited:
-//    26 Jun 2023, 17:53:31
+//    27 Jun 2023, 18:56:38
 //  Auto updated?
 //    Yes
 // 
@@ -27,7 +27,7 @@ use brane_ast::DataType;
 use brane_ast::spec::BuiltinClasses;
 use brane_ast::ast::{ClassDef, VarDef};
 use brane_exe::FullValue;
-use brane_shr::serialize::Identifier;
+use brane_shr::identifier::Identifier;
 use brane_shr::version::Version;
 use specifications::index::DataIndex;
 use specifications::packages::backend::PackageInfo;

@@ -4,7 +4,7 @@
 //  Created:
 //    12 Jun 2023, 14:55:22
 //  Last edited:
-//    21 Jun 2023, 12:01:30
+//    27 Jun 2023, 18:47:05
 //  Auto updated?
 //    Yes
 // 
@@ -105,7 +105,7 @@ pub type JsonError = Error<serde_json::Error>;
 /***** AUXILLARY *****/
 /// Defines an interface to some serializer/deserializer for the [`Info`] trait.
 pub trait Interface {
-    /// Defines the errors returned by the `InfoInterface`'s functions.
+    /// Defines the errors returned by the `Interface`'s functions.
     type Error: error::Error;
 
 

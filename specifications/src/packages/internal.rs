@@ -4,7 +4,7 @@
 //  Created:
 //    21 Jun 2023, 12:05:15
 //  Last edited:
-//    22 Jun 2023, 08:39:12
+//    27 Jun 2023, 18:56:32
 //  Auto updated?
 //    Yes
 // 
@@ -18,7 +18,7 @@ use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 
 use brane_shr::info::JsonInfo;
-use brane_shr::serialize::Identifier;
+use brane_shr::identifier::Identifier;
 use brane_shr::version::Version;
 
 use super::common::{self, PackageKind, PackageMetadata};

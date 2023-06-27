@@ -4,7 +4,7 @@
 //  Created:
 //    20 Jun 2023, 17:12:20
 //  Last edited:
-//    26 Jun 2023, 18:11:51
+//    27 Jun 2023, 18:56:28
 //  Auto updated?
 //    Yes
 // 
@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde::de::{self, Deserializer, Visitor};
 
 use brane_shr::info::YamlInfo;
-use brane_shr::serialize::Identifier;
+use brane_shr::identifier::Identifier;
 
 use super::common::{Class, Function, PackageKind, PackageMetadata};
 use super::{backend, internal};

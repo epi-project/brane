@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    12 Jun 2023, 11:20:03
+//    27 Jun 2023, 18:52:12
 //  Auto updated?
 //    Yes
 // 
@@ -41,10 +41,11 @@ use brane_cfg::node::{CentralConfig, NodeConfig};
 use brane_shr::address::Address;
 use brane_shr::info::Info as _;
 use brane_shr::kafka::{ensure_topics, restore_committed_offsets};
+use brane_shr::version::Version;
 use brane_tsk::errors::PlanError;
-use brane_tsk::api::get_data_index;
-use specifications::data::{AccessKind, AvailabilityKind, DataIndex, PreprocessKind};
-use specifications::package::Capability;
+use specifications::capabilities::Capability;
+use specifications::data::{AccessKind, AvailabilityKind, PreprocessKind};
+use specifications::index::DataIndex;
 use specifications::planning::{PlanningStatus, PlanningStatusKind, PlanningUpdate};
 use specifications::profiling::ProfileReport;
 
@@ -149,7 +150,7 @@ async fn plan_edges(table: &mut SymTable, edges: &mut [Edge], api_addr: &Address
                         // We only take data into account (for now, at least)
                         if let DataName::Data(name) = d {
                             // Attempt to find it
-                            if let Some(info) = dindex.get(name) {
+                            if let Some(info) = dindex.get(name, Version::latest()) {
                                 // Simply add all locations where it lives
                                 data_locs.append(&mut info.access.keys().collect::<Vec<&String>>());
                             } else {
@@ -199,9 +200,9 @@ async fn plan_edges(table: &mut SymTable, edges: &mut [Edge], api_addr: &Address
                 for (name, avail) in input {
                     match name {
                         DataName::Data(name) => {
-                            if let Some(info) = dindex.get(name) {
+                            if let Some(info) = dindex.get(name, Version::latest()) {
                                 // Check if it is local or remote
-                                if let Some(access) = info.access.get(location) {
+                                if let Some(access) = info.layout.get(location) {
                                     debug!("Input dataset '{}' is locally available", name);
                                     *avail = Some(AvailabilityKind::Available { how: access.clone() });
                                 } else {
@@ -611,7 +612,7 @@ pub async fn planner_server(node_config_path: impl Into<PathBuf>, central_config
 
                 // Fetch the data index
                 let data_index_addr: String = format!("{}/data/info", central.services.api.address);
-                let dindex: DataIndex = match get_data_index(&data_index_addr).await {
+                let dindex: DataIndex = match DataIndex::remote_async(&data_index_addr).await {
                     Ok(dindex) => dindex,
                     Err(err)   => {
                         error!("Failed to fetch DataIndex from '{}': {}", data_index_addr, err);

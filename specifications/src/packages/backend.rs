@@ -4,7 +4,7 @@
 //  Created:
 //    20 Jun 2023, 17:11:50
 //  Last edited:
-//    26 Jun 2023, 11:22:03
+//    27 Jun 2023, 19:06:15
 //  Auto updated?
 //    Yes
 // 
@@ -21,8 +21,9 @@ use chrono::{DateTime, Utc};
 use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 
+use brane_shr::identifier::Identifier;
 use brane_shr::info::JsonInfo;
-use brane_shr::serialize::Identifier;
+use brane_shr::location::Location;
 
 use crate::capabilities::Capability;
 use super::common::{Class, Function, PackageKind, PackageMetadata};
@@ -34,9 +35,12 @@ use super::common::{Class, Function, PackageKind, PackageMetadata};
 pub struct PackageInfo {
     /// What we know about this package that is implementation-agnostic (e.g., name, version, ...)
     #[serde(flatten)]
-    pub metadata : PackageMetadata,
+    pub metadata  : PackageMetadata,
     /// Defines when this package was created.
-    pub created  : DateTime<Utc>,
+    pub created   : DateTime<Utc>,
+    /// Defines on which locations the package may be found.
+    #[serde(default = "HashSet::new")]
+    pub locations : HashSet<Location>,
 
     /// Defines the functions, each of which define kind-specific implementation details that we need to know to launch the package.
     pub functions : HashMap<Identifier, Function<FunctionImplementation>>,

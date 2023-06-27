@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:55:30
 //  Last edited:
-//    22 Jun 2023, 08:44:24
+//    27 Jun 2023, 18:56:35
 //  Auto updated?
 //    Yes
 // 
@@ -26,7 +26,7 @@ use tokio::time::{self, Duration};
 
 use brane_exe::FullValue;
 use brane_shr::info::Info as _;
-use brane_shr::serialize::Identifier;
+use brane_shr::identifier::Identifier;
 use specifications::packages::internal::{CaptureMode, Function, PackageInfo};
 
 // use crate::callback::Callback;

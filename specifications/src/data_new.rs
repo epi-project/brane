@@ -4,7 +4,7 @@
 //  Created:
 //    18 Jun 2023, 18:22:18
 //  Last edited:
-//    19 Jun 2023, 09:56:13
+//    27 Jun 2023, 18:56:19
 //  Auto updated?
 //    Yes
 // 
@@ -21,7 +21,7 @@ use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 
 use brane_shr::info::{JsonInfo, YamlInfo};
-use brane_shr::serialize::Identifier;
+use brane_shr::identifier::Identifier;
 use brane_shr::version::Version;
 
 
@@ -105,6 +105,7 @@ pub struct DataInfo {
     #[serde(alias = "implementation", alias = "contents")]
     pub layout   : DataSpecificInfo,
 }
+impl JsonInfo for DataInfo {}
 impl YamlInfo for DataInfo {}
 
 

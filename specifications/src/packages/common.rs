@@ -4,7 +4,7 @@
 //  Created:
 //    21 Jun 2023, 10:08:46
 //  Last edited:
-//    26 Jun 2023, 18:24:49
+//    27 Jun 2023, 18:56:23
 //  Auto updated?
 //    Yes
 // 
@@ -22,7 +22,7 @@ use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 use serde::de::{self, Deserializer, Visitor};
 
-use brane_shr::serialize::Identifier;
+use brane_shr::identifier::Identifier;
 use brane_shr::version::Version;
 
 

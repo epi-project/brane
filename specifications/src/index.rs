@@ -4,7 +4,7 @@
 //  Created:
 //    12 Jun 2023, 17:13:25
 //  Last edited:
-//    27 Jun 2023, 16:30:58
+//    27 Jun 2023, 18:56:19
 //  Auto updated?
 //    Yes
 // 
@@ -30,10 +30,10 @@ use tokio::fs::{self as tfs, DirEntry as TDirEntry, ReadDir as TReadDir};
 
 use brane_shr::address::Address;
 use brane_shr::info::{Info, Interface, JsonInterface};
-use brane_shr::serialize::Identifier;
+use brane_shr::identifier::Identifier;
 use brane_shr::version::Version;
 
-use crate::data_new::DataMetadata;
+use crate::data_new::DataInfo;
 use crate::packages::backend::PackageInfo;
 
 
@@ -114,11 +114,11 @@ impl IndexInfo for PackageInfo {
     #[inline]
     fn version(&self) -> Version { self.metadata.version }
 }
-impl IndexInfo for DataMetadata {
+impl IndexInfo for DataInfo {
     #[inline]
-    fn name(&self) -> &Identifier { &self.name }
+    fn name(&self) -> &Identifier { &self.metadata.name }
     #[inline]
-    fn version(&self) -> Version { self.version }
+    fn version(&self) -> Version { self.metadata.version }
 }
 
 
@@ -557,4 +557,4 @@ impl<'i, I, N> IntoIterator for &'i mut Index<I, N> {
 /// Defines an [`Index`] over JSON packages.
 pub type PackageIndex = Index<PackageInfo, JsonInterface>;
 /// Defines an [`Index`] over JSON datasets.
-pub type DataIndex = Index<DataMetadata, JsonInterface>;
+pub type DataIndex = Index<DataInfo, JsonInterface>;

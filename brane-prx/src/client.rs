@@ -4,7 +4,7 @@
 //  Created:
 //    25 Nov 2022, 15:09:17
 //  Last edited:
-//    27 Jun 2023, 16:49:16
+//    27 Jun 2023, 18:48:00
 //  Auto updated?
 //    Yes
 // 
@@ -227,7 +227,7 @@ impl ProxyClient {
     /// 
     /// # Errors
     /// This function errors if we fail to reserve any new paths if necessary.
-    pub async fn get_package_index(&self, address: impl AsRef<str>) -> Result<Result<PackageIndex, specifications::index::Error<brane_shr::info::JsonError>>, Error> {
+    pub async fn get_package_index(&self, address: impl AsRef<str>) -> Result<Result<PackageIndex, specifications::index::Error<serde_json::Error>>, Error> {
         let address: &str = address.as_ref();
 
         // Parse the address as a URL
