@@ -4,7 +4,7 @@
 //  Created:
 //    18 Jun 2023, 18:25:39
 //  Last edited:
-//    26 Jun 2023, 18:31:58
+//    27 Jun 2023, 16:31:19
 //  Auto updated?
 //    Yes
 // 
@@ -15,9 +15,9 @@
 
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
+use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
-use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 use serde::de::{self, Deserializer, Visitor};
 
@@ -44,16 +44,155 @@ impl Error for IdentifierParseError {}
 
 
 /***** LIBRARY *****/
-/// Defines a name that only parses a few identifiers.
-#[derive(Clone, EnumDebug, Eq, Hash, PartialEq, Serialize)]
-pub enum Identifier<'s> {
-    /// Wraps an owned string.
-    Owned(String),
-    /// Wraps a borrowed string.
-    Borrowed(&'s str),
-}
+// /// Defines a reference to a [`str`] that only contains alphanumerical characters and an underscore.
+// #[derive(Clone, Copy, Eq, Hash, PartialEq)]
+// pub struct IdentifierRef<'s>(&'s str);
+// impl<'s> IdentifierRef<'s> {
+//     /// Copies the underlying string into an owned [`Identifier`].
+//     #[inline]
+//     pub fn clone_id(&self) -> Identifier { Identifier(self.0.into()) }
+// }
 
-impl<'s> Identifier<'s> {
+// impl<'s> Debug for IdentifierRef<'s> {
+//     #[inline]
+//     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+//         write!(f, "Identifier(&{:?})", self.0)
+//     }
+// }
+// impl<'s> Display for IdentifierRef<'s> {
+//     #[inline]
+//     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+//         write!(f, "Identifier(&{})", self.0)
+//     }
+// }
+
+// impl<'s> Deref for IdentifierRef<'s> {
+//     type Target = str;
+
+//     #[inline]
+//     fn deref(&self) -> &Self::Target { self.0 }
+// }
+
+// impl<'s> AsRef<str> for IdentifierRef<'s> {
+//     #[inline]
+//     fn as_ref(&self) -> &str { self.0 }
+// }
+// impl<'s> From<&'s str> for IdentifierRef<'s> {
+//     #[inline]
+//     fn from(value: &'s str) -> Self { Self(value) }
+// }
+// impl<'s> From<&'s mut str> for IdentifierRef<'s> {
+//     #[inline]
+//     fn from(value: &'s mut str) -> Self { Self(value) }
+// }
+// impl<'s> From<&'s String> for IdentifierRef<'s> {
+//     #[inline]
+//     fn from(value: &'s String) -> Self { Self(value) }
+// }
+// impl<'s> From<&'s mut String> for IdentifierRef<'s> {
+//     #[inline]
+//     fn from(value: &'s mut String) -> Self { Self(value) }
+// }
+
+// impl<'s> AsRef<IdentifierRef<'s>> for IdentifierRef<'s> {
+//     #[inline]
+//     fn as_ref(&self) -> &Self { self }
+// }
+// impl<'s> From<&IdentifierRef<'s>> for IdentifierRef<'s> {
+//     #[inline]
+//     fn from(value: &IdentifierRef<'s>) -> Self { *value }
+// }
+// impl<'s> From<&mut IdentifierRef<'s>> for IdentifierRef<'s> {
+//     #[inline]
+//     fn from(value: &mut IdentifierRef<'s>) -> Self { *value }
+// }
+// impl<'s> From<IdentifierMut<'s>> for IdentifierRef<'s> {
+//     #[inline]
+//     fn from(value: IdentifierMut<'s>) -> Self { IdentifierRef(value.0) }
+// }
+// impl<'s> From<&'s Identifier> for IdentifierRef<'s> {
+//     #[inline]
+//     fn from(value: &'s Identifier) -> Self { IdentifierRef(&value.0) }
+// }
+// impl<'s> From<&'s mut Identifier> for IdentifierRef<'s> {
+//     #[inline]
+//     fn from(value: &'s mut Identifier) -> Self { IdentifierRef(&value.0) }
+// }
+
+
+
+// /// Defines a mutable reference to a [`String`] that only contains alphanumerical characters and an underscore.
+// #[derive(Eq, Hash, PartialEq)]
+// pub struct IdentifierMut<'s>(&'s mut String);
+// impl<'s> IdentifierMut<'s> {
+//     /// Consumes the underlying string into an owned [`Identifier`], leaving a [`String::new()`] in its place.
+//     #[inline]
+//     pub fn take_id(&mut self) -> Identifier { Identifier(mem::take(self.0)) }
+//     /// Copies the underlying string into an owned [`Identifier`].
+//     #[inline]
+//     pub fn clone_id(&self) -> Identifier { Identifier(self.0.clone()) }
+// }
+
+// impl<'s> Debug for IdentifierMut<'s> {
+//     #[inline]
+//     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+//         write!(f, "Identifier(&{:?})", self.0)
+//     }
+// }
+// impl<'s> Display for IdentifierMut<'s> {
+//     #[inline]
+//     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+//         write!(f, "Identifier(&{})", self.0)
+//     }
+// }
+
+// impl<'s> Deref for IdentifierMut<'s> {
+//     type Target = String;
+
+//     #[inline]
+//     fn deref(&self) -> &Self::Target { self.0 }
+// }
+// impl<'s> DerefMut for IdentifierMut<'s> {
+//     #[inline]
+//     fn deref_mut(&mut self) -> &mut Self::Target { self.0 }
+// }
+
+// impl<'s> AsRef<str> for IdentifierMut<'s> {
+//     #[inline]
+//     fn as_ref(&self) -> &str { self.0 }
+// }
+// impl<'s> AsMut<str> for IdentifierMut<'s> {
+//     #[inline]
+//     fn as_mut(&mut self) -> &mut str { self.0 }
+// }
+// impl<'s> AsRef<String> for IdentifierMut<'s> {
+//     #[inline]
+//     fn as_ref(&self) -> &String { self.0 }
+// }
+// impl<'s> AsMut<String> for IdentifierMut<'s> {
+//     #[inline]
+//     fn as_mut(&mut self) -> &mut String { self.0 }
+// }
+// impl<'s> From<&'s mut String> for IdentifierMut<'s> {
+//     #[inline]
+//     fn from(value: &'s mut String) -> Self { Self(value) }
+// }
+
+// impl<'s> AsRef<IdentifierMut<'s>> for IdentifierMut<'s> {
+//     #[inline]
+//     fn as_ref(&self) -> &Self { self }
+// }
+// impl<'s> From<&'s mut Identifier> for IdentifierMut<'s> {
+//     #[inline]
+//     fn from(value: &'s mut Identifier) -> Self { IdentifierMut(&mut value.0) }
+// }
+
+
+
+/// Defines an owned [`String`] that only contains alphanumerical characters and an underscore.
+#[derive(Clone, Eq, Hash, PartialEq, Serialize)]
+pub struct Identifier(String);
+impl Identifier {
     /// Helper function that checks if a string is valid according to the identifier.
     /// 
     /// # Returns
@@ -70,62 +209,33 @@ impl<'s> Identifier<'s> {
 
 
 
-    /// Returns the Identifier as a [`str`].
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Owned(s)    => &s,
-            Self::Borrowed(s) => s,
-        }
-    }
-
-    /// Returns the Identifier as a [`String`].
-    #[inline]
-    pub fn as_string(&self) -> String {
-        match self {
-            Self::Owned(s)    => s.clone(),
-            Self::Borrowed(s) => s.into(),
-        }
-    }
-    /// Returns the Identifier and consumes it into a [`String`].
-    #[inline]
-    pub fn into_string(self) -> String {
-        match self {
-            Self::Owned(s)    => s,
-            Self::Borrowed(s) => s.into(),
-        }
-    }
+    // /// Get the identifier as an [`IdentifierRef`].
+    // pub fn as_id_ref(&self) -> IdentifierRef { IdentifierRef(&self.0) }
+    // /// Get the identifier as an [`IdentifierMut`].
+    // pub fn as_id_mut(&mut self) -> IdentifierMut { IdentifierMut(&mut self.0) }
 }
 
-impl<'s> Debug for Identifier<'s> {
+impl Debug for Identifier {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        match self {
-            Self::Owned(s)    => write!(f, "Identifier({:?})", s),
-            Self::Borrowed(s) => write!(f, "Identifier(&{:?})", s),
-        }
+        write!(f, "Identifier(&{:?})", self.0)
     }
 }
-impl<'s> Display for Identifier<'s> {
+impl Display for Identifier {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        write!(f, "{}", self.as_str())
+        write!(f, "Identifier(&{})", self.0)
     }
 }
-impl<'s> FromStr for Identifier<'s> {
+impl FromStr for Identifier {
     type Err = IdentifierParseError;
 
-    fn from_str(s: &'s str) -> Result<Self, Self::Err> {
-        // Assert it exists of only allowed characters
-        if let Some(c) = Self::is_valid(s) {
-            return Err(IdentifierParseError::IllegalChar { raw: s.into(), c });
-        }
-
-        // It's OK
-        Ok(Self::Borrowed(s))
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some(c) = Self::is_valid(s) { return Err(IdentifierParseError::IllegalChar { raw: s.into(), c }); }
+        Ok(Self(s.into()))
     }
 }
-impl<'de> Deserialize<'de> for Identifier<'de> {
+impl<'de> Deserialize<'de> for Identifier {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -134,7 +244,7 @@ impl<'de> Deserialize<'de> for Identifier<'de> {
         /// The Visitor for the [`Identifier`].
         struct IdentifierVisitor;
         impl<'de> Visitor<'de> for IdentifierVisitor {
-            type Value = Identifier<'de>;
+            type Value = Identifier;
 
             fn expecting(&self, f: &mut Formatter) -> FResult {
                 write!(f, "an identifier")
@@ -174,15 +284,41 @@ impl<'de> Deserialize<'de> for Identifier<'de> {
 impl Deref for Identifier {
     type Target = String;
 
+    #[inline]
     fn deref(&self) -> &Self::Target { &self.0 }
 }
 impl DerefMut for Identifier {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
+impl AsRef<str> for Identifier {
+    #[inline]
+    fn as_ref(&self) -> &str { &self.0 }
+}
+impl AsMut<str> for Identifier {
+    #[inline]
+    fn as_mut(&mut self) -> &mut str { &mut self.0 }
+}
+impl AsRef<String> for Identifier {
+    #[inline]
+    fn as_ref(&self) -> &String { &self.0 }
+}
+impl AsMut<String> for Identifier {
+    #[inline]
+    fn as_mut(&mut self) -> &mut String { &mut self.0 }
+}
 impl From<&str> for Identifier {
     #[inline]
-    fn from(value: &str) -> Self { Self(value.to_string()) }
+    fn from(value: &str) -> Self { Self(value.into()) }
+}
+impl From<&mut str> for Identifier {
+    #[inline]
+    fn from(value: &mut str) -> Self { Self(value.into()) }
+}
+impl From<String> for Identifier {
+    #[inline]
+    fn from(value: String) -> Self { Self(value) }
 }
 impl From<&String> for Identifier {
     #[inline]
@@ -191,10 +327,6 @@ impl From<&String> for Identifier {
 impl From<&mut String> for Identifier {
     #[inline]
     fn from(value: &mut String) -> Self { Self(value.clone()) }
-}
-impl From<String> for Identifier {
-    #[inline]
-    fn from(value: String) -> Self { Self(value) }
 }
 impl From<Identifier> for String {
     #[inline]
@@ -206,7 +338,19 @@ impl From<&Identifier> for String {
 }
 impl From<&mut Identifier> for String {
     #[inline]
-    fn from(value: &mut Identifier) -> Self { Self::from(&*value) }
+    fn from(value: &mut Identifier) -> Self { value.0.clone() }
+}
+impl<'i> From<&'i Identifier> for &'i String {
+    #[inline]
+    fn from(value: &'i Identifier) -> Self { &value.0 }
+}
+impl<'i> From<&'i mut Identifier> for &'i String {
+    #[inline]
+    fn from(value: &'i mut Identifier) -> Self { &value.0 }
+}
+impl<'i> From<&'i mut Identifier> for &'i mut String {
+    #[inline]
+    fn from(value: &'i mut Identifier) -> Self { &mut value.0 }
 }
 
 impl AsRef<Identifier> for Identifier {
@@ -215,5 +359,5 @@ impl AsRef<Identifier> for Identifier {
 }
 impl AsMut<Identifier> for Identifier {
     #[inline]
-    fn as_mut(&self) -> &Self { self }
+    fn as_mut(&mut self) -> &mut Self { self }
 }

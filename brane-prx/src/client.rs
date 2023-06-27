@@ -4,7 +4,7 @@
 //  Created:
 //    25 Nov 2022, 15:09:17
 //  Last edited:
-//    09 Mar 2023, 15:15:09
+//    27 Jun 2023, 16:49:16
 //  Auto updated?
 //    Yes
 // 
@@ -22,7 +22,7 @@ use reqwest::{Client, Response, Request};
 use url::Url;
 
 use brane_shr::address::Address;
-use specifications::package::PackageIndex;
+use specifications::index::PackageIndex;
 use specifications::working::{Error as JobServiceError, JobServiceClient};
 
 pub use crate::errors::ClientError as Error;
@@ -227,7 +227,7 @@ impl ProxyClient {
     /// 
     /// # Errors
     /// This function errors if we fail to reserve any new paths if necessary.
-    pub async fn get_package_index(&self, address: impl AsRef<str>) -> Result<Result<PackageIndex, brane_tsk::api::Error>, Error> {
+    pub async fn get_package_index(&self, address: impl AsRef<str>) -> Result<Result<PackageIndex, specifications::index::Error<brane_shr::info::JsonError>>, Error> {
         let address: &str = address.as_ref();
 
         // Parse the address as a URL
@@ -269,7 +269,7 @@ impl ProxyClient {
 
         // Run the normal function
         debug!("Performing request to '{}' (secretly '{}')...", original, address);
-        Ok(match brane_tsk::api::get_package_index(address).await {
+        Ok(match PackageIndex::remote_async(Address::try_from(address).unwrap()).await {
             Ok(res)  => Ok(res),
             Err(err) => {
                 // If it fails, remove the mapping so we are forced to ask a new one next time

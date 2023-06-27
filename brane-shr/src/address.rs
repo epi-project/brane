@@ -4,7 +4,7 @@
 //  Created:
 //    26 Jan 2023, 09:41:51
 //  Last edited:
-//    30 Jan 2023, 09:34:06
+//    27 Jun 2023, 16:48:45
 //  Auto updated?
 //    Yes
 // 
@@ -16,6 +16,7 @@
 // 
 
 use std::borrow::Cow;
+use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -26,10 +27,11 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use serde::ser::Serializer;
 use serde::de::{self, Deserializer, Visitor};
+use url::Url;
 
 
 /***** ERRORS *****/
-/// Errors that relate to parsing Addresses.
+/// Errors that relate to parsing [`Address`]es.
 #[derive(Debug)]
 pub enum AddressParseError {
     /// Missing the colon separator (':') in the address.
@@ -47,6 +49,25 @@ impl Display for AddressParseError {
     }
 }
 impl Error for AddressParseError {}
+
+/// Errors that relate to parsing [`Address`]es from [`Url`]s.
+#[derive(Debug)]
+pub enum AddressFromUrlError {
+    /// The given URL did not have a port defined.
+    NoPort { url: Url },
+    /// Failed to remove the port from the given URL.
+    RemovePort { url: Url },
+}
+impl Display for AddressFromUrlError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use AddressFromUrlError::*;
+        match self {
+            NoPort { url }     => write!(f, "No port defined in URL '{url}'"),
+            RemovePort { url } => write!(f, "Failed to remove port from URL '{url}'"),
+        }
+    }
+}
+impl Error for AddressFromUrlError {}
 
 
 
@@ -304,6 +325,38 @@ impl FromStr for Address {
             }
         }
     }
+}
+
+impl TryFrom<Url> for Address {
+    type Error = AddressFromUrlError;
+
+    #[inline]
+    fn try_from(mut value: Url) -> Result<Self, Self::Error> {
+        // Extract the port from the URL
+        let port: u16 = match value.port() {
+            Some(port) => port,
+            None       => { return Err(AddressFromUrlError::NoPort { url: value }); },
+        };
+
+        // Get the rest without port
+        if value.set_port(None).is_err() { return Err(AddressFromUrlError::RemovePort { url: value }); };
+        let host: String = value.to_string();
+
+        // Done
+        Ok(Self::Hostname(host, port))
+    }
+}
+impl TryFrom<&Url> for Address {
+    type Error = AddressFromUrlError;
+
+    #[inline]
+    fn try_from(value: &Url) -> Result<Self, Self::Error> { Self::try_from(value.clone()) }
+}
+impl TryFrom<&mut Url> for Address {
+    type Error = AddressFromUrlError;
+
+    #[inline]
+    fn try_from(value: &mut Url) -> Result<Self, Self::Error> { Self::try_from(value.clone()) }
 }
 
 impl AsRef<Address> for Address {
