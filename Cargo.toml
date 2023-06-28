@@ -27,6 +27,11 @@ members = [
     "brane-prx",
 
 
+    ### C-INTERFACES ###
+    # These crates provide C-compatible interfaces to other libraries
+    "brane-tsk-c",
+
+
     ### LIBRARIES ###
     # These crates provide the full BraneScript/Bakery/... stack
     "brane-tsk",
