@@ -4,7 +4,7 @@
 //  Created:
 //    04 Oct 2022, 11:08:37
 //  Last edited:
-//    07 Jun 2023, 16:23:29
+//    28 Jun 2023, 19:41:54
 //  Auto updated?
 //    Yes
 // 
@@ -20,6 +20,5 @@ pub mod backend;
 pub mod info;
 pub mod infra;
 pub mod node;
-pub mod package;
 pub mod policies;
 pub mod proxy;
