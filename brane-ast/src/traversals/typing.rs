@@ -4,7 +4,7 @@
 //  Created:
 //    19 Aug 2022, 16:34:16
 //  Last edited:
-//    21 Jun 2023, 11:43:49
+//    17 Jan 2023, 15:14:50
 //  Auto updated?
 //    Yes
 // 
@@ -32,26 +32,25 @@ use crate::warnings::AstWarning;
 #[cfg(test)]
 mod tests {
     use brane_dsl::ParserOptions;
-    use brane_dsl::utils::{TESTS_DATASETS_DIR, TESTS_PACKAGES_DIR, test_on_dsl_files};
-    use brane_shr::errors::ErrorTrace as _;
-    use specifications::index::{DataIndex, PackageIndex};
+    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files};
+    use specifications::data::DataIndex;
+    use specifications::package::PackageIndex;
     use super::*;
     use super::super::print::symbol_tables;
     use crate::{compile_program_to, CompileResult, CompileStage};
 
 
     /// Tests the traversal by generating symbol tables for every file.
-    #[test_log::test]
+    #[test]
     fn test_typing() {
-        // Load the package index
-        let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "container.yml").unwrap_or_else(|err| panic!("Failed to create local PackageIndex: {}", err.trace()));
-        let dindex: DataIndex    = DataIndex::local(TESTS_DATASETS_DIR, "data.yml").unwrap_or_else(|err| panic!("Failed to create local DataIndex: {}", err.trace()));
-
-        // Run the code
         test_on_dsl_files("BraneScript", |path, code| {
             // Start by the name to always know which file this is
             println!("{}", (0..80).map(|_| '-').collect::<String>());
             println!("File '{}' gave us:", path.display());
+
+            // Load the package index
+            let pindex: PackageIndex = create_package_index();
+            let dindex: DataIndex    = create_data_index();
 
             let program: Program = match compile_program_to(code.as_bytes(), &pindex, &dindex, &ParserOptions::bscript(), CompileStage::Typing) {
                 CompileResult::Program(p, warns) => {

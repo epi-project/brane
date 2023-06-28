@@ -4,7 +4,7 @@
 //  Created:
 //    09 Sep 2022, 13:23:41
 //  Last edited:
-//    28 Jun 2023, 19:22:46
+//    01 Mar 2023, 09:52:13
 //  Auto updated?
 //    Yes
 // 
@@ -28,8 +28,8 @@ use tokio::task::JoinHandle;
 use brane_ast::{DataType, MergeStrategy, Workflow};
 use brane_ast::spec::{BuiltinClasses, BuiltinFunctions};
 use brane_ast::locations::Location;
-use brane_ast::ast::{AvailabilityKind, ClassDef, ComputeTaskDef, DataName, Edge, EdgeInstr, FunctionDef, TaskDef};
-use specifications::data_new::backend::DataSpecificInfo;
+use brane_ast::ast::{ClassDef, ComputeTaskDef, DataName, Edge, EdgeInstr, FunctionDef, TaskDef};
+use specifications::data::{AccessKind, AvailabilityKind};
 use specifications::profiling::{ProfileScopeHandle, ProfileScopeHandleOwned};
 
 use crate::dbg_node;
@@ -47,8 +47,9 @@ mod tests {
     use std::sync::Mutex;
     use brane_ast::{compile_program, CompileResult, ParserOptions};
     use brane_ast::traversals::print::ast;
-    use brane_dsl::utils::{TESTS_DATASETS_DIR, TESTS_PACKAGES_DIR, test_on_dsl_files_async};
-    use specifications::index::{DataIndex, PackageIndex};
+    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files_async};
+    use specifications::data::DataIndex;
+    use specifications::package::PackageIndex;
     use super::*;
     use crate::dummy::{DummyPlanner, DummyPlugin, DummyState};
 
@@ -70,8 +71,8 @@ mod tests {
                 println!("File '{}' gave us:", path.display());
 
                 // Load the package index
-                let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "package.yml").unwrap_or_else(|err| panic!("Failed to create local PackageIndex: {err}"));
-                let dindex: DataIndex    = DataIndex::local(TESTS_DATASETS_DIR, "data.yml").unwrap_or_else(|err| panic!("Failed to create local DataIndex: {err}"));
+                let pindex: PackageIndex = create_package_index();
+                let dindex: DataIndex    = create_data_index();
 
                 // Compile it to a workflow
                 let workflow: Workflow = match compile_program(code.as_bytes(), &pindex, &dindex, &ParserOptions::bscript()) {
@@ -167,7 +168,7 @@ enum EdgeResult {
 /// This function may error if the given `input` does not contain any of the data in the value _or_ if the referenced input is not yet planned.
 #[async_recursion]
 #[allow(clippy::too_many_arguments)]
-async fn preprocess_value<'p: 'async_recursion, P: VmPlugin>(global: &Arc<RwLock<P::GlobalState>>, local: &P::LocalState, pc: (usize, usize), task: &TaskDef, at: &Location, value: &FullValue, input: &HashMap<DataName, Option<AvailabilityKind>>, data: &mut HashMap<DataName, JoinHandle<Result<DataSpecificInfo, P::PreprocessError>>>, prof: ProfileScopeHandle<'p>) -> Result<(), Error> {
+async fn preprocess_value<'p: 'async_recursion, P: VmPlugin>(global: &Arc<RwLock<P::GlobalState>>, local: &P::LocalState, pc: (usize, usize), task: &TaskDef, at: &Location, value: &FullValue, input: &HashMap<DataName, Option<AvailabilityKind>>, data: &mut HashMap<DataName, JoinHandle<Result<AccessKind, P::PreprocessError>>>, prof: ProfileScopeHandle<'p>) -> Result<(), Error> {
     // If it's a data or intermediate result, get it; skip it otherwise
     let name: DataName = match value {
         // The data and intermediate result, of course
@@ -202,7 +203,7 @@ async fn preprocess_value<'p: 'async_recursion, P: VmPlugin>(global: &Arc<RwLock
     };
 
     // If it is unavailable, download it and make it available
-    let access: JoinHandle<Result<DataSpecificInfo, P::PreprocessError>> = match avail {
+    let access: JoinHandle<Result<AccessKind, P::PreprocessError>> = match avail {
         AvailabilityKind::Available { how }   => {
             debug!("{} '{}' is locally available", name.variant(), name.name());
             tokio::spawn(async move { Ok(how) })
@@ -1112,13 +1113,13 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                         // The map created maps data names to ways of accessing them locally that may be passed to the container itself.
                         let prepr = prof.nest("argument preprocessing");
                         let total = prepr.time("Total");
-                        let mut handles: HashMap<DataName, JoinHandle<Result<DataSpecificInfo, P::PreprocessError>>> = HashMap::new();
+                        let mut handles: HashMap<DataName, JoinHandle<Result<AccessKind, P::PreprocessError>>> = HashMap::new();
                         for (i, value) in args.values().enumerate() {
                             // Preprocess the given value
                             if let Err(err) = prepr.nest_fut(format!("argument {i}"), |scope| preprocess_value::<P>(&self.global, &self.local, pc, task, at, value, input, &mut handles, scope)).await { return EdgeResult::Err(err); }
                         }
                         // Join the handles
-                        let mut data: HashMap<DataName, DataSpecificInfo> = HashMap::with_capacity(handles.len());
+                        let mut data: HashMap<DataName, AccessKind> = HashMap::with_capacity(handles.len());
                         for (name, handle) in handles {
                             match handle.await {
                                 Ok(res)  => match res {

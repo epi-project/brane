@@ -4,7 +4,7 @@
 //  Created:
 //    23 Nov 2022, 11:26:46
 //  Last edited:
-//    12 Jun 2023, 11:20:04
+//    07 Jun 2023, 16:29:35
 //  Auto updated?
 //    Yes
 // 
@@ -28,11 +28,11 @@ use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
 use url::Url;
 
+use brane_cfg::info::Info as _;
 use brane_cfg::certs::{load_certstore, load_identity};
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig};
 use brane_cfg::proxy::ProxyProtocol;
-use brane_shr::address::Address;
-use brane_shr::info::Info as _;
+use specifications::address::Address;
 
 pub use crate::errors::RedirectError as Error;
 use crate::spec::{Context, NewPathRequestTlsOptions};

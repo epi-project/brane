@@ -4,7 +4,7 @@
 //  Created:
 //    11 Feb 2022, 13:09:23
 //  Last edited:
-//    21 Jun 2023, 17:08:39
+//    22 May 2023, 10:12:51
 //  Auto updated?
 //    Yes
 // 
@@ -17,16 +17,14 @@ use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::PathBuf;
 
 use brane_ast::DataType;
-use specifications::packages::common::PackageKind;
+use specifications::container::LocalContainerInfoError;
+use specifications::package::PackageKind;
 
 
 /***** ERRORS *****/
 /// Generic, top-level errors for the brane-let application.
 #[derive(Debug)]
 pub enum LetError {
-    /// A function has an empty entrypoint.
-    EmptyEntrypoint { function: String },
-
     /// Could not launch the JuiceFS executable
     JuiceFSLaunchError{ command: String, err: std::io::Error },
     /// The JuiceFS executable didn't complete successfully
@@ -45,7 +43,7 @@ pub enum LetError {
     ArgumentsJSONError{ err: serde_json::Error },
 
     /// Could not load a ContainerInfo file.
-    LocalContainerInfoError{ path: PathBuf, err: brane_shr::info::JsonError },
+    LocalContainerInfoError{ path: PathBuf, err: LocalContainerInfoError },
     /// Could not load a PackageInfo file.
     PackageInfoError{ err: anyhow::Error },
     /// Missing the 'functions' property in the package info YAML
@@ -122,8 +120,6 @@ impl Display for LetError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use LetError::*;
         match self {
-            EmptyEntrypoint { function } => write!(f, "Function '{function}' has no entrypoint set"),
-
             JuiceFSLaunchError{ command, err }            => write!(f, "Could not run JuiceFS command '{command}': {err}"),
             JuiceFSError{ command, code, stdout, stderr } => write!(f, "JuiceFS command '{}' returned exit code {}:\n\nstdout:\n{}\n{}\n{}\n\nstderr:\n{}\n{}\n{}\n\n", command, code, (0..80).map(|_| '-').collect::<String>(), stdout, (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>(), stderr,(0..80).map(|_| '-').collect::<String>()),
 
@@ -137,9 +133,9 @@ impl Display for LetError {
             LocalContainerInfoError{ path, err }                              => write!(f, "Could not load local container information file '{}': {}", path.display(), err),
             PackageInfoError{ err }                                           => write!(f, "Could not parse package information file from Open-API document: {err}"),
             MissingFunctionsProperty{ path }                                  => write!(f, "Missing property 'functions' in package information file '{}'", path.display()),
-            UnknownFunction{ function, package, kind }                        => write!(f, "Unknown function '{}' in package '{}' ({})", function, package, kind),
-            MissingInputArgument{ function, package, kind, name }             => write!(f, "Parameter '{}' not specified for function '{}' in package '{}' ({})", name, function, package, kind),
-            IncompatibleTypes{ function, package, kind, name, expected, got } => write!(f, "Type check failed for parameter '{}' of function '{}' in package '{}' ({}): expected {}, got {}", name, function, package, kind, expected, got),
+            UnknownFunction{ function, package, kind }                        => write!(f, "Unknown function '{}' in package '{}' ({})", function, package, kind.pretty()),
+            MissingInputArgument{ function, package, kind, name }             => write!(f, "Parameter '{}' not specified for function '{}' in package '{}' ({})", name, function, package, kind.pretty()),
+            IncompatibleTypes{ function, package, kind, name, expected, got } => write!(f, "Type check failed for parameter '{}' of function '{}' in package '{}' ({}): expected {}, got {}", name, function, package, kind.pretty(), expected, got),
             WorkdirInitLaunchError{ command, err }                            => write!(f, "Could not run init.sh ('{command}'): {err}"),
             WorkdirInitError{ command, code, stdout, stderr }                 => write!(f, "init.sh ('{}') returned exit code {}:\n\nstdout:\n{}\n{}\n{}\n\nstderr:\n{}\n{}\n{}\n\n", command, code, (0..80).map(|_| '-').collect::<String>(), stdout, (0..80).map(|_| '-').collect::<String>(), (0..80).map(|_| '-').collect::<String>(), stderr,(0..80).map(|_| '-').collect::<String>()),
 

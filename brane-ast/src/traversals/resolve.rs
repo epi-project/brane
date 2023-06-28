@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 15:24:54
 //  Last edited:
-//    21 Jun 2023, 12:11:58
+//    01 Mar 2023, 10:57:51
 //  Auto updated?
 //    Yes
 // 
@@ -22,9 +22,9 @@ use brane_dsl::{DataType, SymbolTable, TextRange};
 use brane_dsl::data_type::{ClassSignature, FunctionSignature};
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, SymbolTableEntry, VarEntry};
 use brane_dsl::ast::{Block, Expr, Identifier, Literal, Node, Program, Stmt};
-use brane_shr::version::Version;
-use specifications::index::{DataIndex, PackageIndex};
-use specifications::packages::backend::PackageInfo;
+use specifications::data::DataIndex;
+use specifications::package::{PackageIndex, PackageInfo};
+use specifications::version::Version;
 
 pub use crate::errors::ResolveError as Error;
 use crate::errors::AstError;
@@ -36,26 +36,24 @@ use crate::state::CompileState;
 #[cfg(test)]
 pub mod tests {
     use brane_dsl::ParserOptions;
-    use brane_dsl::utils::{TESTS_DATASETS_DIR, TESTS_PACKAGES_DIR, test_on_dsl_files};
-    use brane_shr::errors::ErrorTrace as _;
-    use specifications::index::{DataIndex, PackageIndex};
+    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files};
+    use specifications::package::PackageIndex;
     use super::*;
     use super::super::print::symbol_tables;
     use crate::{compile_program_to, CompileResult, CompileStage};
 
 
     /// Tests the traversal by generating symbol tables for every file.
-    #[test_log::test]
+    #[test]
     fn test_resolve() {
-        // Load the package index
-        let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "container.yml").unwrap_or_else(|err| panic!("Failed to create local PackageIndex: {}", err.trace()));
-        let dindex: DataIndex    = DataIndex::local(TESTS_DATASETS_DIR, "data.yml").unwrap_or_else(|err| panic!("Failed to create local DataIndex: {}", err.trace()));
-
-        // Run the code
         test_on_dsl_files("BraneScript", |path, code| {
             // Always print the header
             println!("{}", (0..80).map(|_| '-').collect::<String>());
             println!("File '{}' gave us:", path.display());
+
+            // Load the package index
+            let pindex: PackageIndex = create_package_index();
+            let dindex: DataIndex    = create_data_index();
 
             // Run up to this traversal
             let program: Program = match compile_program_to(code.as_bytes(), &pindex, &dindex, &ParserOptions::bscript(), CompileStage::Resolve) {
@@ -230,7 +228,7 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             };
 
             // Attempt to resolve this (name, version) pair in the package index.
-            let info: &PackageInfo = match package_index.get(&name.value, semver) {
+            let info: &PackageInfo = match package_index.get(&name.value, if !semver.is_latest() { Some(&semver) } else { None }) {
                 Some(info) => info,
                 None       => {
                     errors.push(Error::UnknownPackageError{ name: name.value.clone(), version: semver, range: range.clone() });
@@ -242,29 +240,24 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             let mut st: RefMut<SymbolTable> = symbol_table.borrow_mut();
             let mut funcs = vec![];
             for (name, f) in info.functions.iter() {
-                // Assert it has at most one output
-                if f.output.len() > 1 {
-                    errors.push(Error::FunctionTooManyOutputs { name: name.into(), package: ((&info.metadata.name).into(), info.metadata.version), got: f.output.len() })
-                }
-
                 // Collect the types that make the signature for this function.
-                let arg_names: Vec<String>   = f.input.iter().map(|p| (&p.name).into()).collect();
-                let arg_types: Vec<DataType> = f.input.iter().map(|p| DataType::from(&p.data_type)).collect();
-                let ret_type: DataType = DataType::from(&f.output.values().next().unwrap().data_type);
+                let arg_names: Vec<String>   = f.parameters.iter().map(|p| p.name.clone()).collect();
+                let arg_types: Vec<DataType> = f.parameters.iter().map(|p| DataType::from(&p.data_type)).collect();
+                let ret_type: DataType = DataType::from(&f.return_type);
 
                 // Wrap it in a function entry and add it to the list
-                match st.add_func(FunctionEntry::from_import(name, FunctionSignature::new(arg_types, ret_type), &info.metadata.name, info.metadata.version, arg_names, f.implementation.ecu().capabilities.clone(), TextRange::none())) {
+                match st.add_func(FunctionEntry::from_import(name, FunctionSignature::new(arg_types, ret_type), &info.name, info.version, arg_names, f.requirements.clone().unwrap_or_default(), TextRange::none())) {
                     Ok(entry) => { funcs.push(entry); },
                     Err(err)  => {
-                        errors.push(Error::FunctionImportError{ package_name: (&info.metadata.name).into(), name: name.into(), err, range: range.clone() });
+                        errors.push(Error::FunctionImportError{ package_name: info.name.clone(), name: name.into(), err, range: range.clone() });
                         return;
                     },
                 }
             }
             let mut classes = vec![];
-            for (name, c) in info.classes.iter() {
+            for (name, c) in info.types.iter() {
                 // Create a map of property names to types.
-                let properties: HashMap<String, DataType> = c.props.iter().map(|p| (p.0.into(), DataType::from(&p.1.data_type))).collect();
+                let properties: HashMap<String, DataType> = c.properties.iter().map(|p| (p.name.clone(), DataType::from(&p.data_type))).collect();
 
                 // Construct a symbol table with it
                 let c_symbol_table: Rc<RefCell<SymbolTable>> = {
@@ -285,10 +278,10 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
                 };
 
                 // Insert it (plus an empty method map) as a ClassEntry
-                match st.add_class(ClassEntry::from_import(ClassSignature { name: name.into() }, c_symbol_table, &info.metadata.name, info.metadata.version, TextRange::none())) {
+                match st.add_class(ClassEntry::from_import(ClassSignature { name: name.clone() }, c_symbol_table, &info.name, info.version, TextRange::none())) {
                     Ok(entry) => { classes.push(entry); },
                     Err(err)  => {
-                        errors.push(Error::ClassImportError{ package_name: (&info.metadata.name).into(), name: name.into(), err, range: range.clone() });
+                        errors.push(Error::ClassImportError{ package_name: info.name.clone(), name: name.into(), err, range: range.clone() });
                         return;
                     },
                 }
@@ -779,7 +772,7 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
                 //         return;
                 //     }
                 // };
-                if data_index.get(sname, Version::latest()).is_none() { errors.push(Error::UnknownDataError{ name: sname.into(), range: name.range().clone() }); }
+                if data_index.get(sname).is_none() { errors.push(Error::UnknownDataError{ name: sname.into(), range: name.range().clone() }); }
 
                 // With the dataset resolved, we rest easy
             }

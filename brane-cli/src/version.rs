@@ -17,8 +17,8 @@ use std::str::FromStr;
 use log::debug;
 use reqwest::{Response, StatusCode};
 
-use brane_shr::version::Version;
 use specifications::arch::Arch;
+use specifications::version::Version;
 
 use crate::errors::VersionError;
 use crate::instance::InstanceInfo;

@@ -4,7 +4,7 @@
 //  Created:
 //    09 Mar 2023, 15:15:47
 //  Last edited:
-//    12 Jun 2023, 11:49:45
+//    16 Mar 2023, 15:39:53
 //  Auto updated?
 //    Yes
 // 
@@ -13,7 +13,6 @@
 // 
 
 use std::collections::HashMap;
-use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::ops::RangeInclusive;
 use std::str::FromStr;
@@ -23,30 +22,11 @@ use serde::{Deserialize, Serialize};
 use serde::de::{self, Deserializer, Visitor};
 use serde::ser::Serializer;
 
-pub use brane_shr::info::YamlError as Error;
-use brane_shr::address::Address;
-use brane_shr::info::YamlInfo;
+use specifications::address::Address;
 
-
-/***** ERRORS *****/
-/// Defines errors that may occur when parsing proxy protocol strings.
-#[derive(Debug)]
-pub enum ProxyProtocolParseError {
-    /// The protocol (version) is unknown to us.
-    UnknownProtocol{ raw: String },
-}
-impl Display for ProxyProtocolParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use ProxyProtocolParseError::*;
-        match self {
-            UnknownProtocol{ raw } => write!(f, "Unknown proxy protocol '{raw}'"),
-        }
-    }
-}
-impl error::Error for ProxyProtocolParseError {}
-
-
-
+pub use crate::info::YamlError as Error;
+use crate::errors::ProxyProtocolParseError;
+use crate::info::YamlInfo;
 
 
 /***** AUXILLARY *****/
@@ -147,7 +127,7 @@ impl Default for ProxyConfig {
         }
     }
 }
-impl YamlInfo for ProxyConfig {}
+impl<'de> YamlInfo<'de> for ProxyConfig {}
 
 
 

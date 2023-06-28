@@ -4,7 +4,7 @@
 //  Created:
 //    18 Oct 2022, 13:50:11
 //  Last edited:
-//    21 Jun 2023, 11:29:57
+//    23 May 2023, 15:22:15
 //  Auto updated?
 //    Yes
 // 
@@ -18,11 +18,11 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use brane_shr::address::Address;
-use specifications::capabilities::Capability;
+use specifications::address::Address;
+use specifications::package::Capability;
 
-pub use brane_shr::info::YamlError as Error;
-use brane_shr::info::YamlInfo;
+pub use crate::info::YamlError as Error;
+use crate::info::YamlInfo;
 
 
 /***** AUXILLARY *****/
@@ -88,4 +88,4 @@ impl BackendFile {
     #[inline]
     pub fn hash_containers(&self) -> bool { self.hash_containers.unwrap_or(true) }
 }
-impl YamlInfo for BackendFile {}
+impl<'de> YamlInfo<'de> for BackendFile {}

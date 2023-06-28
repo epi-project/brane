@@ -4,7 +4,7 @@
 //  Created:
 //    23 Aug 2022, 20:34:33
 //  Last edited:
-//    21 Jun 2023, 11:16:21
+//    17 Jan 2023, 15:14:01
 //  Auto updated?
 //    Yes
 // 
@@ -17,8 +17,6 @@ use std::mem::discriminant;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
-
-use specifications::packages::common::DataTypeKind;
 
 
 /***** LIBRARY *****/
@@ -273,43 +271,4 @@ impl Display for DataType {
             Class(n)    => write!(f, "Class<{n}>"),
         }
     }
-}
-
-impl From<DataTypeKind> for DataType {
-    fn from(value: DataTypeKind) -> Self {
-        use DataTypeKind::*;
-        match value {
-            Boolean => Self::Boolean,
-            Integer => Self::Integer,
-            Real    => Self::Real,
-            String  => Self::String,
-
-            Data               => Self::Class("Data".into()),
-            IntermediateResult => Self::Class("IntermediateResult".into()),
-
-            Array { elem_type } => Self::Array(Box::new(Self::from(*elem_type))),
-            Class { name }      => Self::Class(name),
-        }
-    }
-}
-impl From<&DataTypeKind> for DataType {
-    fn from(value: &DataTypeKind) -> Self {
-        use DataTypeKind::*;
-        match value {
-            Boolean => Self::Boolean,
-            Integer => Self::Integer,
-            Real    => Self::Real,
-            String  => Self::String,
-
-            Data               => Self::Class("Data".into()),
-            IntermediateResult => Self::Class("IntermediateResult".into()),
-
-            Array { elem_type } => Self::Array(Box::new(Self::from(elem_type.as_ref()))),
-            Class { name }      => Self::Class(name.clone()),
-        }
-    }
-}
-impl From<&mut DataTypeKind> for DataType {
-    #[inline]
-    fn from(value: &mut DataTypeKind) -> Self { Self::from(&*value) }
 }

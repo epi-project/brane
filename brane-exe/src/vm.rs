@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 17:41:33
 //  Last edited:
-//    21 Jun 2023, 11:31:26
+//    01 Feb 2023, 14:14:09
 //  Auto updated?
 //    Yes
 // 
@@ -33,8 +33,9 @@ pub mod tests {
     use brane_ast::state::CompileState;
     use brane_ast::traversals::print::ast;
     use brane_ast::fetcher::SnippetFetcher;
-    use brane_dsl::utils::{TESTS_DATASETS_DIR, TESTS_PACKAGES_DIR, test_on_dsl_files_async};
-    use specifications::index::{DataIndex, PackageIndex};
+    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files_async};
+    use specifications::data::DataIndex;
+    use specifications::package::PackageIndex;
     use super::*;
     use crate::dummy::DummyVm;
 
@@ -58,8 +59,8 @@ pub mod tests {
                 println!("File '{}' gave us:", path.display());
 
                 // Load the package index
-                let pindex: PackageIndex = PackageIndex::local(TESTS_PACKAGES_DIR, "package.yml").unwrap_or_else(|err| panic!("Failed to create local PackageIndex: {err}"));
-                let dindex: DataIndex    = DataIndex::local(TESTS_DATASETS_DIR, "data.yml").unwrap_or_else(|err| panic!("Failed to create local DataIndex: {err}"));
+                let pindex: PackageIndex = create_package_index();
+                let dindex: DataIndex    = create_data_index();
 
                 // Run the program but now line-by-line (to test the snippet function)
                 let mut source : String       = String::new();

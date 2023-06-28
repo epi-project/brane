@@ -6,7 +6,7 @@ use openapiv3::{OpenAPI, ReferenceOr, SecurityScheme};
 use openapiv3::{Operation, ParameterSchemaOrContent, Schema, SchemaKind};
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
-use specifications::common_old::{CallPattern, Function, Parameter, Property, Type};
+use specifications::common::{CallPattern, Function, Parameter, Property, Type};
 
 type Map<T> = std::collections::HashMap<String, T>;
 type FunctionsAndTypes = (Map<Function>, Map<Type>);

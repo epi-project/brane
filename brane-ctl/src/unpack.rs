@@ -4,7 +4,7 @@
 //  Created:
 //    28 Mar 2023, 10:26:05
 //  Last edited:
-//    12 Jun 2023, 11:20:05
+//    28 Mar 2023, 10:58:36
 //  Auto updated?
 //    Yes
 // 
@@ -17,8 +17,8 @@ use std::path::{Path, PathBuf};
 
 use log::{debug, info};
 
+use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, NodeKind};
-use brane_shr::info::Info as _;
 
 pub use crate::errors::UnpackError as Error;
 use crate::spec::ResolvableNodeKind;

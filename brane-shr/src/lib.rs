@@ -4,28 +4,22 @@
 //  Created:
 //    30 Sep 2022, 16:21:24
 //  Last edited:
-//    27 Jun 2023, 18:58:07
+//    06 Jun 2023, 18:38:34
 //  Auto updated?
 //    Yes
 // 
 //  Description:
-//!   Crate that contains commonly used structs, enums and interfaces
-//!   throughout the project.
-//!   
-//!   Note that this differs from `specifications` in that these are not for
-//!   outside of the project.
+//!   The `brane-shr` crate defines common functions and other tools used
+//!   throughout the framework. This crate differs from the
+//!   `specifications` crate in that it does not aim to standerdize
+//!   things, but rather just provide a common implementation.
 // 
 
 // Declare some modules
-pub mod address;
 pub mod errors;
 pub mod formatters;
 pub mod fs;
-pub mod identifier;
-pub mod info;
 pub mod input;
 pub mod jobs;
 pub mod kafka;
-pub mod location;
 pub mod utilities;
-pub mod version;

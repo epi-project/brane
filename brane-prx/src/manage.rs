@@ -25,7 +25,7 @@ use warp::http::StatusCode;
 use warp::hyper::{Body, Response};
 use warp::hyper::body::Bytes;
 
-use brane_shr::address::Address;
+use specifications::address::Address;
 
 use crate::errors::RedirectError;
 use crate::spec::{Context, NewPathRequest, NewPathRequestTlsOptions};

@@ -27,13 +27,6 @@ members = [
     "brane-prx",
 
 
-
-    ### EXTERNAL LIBRARIES ###
-    # These crates provide wrappers around other crates to make them C/C++-compatible.
-    "brane-tsk-c",
-    "brane-ast-c",
-
-
     ### LIBRARIES ###
     # These crates provide the full BraneScript/Bakery/... stack
     "brane-tsk",

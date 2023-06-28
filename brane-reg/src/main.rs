@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 15:11:44
 //  Last edited:
-//    12 Jun 2023, 11:20:11
+//    07 Jun 2023, 16:29:33
 //  Auto updated?
 //    Yes
 // 
@@ -21,8 +21,8 @@ use log::{debug, error, info, LevelFilter};
 use rustls::Certificate;
 use warp::Filter;
 
+use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, WorkerConfig};
-use brane_shr::info::Info as _;
 
 use brane_reg::spec::Context;
 use brane_reg::server::serve_with_auth;

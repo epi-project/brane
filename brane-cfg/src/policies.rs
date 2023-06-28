@@ -4,7 +4,7 @@
 //  Created:
 //    01 Dec 2022, 09:20:32
 //  Last edited:
-//    12 Jun 2023, 11:18:40
+//    27 Mar 2023, 11:45:02
 //  Auto updated?
 //    Yes
 // 
@@ -16,8 +16,8 @@
 use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 
-pub use brane_shr::info::YamlError as Error;
-use brane_shr::info::YamlInfo;
+pub use crate::info::YamlError as Error;
+use crate::info::YamlInfo;
 
 
 /***** LIBRARY *****/
@@ -29,7 +29,7 @@ pub struct PolicyFile {
     /// The containers to allow
     pub containers : Vec<ContainerPolicy>,
 }
-impl YamlInfo for PolicyFile {}
+impl<'de> YamlInfo<'de> for PolicyFile {}
 
 
 

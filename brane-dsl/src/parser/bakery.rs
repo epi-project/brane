@@ -12,7 +12,7 @@ use crate::scanner::Tokens;
 use crate::spec::TextRange;
 use nom::IResult;
 use nom::error::VerboseError;
-use specifications::index::PackageIndex;
+use specifications::package::PackageIndex;
 use super::ast::{Block, Expr, Literal, Program, Stmt};
 // use std::num::NonZeroUsize;
 

@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:55:30
 //  Last edited:
-//    27 Jun 2023, 18:56:35
+//    25 May 2023, 20:43:21
 //  Auto updated?
 //    Yes
 // 
@@ -13,7 +13,6 @@
 //!   Ecu/Code-type).
 // 
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
@@ -25,9 +24,7 @@ use tokio::process::{Command as TokioCommand, Child as TokioChild};
 use tokio::time::{self, Duration};
 
 use brane_exe::FullValue;
-use brane_shr::info::Info as _;
-use brane_shr::identifier::Identifier;
-use specifications::packages::internal::{CaptureMode, Function, PackageInfo};
+use specifications::container::{Action, ActionCommand, LocalContainerInfo};
 
 // use crate::callback::Callback;
 use crate::common::{assert_input, HEARTBEAT_DELAY, Map, PackageResult, PackageReturnState};
@@ -70,7 +67,7 @@ pub async fn handle(
     debug!("Executing '{}' (ecu) using arguments:\n{:#?}", function, arguments);
 
     // Initialize the package
-    let (info, function) = match initialize(&function, &arguments, &working_dir) {
+    let (container_info, function) = match initialize(&function, &arguments, &working_dir) {
         Ok(results) => {
             // if let Some(callback) = callback {
             //     if let Err(err) = callback.initialized().await { warn!("Could not update driver on Initialized: {}", err); }
@@ -88,7 +85,7 @@ pub async fn handle(
     };
 
     // Launch the job
-    let process = match start(&info, &function, &arguments, &working_dir) {
+    let (command, process) = match start(&container_info, &function, &arguments, &working_dir) {
         Ok(result) => {
             // if let Some(callback) = callback {
             //     if let Err(err) = callback.started().await { warn!("Could not update driver on Started: {}", err); }
@@ -124,7 +121,7 @@ pub async fn handle(
     };
 
     // Convert the call to a PackageReturn value instead of state
-    let result = match decode(result, info.functions.get(&function).unwrap().implementation.capture) {
+    let result = match decode(result, &command.capture) {
         Ok(result) => result,
         Err(err)   => {
             // if let Some(callback) = callback {
@@ -155,33 +152,34 @@ pub async fn handle(
 /// 
 /// **Returns**  
 ///  * On success, a tuple with (in order):
-///    * The PackageInfo struct representing the local_container.yml in this package
-///    * The identifier of the function to execute, which refers to the [`PackageInfo`].
+///    * The LocalContainerInfo struct representing the local_container.yml in this package
+///    * The function represented as an Action that we should execute
+///    * A list of Parmaters describing the function's _output_
 ///  * On failure:
 ///    * A LetError describing what went wrong.
 fn initialize(
     function: &str,
     arguments: &Map<FullValue>,
     working_dir: &Path
-) -> Result<(PackageInfo, Identifier), LetError> {
+) -> Result<(LocalContainerInfo, Action), LetError> {
     debug!("Reading local_container.yml...");
     // Get the container info from the path
-    let info_path = working_dir.join("package.yml");
-    let info = match PackageInfo::from_path(info_path.clone()) {
+    let container_info_path = working_dir.join("local_container.yml");
+    let container_info = match LocalContainerInfo::from_path(container_info_path.clone()) {
         Ok(container_info) => container_info,
-        Err(err)           => { return Err(LetError::LocalContainerInfoError{ path: info_path, err }); }
+        Err(err)           => { return Err(LetError::LocalContainerInfoError{ path: container_info_path, err }); }
     };
 
     // Resolve the function we're supposed to call
-    let function: Identifier = Identifier::from(function);
-    let action = match info.functions.get(&function) {
+    let action = match container_info.actions.get(function) {
         Some(action) => action.clone(),
-        None         => { return Err(LetError::UnknownFunction{ function: function.to_string(), package: info.metadata.name.into(), kind: info.kind }) }
+        None         => { return Err(LetError::UnknownFunction{ function: function.to_string(), package: container_info.name, kind: container_info.kind }) }
     };
 
     // Extract the list of function parameters
+    let function_input = action.input.clone().unwrap_or_default();
     // Make sure the input matches what we expect
-    assert_input(&action.input, arguments, &function, &info.metadata.name, info.kind)?;
+    assert_input(&function_input, arguments, function, &container_info.name, container_info.kind)?;
 
 
 
@@ -189,7 +187,7 @@ fn initialize(
     let init_sh = working_dir.join("init.sh");
     if !init_sh.exists() {
         // No need; the user doesn't require an additional setup
-        return Ok((info, function));
+        return Ok((container_info, action));
     }
 
     // Otherwise, run the init.sh script
@@ -205,7 +203,7 @@ fn initialize(
     }
 
     // Initialization complete!
-    Ok((info, function))
+    Ok((container_info, action))
 }
 
 
@@ -215,51 +213,52 @@ fn initialize(
 /***** EXECUTION *****/
 /// Starts the given function in the background, returning the process handle.
 /// 
-/// # Arguments
-///  * `info`: The LocalContainerInfo representing the container.yml of this package.
-///  * `function`: The function to call. Note that it is guaranteed to exist in `info.functions` by the previous function.
+/// **Arguments**
+///  * `container_info`: The LocalContainerInfo representing the container.yml of this package.
+///  * `function`: The function to call.
 ///  * `arguments`: The arguments to pass to the function.
 ///  * `working_dir`: The working directory for the function.
 /// 
-/// # Returns
-/// The handle to the running process
+/// **Returns**  
+/// The ActionCommand used + a process handle on success, or a LetError on failure.
 fn start(
-    info: &PackageInfo,
-    function: &Identifier,
+    container_info: &LocalContainerInfo,
+    function: &Action,
     arguments: &Map<FullValue>,
     working_dir: &Path,
-) -> Result<TokioChild, LetError> {
-    // Get the function we are running
-    let f: &Function = info.functions.get(function).unwrap();
+) -> Result<(ActionCommand, TokioChild), LetError> {
+    // Determine entrypoint and, optionally, command and arguments
+    let entrypoint = &container_info.entrypoint.exec;
+    let command = function.command.clone().unwrap_or_else(|| ActionCommand {
+        args: Default::default(),
+        capture: None,
+    });
+    let entrypoint_path = working_dir.join(entrypoint);
+    let entrypoint_path = match entrypoint_path.canonicalize() {
+        Ok(entrypoint_path) => entrypoint_path,
+        Err(err)            => { return Err(LetError::EntrypointPathError{ path: entrypoint_path, err }); }
+    };
 
-    // Preprocess the first argument of the implementation to be prefixed with a `./` if it exists in the working directory
-    if f.implementation.entrypoint.is_empty() { return Err(LetError::EmptyEntrypoint { function: function.into() }); }
-    let mut exe: Cow<str> = Cow::Borrowed(&f.implementation.entrypoint[0]);
-    if !exe.starts_with(".") && !exe.starts_with("/") {
-        // Check if it occurs in this folder
-        let entrypoint_path: PathBuf = working_dir.join(exe.as_ref());
-        if entrypoint_path.exists() {
-            exe = Cow::Owned(entrypoint_path.to_string_lossy().into_owned());
-        }
-    }
+    // Prepare the actual subprocess crate command to execute
+    // No idea what is happening here precisely, so disabling it until I run into it missing >:)
+    // let command = if entrypoint_path.is_file() {
+    //     Exec::cmd(entrypoint_path)
+    // } else {
+    //     let segments = entrypoint.split_whitespace().collect::<Vec<&str>>();
+    //     let entrypoint_path = working_dir.join(&segments[0]).canonicalize()?;
 
-    // Run the first argument in the entrypoint as the executable, then add the rest for the arguments
-    let mut exec_command: TokioCommand = TokioCommand::new(exe.as_ref());
-    if f.implementation.entrypoint.len() > 1 { exec_command.args(&f.implementation.entrypoint[1..]); }
+    //     Exec::cmd(entrypoint_path).args(&segments[1..])
+    // };
+    let mut exec_command = TokioCommand::new(entrypoint_path);
 
-    // Then add any other arguments specified by the user
-    exec_command.args(&f.implementation.args);
-
-    // Set the CWD for this command, as well as any environment variables
-    exec_command.current_dir(working_dir);
-    exec_command.envs(&f.implementation.env);
-
-    // Collect the arguments and set them as environment
-    // TODO: Change this to be with stdin and the likes
+    // Construct the environment variables
     let envs = construct_envs(arguments)?;
-    exec_command.envs(envs);
+    debug!("Using environment variables:\n{:#?}", envs);
+    let envs: Vec<_> = envs.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
 
-    // Set some final props and launch it
+    // Finally, prepare the subprocess
+    exec_command.args(&command.args);
+    exec_command.envs(envs);
     exec_command.stdout(Stdio::piped());
     exec_command.stderr(Stdio::piped());
     let process = match exec_command.spawn() {
@@ -268,7 +267,7 @@ fn start(
     };
 
     // Done, return the process!!
-    Ok(process)
+    Ok((command, process))
 }
 
 /// **Edited: now returning LetErrors.**
@@ -396,17 +395,17 @@ async fn complete(
     let mut process = process;
 
     // Handle waiting for the subprocess and doing heartbeats in a neat way, using select
-    let status: Result<_, _> = 'wait: loop {
+    let status = loop {
         // Prepare the timer
         let sleep = time::sleep(Duration::from_millis(HEARTBEAT_DELAY));
         tokio::pin!(sleep);
 
         // Wait for either the timer or the process
-        loop {
+        let status = loop {
             tokio::select! {
                 status = process.wait() => {
                     // Process is finished!
-                    break 'wait status;
+                    break Some(status);
                 },
                 _ = &mut sleep => {
                     // // Timeout occurred; send the heartbeat and continue
@@ -414,9 +413,15 @@ async fn complete(
                     //     if let Err(err) = callback.heartbeat().await { warn!("Could not update driver on Heartbeat: {}", err); }
                     //     else { debug!("Sent Heartbeat to driver."); }
                     // }
+
+                    // Stop without result
+                    break None;
                 },
             }
         };
+
+        // If we have a result, break from the main loop; otherwise, try again
+        if let Some(status) = status { break status; }
     };
 
     // Match the status result
@@ -476,13 +481,16 @@ async fn complete(
 /// The preprocessed stdout.
 fn preprocess_stdout(
     stdout: String,
-    mode: CaptureMode,
+    mode: &Option<String>,
 ) -> String {
+    let mode = mode.clone().unwrap_or_else(|| String::from("complete"));
+
     let mut captured = Vec::new();
-    match mode {
-        CaptureMode::Full => return stdout,
-        CaptureMode::Area => {
+    match mode.as_str() {
+        "complete" => return stdout,
+        "marked" => {
             let mut capture = false;
+
             for line in stdout.lines() {
                 if line.trim_start().starts_with(MARK_START) {
                     capture = true;
@@ -500,7 +508,7 @@ fn preprocess_stdout(
                 }
             }
         }
-        CaptureMode::Prefixed => {
+        "prefixed" => {
             for line in stdout.lines() {
                 if line.starts_with(PREFIX) {
                     let trimmed = line.trim_start_matches(PREFIX);
@@ -509,8 +517,9 @@ fn preprocess_stdout(
                 }
             }
         }
-        CaptureMode::Nothing => {},
+        _ => panic!("Encountered illegal capture mode '{}'; this should never happen!", mode),
     }
+
     captured.join("\n")
 }
 
@@ -527,7 +536,7 @@ fn preprocess_stdout(
 /// 
 /// **Returns**  
 /// The decoded return state as a PackageResult, or a LetError otherwise.
-fn decode(result: PackageReturnState, mode: CaptureMode) -> Result<PackageResult, LetError> {
+fn decode(result: PackageReturnState, mode: &Option<String>) -> Result<PackageResult, LetError> {
     // Match on the result
     match result {
         PackageReturnState::Finished{ stdout } => {

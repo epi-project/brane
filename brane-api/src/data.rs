@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 17:20:55
 //  Last edited:
-//    12 Jun 2023, 11:20:09
+//    07 Jun 2023, 16:29:39
 //  Auto updated?
 //    Yes
 // 
@@ -21,10 +21,10 @@ use warp::{Rejection, Reply};
 use warp::http::{HeaderValue, Response};
 use warp::hyper::Body;
 
+use brane_cfg::info::Info as _;
 use brane_cfg::infra::InfraFile;
 use brane_cfg::node::NodeConfig;
 use brane_prx::spec::NewPathRequestTlsOptions;
-use brane_shr::info::Info as _;
 use specifications::data::{AssetInfo, DataInfo};
 
 pub use crate::errors::DataError as Error;

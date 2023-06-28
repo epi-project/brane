@@ -4,7 +4,7 @@
 //  Created:
 //    04 Feb 2022, 10:35:12
 //  Last edited:
-//    12 Jun 2023, 11:18:27
+//    07 Jun 2023, 16:29:32
 //  Auto updated?
 //    Yes
 // 
@@ -21,9 +21,9 @@ use reqwest::StatusCode;
 use scylla::transport::errors::NewSessionError;
 
 use brane_cfg::node::NodeKind;
-use brane_shr::address::Address;
 use brane_shr::formatters::PrettyListFormatter;
-use brane_shr::version::Version;
+use specifications::address::Address;
+use specifications::version::Version;
 
 
 /***** ERRORS *****/
@@ -166,7 +166,7 @@ pub enum PackageError {
     /// Failed to query for the given package in the Scylla database.
     VersionsQueryError{ name: String, err: scylla::transport::errors::QueryError },
     /// Failed to parse a Version string
-    VersionParseError{ raw: String, err: brane_shr::version::ParseError },
+    VersionParseError{ raw: String, err: specifications::version::ParseError },
     /// No versions found for the given package
     NoVersionsFound{ name: String },
     /// Failed to query the database for the file of the given package.
@@ -183,7 +183,7 @@ pub enum PackageError {
     FileSendError{ path: PathBuf, err: warp::hyper::Error },
 
     /// Failed to load the node config.
-    NodeConfigLoadError{ err: brane_shr::info::YamlError },
+    NodeConfigLoadError{ err: brane_cfg::info::YamlError },
     /// The given node config was not for central nodes.
     NodeConfigUnexpectedKind{ path: PathBuf, got: NodeKind, expected: NodeKind },
     /// Failed to create a temporary directory.

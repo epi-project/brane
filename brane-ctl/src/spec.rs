@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 17:27:52
 //  Last edited:
-//    12 Jun 2023, 11:50:15
+//    07 Jun 2023, 10:47:12
 //  Auto updated?
 //    Yes
 // 
@@ -21,9 +21,9 @@ use clap::Subcommand;
 use enum_debug::EnumDebug;
 
 use brane_cfg::node::NodeKind;
-use brane_shr::address::Address;
-use brane_shr::version::Version;
 use brane_tsk::docker::{ClientVersion, ImageSource};
+use specifications::address::Address;
+use specifications::version::Version;
 
 use crate::errors::{InclusiveRangeParseError, PairParseError};
 
@@ -106,7 +106,7 @@ impl Display for ResolvableNodeKind {
     }
 }
 impl FromStr for ResolvableNodeKind {
-    type Err = brane_cfg::node::NodeKindParseError;
+    type Err = brane_cfg::errors::NodeKindParseError;
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {

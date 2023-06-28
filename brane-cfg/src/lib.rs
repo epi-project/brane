@@ -4,20 +4,22 @@
 //  Created:
 //    04 Oct 2022, 11:08:37
 //  Last edited:
-//    12 Jun 2023, 13:37:33
+//    07 Jun 2023, 16:23:29
 //  Auto updated?
 //    Yes
 // 
 //  Description:
 //!   The `brane-cfg` library provides functions for reading Brane
-//!   configuration files. In effect, these are files used by the BRANE
-//!   services; this does _not_ include metadata files written by the user.
+//!   configuration files. This is mostly infrastructure-related.
 // 
 
 // Declare modules
-pub mod backend;
+pub mod errors;
 pub mod certs;
+pub mod backend;
+pub mod info;
 pub mod infra;
 pub mod node;
+pub mod package;
 pub mod policies;
 pub mod proxy;

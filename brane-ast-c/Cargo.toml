@@ -1,0 +1,21 @@
+[package]
+name = "brane-ast-c"
+version = { workspace = true }
+edition = "2021"
+authors = { workspace = true }
+description = "Wrapper around `brane-ast` that provides C-bindings. This allows the BraneScript compiler to be used in `brane-ide`."
+
+
+[lib]
+name       = "brane_ast"
+crate-type = ["rlib", "cdylib"]
+
+
+[dependencies]
+humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
+libc = "0.2"
+log = "0.4"
+serde_json = "1.0"
+
+brane-ast = { path = "../brane-ast" }
+specifications = { path = "../specifications" }

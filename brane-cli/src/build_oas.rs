@@ -10,9 +10,9 @@ use console::style;
 use openapiv3::OpenAPI;
 
 use brane_shr::fs::FileLock;
-use brane_shr::version::Version;
 use specifications::arch::Arch;
 use specifications::package::{PackageKind, PackageInfo};
+use specifications::version::Version;
 
 use crate::build_common::{BRANELET_URL, build_docker_image, clean_directory};
 use crate::errors::BuildError;

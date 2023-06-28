@@ -31,7 +31,7 @@ mod tests {
 
 
     /// Tests whether the EdgeBuffer creates linked lists as expected.
-    #[test_log::test]
+    #[test]
     fn test_edgebuffer() {
         // Create a new edgebuffer
         let mut edges1: EdgeBuffer = EdgeBuffer::new();

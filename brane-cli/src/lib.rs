@@ -31,7 +31,7 @@ pub mod vm;
 
 /***** CONSTANTS *****/
 /// The minimum Docker version required by the Brane CLI command-line tool
-pub const MIN_DOCKER_VERSION: brane_shr::version::Version = brane_shr::version::Version::new(19, 0, 0);
+pub const MIN_DOCKER_VERSION: specifications::version::Version = specifications::version::Version::new(19, 0, 0);
 
 /// The minimum Buildx version required by the Brane CLI command-line tool
-pub const MIN_BUILDX_VERSION: brane_shr::version::Version = brane_shr::version::Version::new(0, 7, 0);
+pub const MIN_BUILDX_VERSION: specifications::version::Version = specifications::version::Version::new(0, 7, 0);

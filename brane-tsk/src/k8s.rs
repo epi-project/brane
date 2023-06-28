@@ -40,11 +40,11 @@ use serde::de::DeserializeOwned;
 use serde_json::json;
 use tokio::fs as tfs;
 
-use brane_shr::address::Address;
 use brane_shr::errors::ErrorTrace as _;
 use brane_shr::fs::{download_file_async, set_executable, unarchive_async, DownloadSecurity};
-use brane_shr::version::Version;
+use specifications::address::Address;
 use specifications::container::Image;
+use specifications::version::Version;
 
 use crate::docker::ImageSource;
 

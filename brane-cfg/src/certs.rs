@@ -4,7 +4,7 @@
 //  Created:
 //    02 Nov 2022, 11:47:55
 //  Last edited:
-//    12 Jun 2023, 11:24:23
+//    27 Jan 2023, 16:30:32
 //  Auto updated?
 //    Yes
 // 
@@ -13,11 +13,9 @@
 //!   and keys for `rustls`.
 // 
 
-use std::error;
-use std::fmt::{Display, Formatter, Result as FResult};
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use log::debug;
 use rustls::{Certificate, PrivateKey, RootCertStore};
@@ -25,74 +23,7 @@ use rustls_pemfile::{certs, rsa_private_keys, Item};
 use x509_parser::certificate::X509Certificate;
 use x509_parser::prelude::FromDer;
 
-
-/***** ERRORS *****/
-/// Errors that relate to certificate loading and such.
-#[derive(Debug)]
-pub enum Error {
-    /// A given certificate file could not be parsed.
-    ClientCertParseError{ err: x509_parser::nom::Err<x509_parser::error::X509Error> },
-    /// A given certificate did not have the `CN`-field specified.
-    ClientCertNoCN{ subject: String },
-
-    /// Failed to open a given file.
-    FileOpenError{ what: &'static str, path: PathBuf, err: std::io::Error },
-    /// Failed to read a given file.
-    FileReadError{ what: &'static str, path: PathBuf, err: std::io::Error },
-    /// Encountered unknown item in the given file.
-    UnknownItemError{ what: &'static str, path: PathBuf },
-
-    /// Failed to parse the certificate file.
-    CertFileParseError{ path: PathBuf, err: std::io::Error },
-    /// Failed to parse the key file.
-    KeyFileParseError{ path: PathBuf, err: std::io::Error },
-
-    /// The given certificate file was empty.
-    EmptyCertFile{ path: PathBuf },
-    /// The given keyfile was empty.
-    EmptyKeyFile{ path: PathBuf },
-}
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use Error::*;
-        match self {
-            ClientCertParseError{ .. } => write!(f, "Failed to parse given client certificate file"),
-            ClientCertNoCN{ subject }  => write!(f, "Certificate subject field '{subject}' does not specify a CN"),
-
-            FileOpenError{ what, path, .. } => write!(f, "Failed to open {} file '{}'", what, path.display()),
-            FileReadError{ what, path, .. } => write!(f, "Failed to read {} file '{}'", what, path.display()),
-            UnknownItemError{ what, path }   => write!(f, "Encountered non-certificate, non-key item in {} file '{}'", what, path.display()),
-
-            CertFileParseError{ path, .. } => write!(f, "Failed to parse certificates in '{}'", path.display()),
-            KeyFileParseError{ path, .. }  => write!(f, "Failed to parse keys in '{}'", path.display()),
-
-            EmptyCertFile{ path }           => write!(f, "No certificates found in file '{}'", path.display()),
-            EmptyKeyFile{ path }            => write!(f, "No keys found in file '{}'", path.display()),
-        }
-    }
-}
-impl error::Error for Error {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        use Error::*;
-        match self {
-            ClientCertParseError { err } => Some(err),
-            ClientCertNoCN { .. }        => None,
-
-            FileOpenError { err, .. } => Some(err),
-            FileReadError { err, .. } => Some(err),
-            UnknownItemError { .. }   => None,
-
-            CertFileParseError { err, .. } => Some(err),
-            KeyFileParseError { err, .. }  => Some(err),
-
-            EmptyCertFile { .. } => None,
-            EmptyKeyFile { .. }  => None,
-        }
-    }
-}
-
-
-
+pub use crate::errors::CertsError as Error;
 
 
 /***** AUXILLARY *****/

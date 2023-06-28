@@ -1,6 +1,6 @@
 use anyhow::Result;
 use brane_oas::{build, parse_oas_file, resolver};
-use specifications::common_old::{Function, Type};
+use specifications::common::{Function, Type};
 
 type Map<T> = std::collections::HashMap<String, T>;
 type FunctionAndTypes = (Function, Map<Type>);

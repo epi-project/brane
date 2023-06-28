@@ -4,7 +4,7 @@
 //  Created:
 //    23 Aug 2022, 18:04:09
 //  Last edited:
-//    19 Jun 2023, 09:56:06
+//    05 Jan 2023, 13:12:50
 //  Auto updated?
 //    Yes
 // 
@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::mem;
 use std::rc::Rc;
 
-use brane_shr::version::Version;
-use specifications::capabilities::Capability;
+use specifications::package::Capability;
+use specifications::version::Version;
 
 pub use crate::errors::SymbolTableError as Error;
 use crate::spec::TextRange;

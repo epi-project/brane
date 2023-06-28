@@ -18,9 +18,9 @@ use std::str::FromStr;
 
 use serde_json::json;
 
-use brane_shr::version::Version;
 use specifications::data::{DataIndex, DataInfo};
 use specifications::package::{PackageIndex, PackageInfo};
+use specifications::version::Version;
 
 pub use crate::errors::LocalError as Error;
 

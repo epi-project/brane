@@ -18,8 +18,8 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use brane_shr::version::Version;
 use specifications::package::PackageKind;
+use specifications::version::Version;
 
 // use crate::{MIN_DOCKER_VERSION, MIN_BUILDX_VERSION};
 use crate::errors::UtilError;

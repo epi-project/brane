@@ -20,7 +20,7 @@ use std::ops::RangeInclusive;
 use reqwest::StatusCode;
 use url::Url;
 
-use brane_shr::address::Address;
+use specifications::address::Address;
 
 
 /***** LIBRARY *****/

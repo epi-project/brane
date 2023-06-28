@@ -2,22 +2,24 @@
 name = "specifications"
 version = { workspace = true }
 authors = { workspace = true }
-edition = "2021"
+edition = "2018"
 
 [dependencies]
-async-trait = "0.1"
+anyhow = "1"
+async-trait = "0.1.60"
 base64 = "0.21"
-chrono = { version = "0.4", features = ["serde"] }
-const_format = "0.2"
+chrono = { version = "0.4.23", features = ["serde"] }
+const_format = "0.2.22"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
-log = "0.4"
-num-traits = "0.2"
-parking_lot = { version = "0.12", features = ["serde"] }
+# lazy_static = "1.4.0"
+log = "0.4.17"
+num-traits = "0.2.15"
+parking_lot = { version = "0.12.1", features = ["serde"] }
 prost = "0.11"
 prost-types = "0.11"
-reqwest = { version = "0.11", features = ["blocking", "json", "stream"] }
+reqwest = { version = "0.11", features = ["json", "stream"] }
 semver = "1.0"
-serde = { version = "1", features = ["derive", "rc"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_repr = "0.1"
 serde_test = "1.0"
@@ -25,8 +27,5 @@ serde_with = "3.0"
 serde_yaml = "0.9"
 strum = "0.24"
 strum_macros = "0.24"
-tokio = { version = "1.28", default_features = false }
 tonic = "0.9"
 uuid = { version = "0.8", features = ["serde", "v4"] }
-
-brane-shr = { path = "../brane-shr" }

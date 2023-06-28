@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 15:40:40
 //  Last edited:
-//    12 Jun 2023, 11:20:15
+//    01 Mar 2023, 09:49:47
 //  Auto updated?
 //    Yes
 // 
@@ -26,11 +26,11 @@ use warp::http::HeaderValue;
 use warp::hyper::{Body, StatusCode};
 use warp::hyper::body::{Bytes, Sender};
 use warp::reply::{self, Response};
+use brane_cfg::info::Info as _;
 use brane_cfg::certs::extract_client_name;
 use brane_cfg::node::NodeConfig;
 use brane_cfg::policies::{PolicyFile, UserPolicy};
 use brane_shr::fs::archive_async;
-use brane_shr::info::Info as _;
 use specifications::data::{AccessKind, AssetInfo};
 use specifications::profiling::ProfileReport;
 

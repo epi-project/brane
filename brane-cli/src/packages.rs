@@ -22,10 +22,10 @@ use tokio_util::codec::{BytesCodec, FramedRead};
 
 use brane_dsl::DataType;
 use brane_shr::formatters::PrettyListFormatter;
-use brane_shr::version::Version;
 use brane_tsk::docker::{self, DockerOptions};
 use specifications::container::Image;
 use specifications::package::PackageInfo;
+use specifications::version::Version;
 
 use crate::errors::PackageError;
 use crate::utils::{ensure_packages_dir, ensure_package_dir};

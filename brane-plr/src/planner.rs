@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    28 Jun 2023, 19:25:37
+//    07 Jun 2023, 16:29:26
 //  Auto updated?
 //    Yes
 // 
@@ -35,18 +35,16 @@ use reqwest::Response;
 
 use brane_ast::Workflow;
 use brane_ast::locations::Locations;
-use brane_ast::ast::{AvailabilityKind, ComputeTaskDef, DataName, Edge, SymTable, TaskDef};
+use brane_ast::ast::{ComputeTaskDef, DataName, Edge, SymTable, TaskDef};
+use brane_cfg::info::Info as _;
 use brane_cfg::infra::InfraFile;
 use brane_cfg::node::{CentralConfig, NodeConfig};
-use brane_shr::address::Address;
-use brane_shr::info::Info as _;
 use brane_shr::kafka::{ensure_topics, restore_committed_offsets};
-use brane_shr::location::Location;
-use brane_shr::version::Version;
 use brane_tsk::errors::PlanError;
-use specifications::capabilities::Capability;
-use specifications::data_new::backend::DataSpecificInfo;
-use specifications::index::DataIndex;
+use brane_tsk::api::get_data_index;
+use specifications::address::Address;
+use specifications::data::{AccessKind, AvailabilityKind, DataIndex, PreprocessKind};
+use specifications::package::Capability;
 use specifications::planning::{PlanningStatus, PlanningStatusKind, PlanningUpdate};
 use specifications::profiling::ProfileReport;
 
@@ -146,14 +144,14 @@ async fn plan_edges(table: &mut SymTable, edges: &mut [Edge], api_addr: &Address
                 // If everything is allowed, we make it one easier for the planner by checking we happen to find only one occurrance based on the datasets
                 if locs.is_all() {
                     // Search all of the input to collect a list of possible locations
-                    let mut data_locs: Vec<&Location> = vec![];
+                    let mut data_locs: Vec<&String> = vec![];
                     for (d, _) in input.iter() {
                         // We only take data into account (for now, at least)
                         if let DataName::Data(name) = d {
                             // Attempt to find it
-                            if let Some(info) = dindex.get(name, Version::latest()) {
+                            if let Some(info) = dindex.get(name) {
                                 // Simply add all locations where it lives
-                                data_locs.append(&mut info.locations.iter().collect::<Vec<&Location>>());
+                                data_locs.append(&mut info.access.keys().collect::<Vec<&String>>());
                             } else {
                                 return Err(PlanError::UnknownDataset{ name: name.clone() });
                             }
@@ -162,13 +160,13 @@ async fn plan_edges(table: &mut SymTable, edges: &mut [Edge], api_addr: &Address
 
                     // If there is only one location, then we override locs
                     if data_locs.len() == 1 {
-                        *locs = Locations::Restricted(vec![ data_locs[0].into() ]);
+                        *locs = Locations::Restricted(vec![ data_locs[0].clone() ]);
                     }
                 }
 
                 // We resolve all locations by collapsing them to the only possibility indicated by the user. More or less than zero? Error!
                 if !locs.is_restrictive() || locs.restricted().len() != 1 { return Err(PlanError::AmbigiousLocationError{ name: table.tasks[*task].name().into(), locs: locs.clone() }); }
-                let location: Location = (&locs.restricted()[0]).into();
+                let location: &str = &locs.restricted()[0];
 
                 // Fetch the list of capabilities supported by the planned location
                 let address: String = format!("{api_addr}/infra/capabilities/{location}");
@@ -201,9 +199,9 @@ async fn plan_edges(table: &mut SymTable, edges: &mut [Edge], api_addr: &Address
                 for (name, avail) in input {
                     match name {
                         DataName::Data(name) => {
-                            if let Some(info) = dindex.get(name, Version::latest()) {
+                            if let Some(info) = dindex.get(name) {
                                 // Check if it is local or remote
-                                if let Some(location) = info.locations.get(&location) {
+                                if let Some(access) = info.access.get(location) {
                                     debug!("Input dataset '{}' is locally available", name);
                                     *avail = Some(AvailabilityKind::Available { how: access.clone() });
                                 } else {
@@ -613,7 +611,7 @@ pub async fn planner_server(node_config_path: impl Into<PathBuf>, central_config
 
                 // Fetch the data index
                 let data_index_addr: String = format!("{}/data/info", central.services.api.address);
-                let dindex: DataIndex = match DataIndex::remote_async(&data_index_addr).await {
+                let dindex: DataIndex = match get_data_index(&data_index_addr).await {
                     Ok(dindex) => dindex,
                     Err(err)   => {
                         error!("Failed to fetch DataIndex from '{}': {}", data_index_addr, err);

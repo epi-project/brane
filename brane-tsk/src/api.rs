@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 12:15:06
 //  Last edited:
-//    22 Jun 2023, 08:51:29
+//    01 Mar 2023, 10:58:29
 //  Auto updated?
 //    Yes
 // 
@@ -21,12 +21,10 @@ use graphql_client::{GraphQLQuery, Response};
 use reqwest::Client;
 use uuid::Uuid;
 
-use brane_shr::version::Version;
-use specifications::common_old::{Function, Type};
+use specifications::common::{Function, Type};
 use specifications::data::{DataIndex, DataInfo};
-use specifications::index::PackageIndex;
-use specifications::packages::backend::PackageInfo;
-use specifications::packages::common::{PackageKind, PackageMetadata};
+use specifications::package::{PackageKind, PackageIndex, PackageInfo};
+use specifications::version::Version;
 
 pub use crate::errors::ApiError as Error;
 
@@ -105,9 +103,6 @@ pub async fn get_package_index(endpoint: impl AsRef<str>) -> Result<PackageIndex
 
         // Throw it in a PackageInfo
         infos.push(PackageInfo {
-            metadata : PackageMetadata {
-                name : 
-            },
             created : p.created,
             id      : p.id,
             digest  : p.digest,

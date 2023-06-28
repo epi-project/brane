@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    26 Jun 2023, 11:25:43
+//    10 May 2023, 16:34:50
 //  Auto updated?
 //    Yes
 // 
@@ -24,12 +24,12 @@ use tonic::Status;
 
 use brane_ast::locations::{Location, Locations};
 use brane_ast::ast::DataName;
-use brane_shr::address::Address;
 use brane_shr::formatters::{BlockFormatter, Capitalizeable};
-use brane_shr::version::Version;
-use specifications::capabilities::Capability;
+use specifications::address::Address;
 use specifications::container::Image;
+use specifications::package::Capability;
 use specifications::planning::PlanningStatusKind;
+use specifications::version::Version;
 use specifications::driving::ExecuteReply;
 // The TaskReply is here for legacy reasons; bad name
 use specifications::working::{ExecuteReply as TaskReply, TaskStatus};
@@ -163,7 +163,7 @@ pub enum PreprocessError {
 
     // Instance only (client-side)
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_shr::info::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_cfg::info::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.
@@ -320,7 +320,7 @@ pub enum ExecuteError {
     /// Failed to update the client of a status change.
     ClientUpdateError{ status: TaskStatus, err: tokio::sync::mpsc::error::SendError<Result<TaskReply, Status>> },
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_shr::info::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_cfg::info::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.
@@ -493,7 +493,7 @@ pub enum CommitError {
 
     // Instance-only (client side)
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_shr::info::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_cfg::info::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.
@@ -703,16 +703,16 @@ pub enum LocalError {
     /// Found a version entry who's path could not be split into a filename
     UnreadableVersionEntry{ path: PathBuf },
     /// The name of version directory in a package's dir is not a valid version
-    IllegalVersionEntry{ package: String, version: String, err: brane_shr::version::ParseError },
+    IllegalVersionEntry{ package: String, version: String, err: specifications::version::ParseError },
     /// The given package has no versions registered to it
     NoVersions{ package: String },
 
     /// There was an error reading entries from the packages directory
     PackagesDirReadError{ path: PathBuf, err: std::io::Error },
     /// We tried to load a package YML but failed
-    InvalidPackageYml{ package: String, path: PathBuf, err: brane_shr::info::JsonError },
+    InvalidPackageYml{ package: String, path: PathBuf, err: specifications::package::PackageInfoError },
     /// We tried to load a Package Index from a JSON value with PackageInfos but we failed
-    PackageIndexError{ err: specifications::index::Error<brane_shr::info::JsonError> },
+    PackageIndexError{ err: specifications::package::PackageIndexError },
 
     /// Failed to read the datasets folder
     DatasetsReadError{ path: PathBuf, err: std::io::Error },
@@ -760,11 +760,11 @@ pub enum ApiError {
     NoResponse{ address: String },
 
     /// Failed to parse the package kind in a package info.
-    PackageKindParseError{ address: String, index: usize, raw: String, err: specifications::packages::common::PackageKindParseError },
+    PackageKindParseError{ address: String, index: usize, raw: String, err: specifications::package::PackageKindError },
     /// Failed to parse the package's version in a package info.
-    VersionParseError{ address: String, index: usize, raw: String, err: brane_shr::version::ParseError },
+    VersionParseError{ address: String, index: usize, raw: String, err: specifications::version::ParseError },
     /// Failed to create a package index from the given infos.
-    PackageIndexError{ address: String, err: specifications::packages::common::PackageKindParseError },
+    PackageIndexError{ address: String, err: specifications::package::PackageIndexError },
 
     /// Failed to create a data index from the given infos.
     DataIndexError{ address: String, err: specifications::data::DataIndexError },

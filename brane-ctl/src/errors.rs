@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    12 Jun 2023, 11:18:34
+//    10 May 2023, 16:34:45
 //  Auto updated?
 //    Yes
 // 
@@ -22,9 +22,9 @@ use enum_debug::EnumDebug as _;
 
 use brane_cfg::node::NodeKind;
 use brane_shr::formatters::Capitalizeable;
-use brane_shr::version::Version;
 use brane_tsk::docker::ImageSource;
 use specifications::container::Image;
+use specifications::version::Version;
 
 
 /***** LIBRARY *****/
@@ -139,7 +139,7 @@ pub enum GenerateError {
     /// Failed to write the header to the new file.
     FileHeaderWriteError{ what: &'static str, path: PathBuf, err: std::io::Error },
     /// Failed to write the main body to the new file.
-    FileBodyWriteError{ what: &'static str, path: PathBuf, err: brane_shr::info::YamlError },
+    FileBodyWriteError{ what: &'static str, path: PathBuf, err: brane_cfg::info::YamlError },
 
     /// The given location is unknown.
     UnknownLocation{ loc: String },
@@ -206,7 +206,7 @@ pub enum LifetimeError {
     DockerComposeWriteError{ path: PathBuf, err: std::io::Error },
 
     /// Failed to read the `proxy.yml` file.
-    ProxyReadError{ err: brane_shr::info::YamlError },
+    ProxyReadError{ err: brane_cfg::info::YamlError },
     /// Failed to open the extra hosts file.
     HostsFileCreateError{ path: PathBuf, err: std::io::Error },
     /// Failed to write to the extra hosts file.
@@ -223,7 +223,7 @@ pub enum LifetimeError {
     MissingProxyService,
 
     /// Failed to load the given node config file.
-    NodeConfigLoadError{ err: brane_shr::info::YamlError },
+    NodeConfigLoadError{ err: brane_cfg::info::YamlError },
     /// Failed to connect to the local Docker daemon.
     DockerConnectError{ err: brane_tsk::errors::DockerError },
     /// The given start command (got) did not match the one in the `node.yml` file (expected).
@@ -274,7 +274,7 @@ impl Error for LifetimeError {}
 #[derive(Debug)]
 pub enum PackagesError {
     /// Failed to load the given node config file.
-    NodeConfigLoadError{ err: brane_shr::info::YamlError },
+    NodeConfigLoadError{ err: brane_cfg::info::YamlError },
     /// The given node type is not supported for this operation.
     /// 
     /// The `what` should fill in the `<WHAT>` in: "Cannot <WHAT> on a ... node"
@@ -282,7 +282,7 @@ pub enum PackagesError {
     /// The given file is not a file.
     FileNotAFile{ path: PathBuf },
     /// Failed to parse the given `NAME[:VERSION]` pair.
-    IllegalNameVersionPair{ raw: String, err: brane_shr::version::ParseError },
+    IllegalNameVersionPair{ raw: String, err: specifications::version::ParseError },
     /// Failed to read the given directory
     DirReadError{ what: &'static str, path: PathBuf, err: std::io::Error },
     /// Failed to read an entry in the given directory
@@ -315,7 +315,7 @@ impl Error for PackagesError {}
 #[derive(Debug)]
 pub enum UnpackError {
     /// Failed to get the NodeConfig file.
-    NodeConfigError{ err: brane_shr::info::YamlError },
+    NodeConfigError{ err: brane_cfg::info::YamlError },
     /// Failed to write the given file.
     FileWriteError{ what: &'static str, path: PathBuf, err: std::io::Error },
     /// Failed to create the target directory.

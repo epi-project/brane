@@ -4,7 +4,7 @@
 //  Created:
 //    15 May 2023, 11:15:47
 //  Last edited:
-//    27 Jun 2023, 16:35:33
+//    22 May 2023, 14:15:57
 //  Auto updated?
 //    Yes
 // 
@@ -25,13 +25,12 @@ use humanlog::{DebugMode, HumanLogger};
 use log::{debug, error, info};
 
 use brane_exe::FullValue;
-use brane_shr::address::Address;
 use brane_shr::errors::ErrorTrace as _;
-use brane_shr::info::Info as _;
-use brane_shr::version::Version;
+use specifications::address::Address;
 use specifications::container::Image;
-use specifications::index::DataIndex;
-use specifications::packages::backend::PackageInfo;
+use specifications::data::DataIndex;
+use specifications::package::PackageInfo;
+use specifications::version::Version;
 
 use brane_tsk::input::prompt_for_input;
 use brane_tsk::docker::ImageSource;
@@ -99,15 +98,15 @@ impl Error for K8sError {
 async fn k8s_launch(package: &PackageInfo, launch: impl LaunchArgs) -> Result<(Handle<Pod>, Option<Handle<Secret>>), K8sError> {
     // Collect a local data index
     debug!("Fetching locally available data...");
-    let data_index: DataIndex = match DataIndex::local_async(launch.datasets(), "data.yml").await {
+    let data_index: DataIndex = match brane_tsk::local::get_data_index(launch.datasets()) {
         Ok(index) => index,
-        Err(err)  => { return Err(K8sError::LaunchPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); },
+        Err(err)  => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
     };
     // Query the user to find the function & input arguments
     debug!("Prompting the user (you!) for input");
     let (function, args): (String, HashMap<String, FullValue>) = match prompt_for_input(&data_index, package) {
         Ok(res)  => res,
-        Err(err) => { return Err(K8sError::LaunchPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); },
+        Err(err) => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
     };
 
     // Deduce the auth method from the input
@@ -124,22 +123,22 @@ async fn k8s_launch(package: &PackageInfo, launch: impl LaunchArgs) -> Result<(H
     debug!("Loading Kubernetes config file '{}'...", config_path.display());
     let config: Config = match read_config_async(&config_path).await {
         Ok(config) => config,
-        Err(err)   =>{ return Err(K8sError::LaunchPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); },
+        Err(err)   =>{ return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
     };
 
     // Attempt to resolve the image file
     debug!("Resolving image source '{}'...", launch.image().display());
-    let image: Image = Image::new(&package.metadata.name, Some(&package.metadata.version), None::<String>);
+    let image: Image = Image::new(&package.name, Some(&package.version), None::<String>);
     let source: ImageSource = match resolve_image_source(&image, ImageSource::Path(launch.image().into()), launch.registry().clone(), auth.clone(), launch.insecure()).await {
         Ok(source) => source,
-        Err(err)   => { return Err(K8sError::LaunchPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); },
+        Err(err)   => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
     };
 
     // Now connect to the cluster
     debug!("Connecting to cluster...");
     let client: Client = match Client::new(config) {
         Ok(client) => client,
-        Err(err)   => { return Err(K8sError::LaunchPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); },
+        Err(err)   => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
     };
 
     // Create a secret for the registry
@@ -150,7 +149,7 @@ async fn k8s_launch(package: &PackageInfo, launch: impl LaunchArgs) -> Result<(H
             let scope: Scope<Secret> = client.scope("default");
             match scope.create_registry_secret(launch.registry(), auth).await {
                 Ok(handle) => Some(handle),
-                Err(err)   => { return Err(K8sError::LaunchPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); },
+                Err(err)   => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
             }
         },
 
@@ -172,12 +171,13 @@ async fn k8s_launch(package: &PackageInfo, launch: impl LaunchArgs) -> Result<(H
             "test-location".into(),
             "--job-id".into(),
             "unspecified".into(),
+            package.kind.into(),
             function,
             base64::engine::general_purpose::STANDARD.encode(serde_json::to_string(&args).unwrap()),
         ],
     }, secret.as_ref()).await {
         Ok(handle) => handle,
-        Err(err)   => { return Err(K8sError::LaunchPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); },
+        Err(err)   => { return Err(K8sError::LaunchPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
     };
 
     // Done, return the handles
@@ -201,14 +201,14 @@ async fn k8s_attach(package: &PackageInfo, join: &K8sJoinArguments) -> Result<(H
     debug!("Loading Kubernetes config file '{}'...", config_path.display());
     let config: Config = match read_config_async(&config_path).await {
         Ok(config) => config,
-        Err(err)   =>{ return Err(K8sError::AttachPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); },
+        Err(err)   =>{ return Err(K8sError::AttachPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
     };
 
     // Now connect to the cluster
     debug!("Connecting to cluster...");
     let client: Client = match Client::new(config) {
         Ok(client) => client,
-        Err(err)   => { return Err(K8sError::AttachPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); },
+        Err(err)   => { return Err(K8sError::AttachPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); },
     };
 
     // Attach the pod
@@ -235,15 +235,15 @@ async fn k8s_attach(package: &PackageInfo, join: &K8sJoinArguments) -> Result<(H
 /// This function errors if we failed to wait for any of the tasks.
 async fn k8s_join(package: &PackageInfo, job: Handle<Pod>, secret: Option<Handle<Secret>>) -> Result<(i32, String, String), K8sError> {
     // Begin by waiting until the POD is ready
-    if let Err(err) = job.wait_ready().await { return Err(K8sError::JoinPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); }
+    if let Err(err) = job.wait_ready().await { return Err(K8sError::JoinPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); }
 
     // We can dump the secret now
-    if let Some(secret) = secret { if let Err(err) = secret.terminate().await { return Err(K8sError::JoinPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }); } }
+    if let Some(secret) = secret { if let Err(err) = secret.terminate().await { return Err(K8sError::JoinPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }); } }
 
     // Read the PODs logs, done
     match job.join().await {
         Ok(res)  => Ok(res),
-        Err(err) => Err(K8sError::JoinPackage { name: (&package.metadata.name).into(), version: package.metadata.version, err: Box::new(err) }),
+        Err(err) => Err(K8sError::JoinPackage { name: package.name.clone(), version: package.version, err: Box::new(err) }),
     }
 }
 
@@ -530,7 +530,7 @@ async fn main() {
                 };
 
                 // Detach the job, since this command only launches it
-                println!("Launched package {}{} (as pod '{}')", style(package.metadata.name).bold().blue(), if !package.metadata.version.is_latest() { format!(":{}", style(package.metadata.version).bold().blue()) } else { String::new() }, handle.detach());
+                println!("Launched package {}{} (as pod '{}')", style(package.name).bold().blue(), if !package.version.is_latest() { format!(":{}", style(package.version).bold().blue()) } else { String::new() }, handle.detach());
 
                 // If there is a secret, also detach that (and mention it)
                 if let Some(secret) = secret {
@@ -554,14 +554,14 @@ async fn main() {
                 };
 
                 // Now join those
-                println!("Joining package {}{}...", style(&package.metadata.name).bold().blue(), if !package.metadata.version.is_latest() { format!(":{}", style(package.metadata.version).bold().blue()) } else { String::new() });
+                println!("Joining package {}{}...", style(&package.name).bold().blue(), if !package.version.is_latest() { format!(":{}", style(package.version).bold().blue()) } else { String::new() });
                 let (code, stdout, stderr): (i32, String, String) = match k8s_join(&package, handle, secret).await {
                     Ok(res)  => res,
                     Err(err) => { error!("{}", err.trace()); std::process::exit(1); },
                 };
 
                 // Done!
-                println!("Package {}{} returned exit code {}", style(&package.metadata.name).bold().blue(), if !package.metadata.version.is_latest() { format!(":{}", style(package.metadata.version).bold().blue()) } else { String::new() }, style(code).bold().blue());
+                println!("Package {}{} returned exit code {}", style(&package.name).bold().blue(), if !package.version.is_latest() { format!(":{}", style(package.version).bold().blue()) } else { String::new() }, style(code).bold().blue());
                 println!();
                 println!("{}", style("stdout").dim());
                 println!("{}", style((0..80).map(|_| '-').collect::<String>()).dim());
@@ -589,7 +589,7 @@ async fn main() {
                     Ok(res)  => res,
                     Err(err) => { error!("{}", err.trace()); std::process::exit(1); },
                 };
-                println!("Launched package {}{} (as pod '{}')", style(&package.metadata.name).bold().blue(), if !package.metadata.version.is_latest() { format!(":{}", style(package.metadata.version).bold().blue()) } else { String::new() }, handle.id());
+                println!("Launched package {}{} (as pod '{}')", style(&package.name).bold().blue(), if !package.version.is_latest() { format!(":{}", style(package.version).bold().blue()) } else { String::new() }, handle.id());
                 // If there is a secret, also mention that
                 if let Some(secret) = &secret {
                     println!("{}", style(format!("(Created registry secret '{}' to launch it as well)", secret.id())).dim());
@@ -602,7 +602,7 @@ async fn main() {
                 };
 
                 // Done!
-                println!("Package {}{} returned exit code {}", style(&package.metadata.name).bold().blue(), if !package.metadata.version.is_latest() { format!(":{}", style(package.metadata.version).bold().blue()) } else { String::new() }, style(code).bold().blue());
+                println!("Package {}{} returned exit code {}", style(&package.name).bold().blue(), if !package.version.is_latest() { format!(":{}", style(package.version).bold().blue()) } else { String::new() }, style(code).bold().blue());
                 println!();
                 println!("{}", style("stdout").dim());
                 println!("{}", style((0..80).map(|_| '-').collect::<String>()).dim());

@@ -4,7 +4,7 @@
 //  Created:
 //    23 Nov 2022, 10:52:33
 //  Last edited:
-//    12 Jun 2023, 11:20:12
+//    07 Jun 2023, 16:29:29
 //  Auto updated?
 //    Yes
 // 
@@ -22,9 +22,9 @@ use dotenvy::dotenv;
 use log::{debug, error, info, LevelFilter};
 use warp::Filter;
 
+use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig};
 use brane_cfg::proxy::ProxyConfig;
-use brane_shr::info::Info as _;
 
 use brane_prx::spec::Context;
 use brane_prx::ports::PortAllocator;

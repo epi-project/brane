@@ -3,12 +3,9 @@ name = "brane-shr"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2018"
-description = "Crate that contains commonly used structs, enums and interfaces throughout the project. Note that this differs from `specifications` in that these are not for outside of the project."
-
 
 [dependencies]
-async-compression = { version = "0.4", features = ["tokio","gzip"] }
-async-trait = "0.1"
+async-compression = { version = "0.3.15", features = ["tokio","gzip"] }
 console = "0.15"
 dialoguer = { version = "0.10", features = ["completion", "history"] }
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
@@ -22,19 +19,14 @@ num-traits = "0.2"
 rdkafka = { version = "0.31", features = ["cmake-build"] }
 regex = "1.5"
 reqwest = { version = "0.11", features = ["stream"] }
-serde = "1.0"
-serde_json = "1.0"
-serde_yaml = "0.9"
 sha2 = "0.10.6"
 tokio = { version = "1.20", features = ["rt","macros"] }
 tokio-stream = "0.1"
 tokio-tar = "0.3.0"
 url = "2.2"
 
+specifications = { path = "../specifications" }
 
 [dev-dependencies]
-const_format = "0.2"
 getrandom = "0.2.8"
-# semver = "1.0"
-serde_test = "1.0"
 tempfile = "3.2"

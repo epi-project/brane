@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:47
 //  Last edited:
-//    12 Jun 2023, 11:20:09
+//    16 Mar 2023, 17:28:16
 //  Auto updated?
 //    Yes
 // 
@@ -29,14 +29,14 @@ use rand::Rng as _;
 use rand::distributions::Alphanumeric;
 use serde::Serialize;
 
+use brane_cfg::info::Info as _;
 use brane_cfg::infra::{InfraFile, InfraLocation};
 use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::node::{self, CentralConfig, CentralPaths, CentralServices, ExternalService, KafkaService, NodeConfig, NodeSpecificConfig, PrivateService, PrivateOrExternalService, ProxyPaths, ProxyServices, PublicService, WorkerConfig, WorkerPaths, WorkerServices};
 use brane_cfg::policies::{ContainerPolicy, PolicyFile, UserPolicy};
 use brane_cfg::proxy::{self, ForwardConfig};
-use brane_shr::address::Address;
 use brane_shr::fs::{download_file_async, set_executable, DownloadSecurity};
-use brane_shr::info::Info as _;
+use specifications::address::Address;
 use specifications::package::Capability;
 
 pub use crate::errors::GenerateError as Error;
@@ -801,7 +801,7 @@ pub fn node(path: impl Into<PathBuf>, hosts: Vec<Pair<String, ':', IpAddr>>, fix
     // Write the top comment header thingy
     if let Err(err) = write_node_header(&mut handle) { return Err(Error::FileHeaderWriteError{ what: "infra.yml", path, err }); }
     // Write the file itself
-    if let Err(err) = node_config.to_writer_pretty(handle) { return Err(Error::FileBodyWriteError{ what: "infra.yml", path, err }); }
+    if let Err(err) = node_config.to_writer(handle, true) { return Err(Error::FileBodyWriteError{ what: "infra.yml", path, err }); }
 
     // Done
     println!("Successfully generated {}", style(path.display().to_string()).bold().green());
@@ -1069,7 +1069,7 @@ pub fn infra(locations: Vec<Pair<String, ':', String>>, fix_dirs: bool, path: im
     // Write the header
     if let Err(err) = write_infra_header(&mut handle) { return Err(Error::FileHeaderWriteError { what: "infra.yml", path, err }); }
     // Write the contents
-    if let Err(err) = infra.to_writer_pretty(handle) { return Err(Error::FileBodyWriteError{ what: "infra.yml", path, err }); }
+    if let Err(err) = infra.to_writer(handle, true) { return Err(Error::FileBodyWriteError{ what: "infra.yml", path, err }); }
 
     // Done
     println!("Successfully generated {}", style(path.display().to_string()).bold().green());
@@ -1122,7 +1122,7 @@ pub fn backend(fix_dirs: bool, path: impl Into<PathBuf>, capabilities: Vec<Capab
     // Write the header
     if let Err(err) = write_backend_header(&mut handle) { return Err(Error::FileHeaderWriteError { what: "backend.yml", path, err }); }
     // Write the contents
-    if let Err(err) = backend.to_writer_pretty(handle) { return Err(Error::FileBodyWriteError{ what: "backend.yml", path, err }); }
+    if let Err(err) = backend.to_writer(handle, true) { return Err(Error::FileBodyWriteError{ what: "backend.yml", path, err }); }
 
     // Done
     println!("Successfully generated {}", style(path.display().to_string()).bold().green());
@@ -1172,7 +1172,7 @@ pub fn policy(fix_dirs: bool, path: impl Into<PathBuf>, allow_all: bool) -> Resu
     // Write the header
     if let Err(err) = write_policy_header(&mut handle) { return Err(Error::FileHeaderWriteError{ what: "policies.yml", path, err }); }
     // Write the contents
-    if let Err(err) = policies.to_writer_pretty(handle) { return Err(Error::FileBodyWriteError{ what: "policies.yml", path, err }); }
+    if let Err(err) = policies.to_writer(handle, true) { return Err(Error::FileBodyWriteError{ what: "policies.yml", path, err }); }
 
     // Done
     println!("Successfully generated {}", style(path.display().to_string()).bold().green());
@@ -1218,7 +1218,7 @@ pub fn proxy(fix_dirs: bool, path: impl Into<PathBuf>, outgoing_range: RangeIncl
     // Write the header
     if let Err(err) = write_proxy_header(&mut handle) { return Err(Error::FileHeaderWriteError { what: "proxy.yml", path, err }); }
     // Write the contents
-    if let Err(err) = proxy.to_writer_pretty(handle) { return Err(Error::FileBodyWriteError{ what: "proxy.yml", path, err }); }
+    if let Err(err) = proxy.to_writer(handle, true) { return Err(Error::FileBodyWriteError{ what: "proxy.yml", path, err }); }
 
     // Done
     println!("Successfully generated {}", style(path.display().to_string()).bold().green());

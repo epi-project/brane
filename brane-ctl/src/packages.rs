@@ -4,7 +4,7 @@
 //  Created:
 //    06 Dec 2022, 11:57:11
 //  Last edited:
-//    12 Jun 2023, 11:20:08
+//    10 Mar 2023, 16:49:17
 //  Auto updated?
 //    Yes
 // 
@@ -20,10 +20,10 @@ use std::str::FromStr;
 
 use log::{debug, info, warn};
 
+use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, NodeKind, NodeSpecificConfig};
-use brane_shr::info::Info as _;
-use brane_shr::version::Version;
 use brane_tsk::docker;
+use specifications::version::Version;
 
 pub use crate::errors::PackagesError as Error;
 

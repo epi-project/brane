@@ -21,9 +21,9 @@ use tokio::fs::File as TokioFile;
 use tokio_util::codec::{BytesCodec, FramedRead};
 use uuid::Uuid;
 
-use brane_shr::version::Version;
 use brane_tsk::local::get_package_versions;
 use specifications::package::{PackageKind, PackageInfo};
+use specifications::version::Version;
 
 use crate::errors::RegistryError;
 use crate::utils::{get_packages_dir, ensure_package_dir, ensure_packages_dir};
@@ -189,7 +189,7 @@ pub async fn pull(
             };
 
             // Then parse the package functions
-            let functions: HashMap<String, specifications::common_old::Function> = match package.functions_as_json.as_ref() {
+            let functions: HashMap<String, specifications::common::Function> = match package.functions_as_json.as_ref() {
                 Some(functions) => match serde_json::from_str(functions) {
                     Ok(functions) => functions,
                     Err(err)      => { return Err(RegistryError::FunctionsParseError{ url, raw: functions.clone(), err }); }
@@ -198,7 +198,7 @@ pub async fn pull(
             };
 
             // Parse the types as last
-            let types: HashMap<String, specifications::common_old::Type> = match package.types_as_json.as_ref() {
+            let types: HashMap<String, specifications::common::Type> = match package.types_as_json.as_ref() {
                 Some(types) => match serde_json::from_str(types) {
                     Ok(types) => types,
                     Err(err)  => { return Err(RegistryError::TypesParseError{ url, raw: types.clone(), err }); }

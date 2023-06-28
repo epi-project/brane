@@ -19,11 +19,11 @@ use console::style;
 
 use brane_ast::ParserOptions;
 use brane_exe::FullValue;
-use brane_shr::version::Version;
 use brane_tsk::docker::DockerOptions;
 use brane_tsk::input::prompt_for_input;
 use specifications::data::DataIndex;
 use specifications::package::PackageInfo;
+use specifications::version::Version;
 
 use crate::errors::TestError;
 use crate::utils::{ensure_datasets_dir, ensure_package_dir};

@@ -4,7 +4,7 @@
 //  Created:
 //    10 Aug 2022, 13:52:37
 //  Last edited:
-//    19 Jun 2023, 10:33:59
+//    09 Jan 2023, 13:19:38
 //  Auto updated?
 //    Yes
 // 
@@ -20,7 +20,7 @@ use console::{style, Style};
 use brane_dsl::{DataType, TextRange};
 use brane_dsl::spec::MergeStrategy;
 use brane_dsl::ast::Expr;
-use brane_shr::version::Version;
+use specifications::version::Version;
 
 use crate::spec::BuiltinClasses;
 
@@ -490,7 +490,7 @@ impl Error for SanityError {}
 #[derive(Debug)]
 pub enum ResolveError {
     /// Failed to parse a package version number.
-    VersionParseError{ err: brane_shr::version::ParseError, range: TextRange },
+    VersionParseError{ err: specifications::version::ParseError, range: TextRange },
     /// The given package/version pair was not found.
     UnknownPackageError{ name: String, version: Version, range: TextRange },
     /// Failed to declare an imported package function
@@ -534,9 +534,6 @@ pub enum ResolveError {
 
     /// The given variable was not declared before.
     UndefinedVariable{ ident: String, range: TextRange },
-
-    /// The given package info had a function with more than one outputs.
-    FunctionTooManyOutputs { name: String, package: (String, Version), got: usize },
 }
 
 impl ResolveError {
@@ -582,9 +579,6 @@ impl ResolveError {
             UnknownDataError{ range, .. }  => prettyprint_err(file, source, self, range),
 
             UndefinedVariable{ range, .. } => prettyprint_err(file, source, self, range),
-
-            // Does not relate to the source
-            FunctionTooManyOutputs { .. } => { eprintln!("{}: {self}", style("error").bold().red()); },
         }
     }
 }
@@ -620,8 +614,6 @@ impl Display for ResolveError {
             UnknownDataError{ name, .. } => write!(f, "No location has access to data asset '{name}'"),
 
             UndefinedVariable{ ident, .. } => write!(f, "Undefined variable or parameter '{ident}'"),
-
-            FunctionTooManyOutputs { name, package, got } => write!(f, "Function '{name}' in package {}:{} has {got} outputs defined, while the compiler currently only suppors at most 1", package.0, package.1),
         }
     }
 }

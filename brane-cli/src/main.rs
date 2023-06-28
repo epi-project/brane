@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    26 Jun 2023, 11:20:19
+//    25 May 2023, 20:15:57
 //  Auto updated?
 //    Yes
 // 
@@ -28,11 +28,11 @@ use log::LevelFilter;
 use tempfile::tempdir;
 
 use brane_dsl::Language;
-use brane_shr::version::Version as SemVersion;
 use brane_tsk::spec::AppId;
 use brane_tsk::docker::{ClientVersion, DockerOptions};
 use specifications::arch::Arch;
 use specifications::package::PackageKind;
+use specifications::version::Version as SemVersion;
 
 use brane_cli::{build_ecu, build_oas, certs, data, instance, packages, registry, repl, run, test, verify, version};
 use brane_cli::errors::{CliError, ImportError};
@@ -271,12 +271,6 @@ enum SubCommand {
         keep_containers : bool,
     },
 
-    #[clap(name = "search", about = "Search a registry for packages")]
-    Search {
-        #[clap(name = "TERM", help = "Term to use as search criteria")]
-        term: Option<String>,
-    },
-
     #[clap(name = "test", about = "Test a package locally")]
     Test {
         #[clap(name = "NAME", help = "Name of the package")]
@@ -306,11 +300,10 @@ enum SubCommand {
         keep_containers : bool,
     },
 
-    #[clap(name = "upgrade", about = "Upgrade outdated files such as container or data YAML files to be compatible with this version.")]
-    Upgrade {
-        /// The thing to upgrade.
-        #[clap(subcommand)]
-        subcommand : UpgradeSubcommand,
+    #[clap(name = "search", about = "Search a registry for packages")]
+    Search {
+        #[clap(name = "TERM", help = "Term to use as search criteria")]
+        term: Option<String>,
     },
 
     #[clap(name = "unpublish", about = "Remove a package from a registry")]
@@ -507,44 +500,6 @@ enum InstanceSubcommand {
         /// Change the driver port to this.
         #[clap(short, long, help = "If given, changes the port of the driver service for this instance to this.")]
         drv_port : Option<u16>,
-    },
-}
-
-/// Defines the subcommands for the upgrade subcommand
-#[derive(Parser)]
-enum UpgradeSubcommand {
-    #[clap(name = "container", about = "Upgrade container.yaml files to be compatible with this BRANE version.")]
-    Container {
-        /// The file or folder to upgrade.
-        #[clap(name = "PATH", default_value = "./", help = "The path to the file or folder (recursively traversed) of files to upgrade to this version. If a directory, will examine any YAML files that will be successfully parsed with an old container.yaml parser.")]
-        path : PathBuf,
-
-        /// Whether to run dryly or not
-        #[clap(short, long, help = "If given, does not do anything but instead just reports which files would be updated.")]
-        dry_run   : bool,
-        /// Whether to keep old versions
-        #[clap(short='O', long, help = "If given, will not keep the old versions alongside the new ones but instead overwrite them. Use them only if you are certain no unrelated files are converted or converted incorrectly! (see '--dry-run')")]
-        overwrite : bool,
-        /// Fixes the version from which we are converting.
-        #[clap(short, long, default_value = "all", help = "Whether to consider only one version when examining a file. Can be any valid BRANE version or 'auto' to use all supported versions.")]
-        version   : VersionFix,
-    },
-
-    #[clap(name = "data", about = "Upgrade data.yaml files to be compatible with this BRANE version.")]
-    Data {
-        /// The file or folder to upgrade.
-        #[clap(name = "PATH", default_value = "./", help = "The path to the file or folder (recursively traversed) of files to upgrade to this version. If a directory, will examine any YAML files that will be successfully parsed with an old data.yaml parser.")]
-        path : PathBuf,
-
-        /// Whether to run dryly or not
-        #[clap(short, long, help = "If given, does not do anything but instead just reports which files would be updated.")]
-        dry_run   : bool,
-        /// Whether to keep old versions
-        #[clap(short='O', long, help = "If given, will not keep the old versions alongside the new ones but instead overwrite them. Use them only if you are certain no unrelated files are converted or converted incorrectly! (see '--dry-run')")]
-        overwrite : bool,
-        /// Fixes the version from which we are converting.
-        #[clap(short, long, default_value = "all", help = "Whether to consider only one version when examining a file. Can be any valid BRANE version or 'auto' to use all supported versions.")]
-        version   : VersionFix,
     },
 }
 
@@ -841,15 +796,6 @@ async fn run(options: Cli) -> Result<(), CliError> {
         Unpublish { name, version, force } => {
             if let Err(err) = registry::unpublish(name, version, force).await { return Err(CliError::OtherError{ err }); };
         }
-        Upgrade { subcommand } => match subcommand {
-            UpgradeSubcommand::Container { path, dry_run, overwrite, version } => {
-                todo!();
-            },
-
-            UpgradeSubcommand::Data { path, dry_run, overwrite, version } => {
-                todo!();
-            },
-        },
         Verify { subcommand } => {
             // Match the subcommand in question
             use VerifySubcommand::*;

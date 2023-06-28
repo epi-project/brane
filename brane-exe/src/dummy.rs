@@ -4,7 +4,7 @@
 //  Created:
 //    13 Sep 2022, 16:43:11
 //  Last edited:
-//    28 Jun 2023, 19:24:40
+//    01 Feb 2023, 14:25:08
 //  Auto updated?
 //    Yes
 // 
@@ -22,8 +22,8 @@ use log::info;
 
 use brane_ast::{DataType, Workflow};
 use brane_ast::locations::Location;
-use brane_ast::ast::{AvailabilityKind, DataName, Edge, PreprocessKind, SymTable};
-use specifications::data_new::backend::{DataSpecificInfo, FileInfo};
+use brane_ast::ast::{DataName, Edge, SymTable};
+use specifications::data::{AccessKind, AvailabilityKind};
 use specifications::profiling::ProfileScopeHandle;
 
 pub use crate::errors::DummyVmError as Error;
@@ -123,11 +123,11 @@ impl VmPlugin for DummyPlugin {
     type CommitError     = std::convert::Infallible;
 
 
-    async fn preprocess(_global: Arc<RwLock<Self::GlobalState>>, _local: Self::LocalState, _loc: Location, name: DataName, _preprocess: PreprocessKind, _prof: ProfileScopeHandle<'_>) -> Result<DataSpecificInfo, Self::PreprocessError> {
+    async fn preprocess(_global: Arc<RwLock<Self::GlobalState>>, _local: Self::LocalState, _loc: Location, name: DataName, _preprocess: specifications::data::PreprocessKind, _prof: ProfileScopeHandle<'_>) -> Result<AccessKind, Self::PreprocessError> {
         info!("Processing dummy `DummyVm::preprocess()` call for intermediate result '{}'", name);
 
         // We also accept it with a dummy accesskind
-        Ok(DataSpecificInfo::File(FileInfo { path: PathBuf::new() }))
+        Ok(AccessKind::File{ path: PathBuf::new() })
     }
 
     async fn execute(global: &Arc<RwLock<Self::GlobalState>>, _local: &Self::LocalState, info: TaskInfo<'_>, _prof: ProfileScopeHandle<'_>) -> Result<Option<FullValue>, Self::ExecuteError> {
@@ -203,7 +203,7 @@ impl DummyPlanner {
                 // For all dataset/intermediate result inputs, we assert they are available on the local location
                 for (name, avail) in input {
                     // Just set it as available to _something_, for testing purposes.
-                    *avail = Some(AvailabilityKind::Available { how: DataSpecificInfo::File(FileInfo{ path: PathBuf::from(name.name()) }) });
+                    *avail = Some(AvailabilityKind::Available { how: AccessKind::File{ path: PathBuf::from(name.name()) } });
                 }
 
                 // Then, we make the intermediate result available at the location where the function is being run (if there is any)

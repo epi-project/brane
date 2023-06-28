@@ -4,7 +4,7 @@
 //  Created:
 //    01 Jun 2023, 12:43:20
 //  Last edited:
-//    12 Jun 2023, 11:20:18
+//    07 Jun 2023, 16:05:50
 //  Auto updated?
 //    Yes
 // 
@@ -26,11 +26,11 @@ use dirs_2::config_dir;
 use enum_debug::EnumDebug as _;
 use log::{debug, info};
 
+use brane_cfg::info::Info;
 use brane_cfg::node::{self, NodeConfig, NodeKind, NodeSpecificConfig};
 use brane_cfg::proxy::{ForwardConfig, ProxyConfig, ProxyProtocol};
-use brane_shr::address::Address;
-use brane_shr::info::{Info, YamlInterface};
 use brane_shr::input::{confirm, input, input_map, input_path, select, FileHistory};
+use specifications::address::Address;
 
 use crate::spec::InclusiveRange;
 
@@ -81,7 +81,7 @@ pub enum Error {
     /// Failed to create a new file.
     ConfigCreate { path: PathBuf, err: std::io::Error },
     /// Failed to generate a configuration file.
-    ConfigSerialize { path: PathBuf, err: brane_shr::info::YamlError },
+    ConfigSerialize { path: PathBuf, err: brane_cfg::info::YamlError },
     /// Failed to write to the config file.
     ConfigWrite { path: PathBuf, err: std::io::Error },
     /// Failed to generate a directory.
@@ -145,9 +145,9 @@ impl error::Error for Error {
 /// 
 /// # Panics
 /// This function may panic if the given path has no filename.
-fn write_config<I>(config: I, path: impl AsRef<Path>, url: impl AsRef<str>) -> Result<(), Error>
+fn write_config<C>(config: C, path: impl AsRef<Path>, url: impl AsRef<str>) -> Result<(), Error>
 where
-    I: Info<YamlInterface>,
+    C: Info<Error = serde_yaml::Error>,
 {
     let path: &Path = path.as_ref();
     let url: &str = url.as_ref();
@@ -205,7 +205,7 @@ where
     if let Err(err) = writeln!(handle) { return Err(Error::ConfigWrite { path: path.into(), err }) };
 
     // Write the remainder of the file
-    if let Err(err) = config.to_writer_pretty(handle) { return Err(Error::ConfigSerialize { path: path.into(), err }); }
+    if let Err(err) = config.to_writer(handle, true) { return Err(Error::ConfigSerialize { path: path.into(), err }); }
     Ok(())
 }
 
