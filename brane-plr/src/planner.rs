@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    28 Jun 2023, 09:42:31
+//    28 Jun 2023, 19:25:37
 //  Auto updated?
 //    Yes
 // 
@@ -35,7 +35,7 @@ use reqwest::Response;
 
 use brane_ast::Workflow;
 use brane_ast::locations::Locations;
-use brane_ast::ast::{ComputeTaskDef, DataName, Edge, SymTable, TaskDef};
+use brane_ast::ast::{AvailabilityKind, ComputeTaskDef, DataName, Edge, SymTable, TaskDef};
 use brane_cfg::infra::InfraFile;
 use brane_cfg::node::{CentralConfig, NodeConfig};
 use brane_shr::address::Address;
@@ -203,7 +203,7 @@ async fn plan_edges(table: &mut SymTable, edges: &mut [Edge], api_addr: &Address
                         DataName::Data(name) => {
                             if let Some(info) = dindex.get(name, Version::latest()) {
                                 // Check if it is local or remote
-                                if let Some(access) = info.locations.get(&location) {
+                                if let Some(location) = info.locations.get(&location) {
                                     debug!("Input dataset '{}' is locally available", name);
                                     *avail = Some(AvailabilityKind::Available { how: access.clone() });
                                 } else {

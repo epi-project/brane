@@ -4,7 +4,7 @@
 //  Created:
 //    26 Aug 2022, 18:26:40
 //  Last edited:
-//    21 Jun 2023, 11:30:30
+//    28 Jun 2023, 19:22:37
 //  Auto updated?
 //    Yes
 // 
@@ -19,10 +19,10 @@ use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 use brane_ast::locations::Location;
-use brane_ast::ast::{DataName, SymTable};
+use brane_ast::ast::{DataName, PreprocessKind, SymTable};
 use brane_shr::version::Version;
 use specifications::capabilities::Capability;
-use specifications::data::{AccessKind, PreprocessKind};
+use specifications::data_new::backend::DataSpecificInfo;
 use specifications::profiling::ProfileScopeHandle;
 
 use crate::value::FullValue;
@@ -90,7 +90,7 @@ pub trait VmPlugin: 'static + Send + Sync {
     /// 
     /// # Errors
     /// This function may error whenever it likes.
-    async fn preprocess(global: Arc<RwLock<Self::GlobalState>>, local: Self::LocalState, loc: Location, name: DataName, preprocess: PreprocessKind, prof: ProfileScopeHandle<'_>) -> Result<AccessKind, Self::PreprocessError>;
+    async fn preprocess(global: Arc<RwLock<Self::GlobalState>>, local: Self::LocalState, loc: Location, name: DataName, preprocess: PreprocessKind, prof: ProfileScopeHandle<'_>) -> Result<DataSpecificInfo, Self::PreprocessError>;
 
 
 
@@ -230,7 +230,7 @@ pub struct TaskInfo<'a> {
     /// The planned location for this task.
     pub location : &'a Location,
     /// The list of inputs to the workflow.
-    pub input    : HashMap<DataName, AccessKind>,
+    pub input    : HashMap<DataName, DataSpecificInfo>,
     /// If this task returns an intermediate result, then this specifies the name it should have.
     pub result   : &'a Option<String>,
 }

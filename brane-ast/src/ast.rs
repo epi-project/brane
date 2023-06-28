@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    28 Jun 2023, 09:43:48
+//    28 Jun 2023, 19:19:40
 //  Auto updated?
 //    Yes
 // 
@@ -28,6 +28,7 @@ use serde_json_any_key::any_key_map;
 use brane_dsl::spec::MergeStrategy;
 use brane_shr::version::Version;
 use specifications::capabilities::Capability;
+use specifications::data_new::backend::DataSpecificInfo;
 
 use crate::errors::DataNameDeserializeError;
 use crate::data_type::DataType;
@@ -570,6 +571,59 @@ impl From<&DataName> for specifications::working::DataName {
 impl From<&mut DataName> for specifications::working::DataName {
     #[inline]
     fn from(value: &mut DataName) -> Self { Self::from(value.clone()) }
+}
+
+
+/// Defines whether a dataset is accessible locally or remotely (and thus needs to be transferred first).
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum AvailabilityKind {
+    /// The file is locally available and ready for usage.
+    Available{
+        #[serde(rename = "h")]
+        how: DataSpecificInfo,
+    },
+
+    /// The file needs to be preprocessed first (probably transferred).
+    Unavailable{
+        #[serde(rename = "h")]
+        how: PreprocessKind,
+    },
+}
+impl AvailabilityKind {
+    /// Returns if this AvailabilityKind is an `AvailabilityKind::Available`.
+    #[inline]
+    pub fn is_available(&self) -> bool { matches!(self, Self::Available { .. }) }
+    /// Returns if this AvailabilityKind is an `AvailabilityKind::Unvailable`.
+    #[inline]
+    pub fn is_unavailable(&self) -> bool { matches!(self, Self::Unavailable { .. }) }
+
+    /// Returns the internal AccessKind is this AvailabilityKind is `AvailabilityKind::Available`.
+    /// 
+    /// # Panics
+    /// This function panics if it is not `AvailabilityKind::Available`.
+    #[inline]
+    pub fn into_access(self) -> DataSpecificInfo { if let Self::Available { how } = self { how } else { panic!("Cannot call `AvailabilityKind::into_access()` on non-AvailabilityKind::Available"); } }
+    /// Returns the internal PreprocessKind is this AvailabilityKind is `AvailabilityKind::Unavailable`.
+    /// 
+    /// # Panics
+    /// This function panics if it is not `AvailabilityKind::Unavailable`.
+    #[inline]
+    pub fn into_preprocess(self) -> PreprocessKind { if let Self::Unavailable { how: preprocess } = self { preprocess } else { panic!("Cannot call `AvailabilityKind::into_preprocess()` on non-AvailabilityKind::Unavailable"); } }
+}
+
+
+/// Defines possible ways of downloading datasets to make them locally available.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum PreprocessKind {
+    /// By a `brane-reg` service, downloading as a tar file and then extracting.
+    TransferRegistryTar {
+        /// The location where the address is from.
+        location : Location,
+        /// The address + path that, once it receives a GET-request with credentials and such, downloads the referenced dataset.
+        address  : String,
+    },
 }
 
 
