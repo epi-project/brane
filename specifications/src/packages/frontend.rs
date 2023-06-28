@@ -4,7 +4,7 @@
 //  Created:
 //    20 Jun 2023, 17:12:20
 //  Last edited:
-//    27 Jun 2023, 18:56:28
+//    28 Jun 2023, 09:40:39
 //  Auto updated?
 //    Yes
 // 
@@ -14,10 +14,11 @@
 //!   run it.
 // 
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::str::FromStr;
 
+use chrono::Utc;
 use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
 use serde::de::{self, Deserializer, Visitor};
@@ -237,6 +238,86 @@ pub struct PackageInfo {
     pub implementation : PackageBuildInfo,
 }
 impl YamlInfo for PackageInfo {}
+
+impl From<PackageInfo> for backend::PackageInfo {
+    fn from(value: PackageInfo) -> Self {
+        // Build the functions and classes maps
+        let functions : HashMap<Identifier, Function<backend::FunctionImplementation>>;
+        let classes   : HashMap<Identifier, Class<backend::FunctionImplementation>>;
+        match value.implementation {
+            PackageBuildInfo::Ecu(ecu) => {
+                functions = ecu.functions.into_iter().map(|(name, func)| {
+                    (name, Function {
+                        description    : func.description,
+                        input          : func.input,
+                        output         : func.output,
+                        implementation : backend::FunctionImplementation::Ecu(func.implementation.backend),
+                    })
+                }).collect();
+                classes = ecu.classes.into_iter().map(|(name, class)| {
+                    (name, Class {
+                        description : class.description,
+                        props       : class.props,
+                        methods     : class.methods.into_iter().map(|(name, func)| {
+                            (name, Function {
+                                description    : func.description,
+                                input          : func.input,
+                                output         : func.output,
+                                implementation : backend::FunctionImplementation::Ecu(func.implementation.backend),
+                            })
+                        }).collect(),
+                    })
+                }).collect();
+            },
+
+            PackageBuildInfo::Dsl(_) |
+            PackageBuildInfo::Cwl(_) => { todo!(); }
+        }
+
+        // Now we can build the final PackageInfo
+        backend::PackageInfo {
+            metadata  : value.metadata,
+            created   : Utc::now(),
+            locations : HashSet::new(),
+
+            functions,
+            classes,
+        }
+    }
+}
+impl From<PackageInfo> for internal::PackageInfo {
+    #[inline]
+    fn from(value: PackageInfo) -> Self {
+        let implementation : EcuInfo = value.implementation.into_ecu();
+        internal::PackageInfo {
+            metadata : value.metadata,
+            kind     : PackageKind::Ecu,
+
+            functions : implementation.functions.into_iter().map(|(name, func)| {
+                (name, Function {
+                    description    : func.description,
+                    input          : func.input,
+                    output         : func.output,
+                    implementation : func.implementation.internal,
+                })
+            }).collect(),
+            classes : implementation.classes.into_iter().map(|(name, class)| {
+                (name, Class {
+                    description : class.description,
+                    props       : class.props,
+                    methods     : class.methods.into_iter().map(|(name, func)| {
+                        (name, Function {
+                            description    : func.description,
+                            input          : func.input,
+                            output         : func.output,
+                            implementation : func.implementation.internal,
+                        })
+                    }).collect(),
+                })
+            }).collect(),
+        }
+    }
+}
 
 
 

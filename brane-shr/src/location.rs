@@ -4,7 +4,7 @@
 //  Created:
 //    27 Jun 2023, 18:54:43
 //  Last edited:
-//    27 Jun 2023, 19:05:37
+//    28 Jun 2023, 09:40:10
 //  Auto updated?
 //    Yes
 // 
@@ -65,13 +65,13 @@ impl Location {
 impl Debug for Location {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        write!(f, "Location(&{:?})", self.0)
+        write!(f, "Location({:?})", self.0)
     }
 }
 impl Display for Location {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        write!(f, "Location(&{})", self.0)
+        write!(f, "{}", self.0)
     }
 }
 impl FromStr for Location {

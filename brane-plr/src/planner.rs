@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    27 Jun 2023, 18:52:12
+//    28 Jun 2023, 09:42:31
 //  Auto updated?
 //    Yes
 // 
@@ -41,10 +41,11 @@ use brane_cfg::node::{CentralConfig, NodeConfig};
 use brane_shr::address::Address;
 use brane_shr::info::Info as _;
 use brane_shr::kafka::{ensure_topics, restore_committed_offsets};
+use brane_shr::location::Location;
 use brane_shr::version::Version;
 use brane_tsk::errors::PlanError;
 use specifications::capabilities::Capability;
-use specifications::data::{AccessKind, AvailabilityKind, PreprocessKind};
+use specifications::data_new::backend::DataSpecificInfo;
 use specifications::index::DataIndex;
 use specifications::planning::{PlanningStatus, PlanningStatusKind, PlanningUpdate};
 use specifications::profiling::ProfileReport;
@@ -145,14 +146,14 @@ async fn plan_edges(table: &mut SymTable, edges: &mut [Edge], api_addr: &Address
                 // If everything is allowed, we make it one easier for the planner by checking we happen to find only one occurrance based on the datasets
                 if locs.is_all() {
                     // Search all of the input to collect a list of possible locations
-                    let mut data_locs: Vec<&String> = vec![];
+                    let mut data_locs: Vec<&Location> = vec![];
                     for (d, _) in input.iter() {
                         // We only take data into account (for now, at least)
                         if let DataName::Data(name) = d {
                             // Attempt to find it
                             if let Some(info) = dindex.get(name, Version::latest()) {
                                 // Simply add all locations where it lives
-                                data_locs.append(&mut info.access.keys().collect::<Vec<&String>>());
+                                data_locs.append(&mut info.locations.iter().collect::<Vec<&Location>>());
                             } else {
                                 return Err(PlanError::UnknownDataset{ name: name.clone() });
                             }
@@ -161,13 +162,13 @@ async fn plan_edges(table: &mut SymTable, edges: &mut [Edge], api_addr: &Address
 
                     // If there is only one location, then we override locs
                     if data_locs.len() == 1 {
-                        *locs = Locations::Restricted(vec![ data_locs[0].clone() ]);
+                        *locs = Locations::Restricted(vec![ data_locs[0].into() ]);
                     }
                 }
 
                 // We resolve all locations by collapsing them to the only possibility indicated by the user. More or less than zero? Error!
                 if !locs.is_restrictive() || locs.restricted().len() != 1 { return Err(PlanError::AmbigiousLocationError{ name: table.tasks[*task].name().into(), locs: locs.clone() }); }
-                let location: &str = &locs.restricted()[0];
+                let location: Location = (&locs.restricted()[0]).into();
 
                 // Fetch the list of capabilities supported by the planned location
                 let address: String = format!("{api_addr}/infra/capabilities/{location}");
@@ -202,7 +203,7 @@ async fn plan_edges(table: &mut SymTable, edges: &mut [Edge], api_addr: &Address
                         DataName::Data(name) => {
                             if let Some(info) = dindex.get(name, Version::latest()) {
                                 // Check if it is local or remote
-                                if let Some(access) = info.layout.get(location) {
+                                if let Some(access) = info.locations.get(&location) {
                                     debug!("Input dataset '{}' is locally available", name);
                                     *avail = Some(AvailabilityKind::Available { how: access.clone() });
                                 } else {

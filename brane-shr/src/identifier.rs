@@ -4,7 +4,7 @@
 //  Created:
 //    18 Jun 2023, 18:25:39
 //  Last edited:
-//    27 Jun 2023, 16:31:19
+//    28 Jun 2023, 09:40:27
 //  Auto updated?
 //    Yes
 // 
@@ -218,13 +218,13 @@ impl Identifier {
 impl Debug for Identifier {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        write!(f, "Identifier(&{:?})", self.0)
+        write!(f, "Identifier({:?})", self.0)
     }
 }
 impl Display for Identifier {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        write!(f, "Identifier(&{})", self.0)
+        write!(f, "{}", self.0)
     }
 }
 impl FromStr for Identifier {

@@ -4,7 +4,7 @@
 //  Created:
 //    18 Jun 2023, 18:22:18
 //  Last edited:
-//    27 Jun 2023, 18:56:19
+//    28 Jun 2023, 09:16:12
 //  Auto updated?
 //    Yes
 // 
@@ -121,7 +121,6 @@ pub struct DataMetadata {
     /// A short description of the package.
     pub description : Option<String>,
 }
-impl JsonInfo for DataMetadata {}
 
 
 /// Defines what we need to know per package type.

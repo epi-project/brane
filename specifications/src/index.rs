@@ -4,7 +4,7 @@
 //  Created:
 //    12 Jun 2023, 17:13:25
 //  Last edited:
-//    27 Jun 2023, 18:56:19
+//    28 Jun 2023, 09:37:30
 //  Auto updated?
 //    Yes
 // 
@@ -33,7 +33,7 @@ use brane_shr::info::{Info, Interface, JsonInterface};
 use brane_shr::identifier::Identifier;
 use brane_shr::version::Version;
 
-use crate::data_new::DataInfo;
+use crate::data_new::backend::DataInfo;
 use crate::packages::backend::PackageInfo;
 
 
