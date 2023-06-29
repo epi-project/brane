@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    28 Jun 2023, 20:19:48
+//    29 Jun 2023, 13:52:06
 //  Auto updated?
 //    Yes
 // 
@@ -23,7 +23,8 @@ use std::os::raw::c_char;
 use std::sync::Once;
 
 use humanlog::{DebugMode, HumanLogger};
-use log::{debug, info};
+use log::{debug, error, info, trace};
+use tokio::runtime::{Builder, Runtime};
 
 use brane_ast::{CompileResult, Error as AstError, ParserOptions, Warning as AstWarning};
 use brane_ast::ast::Workflow;
@@ -125,7 +126,7 @@ pub struct Error {
 #[no_mangle]
 pub unsafe extern "C" fn error_free(err: *mut Error) {
     init_logger();
-    info!("Destroying Error...");
+    trace!("Destroying Error...");
 
     // Simply captute the box, then drop
     drop(Box::from_raw(err))
@@ -179,19 +180,26 @@ pub unsafe extern "C" fn error_msg_occurred(err: *const Error) -> bool {
 /// - `err`: The [`Error`] to check the message status of.
 /// - `file`: Some string describing the source/filename of the source text.
 /// - `source`: The physical source text, as parsed.
+/// 
+/// # Returns
+/// It may be that parsing the given strings as valid UTF-8 fails. In that case, the returned [`Error`] will be non-NULL and describe the error.
 #[no_mangle]
-pub unsafe extern "C" fn error_print_warns(err: *const Error, file: *const c_char, source: *const c_char) {
+pub unsafe extern "C" fn error_print_warns(err: *const Error, file: *const c_char, source: *const c_char) -> *const Error {
     // Read the file & source strings
-    let file: &str = cstr_to_rust(file);
+    let file: &str = match cstr_to_rust(file) {
+        Ok(file) => file,
+        Err(err) => { return err; },
+    };
     let source: &str = match cstr_to_rust(source) {
         Ok(source) => source,
-        Err(err)   => { return err; }
+        Err(err)   => { return err; },
     };
 
     // Iterate over the warnings to print them
     for warn in &(*err).warns {
-        warn.prettyprint(file, source)
+        warn.prettyprint(file, source);
     }
+    std::ptr::null()
 }
 
 /// Prints the errors in this error to stderr.
@@ -202,9 +210,25 @@ pub unsafe extern "C" fn error_print_warns(err: *const Error, file: *const c_cha
 /// - `err`: The [`Error`] to check the message status of.
 /// - `file`: Some string describing the source/filename of the source text.
 /// - `source`: The physical source text, as parsed.
+/// 
+/// # Errors
+/// Note that this function may fail to parse the given `file` and `source` strings as valid UTF-8. In that case, it will not print any source errors, but the fact that it failed to do so instead.
 #[no_mangle]
 pub unsafe extern "C" fn error_print_errs(err: *const Error, file: *const c_char, source: *const c_char) {
-    
+    // Read the file & source strings
+    let file: &str = match cstr_to_rust(file) {
+        Ok(file) => file,
+        Err(err) => { error_print_msg(err); return; },
+    };
+    let source: &str = match cstr_to_rust(source) {
+        Ok(source) => source,
+        Err(err)   => { error_print_msg(err); return; },
+    };
+
+    // Iterate over the errors to print them
+    for err in &(*err).errs {
+        err.prettyprint(file, source);
+    }
 }
 
 /// Prints the non-source related error to stderr.
@@ -215,7 +239,11 @@ pub unsafe extern "C" fn error_print_errs(err: *const Error, file: *const c_char
 /// - `err`: The [`Error`] to print the message of.
 #[no_mangle]
 pub unsafe extern "C" fn error_print_msg(err: *const Error) {
-    
+    // Simply write as a log error
+    if let Some(msg) = &(*err).msg {
+        init_logger();
+        error!("{msg}");
+    }
 }
 
 
@@ -248,7 +276,7 @@ pub unsafe extern "C" fn compiler_new(endpoint: *const c_char, compiler: *mut *m
     init_logger();
     let mut err: Box<Error> = Box::new(Error { msg: None, warns: vec![], errs: vec![] });
     *compiler = std::ptr::null_mut();
-    info!("Constructing BraneScript compiler v{}...", env!("CARGO_PKG_VERSION"));
+    debug!("Constructing BraneScript compiler v{}...", env!("CARGO_PKG_VERSION"));
 
     // Read the endpoint string
     let endpoint: &str = match cstr_to_rust(endpoint) {
@@ -256,9 +284,18 @@ pub unsafe extern "C" fn compiler_new(endpoint: *const c_char, compiler: *mut *m
         Err(err)     => { return err; }
     };
 
+    // Create a local threaded tokio context
+    let runtime: Runtime = match Builder::new_current_thread().enable_time().enable_io().build() {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            err.msg = Some(format!("Failed to create local Tokio context: {e}"));
+            return Box::into_raw(err);
+        }
+    };
+
     // Load the package index
     debug!("Loading package index from '{endpoint}'...");
-    let pindex: PackageIndex = match pollster::block_on(get_package_index(endpoint)) {
+    let pindex: PackageIndex = match runtime.block_on(get_package_index(format!("{endpoint}/graphql"))) {
         Ok(index) => index,
         Err(e) => {
             err.msg = Some(format!("Failed to get package index: {e}"));
@@ -268,7 +305,7 @@ pub unsafe extern "C" fn compiler_new(endpoint: *const c_char, compiler: *mut *m
 
     // Load the data index
     debug!("Loading package index from '{endpoint}'...");
-    let dindex: DataIndex = match pollster::block_on(get_data_index(endpoint)) {
+    let dindex: DataIndex = match runtime.block_on(get_data_index(format!("{endpoint}/data/info"))) {
         Ok(index) => index,
         Err(e) => {
             err.msg = Some(format!("Failed to get data index: {e}"));
@@ -295,7 +332,7 @@ pub unsafe extern "C" fn compiler_new(endpoint: *const c_char, compiler: *mut *m
 #[no_mangle]
 pub unsafe extern "C" fn compiler_free(compiler: *mut Compiler) {
     init_logger();
-    info!("Destroying BraneScript compiler...");
+    trace!("Destroying BraneScript compiler...");
 
     // Take ownership of the compiler and then drop it to destroy
     drop(Box::from_raw(compiler));

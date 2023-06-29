@@ -1,6 +1,8 @@
 {
     "files.associations": {
+        "*.cvc": "c",
         "Dockerfile.*": "dockerfile",
+        "format": "cpp"
     },
     "rust-analyzer.showUnlinkedFileNotification": false
 }
