@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    29 Jun 2023, 13:52:06
+//    30 Jun 2023, 15:21:53
 //  Auto updated?
 //    Yes
 // 
@@ -29,6 +29,7 @@ use tokio::runtime::{Builder, Runtime};
 use brane_ast::{CompileResult, Error as AstError, ParserOptions, Warning as AstWarning};
 use brane_ast::ast::Workflow;
 use brane_ast::state::CompileState;
+use brane_ast::traversals::print::ast;
 use brane_tsk::api::{get_data_index, get_package_index};
 use specifications::data::DataIndex;
 use specifications::package::PackageIndex;
@@ -294,8 +295,9 @@ pub unsafe extern "C" fn compiler_new(endpoint: *const c_char, compiler: *mut *m
     };
 
     // Load the package index
-    debug!("Loading package index from '{endpoint}'...");
-    let pindex: PackageIndex = match runtime.block_on(get_package_index(format!("{endpoint}/graphql"))) {
+    let package_endpoint: String = format!("{endpoint}/graphql");
+    debug!("Loading package index from '{package_endpoint}'...");
+    let pindex: PackageIndex = match runtime.block_on(get_package_index(package_endpoint)) {
         Ok(index) => index,
         Err(e) => {
             err.msg = Some(format!("Failed to get package index: {e}"));
@@ -304,8 +306,9 @@ pub unsafe extern "C" fn compiler_new(endpoint: *const c_char, compiler: *mut *m
     };
 
     // Load the data index
-    debug!("Loading package index from '{endpoint}'...");
-    let dindex: DataIndex = match runtime.block_on(get_data_index(format!("{endpoint}/data/info"))) {
+    let data_endpoint: String = format!("{endpoint}/data/info");
+    debug!("Loading data index from '{data_endpoint}'...");
+    let dindex: DataIndex = match runtime.block_on(get_data_index(data_endpoint)) {
         Ok(index) => index,
         Err(e) => {
             err.msg = Some(format!("Failed to get data index: {e}"));
@@ -365,7 +368,13 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, bs: *const c_
     /* INPUT */
     // Cast the Compiler pointer to a Compiler reference
     debug!("Reading compiler input...");
-    let compiler: &mut Compiler = &mut *compiler;
+    let compiler: &mut Compiler = match compiler.as_mut() {
+        Some(compiler) => compiler,
+        None => {
+            err.msg = Some(format!("Given compiler points to NULL"));
+            return Box::into_raw(err);
+        },
+    };
 
     // Get the input as a Rust string
     let bs: &CStr = CStr::from_ptr(bs);
@@ -427,9 +436,67 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, bs: *const c_
 
     // Write the workflow there
     libc::strncpy(target, workflow.as_ptr(), n_chars);
+    std::slice::from_raw_parts_mut(target, n_chars + 1)[n_chars] = '\0' as i8;
     *wr = target;
 
     // OK, return the error struct!
     debug!("Compilation success");
     Box::into_raw(err)
+}
+
+/// Re-serializes the given JSON workflow as an assemblied overview of the workflow.
+/// 
+/// This is mainly for display purposes; there is no code to re-interpret the assemblied version.
+/// 
+/// # Arguments
+/// - `wr`: The compiler JSON workflow to disassemble.
+/// - `wa`: The disassembled counterpart to the workflow when done. Will be [`NULL`] if there is an error (which can happen if the input is not valid UTF-8 JSON for a workflow).
+/// 
+/// # Returns
+/// An [`Error`]-struct that may or may not contain any generated errors. If [`error_err_occurred()`] is true, though, then `wa` will point to [`NULL`].
+#[no_mangle]
+pub unsafe extern "C" fn compiler_assemble(wr: *const c_char, wa: *mut *mut c_char) -> *const Error {
+    // Set the output to NULL
+    let mut err: Box<Error> = Box::new(Error { msg: None, warns: vec![], errs: vec![] });
+    *wa = std::ptr::null_mut();
+
+    // Read the input string as a Rust string
+    let wr: &str = match cstr_to_rust(wr) {
+        Ok(wr)   => wr,
+        Err(err) => { return err; },
+    };
+    // Attempt to deserialize it
+    let wr: Workflow = match serde_json::from_str(wr) {
+        Ok(wr) => wr,
+        Err(e) => {
+            err.msg = Some(format!("Failed to deserialize given JSON as a Workflow: {e}"));
+            return Box::into_raw(err);
+        },
+    };
+
+    // Run the compiler traversal to serialize it
+    let mut assembly: Vec<u8> = Vec::new();
+    if let Err(e) = ast::do_traversal(wr, &mut assembly) {
+        err.msg = Some(format!("Failed to convert disassembly to a C-compatible string: {}", e[0]));
+        return Box::into_raw(err);
+    }
+
+    // Convert the string to a C-string.
+    let assembly: CString = match CString::new(assembly) {
+        Ok(assembly) => assembly,
+        Err(e)       => {
+            err.msg = Some(format!("Failed to convert disassembly to a C-compatible string: {e}"));
+            return Box::into_raw(err);
+        },
+    };
+
+    // Write that in a malloc-allocated area (so C can free it), and then set it in the output
+    let n_chars: usize = libc::strlen(assembly.as_ptr());
+    let target: *mut c_char = libc::malloc(n_chars + 1) as *mut c_char;
+    libc::strncpy(target, assembly.as_ptr(), n_chars);
+    std::slice::from_raw_parts_mut(target, n_chars + 1)[n_chars] = '\0' as i8;
+    *wa = target;
+
+    // Done, return that no error occurred
+    std::ptr::null()
 }
