@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    30 Jun 2023, 15:21:53
+//    30 Jun 2023, 15:28:36
 //  Auto updated?
 //    Yes
 // 
@@ -245,6 +245,22 @@ pub unsafe extern "C" fn error_print_msg(err: *const Error) {
         init_logger();
         error!("{msg}");
     }
+}
+
+
+
+
+
+/***** LIBRARY SOURCE ERROR *****/
+/// Defines an alternative to the [`Error`]-type that can also encode source-related errors.
+#[derive(Debug)]
+pub struct SourceError {
+    /// Any custom error message to print that is not from the compiler itself.
+    msg   : Option<String>,
+    /// The warning messages to print.
+    warns : Vec<AstWarning>,
+    /// The error messages to print.
+    errs  : Vec<AstError>,
 }
 
 

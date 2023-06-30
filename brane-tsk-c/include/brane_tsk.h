@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   30 Jun 2023, 15:16:23
+ *   30 Jun 2023, 15:29:37
  * Auto updated?
  *   Yes
  *
@@ -26,6 +26,11 @@
  * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
  */
 typedef struct _error Error;
+/* Defines an alternative to the [`Error`]-type that can also encode source-related errors.
+ * 
+ * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
+ */
+typedef struct _source_error SourceError;
 
 /* Defines a BraneScript compiler.
  * 
@@ -34,6 +39,14 @@ typedef struct _error Error;
  * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
  */
 typedef struct _compiler Compiler;
+
+// /* Defines a BRANE instance virtual machine.
+//  * 
+//  * This can run a compiled workflow on a running instance.
+//  * 
+//  * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
+//  */
+// typedef struct _virtual_machine VirtualMachine;
 
 
 
@@ -56,6 +69,18 @@ struct _functions {
 
 
     /***** ERROR *****/
+    /* Destructor for the Error type.
+     *
+     * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+     *
+     * # Arguments
+     * - `err`: The [`Error`] to deallocate.
+     */
+    void (*error_free)(Error* err);
+
+
+
+    /***** SOURCE ERROR *****/
     /* Destructor for the Error type.
      *
      * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
@@ -130,6 +155,8 @@ struct _functions {
 
 
 
+
+
     /***** COMPILER *****/
     /* Constructor for the Compiler.
      * 
@@ -176,6 +203,20 @@ struct _functions {
      * An [`Error`]-struct that may or may not contain any generated errors. If [`error_err_occurred()`] is true, though, then `wa` will point to [`NULL`].
      */
     Error* (*compiler_assemble)(const char* wr, char** wa);
+
+
+
+    // /***** VIRTUAL MACHINE *****/
+    // /* Constructor for the VirtualMachine.
+    //  * 
+    //  * # Arguments
+    //  * - `api_endpoint`: The BRANE API endpoint to connect to for package information.
+    //  * - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
+    //  * - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
+    //  * 
+    //  * # Returns
+    //  * An [`Error`]-struct that may or may not contain any generated errors.
+    //  */
 };
 typedef struct _functions Functions;
 
