@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   30 Jun 2023, 15:29:37
+ *   30 Jun 2023, 15:57:10
  * Auto updated?
  *   Yes
  *
@@ -31,6 +31,12 @@ typedef struct _error Error;
  * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
  */
 typedef struct _source_error SourceError;
+
+/* Defines a BraneScript AST, i.e., compiled source code.
+ * 
+ * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
+ */
+typedef struct _workflow Workflow;
 
 /* Defines a BraneScript compiler.
  * 
@@ -78,82 +84,110 @@ struct _functions {
      */
     void (*error_free)(Error* err);
 
+    /* Prints the error message in this error to stderr.
+     * 
+     * # Arguments
+     * - `serr`: The [`SourceError`] to print the error of.
+     */
+    void (*error_print_err)(Error* serr);
+
 
 
     /***** SOURCE ERROR *****/
-    /* Destructor for the Error type.
+    /* Destructor for the SourceError type.
      *
      * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
      *
      * # Arguments
-     * - `err`: The [`Error`] to deallocate.
+     * - `serr`: The [`SourceError`] to deallocate.
      */
-    void (*error_free)(Error* err);
+    void (*serror_free)(SourceError* serr);
 
-    /* Returns if this error contains a source warning to display or not.
+    /* Returns if a source warning has occurred.
      * 
      * # Arguments
-     * - `err`: The [`Error`] to check the source warning status of.
+     * - `serr`: The [`SourceError`] struct to inspect.
      * 
      * # Returns
-     * True if [`error_print_warns()`] will print anything, or false otherwise.
+     * True if [`serr_print_swarns`] would print anything, or false otherwise.
      */
-    bool (*error_warn_occurred)(Error* err);
-    /* Returns if this error contains a source error to display or not (and thus whether something went wrong).
+    bool (*serror_has_swarns)(SourceError* serr);
+    /* Returns if a source error has occurred.
      * 
      * # Arguments
-     * - `err`: The [`Error`] to check the source error status of.
+     * - `serr`: The [`SourceError`] struct to inspect.
      * 
      * # Returns
-     * True if [`error_print_errs()`] will print anything, or false otherwise.
+     * True if [`serr_print_serrs`] would print anything, or false otherwise.
      */
-    bool (*error_err_occurred)(Error* err);
-    /* Returns if this error contains a message to display or not (and thus whether something went wrong).
+    bool (*serror_has_serrs)(SourceError* serr);
+    /* Returns if a program error has occurred.
      * 
      * # Arguments
-     * - `err`: The [`Error`] to check the message status of.
+     * - `serr`: The [`SourceError`] struct to inspect.
      * 
      * # Returns
-     * True if [`error_print_msg()`] will print anything, or false otherwise.
+     * True if [`serr_print_err`] would print anything, or false otherwise.
      */
-    bool (*error_msg_occurred)(Error* err);
+    bool (*serror_has_err)(SourceError* serr);
 
-    /* Prints the warnings in this error to stderr.
+    /* Prints the source warnings in this error to stderr.
      * 
-     * The error struct may contain multiple errors if the source code contained those.
+     * Note that there may be zero or more warnings at once. To discover if there are any, check [`serror_has_swarns()`].
      * 
      * # Arguments
-     * - `err`: The [`Error`] to print the source warnings of.
+     * - `serr`: The [`SourceError`] to print the source warnings of.
      * - `file`: Some string describing the source/filename of the source text.
      * - `source`: The physical source text, as parsed.
      * 
      * # Returns
-     * It may be that parsing the given strings as valid UTF-8 fails. In that case, the returned [`Error`] will be non-NULL and describe the error.
+     * Whether or not printing was a success. False is essentially only returned if the input `file` or `source` do not point to valid UTF-8 text. In that case, an error message will already have been printed.
      */
-    Error* (*error_print_warns)(Error* err, const char* file, const char* source);
-    /* Prints the errors in this error to stderr.
+    bool (*serror_print_swarns)(SourceError* serr, const char* file, const char* source);
+    /* Prints the source errors in this error to stderr.
      * 
-     * The error struct may contain multiple errors if the source code contained those.
+     * Note that there may be zero or more errors at once. To discover if there are any, check [`serror_has_serrs()`].
      * 
      * # Arguments
-     * - `err`: The [`Error`] to check the source errors of.
+     * - `serr`: The [`SourceError`] to print the source errors of.
      * - `file`: Some string describing the source/filename of the source text.
      * - `source`: The physical source text, as parsed.
      * 
-     * # Errors
-     * Note that this function may fail to parse the given `file` and `source` strings as valid UTF-8. In that case, it will not print any source errors, but the fact that it failed to do so instead.
+     * # Returns
+     * Whether or not printing was a success. False is essentially only returned if the input `file` or `source` do not point to valid UTF-8 text. In that case, an error message will already have been printed.
      */
-    void (*error_print_errs)(Error* err, const char* file, const char* source);
-    /* Prints the non-source related error to stderr.
+    bool (*serror_print_serrs)(SourceError* serr, const char* file, const char* source);
+    /* Prints the error message in this error to stderr.
      * 
-     * This usually indicates a "harder error" that the user did not do with the input source text.
+     * Note that there may be no error, but only source warnings- or errors. To discover if there is any, check [`serror_has_err()`].
      * 
      * # Arguments
-     * - `err`: The [`Error`] to print the message of.
+     * - `serr`: The [`SourceError`] to print the error of.
      */
-    void (*error_print_msg)(Error* err);
+    void (*serror_print_err)(SourceError* serr);
 
 
+
+    /***** WORKFLOW *****/
+    /* Destructor for the Workflow.
+     * 
+     * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+     * 
+     * # Arguments
+     * - `workflow`: The [`Workflow`] to free.
+     */
+    void (*workflow_free)(Workflow* workflow);
+
+    /* Serializes the workflow by essentially disassembling it.
+     * 
+     * # Arguments
+     * - `workflow`: The [`Workflow`] to disassemble.
+     * - `assembly`: The serialized assembly of the same workflow, as a string. Don't forget to free it! Will be [`NULL`] if there is an error (see below).
+     * 
+     * # Returns
+     * [`Null`] in all cases except when an error occurs. Then, an [`Error`]-struct is returned describing the error. Don't forget this has to be freed using [`error_free()`]!
+     */
+    Error* (*workflow_disassemble)(Workflow* workflow, char** assembly);
 
 
 
@@ -162,15 +196,15 @@ struct _functions {
      * 
      * # Arguments
      * - `endpoint`: The endpoint (as an address) to read the package & data index from. This is the address of a `brane-api` instance.
-     * - `compiler`: Will point to the newly created [`Compiler`] when done. **Note**: Has to be manually [`free()`](libc::free())ed.
+     * - `compiler`: Will point to the newly created [`Compiler`] when done. Will be [`NULL`] if there is an error (see below).
      * 
      * # Returns
-     * An [`Error`]-struct that may or may not contain any generated errors. If [`error_err_occurred()`] is true, though, then `compiler` will point to [`NULL`].
+     * [`Null`] in all cases except when an error occurs. Then, an [`Error`]-struct is returned describing the error. Don't forget this has to be freed using [`error_free()`]!
      */
     Error* (*compiler_new)(const char* endpoint, Compiler** compiler);
     /* Destructor for the Compiler.
      * 
-     * SAFETY: You _must_ call this destructor yourself. _Don't_ use any C-library free!
+     * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
      * 
      * # Arguments
      * - `compiler`: The [`Compiler`] to free.
@@ -184,25 +218,13 @@ struct _functions {
      * 
      * # Arguments
      * - `compiler`: The [`Compiler`] to compile with. Essentially this determines which previous compile state to use.
-     * - `bs`: The raw BraneScript snippet to parse.
-     * - `wr`: Will point to the compiled JSON string when done. **Note**: Has to be manually [`free()`](libc::free())ed.
+     * - `raw`: The raw BraneScript snippet to parse.
+     * - `workflow`: Will point to the compiled AST. Will be [`NULL`] if there is an error (see below).
      * 
      * # Returns
-     * An [`Error`]-struct that may or may not contain any generated errors. If [`error_err_occurred()`] is true, though, then `wr` will point to [`NULL`].
+     * [`Null`] in all cases except when an error occurs. Then, an [`SourceError`]-struct is returned describing the error, which can describe source warnings/errors or program errors. Don't forget this has to be freed using [`serror_free()`]!
      */
-    Error* (*compiler_compile)(Compiler* compiler, const char* bs, char** wr);
-    /* Re-serializes the given JSON workflow as an assemblied overview of the workflow.
-     * 
-     * This is mainly for display purposes; there is no code to re-interpret the assemblied version.
-     * 
-     * # Arguments
-     * - `wr`: The compiler JSON workflow to disassemble.
-     * - `wa`: The disassembled counterpart to the workflow when done. Will be [`NULL`] if there is an error (which can happen if the input is not valid UTF-8 JSON for a workflow).
-     * 
-     * # Returns
-     * An [`Error`]-struct that may or may not contain any generated errors. If [`error_err_occurred()`] is true, though, then `wa` will point to [`NULL`].
-     */
-    Error* (*compiler_assemble)(const char* wr, char** wa);
+    SourceError* (*compiler_compile)(Compiler* compiler, const char* raw, Workflow** workflow);
 
 
 
@@ -243,12 +265,18 @@ Functions* functions_load(const char* path) {
 
     // Load the error symbols
     functions->error_free = (void (*)(Error*)) dlsym(functions->handle, "error_free");
-    functions->error_warn_occurred = (bool (*)(Error*)) dlsym(functions->handle, "error_warn_occurred");
-    functions->error_err_occurred = (bool (*)(Error*)) dlsym(functions->handle, "error_err_occurred");
-    functions->error_msg_occurred = (bool (*)(Error*)) dlsym(functions->handle, "error_msg_occurred");
-    functions->error_print_warns = (Error* (*)(Error*, const char*, const char*)) dlsym(functions->handle, "error_print_warns");
-    functions->error_print_errs = (void (*)(Error*, const char*, const char*)) dlsym(functions->handle, "error_print_errs");
-    functions->error_print_msg = (void (*)(Error*)) dlsym(functions->handle, "error_print_msg");
+    functions->error_print_err = (void (*)(Error*)) dlsym(functions->handle, "error_print_err");
+
+    // Load the source error symbols
+    functions->serror_free = (void (*)(SourceError*)) dlsym(functions->handle, "serror_free");
+    functions->serror_has_swarns = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_warns");
+    functions->serror_has_serrs = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_serrs");
+    functions->serror_has_err = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_err");
+    functions->serror_print_swarns = (bool (*)(SourceError*, const char*, const char*)) dlsym(functions->handle, "serror_print_swarns");
+    functions->serror_print_serrs = (bool (*)(SourceError*, const char*, const char*)) dlsym(functions->handle, "serror_print_serrs");
+    functions->serror_print_err = (void (*)(SourceError*)) dlsym(functions->handle, "serror_print_err");
+
+    // Load the workflow symbols
 
     // Load the compiler symbols
     functions->compiler_new = (Error* (*)(const char*, Compiler**)) dlsym(functions->handle, "compiler_new");
