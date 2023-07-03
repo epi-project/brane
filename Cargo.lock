@@ -994,6 +994,7 @@ name = "brane-tsk-c"
 version = "2.0.0"
 dependencies = [
  "brane-ast",
+ "brane-exe",
  "brane-tsk",
  "humanlog",
  "libc",

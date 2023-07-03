@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    03 Jul 2023, 16:16:02
+//    03 Jul 2023, 17:13:35
 //  Auto updated?
 //    Yes
 // 
@@ -28,6 +28,7 @@ use brane_ast::{CompileResult, Error as AstError, ParserOptions, Warning as AstW
 use brane_ast::ast::Workflow;
 use brane_ast::state::CompileState;
 use brane_ast::traversals::print::ast;
+use brane_exe::FullValue;
 use brane_tsk::api::{get_data_index, get_package_index};
 use specifications::data::DataIndex;
 use specifications::package::PackageIndex;
@@ -561,4 +562,65 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, raw: *const c
     // OK, return the error struct!
     debug!("Compilation success");
     Box::into_raw(err)
+}
+
+
+
+
+
+/***** FULL VALUE *****/
+/// Destructor for the FullValue.
+/// 
+/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// 
+/// # Arguments
+/// - `fvalue`: The [`FullValue`] to free.
+#[no_mangle]
+pub unsafe extern "C" fn fvalue_free(fvalue: *mut FullValue) {
+    init_logger();
+    trace!("Destroying FullValue compiler...");
+
+    // Take ownership of the compiler and then drop it to destroy
+    drop(Box::from_raw(fvalue));
+}
+
+
+
+
+
+/***** VIRTUAL MACHINE *****/
+/// Defines a BRANE instance virtual machine.
+/// 
+/// This can run a compiled workflow on a running instance.
+#[derive(Debug)]
+pub struct VirtualMachine {
+    
+}
+
+
+
+/// Constructor for the VirtualMachine.
+/// 
+/// # Arguments
+/// - `api_endpoint`: The BRANE API endpoint to connect to for package information.
+/// - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
+/// - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
+/// 
+/// # Returns
+/// An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
+/// 
+/// # Panics
+/// This function can panic if the given `api_endpoint` or `drv_endpoint` do not point to a valid UTF-8 string.
+#[no_mangle]
+pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *const c_char, vm: *mut *mut VirtualMachine) -> *const Error {
+    init_logger();
+    *vm = std::ptr::null_mut();
+    info!("Constructing BraneScript virtual machine v{}...", env!("CARGO_PKG_VERSION"));
+
+    // Read the endpoints
+    let api_endpoint: &str = cstr_to_rust(api_endpoint);
+    let drv_endpoint: &str = cstr_to_rust(drv_endpoint);
+
+    // 
+    std::ptr::null()
 }

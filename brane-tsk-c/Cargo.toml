@@ -19,5 +19,6 @@ serde_json = "1.0"
 tokio = "1.28"
 
 brane-ast = { path = "../brane-ast" }
+brane-exe = { path = "../brane-exe" }
 brane-tsk = { path = "../brane-tsk" }
 specifications = { path = "../specifications" }

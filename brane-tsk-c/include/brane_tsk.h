@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   03 Jul 2023, 16:11:43
+ *   03 Jul 2023, 16:22:24
  * Auto updated?
  *   Yes
  *
@@ -46,13 +46,18 @@ typedef struct _workflow Workflow;
  */
 typedef struct _compiler Compiler;
 
-// /* Defines a BRANE instance virtual machine.
-//  * 
-//  * This can run a compiled workflow on a running instance.
-//  * 
-//  * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
-//  */
-// typedef struct _virtual_machine VirtualMachine;
+/* Defines a BRANE return value of a workflow.
+ * 
+ * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
+ */
+typedef struct _full_value FullValue;
+/* Defines a BRANE instance virtual machine.
+ * 
+ * This can run a compiled workflow on a running instance.
+ * 
+ * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
+ */
+typedef struct _virtual_machine VirtualMachine;
 
 
 
@@ -251,17 +256,53 @@ struct _functions {
 
 
 
-    // /***** VIRTUAL MACHINE *****/
-    // /* Constructor for the VirtualMachine.
-    //  * 
-    //  * # Arguments
-    //  * - `api_endpoint`: The BRANE API endpoint to connect to for package information.
-    //  * - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
-    //  * - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
-    //  * 
-    //  * # Returns
-    //  * An [`Error`]-struct that may or may not contain any generated errors.
-    //  */
+    /***** FULL VALUE *****/
+    /* Destructor for the FullValue.
+     * 
+     * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+     * 
+     * # Arguments
+     * - `fvalue`: The [`FullValue`] to free.
+     */
+    void (*fvalue_free)(FullValue* fvalue);
+
+
+
+    /***** VIRTUAL MACHINE *****/
+    /* Constructor for the VirtualMachine.
+     * 
+     * # Arguments
+     * - `api_endpoint`: The BRANE API endpoint to connect to for package information.
+     * - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
+     * - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
+     * 
+     * # Returns
+     * An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
+     * 
+     * # Panics
+     * This function can panic if the given `api_endpoint` or `drv_endpoint` do not point to a valid UTF-8 string.
+     */
+    Error* (*vm_new)(const char* api_endpoint, const char* drv_endpoint, VirtualMachine** vm);
+    /* Destructor for the VirtualMachine.
+     * 
+     * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+     * 
+     * # Arguments
+     * - `vm`: The [`VirtualMachine`] to free.
+     */
+    void (*vm_free)(VirtualMachine* vm);
+
+    /* Runs the given Workflow on the backend instance.
+     * 
+     * # Arguments
+     * - `vm`: The [`VirtualMachine`] that we execute with. This determines which backend to use.
+     * - `workflow`: The [`Workflow`] to execute.
+     * - `result`: A [`FullValue`] which represents the return value of the workflow. Will be [`NULL`] if there is an error (see below).
+     * 
+     * # Returns
+     * An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
+     */
+    Error* (*vm_run)(VirtualMachine* vm, Workflow* workflow, FullValue* result);
 };
 typedef struct _functions Functions;
 
