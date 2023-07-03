@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    25 May 2023, 20:12:09
+//    03 Jul 2023, 17:32:04
 //  Auto updated?
 //    Yes
 // 
@@ -95,7 +95,9 @@ fn compile(state: &mut CompileState, source: &mut String, pindex: &PackageIndex,
         _ => { unreachable!(); },
     };
     debug!("Compiled to workflow:\n\n");
-    let workflow = if log::max_level() == log::LevelFilter::Debug{ brane_ast::traversals::print::ast::do_traversal(workflow, std::io::stdout()).unwrap() } else { workflow };
+    if log::max_level() == log::LevelFilter::Debug{
+        brane_ast::traversals::print::ast::do_traversal(&workflow, std::io::stdout()).unwrap();
+    }
 
     // Return
     Ok(workflow)
