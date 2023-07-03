@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   30 Jun 2023, 15:57:10
+ *   03 Jul 2023, 11:38:09
  * Auto updated?
  *   Yes
  *
@@ -87,9 +87,12 @@ struct _functions {
     /* Prints the error message in this error to stderr.
      * 
      * # Arguments
-     * - `serr`: The [`SourceError`] to print the error of.
+     * - `err`: The [`Error`] to print.
+     * 
+     * # Panics
+     * This function can panic if the given `err` is a NULL-pointer.
      */
-    void (*error_print_err)(Error* serr);
+    void (*error_print_err)(Error* err);
 
 
 
@@ -110,6 +113,9 @@ struct _functions {
      * 
      * # Returns
      * True if [`serr_print_swarns`] would print anything, or false otherwise.
+     * 
+     * # Panics
+     * This function can panic if the given `serr` is a NULL-pointer.
      */
     bool (*serror_has_swarns)(SourceError* serr);
     /* Returns if a source error has occurred.
@@ -119,6 +125,9 @@ struct _functions {
      * 
      * # Returns
      * True if [`serr_print_serrs`] would print anything, or false otherwise.
+     * 
+     * # Panics
+     * This function can panic if the given `serr` is a NULL-pointer.
      */
     bool (*serror_has_serrs)(SourceError* serr);
     /* Returns if a program error has occurred.
@@ -128,6 +137,9 @@ struct _functions {
      * 
      * # Returns
      * True if [`serr_print_err`] would print anything, or false otherwise.
+     * 
+     * # Panics
+     * This function can panic if the given `serr` is a NULL-pointer.
      */
     bool (*serror_has_err)(SourceError* serr);
 
@@ -140,10 +152,10 @@ struct _functions {
      * - `file`: Some string describing the source/filename of the source text.
      * - `source`: The physical source text, as parsed.
      * 
-     * # Returns
-     * Whether or not printing was a success. False is essentially only returned if the input `file` or `source` do not point to valid UTF-8 text. In that case, an error message will already have been printed.
+     * # Panics
+     * This function can panic if the given `serr` is a NULL-pointer, or if `file` or `source` do not point to valid UTF-8 strings.
      */
-    bool (*serror_print_swarns)(SourceError* serr, const char* file, const char* source);
+    void (*serror_print_swarns)(SourceError* serr, const char* file, const char* source);
     /* Prints the source errors in this error to stderr.
      * 
      * Note that there may be zero or more errors at once. To discover if there are any, check [`serror_has_serrs()`].
@@ -153,16 +165,19 @@ struct _functions {
      * - `file`: Some string describing the source/filename of the source text.
      * - `source`: The physical source text, as parsed.
      * 
-     * # Returns
-     * Whether or not printing was a success. False is essentially only returned if the input `file` or `source` do not point to valid UTF-8 text. In that case, an error message will already have been printed.
+     * # Panics
+     * This function can panic if the given `serr` is a NULL-pointer, or if `file` or `source` do not point to valid UTF-8 strings.
      */
-    bool (*serror_print_serrs)(SourceError* serr, const char* file, const char* source);
+    void (*serror_print_serrs)(SourceError* serr, const char* file, const char* source);
     /* Prints the error message in this error to stderr.
      * 
      * Note that there may be no error, but only source warnings- or errors. To discover if there is any, check [`serror_has_err()`].
      * 
      * # Arguments
      * - `serr`: The [`SourceError`] to print the error of.
+     * 
+     * # Panics
+     * This function can panic if the given `serr` is a NULL-pointer.
      */
     void (*serror_print_err)(SourceError* serr);
 
@@ -180,12 +195,17 @@ struct _functions {
 
     /* Serializes the workflow by essentially disassembling it.
      * 
+     * NOTE: The given workflow is actually mutated during this call - although it is guaranteed to _not_ mutate when done (weird, no)? Anyway, this functions is read-only for all purposes except when considering multi-threaded access to `workflow`.
+     * 
      * # Arguments
      * - `workflow`: The [`Workflow`] to disassemble.
      * - `assembly`: The serialized assembly of the same workflow, as a string. Don't forget to free it! Will be [`NULL`] if there is an error (see below).
      * 
      * # Returns
      * [`Null`] in all cases except when an error occurs. Then, an [`Error`]-struct is returned describing the error. Don't forget this has to be freed using [`error_free()`]!
+     * 
+     * # Panics
+     * This function can panic if the given `workflow` is a NULL-pointer.
      */
     Error* (*workflow_disassemble)(Workflow* workflow, char** assembly);
 
@@ -200,6 +220,9 @@ struct _functions {
      * 
      * # Returns
      * [`Null`] in all cases except when an error occurs. Then, an [`Error`]-struct is returned describing the error. Don't forget this has to be freed using [`error_free()`]!
+     * 
+     * # Panics
+     * This function can panic if the given `endpoint` does not point to a valid UTF-8 string.
      */
     Error* (*compiler_new)(const char* endpoint, Compiler** compiler);
     /* Destructor for the Compiler.
@@ -213,8 +236,7 @@ struct _functions {
     
     /* Compiles the given BraneScript snippet to the BRANE Workflow Representation.
      * 
-     * Note that the representation is returned as JSON, and not really meant to be inspected from C-code.
-     * Use other functions in this library instead to ensure you are compatible with the latest WR version.
+     * Note that this function changes the `compiler`'s state.
      * 
      * # Arguments
      * - `compiler`: The [`Compiler`] to compile with. Essentially this determines which previous compile state to use.
@@ -222,7 +244,10 @@ struct _functions {
      * - `workflow`: Will point to the compiled AST. Will be [`NULL`] if there is an error (see below).
      * 
      * # Returns
-     * [`Null`] in all cases except when an error occurs. Then, an [`SourceError`]-struct is returned describing the error, which can describe source warnings/errors or program errors. Don't forget this has to be freed using [`serror_free()`]!
+     * A [`SourceError`]-struct describing the error, if any, and source warnings/errors. Don't forget this has to be freed using [`serror_free()`]!
+     * 
+     * # Panics
+     * This function can panic if the given `compiler` points to NULL, or `endpoint` does not point to a valid UTF-8 string.
      */
     SourceError* (*compiler_compile)(Compiler* compiler, const char* raw, Workflow** workflow);
 
@@ -272,17 +297,18 @@ Functions* functions_load(const char* path) {
     functions->serror_has_swarns = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_warns");
     functions->serror_has_serrs = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_serrs");
     functions->serror_has_err = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_err");
-    functions->serror_print_swarns = (bool (*)(SourceError*, const char*, const char*)) dlsym(functions->handle, "serror_print_swarns");
-    functions->serror_print_serrs = (bool (*)(SourceError*, const char*, const char*)) dlsym(functions->handle, "serror_print_serrs");
+    functions->serror_print_swarns = (void (*)(SourceError*, const char*, const char*)) dlsym(functions->handle, "serror_print_swarns");
+    functions->serror_print_serrs = (void (*)(SourceError*, const char*, const char*)) dlsym(functions->handle, "serror_print_serrs");
     functions->serror_print_err = (void (*)(SourceError*)) dlsym(functions->handle, "serror_print_err");
 
     // Load the workflow symbols
+    functions->workflow_free = (void (*)(Workflow*)) dlsym(functions->handle, "workflow_free");
+    functions->workflow_disassemble = (Error* (*)(Workflow*, char**)) dlsym(functions->handle, "workflow_disassemble");
 
     // Load the compiler symbols
     functions->compiler_new = (Error* (*)(const char*, Compiler**)) dlsym(functions->handle, "compiler_new");
     functions->compiler_free = (void (*)(Compiler*)) dlsym(functions->handle, "compiler_free");
-    functions->compiler_compile = (Error* (*)(Compiler*, const char*, char**)) dlsym(functions->handle, "compiler_compile");
-    functions->compiler_assemble = (Error* (*)(const char*, char**)) dlsym(functions->handle, "compiler_assemble");
+    functions->compiler_compile = (SourceError* (*)(Compiler*, const char*, Workflow**)) dlsym(functions->handle, "compiler_compile");
 
     // Done
     return functions;
