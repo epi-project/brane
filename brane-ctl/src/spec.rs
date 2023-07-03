@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 17:27:52
 //  Last edited:
-//    07 Jun 2023, 10:47:12
+//    03 Jul 2023, 15:33:11
 //  Auto updated?
 //    Yes
 // 
@@ -39,60 +39,6 @@ lazy_static::lazy_static!{
 
 
 /***** AUXILLARY *****/
-// /// A formatter for architectures that writes it in a way that Brane understands.
-// #[derive(Debug)]
-// pub struct ArchBraneFormatter<'a> {
-//     /// The architecture to format.
-//     arch : &'a Arch,
-// }
-// impl<'a> Display for ArchBraneFormatter<'a> {
-//     #[inline]
-//     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-//         match self.arch {
-//             Arch::X86_64  => write!(f, "x86_64"),
-//             Arch::Aarch64 => write!(f, "aarch64"),
-//         }
-//     }
-// }
-
-// /// Defines the possible architectures for which we can download images.
-// #[derive(Clone, Copy, Debug, EnumDebug)]
-// pub enum Arch {
-//     /// Typical Intel/AMD machines.
-//     X86_64,
-//     /// Apple ARM
-//     Aarch64,
-// }
-// impl Arch {
-//     /// Returns a formatter that writes the architecture in a Brane-friendly way.
-//     #[inline]
-//     pub fn brane(&self) -> ArchBraneFormatter { ArchBraneFormatter{ arch: self } }
-// }
-// impl FromStr for Arch {
-//     type Err = ArchParseError;
-
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         match s {
-//             // User-specified ones
-//             "x86_64"  | "amd64" => Ok(Self::X86_64),
-//             "aarch64" | "arm64" => Ok(Self::Aarch64),
-
-//             // Meta-argument for resolving the local architecture
-//             #[cfg(target_arch = "x86_64")]
-//             "$LOCAL" => Ok(Self::X86_64),
-//             #[cfg(target_arch = "aarch64")]
-//             "$LOCAL" => Ok(Self::Aarch64),
-//             #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-//             "$LOCAL" => { compile_error!("Non-x86/64, non-aarch64 processor architecture not supported"); },
-
-//             // Any other is a failure
-//             _ => Err(ArchParseError::UnknownArch{ raw: s.into() }),
-//         }
-//     }
-// }
-
-
-
 /// Defines a wrapper around a `NodeKind` that also allows it to be resolved later from the contents of the `node.yml` file.
 #[derive(Clone, Copy, Debug)]
 pub struct ResolvableNodeKind(pub Option<NodeKind>);
@@ -114,6 +60,26 @@ impl FromStr for ResolvableNodeKind {
             "$NODECFG" => Ok(Self(None)),
             raw        => Ok(Self(Some(NodeKind::from_str(raw)?))),
         }
+    }
+}
+
+/// Parses a version number that scopes a particular operation down. In other words, can be a specific version number or `all`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VersionFix(pub Option<Version>);
+impl Display for VersionFix {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        write!(f, "{}", if let Some(version) = self.0 { version.to_string() } else { "all".into() })
+    }
+}
+impl FromStr for VersionFix {
+    type Err = specifications::version::ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Parse the auto first
+        if s == "all" { return Ok(Self(None)); }
+        // Otherwise, delegate to the version parser
+        Ok(Self(Some(Version::from_str(s)?)))
     }
 }
 

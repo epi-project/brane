@@ -4,7 +4,7 @@
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    01 Jun 2023, 12:53:46
+//    03 Jul 2023, 13:05:27
 //  Auto updated?
 //    Yes
 // 
@@ -28,8 +28,8 @@ use specifications::arch::Arch;
 use specifications::package::Capability;
 use specifications::version::Version;
 
-use brane_ctl::spec::{API_DEFAULT_VERSION, DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair, ResolvableNodeKind, StartOpts, StartSubcommand};
-use brane_ctl::{download, generate, lifetime, packages, unpack, wizard};
+use brane_ctl::spec::{API_DEFAULT_VERSION, DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair, ResolvableNodeKind, StartOpts, StartSubcommand, VersionFix};
+use brane_ctl::{download, generate, lifetime, packages, unpack, upgrade, wizard};
 
 
 /***** ARGUMENTS *****/
@@ -61,6 +61,8 @@ enum CtlSubcommand {
     Generate(Box<GenerateSubcommand>),
     #[clap(subcommand)]
     Unpack(Box<UnpackSubcommand>),
+    #[clap(subcommand)]
+    Upgrade(Box<UpgradeSubcommand>),
     #[clap(subcommand)]
     Wizard(Box<WizardSubcommand>),
 
@@ -296,6 +298,28 @@ enum UnpackSubcommand {
     }
 }
 
+/// Defines the subcommands for the upgrade subcommand
+#[derive(Debug, Subcommand)]
+#[clap(name = "upgrade", about = "Updates configuration files from an older BRANE version to this one.")]
+enum UpgradeSubcommand {
+    #[clap(name = "node", about = "Upgrade node.yml files to be compatible with this BRANE version.")]
+    Node {
+        /// The file or folder to upgrade.
+        #[clap(name = "PATH", default_value = "./", help = "The path to the file or folder (recursively traversed) of files to upgrade to this version. If a directory, will consider any YAML files (*.yml or *.yaml) that are successfully parsed with an old node.yml parser.")]
+        path : PathBuf,
+
+        /// Whether to run dryly or not
+        #[clap(short, long, help = "If given, does not do anything but instead just reports which files would be updated.")]
+        dry_run   : bool,
+        /// Whether to keep old versions
+        #[clap(short='O', long, help = "If given, will not keep the old versions alongside the new ones but instead overwrite them. Use them only if you are certain no unrelated files are converted or converted incorrectly! (see '--dry-run')")]
+        overwrite : bool,
+        /// Fixes the version from which we are converting.
+        #[clap(short, long, default_value = "all", help = "Whether to consider only one version when examining a file. Can be any valid BRANE version or 'auto' to use all supported versions.")]
+        version   : VersionFix,
+    },
+}
+
 /// Defines subcommands relating to the wizard
 #[derive(Debug, Subcommand)]
 #[clap(name = "wizard", about = "A suite of interactive wizards to ease particular processes.")]
@@ -404,6 +428,11 @@ async fn main() {
             GenerateSubcommand::Proxy{ fix_dirs, path, outgoing_range, incoming, forward, forward_protocol } => {
                 // Call the thing
                 if let Err(err) = generate::proxy(fix_dirs, path, outgoing_range.0, incoming.into_iter().map(|p| (p.0, p.1)).collect(), forward.map(|a| ForwardConfig { address: a, protocol: forward_protocol })) { error!("{}", err.trace()); std::process::exit(1); }
+            },
+        },
+        CtlSubcommand::Upgrade(subcommand) => match *subcommand {
+            UpgradeSubcommand::Node { path, dry_run, overwrite, version } => {
+                if let Err(err) = upgrade::node(path, dry_run, overwrite, version) { error!("{}", err.trace()); std::process::exit(1); }
             },
         },
         CtlSubcommand::Unpack(subcommand) => match *subcommand {
