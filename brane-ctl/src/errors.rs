@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    10 May 2023, 16:34:45
+//    03 Jul 2023, 15:59:31
 //  Auto updated?
 //    Yes
 // 
@@ -254,8 +254,8 @@ impl Display for LifetimeError {
             ImageDigestError{ path, err }        => write!(f, "Failed to get digest of image {}: {}", style(path.display()).bold(), err),
             ImageLoadError{ image, source, err } => write!(f, "Failed to load image {} from '{}': {}", style(image).bold(), style(source).bold(), err),
 
-            MissingProxyPath    => write!(f, "A path to a 'proxy.yml' file is given, but not a proxy service specification. Specify both if you want to host a proxy service in this node."),
-            MissingProxyService => write!(f, "A proxy service specification is given, but not a path to a 'proxy.yml' file. Specify both if you want to host a proxy service in this node."),
+            MissingProxyPath    => write!(f, "A proxy service specification is given, but not a path to a 'proxy.yml' file. Specify both if you want to host a proxy service in this node, or none if you want to use an external one."),
+            MissingProxyService => write!(f, "A path to a 'proxy.yml' file is given, but not a proxy service specification. Specify both if you want to host a proxy service in this node, or none if you want to use an external one."),
 
             NodeConfigLoadError{ err }         => write!(f, "Failed to load node.yml file: {err}"),
             DockerConnectError{ err }          => write!(f, "Failed to connect to local Docker socket: {}", err),

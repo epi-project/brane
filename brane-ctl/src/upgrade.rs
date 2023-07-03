@@ -4,7 +4,7 @@
 //  Created:
 //    03 Jul 2023, 13:01:31
 //  Last edited:
-//    03 Jul 2023, 15:54:47
+//    03 Jul 2023, 16:02:35
 //  Auto updated?
 //    Yes
 // 
@@ -265,7 +265,6 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
     info!("Upgrading node.yml files in '{}'...", path.display());
 
     // Query for missing information first
-    /* TODO */
     let hostname: String = if version.0.is_none() || version.0.unwrap() <= Version::new(1, 0, 0) {
         match input("hostname", "Enter the hostname for this node (used to supplement v1.0.0 and older configs)", None::<&str>, None::<brane_shr::input::FileHistory>) {
             Ok(hostname) => hostname,
@@ -289,7 +288,7 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
             let hostname: &str = &hostname;
             Some(Box::new(move |dir: &Path, overwrite: bool| -> Result<NodeConfig, Error> {
                 // We must generate a new proxy.yml file, since this was not part of the old spec - this is what the `overwrite` signifies, how to name it
-                let proxy_path: PathBuf = if overwrite { dir.join("proxy.yml") } else { dir.join(format!("proxy.yml.{}", env!("CARGO_PKG_VERSION"))) };
+                let proxy_path: PathBuf = if overwrite { dir.join("config").join("proxy.yml") } else { dir.join("config").join(format!("proxy.yml.{}", env!("CARGO_PKG_VERSION"))) };
                 let proxy_cfg: ProxyConfig = ProxyConfig {
                     outgoing_range : 4200..=4299,
                     incoming       : HashMap::new(),
@@ -312,8 +311,7 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
                                 packages : cfg.paths.packages,
 
                                 infra : central.paths.infra,
-                                /* TODO */
-                                proxy : None,
+                                proxy : Some(proxy_path),
                             },
 
                             services : CentralServices {
@@ -369,8 +367,7 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
 
                                 backend  : worker.paths.backend,
                                 policies : worker.paths.policies,
-                                /* TODO */
-                                proxy    : None,
+                                proxy    : Some(proxy_path),
 
                                 data         : worker.paths.data,
                                 results      : worker.paths.results,

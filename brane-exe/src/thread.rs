@@ -4,7 +4,7 @@
 //  Created:
 //    09 Sep 2022, 13:23:41
 //  Last edited:
-//    01 Mar 2023, 09:52:13
+//    03 Jul 2023, 16:13:40
 //  Auto updated?
 //    Yes
 // 
@@ -100,10 +100,10 @@ mod tests {
                 };
 
                 // Run the dummy planner on the workflow
-                let workflow: Workflow = DummyPlanner::plan(workflow);
+                let workflow: Arc<Workflow> = Arc::new(DummyPlanner::plan(workflow));
 
                 // Now print the file for prettyness
-                let workflow: Arc<Workflow> = Arc::new(ast::do_traversal(workflow, std::io::stdout()).unwrap());
+                ast::do_traversal(&workflow, std::io::stdout()).unwrap();
                 println!("{}", (0..40).map(|_| "- ").collect::<String>());
 
                 // Run the program

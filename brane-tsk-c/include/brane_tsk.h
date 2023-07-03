@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   03 Jul 2023, 11:38:09
+ *   03 Jul 2023, 16:11:43
  * Auto updated?
  *   Yes
  *
@@ -194,8 +194,6 @@ struct _functions {
     void (*workflow_free)(Workflow* workflow);
 
     /* Serializes the workflow by essentially disassembling it.
-     * 
-     * NOTE: The given workflow is actually mutated during this call - although it is guaranteed to _not_ mutate when done (weird, no)? Anyway, this functions is read-only for all purposes except when considering multi-threaded access to `workflow`.
      * 
      * # Arguments
      * - `workflow`: The [`Workflow`] to disassemble.

@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    03 Jul 2023, 11:36:33
+//    03 Jul 2023, 16:16:02
 //  Auto updated?
 //    Yes
 // 
@@ -16,7 +16,6 @@
 //!   http://blog.asleson.org/2021/02/23/how-to-writing-a-c-shared-library-in-rust/
 // 
 
-use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::Once;
@@ -25,7 +24,7 @@ use humanlog::{DebugMode, HumanLogger};
 use log::{debug, error, info, trace};
 use tokio::runtime::{Builder, Runtime};
 
-use brane_ast::{CompileResult, Error as AstError, ParserOptions, SymTable, Warning as AstWarning};
+use brane_ast::{CompileResult, Error as AstError, ParserOptions, Warning as AstWarning};
 use brane_ast::ast::Workflow;
 use brane_ast::state::CompileState;
 use brane_ast::traversals::print::ast;
@@ -356,8 +355,6 @@ pub unsafe extern "C" fn workflow_free(workflow: *mut Workflow) {
 
 /// Serializes the workflow by essentially disassembling it.
 /// 
-/// NOTE: The given workflow is actually mutated during this call - although it is guaranteed to _not_ mutate when done (weird, no)? Anyway, this functions is read-only for all purposes except when considering multi-threaded access to `workflow`.
-/// 
 /// # Arguments
 /// - `workflow`: The [`Workflow`] to disassemble.
 /// - `assembly`: The serialized assembly of the same workflow, as a string. Don't forget to free it! Will be [`NULL`] if there is an error (see below).
@@ -367,28 +364,24 @@ pub unsafe extern "C" fn workflow_free(workflow: *mut Workflow) {
 /// 
 /// # Panics
 /// This function can panic if the given `workflow` is a NULL-pointer.
-pub unsafe extern "C" fn workflow_disassemble(workflow: *mut Workflow, assembly: *mut *mut c_char) -> *const Error {
+#[no_mangle]
+pub unsafe extern "C" fn workflow_disassemble(workflow: *const Workflow, assembly: *mut *mut c_char) -> *const Error {
     // Set the output to NULL
+    init_logger();
     *assembly = std::ptr::null_mut();
+    info!("Generating workflow assembly...");
 
     // Unwrap the input workflow
-    let workflow: &mut Workflow = match workflow.as_mut() {
+    let workflow: &Workflow = match workflow.as_ref() {
         Some(wf) => wf,
         None => { panic!("Given Workflow is a NULL-pointer"); },
     };
 
-    // Take ownership of the workflow real quick
-    let mut wf: Workflow = Workflow::new(SymTable::new(), vec![], HashMap::new());
-    std::mem::swap(&mut wf, workflow);
-
     // Run the compiler traversal to serialize it
     let mut result: Vec<u8> = Vec::new();
-    *workflow = match ast::do_traversal(wf, &mut result) {
-        Ok(workflow) => workflow,
-        Err(e) => {
-            let err: Error = Error { msg: format!("Failed to print given workflow: {}", e[0]) };
-            return Box::into_raw(Box::new(err));
-        },
+    if let Err(e) = ast::do_traversal(workflow, &mut result) {
+        let err: Error = Error { msg: format!("Failed to print given workflow: {}", e[0]) };
+        return Box::into_raw(Box::new(err));
     };
 
     // Convert the resulting string to a C-string.

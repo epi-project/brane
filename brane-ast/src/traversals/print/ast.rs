@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 09:25:11
 //  Last edited:
-//    30 Jun 2023, 14:53:10
+//    03 Jul 2023, 16:11:21
 //  Auto updated?
 //    Yes
 // 
@@ -363,12 +363,9 @@ fn pass_edge_instr(writer: &mut impl Write, instr: &EdgeInstr, table: &VirtualSy
 /// - `root`: The root node of the tree on which this compiler pass will be done.
 /// - `writer`: The `Write`r to write to.
 /// 
-/// # Returns
-/// The same root node as went in (since this compiler pass performs no transformations on the tree).
-/// 
 /// # Errors
 /// This pass may error if we failed to write to the given writer.
-pub fn do_traversal(root: Workflow, writer: impl Write) -> Result<Workflow, Vec<Error>> {
+pub fn do_traversal(root: &Workflow, writer: impl Write) -> Result<(), Vec<Error>> {
     let mut writer = writer;
 
     if let Err(err) = writeln!(&mut writer, "Workflow {{") { return Err(vec![ Error::WriteError{ err } ]); };
@@ -397,5 +394,5 @@ pub fn do_traversal(root: Workflow, writer: impl Write) -> Result<Workflow, Vec<
 
     // Done
     if let Err(err) = writeln!(&mut writer, "}}") { return Err(vec![ Error::WriteError{ err } ]); };
-    Ok(root)
+    Ok(())
 }
