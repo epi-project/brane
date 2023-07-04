@@ -4,13 +4,13 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    03 Jul 2023, 17:13:35
+//    04 Jul 2023, 17:01:43
 //  Auto updated?
 //    Yes
 // 
 //  Description:
-//!   Wrapper around `brane-tsk` that provides C-bindings. This allows
-//!   C-programs to act as a BRANE client.
+//!   Wrapper around `brane-cli` that provides C-bindings for interacting with
+//!   a remote backend. This allows C-programs to act as a BRANE client.
 //!   
 //!   The basics of how to do this are followed from:
 //!   http://blog.asleson.org/2021/02/23/how-to-writing-a-c-shared-library-in-rust/
@@ -21,6 +21,7 @@ use std::os::raw::c_char;
 use std::sync::Once;
 
 use humanlog::{DebugMode, HumanLogger};
+use lazy_static::lazy_static;
 use log::{debug, error, info, trace};
 use tokio::runtime::{Builder, Runtime};
 
@@ -28,6 +29,8 @@ use brane_ast::{CompileResult, Error as AstError, ParserOptions, Warning as AstW
 use brane_ast::ast::Workflow;
 use brane_ast::state::CompileState;
 use brane_ast::traversals::print::ast;
+use brane_cli::data::download_data;
+use brane_cli::run::{initialize_instance_vm, run_instance, InstanceVmState};
 use brane_exe::FullValue;
 use brane_tsk::api::{get_data_index, get_package_index};
 use specifications::data::DataIndex;
@@ -46,6 +49,11 @@ static C_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
 /// Ensures that the initialization function is run only once.
 static LOG_INIT: Once = Once::new();
 
+lazy_static! {
+    /// Ensures the the Tokio runtime is constructed
+    static ref TOKIO_RUNTIME: Result<Runtime, std::io::Error> = Builder::new_current_thread().enable_io().enable_time().build();
+}
+
 
 
 
@@ -59,6 +67,15 @@ fn init_logger() {
             eprintln!("WARNING: Failed to setup Rust logger: {err} (logging disabled for this session)");
         }
     });
+}
+/// Initializes the tokio runtime if it hadn't already.
+/// 
+/// # Returns
+/// A reference to the initialize runtime, which can be used for operations.
+#[inline]
+fn init_tokio() -> &'static Result<Runtime, std::io::Error> {
+    // Simply dereference the thing to make it lazily initialized
+    &*TOKIO_RUNTIME
 }
 
 /// Reads a C-string as a Rust string (or at least, attempts to).
@@ -153,7 +170,12 @@ pub unsafe extern "C" fn error_print_err(err: *const Error) {
 /***** LIBRARY SOURCE ERROR *****/
 /// Defines the error type returned by this library.
 #[derive(Debug)]
-pub struct SourceError {
+pub struct SourceError<'f, 's> {
+    /// The filename of the file we are referencing.
+    file   : &'f str,
+    /// The complete source we attempted to parse.
+    source : &'s str,
+
     /// The warning messages to print.
     warns : Vec<AstWarning>,
     /// The error messages to print.
@@ -255,26 +277,20 @@ pub unsafe extern "C" fn serror_has_err(serr: *const SourceError) -> bool {
 /// 
 /// # Arguments
 /// - `serr`: The [`SourceError`] to print the source warnings of.
-/// - `file`: Some string describing the source/filename of the source text.
-/// - `source`: The physical source text, as parsed.
 /// 
 /// # Panics
-/// This function can panic if the given `serr` is a NULL-pointer, or if `file` or `source` do not point to valid UTF-8 strings.
+/// This function can panic if the given `serr` is a NULL-pointer.
 #[no_mangle]
-pub unsafe extern "C" fn serror_print_swarns(serr: *const SourceError, file: *const c_char, source: *const c_char) {
+pub unsafe extern "C" fn serror_print_swarns(serr: *const SourceError) {
     // Unwrap the pointer
     let serr: &SourceError = match serr.as_ref() {
         Some(err) => err,
         None => { panic!("Given SourceError is a NULL-pointer"); },
     };
 
-    // Read the file & source strings
-    let file: &str = cstr_to_rust(file);
-    let source: &str = cstr_to_rust(source);
-
     // Iterate over the warnings to print them
     for warn in &serr.warns {
-        warn.prettyprint(file, source);
+        warn.prettyprint(serr.file, serr.source);
     }
 }
 
@@ -284,26 +300,20 @@ pub unsafe extern "C" fn serror_print_swarns(serr: *const SourceError, file: *co
 /// 
 /// # Arguments
 /// - `serr`: The [`SourceError`] to print the source errors of.
-/// - `file`: Some string describing the source/filename of the source text.
-/// - `source`: The physical source text, as parsed.
 /// 
 /// # Panics
-/// This function can panic if the given `serr` is a NULL-pointer, or if `file` or `source` do not point to valid UTF-8 strings.
+/// This function can panic if the given `serr` is a NULL-pointer.
 #[no_mangle]
-pub unsafe extern "C" fn serror_print_serrs(serr: *const SourceError, file: *const c_char, source: *const c_char) {
+pub unsafe extern "C" fn serror_print_serrs(serr: *const SourceError) {
     // Unwrap the pointer
     let serr: &SourceError = match serr.as_ref() {
         Some(serr) => serr,
         None => { panic!("Given SourceError is a NULL-pointer"); },
     };
 
-    // Read the file & source strings
-    let file: &str = cstr_to_rust(file);
-    let source: &str = cstr_to_rust(source);
-
     // Iterate over the errors to print them
     for err in &serr.errs {
-        err.prettyprint(file, source);
+        err.prettyprint(serr.file, serr.source);
     }
 }
 
@@ -416,6 +426,9 @@ pub struct Compiler {
     pindex : PackageIndex,
     /// The data index to use for compilation.
     dindex : DataIndex,
+
+    /// The additional, total collected source that we are working with
+    source : String,
     /// The compile state to use in between snippets.
     state  : CompileState,
 }
@@ -440,7 +453,7 @@ pub unsafe extern "C" fn compiler_new(endpoint: *const c_char, compiler: *mut *m
     let endpoint: &str = cstr_to_rust(endpoint);
 
     // Create a local threaded tokio context
-    let runtime: Runtime = match Builder::new_current_thread().enable_time().enable_io().build() {
+    let runtime: &Runtime = match init_tokio() {
         Ok(runtime) => runtime,
         Err(e) => {
             let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
@@ -503,19 +516,24 @@ pub unsafe extern "C" fn compiler_free(compiler: *mut Compiler) {
 /// 
 /// # Arguments
 /// - `compiler`: The [`Compiler`] to compile with. Essentially this determines which previous compile state to use.
+/// - `what`: Some string describing what we are compiling (e.g., a file, `<intern>`, a cell, etc.)
 /// - `raw`: The raw BraneScript snippet to parse.
 /// - `workflow`: Will point to the compiled AST. Will be [`NULL`] if there is an error (see below).
 /// 
 /// # Returns
-/// A [`SourceError`]-struct describing the error, if any, and source warnings/errors. Don't forget this has to be freed using [`serror_free()`]!
+/// A [`SourceError`]-struct describing the error, if any, and source warnings/errors.
+/// 
+/// ## SAFETY
+/// Be aware that the returned [`SourceError`] refers the the given `compiler` and `what`. Freeing any of those two and then using the [`SourceError`] _will_ lead to undefined behaviour.
+/// 
+/// You _must_ free this [`SourceError`] using [`serror_free()`], since its allocated using Rust internals and cannot be deallocated directly using `malloc`. Note, however, that it's safe to call [`serror_free()`] _after_ freeing `compiler` or `what` (but that's the only function).
 /// 
 /// # Panics
-/// This function can panic if the given `compiler` points to NULL, or `endpoint` does not point to a valid UTF-8 string.
+/// This function can panic if the given `compiler` points to NULL, or `what`/`raw` does not point to a valid UTF-8 string.
 #[no_mangle]
-pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, raw: *const c_char, workflow: *mut *mut Workflow) -> *const SourceError {
+pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, what: *const c_char, raw: *const c_char, workflow: *mut *mut Workflow) -> *const SourceError<'static, 'static> {
     // Initialize the logger if we hadn't already
     init_logger();
-    let mut err: Box<SourceError> = Box::new(SourceError { warns: vec![], errs: vec![], msg: None });
     *workflow = std::ptr::null_mut();
     info!("Compiling snippet...");
 
@@ -530,26 +548,36 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, raw: *const c
     };
 
     // Get the input as a Rust string
+    let what: &str = cstr_to_rust(what);
     let raw: &str = cstr_to_rust(raw);
+
+    // Create the error already
+    let mut serr: Box<SourceError> = Box::new(SourceError { file: what, source: raw, warns: vec![], errs: vec![], msg: None });
 
 
 
     /* COMPILE */
-    // Compile that using `brane-ast`
     debug!("Compiling snippet...");
-    let wf: Workflow = match brane_ast::compile_snippet(&mut compiler.state, raw.as_bytes(), &compiler.pindex, &compiler.dindex, &ParserOptions::bscript()) {
+
+    // Append the source we keep track of
+    compiler.source.push_str(raw);
+    compiler.source.push('\n');
+    serr.source = &compiler.source;
+
+    // Compile that using `brane-ast`
+    let wf: Workflow = match brane_ast::compile_snippet(&mut compiler.state, compiler.source.as_bytes(), &compiler.pindex, &compiler.dindex, &ParserOptions::bscript()) {
         CompileResult::Workflow(workflow, warns) => {
-            err.warns = warns;
+            serr.warns = warns;
             workflow
         },
 
         CompileResult::Eof(e) => {
-            err.errs = vec![ e ];
-            return Box::into_raw(err);
+            serr.errs = vec![ e ];
+            return Box::into_raw(serr);
         },
         CompileResult::Err(errs) => {
-            err.errs = errs;
-            return Box::into_raw(err);
+            serr.errs = errs;
+            return Box::into_raw(serr);
         },
 
         CompileResult::Program(_, _)    |
@@ -561,7 +589,7 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, raw: *const c
 
     // OK, return the error struct!
     debug!("Compilation success");
-    Box::into_raw(err)
+    Box::into_raw(serr)
 }
 
 
@@ -578,9 +606,9 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, raw: *const c
 #[no_mangle]
 pub unsafe extern "C" fn fvalue_free(fvalue: *mut FullValue) {
     init_logger();
-    trace!("Destroying FullValue compiler...");
+    trace!("Destroying FullValue...");
 
-    // Take ownership of the compiler and then drop it to destroy
+    // Take ownership of the value and then drop it to destroy
     drop(Box::from_raw(fvalue));
 }
 
@@ -592,9 +620,11 @@ pub unsafe extern "C" fn fvalue_free(fvalue: *mut FullValue) {
 /// Defines a BRANE instance virtual machine.
 /// 
 /// This can run a compiled workflow on a running instance.
-#[derive(Debug)]
 pub struct VirtualMachine {
-    
+    /// The endpoint to connect to when running.
+    drv_endpoint : String,
+    /// The state of everything we need to know about the virtual machine
+    state        : InstanceVmState,
 }
 
 
@@ -621,6 +651,101 @@ pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *cons
     let api_endpoint: &str = cstr_to_rust(api_endpoint);
     let drv_endpoint: &str = cstr_to_rust(drv_endpoint);
 
-    // 
+    // Prepare a tokio environment
+    let runtime: &Runtime = match init_tokio() {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
+            return Box::into_raw(Box::new(err));
+        }
+    };
+
+    // Prepare the state
+    let state: InstanceVmState = match runtime.block_on(initialize_instance_vm(api_endpoint, drv_endpoint, None, ParserOptions::bscript())) {
+        Ok(state) => state,
+        Err(e)  => {
+            let err: Error = Error { msg: format!("Failed to create new InstanceVmState: {e}") };
+            return Box::into_raw(Box::new(err));
+        },
+    };
+
+    // OK, return the new thing
+    *vm = Box::into_raw(Box::new(VirtualMachine {
+        drv_endpoint : drv_endpoint.into(),
+        state,
+    }));
+    debug!("Virtual machine created");
+    std::ptr::null()
+}
+
+/// Destructor for the VirtualMachine.
+/// 
+/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// 
+/// # Arguments
+/// - `vm`: The [`VirtualMachine`] to free.
+#[no_mangle]
+pub unsafe extern "C" fn vm_free(vm: *mut VirtualMachine) {
+    init_logger();
+    trace!("Destroying VirtualMachine...");
+
+    // Take ownership of the VM and then drop it to destroy
+    drop(Box::from_raw(vm));
+}
+
+
+
+/// Runs the given code snippet on the backend instance.
+/// 
+/// # Arguments
+/// - `vm`: The [`VirtualMachine`] that we execute with. This determines which backend to use.
+/// - `workflow`: The compiled workflow to execute.
+/// - `result`: A [`FullValue`] which represents the return value of the workflow. Will be [`NULL`] if there is an error (see below).
+/// 
+/// # Returns
+/// An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
+/// 
+/// # Panics
+/// This function may panic if the input `vm` or `workflow` pointed to a NULL-pointer.
+#[no_mangle]
+pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workflow, result: *mut *mut FullValue) -> *const Error {
+    init_logger();
+    *result = std::ptr::null_mut();
+    info!("Constructing BraneScript virtual machine v{}...", env!("CARGO_PKG_VERSION"));
+
+    // Unwrap the VM
+    let vm: &mut VirtualMachine = match vm.as_mut() {
+        Some(vm) => vm,
+        None => { panic!("Given VirtualMachine is a NULL-pointer"); },
+    };
+    // Unwrap the workflow
+    let workflow: &Workflow = match workflow.as_ref() {
+        Some(workflow) => workflow,
+        None => { panic!("Given Workflow is a NULL-pointer"); },
+    };
+
+    // Prepare a tokio environment
+    let runtime: &Runtime = match init_tokio() {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            let err: Box<Error> = Box::new(Error { msg: format!("Failed to create local Tokio context: {e}") });
+            return Box::into_raw(err);
+        }
+    };
+
+    // Run the state
+    let value: FullValue = match runtime.block_on(run_instance(&vm.drv_endpoint, &mut vm.state, workflow, false)) {
+        Ok(value) => value,
+        Err(e) => {
+            let err: Box<Error> = Box::new(Error { msg: format!("Failed to run workflow on '{}': {}", vm.drv_endpoint, e) });
+            return Box::into_raw(err);
+        },
+    };
+
+    // If the value is a dataset, then download the data on top of it
+    todo!();
+
+    // Store it and we're done!
+    *result = Box::into_raw(Box::new(value));
     std::ptr::null()
 }

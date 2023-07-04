@@ -4,16 +4,16 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   03 Jul 2023, 16:22:24
+ *   04 Jul 2023, 16:43:46
  * Auto updated?
  *   Yes
  *
  * Description:
- *   Defines the headers of the `libbrane_tsk` library.
+ *   Defines the headers of the `libbrane_cli` library.
 **/
 
-#ifndef BRANE_TSK_H
-#define BRANE_TSK_H
+#ifndef BRANE_CLI_H
+#define BRANE_CLI_H
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -154,26 +154,22 @@ struct _functions {
      * 
      * # Arguments
      * - `serr`: The [`SourceError`] to print the source warnings of.
-     * - `file`: Some string describing the source/filename of the source text.
-     * - `source`: The physical source text, as parsed.
      * 
      * # Panics
-     * This function can panic if the given `serr` is a NULL-pointer, or if `file` or `source` do not point to valid UTF-8 strings.
+     * This function can panic if the given `serr` is a NULL-pointer.
      */
-    void (*serror_print_swarns)(SourceError* serr, const char* file, const char* source);
+    void (*serror_print_swarns)(SourceError* serr);
     /* Prints the source errors in this error to stderr.
      * 
      * Note that there may be zero or more errors at once. To discover if there are any, check [`serror_has_serrs()`].
      * 
      * # Arguments
      * - `serr`: The [`SourceError`] to print the source errors of.
-     * - `file`: Some string describing the source/filename of the source text.
-     * - `source`: The physical source text, as parsed.
      * 
      * # Panics
-     * This function can panic if the given `serr` is a NULL-pointer, or if `file` or `source` do not point to valid UTF-8 strings.
+     * This function can panic if the given `serr` is a NULL-pointer.
      */
-    void (*serror_print_serrs)(SourceError* serr, const char* file, const char* source);
+    void (*serror_print_serrs)(SourceError* serr);
     /* Prints the error message in this error to stderr.
      * 
      * Note that there may be no error, but only source warnings- or errors. To discover if there is any, check [`serror_has_err()`].
@@ -243,16 +239,22 @@ struct _functions {
      * 
      * # Arguments
      * - `compiler`: The [`Compiler`] to compile with. Essentially this determines which previous compile state to use.
+     * - `what`: Some string describing what we are compiling (e.g., a file, `<intern>`, a cell, etc.)
      * - `raw`: The raw BraneScript snippet to parse.
      * - `workflow`: Will point to the compiled AST. Will be [`NULL`] if there is an error (see below).
      * 
      * # Returns
-     * A [`SourceError`]-struct describing the error, if any, and source warnings/errors. Don't forget this has to be freed using [`serror_free()`]!
+     * A [`SourceError`]-struct describing the error, if any, and source warnings/errors.
+     * 
+     * ## SAFETY
+     * Be aware that the returned [`SourceError`] refers the the given `compiler` and `what`. Freeing any of those two and then using the [`SourceError`] _will_ lead to undefined behaviour.
+     * 
+     * You _must_ free this [`SourceError`] using [`serror_free()`], since its allocated using Rust internals and cannot be deallocated directly using `malloc`. Note, however, that it's safe to call [`serror_free()`] _after_ freeing `compiler` or `what` (but that's the only function).
      * 
      * # Panics
-     * This function can panic if the given `compiler` points to NULL, or `endpoint` does not point to a valid UTF-8 string.
+     * This function can panic if the given `compiler` points to NULL, or `what`/`raw` does not point to a valid UTF-8 string.
      */
-    SourceError* (*compiler_compile)(Compiler* compiler, const char* raw, Workflow** workflow);
+    SourceError* (*compiler_compile)(Compiler* compiler, const char* what, const char* raw, Workflow** workflow);
 
 
 
@@ -292,17 +294,20 @@ struct _functions {
      */
     void (*vm_free)(VirtualMachine* vm);
 
-    /* Runs the given Workflow on the backend instance.
+    /* Runs the given code snippet on the backend instance.
      * 
      * # Arguments
      * - `vm`: The [`VirtualMachine`] that we execute with. This determines which backend to use.
-     * - `workflow`: The [`Workflow`] to execute.
+     * - `workflow`: The compiled workflow to execute.
      * - `result`: A [`FullValue`] which represents the return value of the workflow. Will be [`NULL`] if there is an error (see below).
      * 
      * # Returns
      * An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
+     * 
+     * # Panics
+     * This function may panic if the input `vm` or `workflow` pointed to a NULL-pointer.
      */
-    Error* (*vm_run)(VirtualMachine* vm, Workflow* workflow, FullValue* result);
+    Error* (*vm_run)(VirtualMachine* vm, Workflow* workflow, FullValue** result);
 };
 typedef struct _functions Functions;
 
@@ -336,8 +341,8 @@ Functions* functions_load(const char* path) {
     functions->serror_has_swarns = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_warns");
     functions->serror_has_serrs = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_serrs");
     functions->serror_has_err = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_err");
-    functions->serror_print_swarns = (void (*)(SourceError*, const char*, const char*)) dlsym(functions->handle, "serror_print_swarns");
-    functions->serror_print_serrs = (void (*)(SourceError*, const char*, const char*)) dlsym(functions->handle, "serror_print_serrs");
+    functions->serror_print_swarns = (void (*)(SourceError*)) dlsym(functions->handle, "serror_print_swarns");
+    functions->serror_print_serrs = (void (*)(SourceError*)) dlsym(functions->handle, "serror_print_serrs");
     functions->serror_print_err = (void (*)(SourceError*)) dlsym(functions->handle, "serror_print_err");
 
     // Load the workflow symbols
@@ -347,7 +352,12 @@ Functions* functions_load(const char* path) {
     // Load the compiler symbols
     functions->compiler_new = (Error* (*)(const char*, Compiler**)) dlsym(functions->handle, "compiler_new");
     functions->compiler_free = (void (*)(Compiler*)) dlsym(functions->handle, "compiler_free");
-    functions->compiler_compile = (SourceError* (*)(Compiler*, const char*, Workflow**)) dlsym(functions->handle, "compiler_compile");
+    functions->compiler_compile = (SourceError* (*)(Compiler*, const char*, const char*, Workflow**)) dlsym(functions->handle, "compiler_compile");
+
+    // Load the VM symbols
+    functions->vm_new = (Error* (*)(const char*, const char*, VirtualMachine**)) dlsym(functions->handle, "vm_new");
+    functions->vm_free = (void (*)(VirtualMachine*)) dlsym(functions->handle, "vm_free");
+    functions->vm_run = (Error* (*)(VirtualMachine*, Workflow*, FullValue**)) dlsym(functions->handle, "vm_run");
 
     // Done
     return functions;

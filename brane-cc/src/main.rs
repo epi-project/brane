@@ -4,7 +4,7 @@
 //  Created:
 //    18 Nov 2022, 14:36:55
 //  Last edited:
-//    03 Jan 2023, 13:26:26
+//    04 Jul 2023, 15:50:55
 //  Auto updated?
 //    Yes
 // 
@@ -228,7 +228,7 @@ pub async fn compile_iter(state: &mut CompileState, source: &mut String, lang: L
     // Serialize the output
     let sworkflow: String = if pretty {
         let mut res: Vec<u8> = vec![];
-        ast::do_traversal(workflow, &mut res).unwrap();
+        ast::do_traversal(&workflow, &mut res).unwrap();
         String::from_utf8_lossy(&res).to_string()
     } else if !compact {
         match serde_json::to_string_pretty(&workflow) {

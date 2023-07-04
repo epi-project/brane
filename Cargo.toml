@@ -29,7 +29,7 @@ members = [
 
     ### C-INTERFACES ###
     # These crates provide C-compatible interfaces to other libraries
-    "brane-tsk-c",
+    "brane-cli-c",
 
 
     ### LIBRARIES ###

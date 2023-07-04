@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    03 Jul 2023, 17:32:04
+//    04 Jul 2023, 17:00:30
 //  Auto updated?
 //    Yes
 // 
@@ -95,12 +95,116 @@ fn compile(state: &mut CompileState, source: &mut String, pindex: &PackageIndex,
         _ => { unreachable!(); },
     };
     debug!("Compiled to workflow:\n\n");
-    if log::max_level() == log::LevelFilter::Debug{
+    if log::max_level() == log::LevelFilter::Debug {
         brane_ast::traversals::print::ast::do_traversal(&workflow, std::io::stdout()).unwrap();
     }
 
     // Return
     Ok(workflow)
+}
+
+
+
+
+
+/***** AUXILLARY FUNCTIONS *****/
+/// Runs the given compiled workflow on the remote instance.
+/// 
+/// This implements the other half of [`run_instance_vm()`], which we separate to have some clients (\*cough\* IDE \*cough\*) do the compilation by themselves.
+/// 
+/// # Arguments
+/// - `drv_endpoint`: The `brane-drv` endpoint that we will connect to to run stuff (used for debugging only).
+/// - `state`: The InstanceVmState that we use to connect to the driver.
+/// - `workflow`: The already compiled [`Workflow`] to execute.
+/// - `profile`: If given, prints the profile timings to stdout if reported by the remote.
+/// 
+/// # Returns
+/// 
+/// # Errors
+pub async fn run_instance(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState, workflow: &Workflow, profile: bool) -> Result<FullValue, Error> {
+    let drv_endpoint: &str = drv_endpoint.as_ref();
+
+    // Serialize the workflow
+    let sworkflow: String = match serde_json::to_string(&workflow) {
+        Ok(sworkflow) => sworkflow,
+        Err(err)      => { return Err(Error::WorkflowSerializeError{ err }); },
+    };
+
+    // Prepare the request to execute this command
+    let request = ExecuteRequest {
+        uuid  : state.session.to_string(),
+        input : sworkflow,
+    };
+
+    // Run it
+    let response = match state.client.execute(request).await {
+        Ok(response) => response,
+        Err(err)     => { return Err(Error::CommandRequestError{ address: drv_endpoint.into(), err }); }
+    };
+    let mut stream = response.into_inner();
+
+    // Switch on the type of message that the remote returned
+    let mut res: FullValue = FullValue::Void;
+    loop {
+        // Match on the message
+        match stream.message().await {
+            // The message itself went alright
+            Ok(Some(reply)) => {
+                // Show profile times
+                if profile {
+                    /* TODO */
+                }
+
+                // The remote send us some debug message
+                if let Some(debug) = reply.debug {
+                    debug!("Remote: {}", debug);
+                }
+
+                // The remote send us a normal text message
+                if let Some(stdout) = reply.stdout {
+                    debug!("Remote returned stdout");
+                    print!("{stdout}");
+                }
+
+                // The remote send us an error
+                if let Some(stderr) = reply.stderr {
+                    debug!("Remote returned error");
+                    eprintln!("{stderr}");
+                }
+
+                // Update the value to the latest if one is sent
+                if let Some(value) = reply.value {
+                    debug!("Remote returned new value: '{}'", value);
+
+                    // Parse it
+                    let value: FullValue = match serde_json::from_str(&value) {
+                        Ok(value) => value,
+                        Err(err)  => { return Err(Error::ValueParseError{ address: drv_endpoint.into(), raw: value, err }); },
+                    };
+
+                    // Set the result, packed
+                    res = value;
+                }
+
+                // The remote is done with this
+                if reply.close {
+                    println!();
+                    break;
+                }
+            }
+            Err(status) => {
+                // Did not receive the message properly
+                eprintln!("\nStatus error: {}", status.message());
+            }
+            Ok(None) => {
+                // Stream closed by the remote for some rason
+                break;
+            }
+        }
+    }
+
+    // Done
+    Ok(res)
 }
 
 
@@ -450,95 +554,13 @@ pub async fn run_offline_vm(state: &mut OfflineVmState, what: impl AsRef<str>, s
 /// 
 /// # Errors
 /// This function errors if we failed to compile the workflow, communicate with the remote driver or remote execution failed somehow.
+#[inline]
 pub async fn run_instance_vm(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState, what: impl AsRef<str>, snippet: impl AsRef<str>, profile: bool) -> Result<FullValue, Error> {
-    let drv_endpoint: &str = drv_endpoint.as_ref();
-    let what: &str         = what.as_ref();
-    let snippet: &str      = snippet.as_ref();
-
     // Compile the workflow
     let workflow: Workflow = compile(&mut state.state, &mut state.source, &state.pindex, &state.dindex, &state.options, what, snippet)?;
 
-    // Serialize the workflow
-    let sworkflow: String = match serde_json::to_string(&workflow) {
-        Ok(sworkflow) => sworkflow,
-        Err(err)      => { return Err(Error::WorkflowSerializeError{ err }); },
-    };
-
-    // Prepare the request to execute this command
-    let request = ExecuteRequest {
-        uuid  : state.session.to_string(),
-        input : sworkflow,
-    };
-
-    // Run it
-    let response = match state.client.execute(request).await {
-        Ok(response) => response,
-        Err(err)     => { return Err(Error::CommandRequestError{ address: drv_endpoint.into(), err }); }
-    };
-    let mut stream = response.into_inner();
-
-    // Switch on the type of message that the remote returned
-    let mut res: FullValue = FullValue::Void;
-    loop {
-        // Match on the message
-        match stream.message().await {
-            // The message itself went alright
-            Ok(Some(reply)) => {
-                // Show profile times
-                if profile {
-                    /* TODO */
-                }
-
-                // The remote send us some debug message
-                if let Some(debug) = reply.debug {
-                    debug!("Remote: {}", debug);
-                }
-
-                // The remote send us a normal text message
-                if let Some(stdout) = reply.stdout {
-                    debug!("Remote returned stdout");
-                    print!("{stdout}");
-                }
-
-                // The remote send us an error
-                if let Some(stderr) = reply.stderr {
-                    debug!("Remote returned error");
-                    eprintln!("{stderr}");
-                }
-
-                // Update the value to the latest if one is sent
-                if let Some(value) = reply.value {
-                    debug!("Remote returned new value: '{}'", value);
-
-                    // Parse it
-                    let value: FullValue = match serde_json::from_str(&value) {
-                        Ok(value) => value,
-                        Err(err)  => { return Err(Error::ValueParseError{ address: drv_endpoint.into(), raw: value, err }); },
-                    };
-
-                    // Set the result, packed
-                    res = value;
-                }
-
-                // The remote is done with this
-                if reply.close {
-                    println!();
-                    break;
-                }
-            }
-            Err(status) => {
-                // Did not receive the message properly
-                eprintln!("\nStatus error: {}", status.message());
-            }
-            Ok(None) => {
-                // Stream closed by the remote for some rason
-                break;
-            }
-        }
-    }
-
-    // Done
-    Ok(res)
+    // Run the thing using the other function
+    run_instance(drv_endpoint, state, &workflow, profile).await
 }
 
 
