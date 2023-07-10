@@ -28,7 +28,7 @@ flate2 = { version = "1.0", features = ["zlib"], default-features = false }
 fs_extra = "1.2"
 futures = "0.3"
 futures-util = "0.3"
-git2 = "0.17"
+git2 = { version = "0.17", features = ["vendored-libgit2"] }
 graphql_client = "0.13"
 human-panic = "1.0"
 hyper = "0.14"

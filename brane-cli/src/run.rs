@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    04 Jul 2023, 17:00:30
+//    10 Jul 2023, 11:22:50
 //  Auto updated?
 //    Yes
 // 
@@ -108,6 +108,67 @@ fn compile(state: &mut CompileState, source: &mut String, pindex: &PackageIndex,
 
 
 /***** AUXILLARY FUNCTIONS *****/
+/// Initializes the state for an instance VM.
+/// 
+/// This implements most of [`initialize_instance_vm()`], which we separate to have some clients (\*cough\* IDE \*cough\*) able to create a VM while sharing an index.
+/// 
+/// # Arguments
+/// - `drv_endpoint`: The `brane-drv` endpoint that we will connect to to run stuff.
+/// - `pindex`: The [`PackageIndex`] that contains the remote's available packages.
+/// - `dindex`: The [`DataIndex`] that contains the remote's available datasets.
+/// - `attach`: If given, we will try to attach to a session with that ID. Otherwise, we start a new session.
+/// - `options`: The ParserOptions that describe how to parse the given source.
+/// 
+/// # Returns
+/// A new [`InstanceVmState`] that represents the initialized VM.
+/// 
+/// # Errors
+/// This function may error if we failed to reach the remote driver, or if the given session did not exist.
+pub async fn initialize_instance(drv_endpoint: impl AsRef<str>, pindex: Arc<PackageIndex>, dindex: Arc<DataIndex>, attach: Option<AppId>, options: ParserOptions) -> Result<InstanceVmState, Error> {
+    let drv_endpoint: &str = drv_endpoint.as_ref();
+
+    // Connect to the server with gRPC
+    debug!("Connecting to driver '{}'...", drv_endpoint);
+    let mut client: DriverServiceClient = match DriverServiceClient::connect(drv_endpoint.to_string()).await {
+        Ok(client) => client,
+        Err(err)   => { return Err(Error::ClientConnectError{ address: drv_endpoint.into(), err }); }
+    };
+
+    // Either use the given Session UUID or create a new one (with matching session)
+    let session: AppId = if let Some(attach) = attach {
+        debug!("Using existing session '{}'", attach);
+        attach
+    } else {
+        // Setup a new session
+        let request = CreateSessionRequest {};
+        let reply = match client.create_session(request).await {
+            Ok(reply) => reply,
+            Err(err)  => { return Err(Error::SessionCreateError{ address: drv_endpoint.into(), err }); }
+        };
+
+        // Return the UUID of this session
+        let raw: String = reply.into_inner().uuid;
+        debug!("Using new session '{}'", raw);
+        match AppId::from_str(&raw) {
+            Ok(session) => session,
+            Err(err)    => { return Err(Error::AppIdError{ address: drv_endpoint.into(), raw, err: Box::new(err) }); },
+        }
+    };
+
+    // Prepare some states & options used across loops
+    Ok(InstanceVmState {
+        pindex,
+        dindex,
+
+        state  : CompileState::new(),
+        source : String::new(),
+        options,
+
+        session,
+        client,
+    })
+}
+
 /// Runs the given compiled workflow on the remote instance.
 /// 
 /// This implements the other half of [`run_instance_vm()`], which we separate to have some clients (\*cough\* IDE \*cough\*) do the compilation by themselves.
@@ -119,8 +180,10 @@ fn compile(state: &mut CompileState, source: &mut String, pindex: &PackageIndex,
 /// - `profile`: If given, prints the profile timings to stdout if reported by the remote.
 /// 
 /// # Returns
+/// A [`FullValue`] carrying the result of the snippet (or [`FullValue::Void`]).
 /// 
 /// # Errors
+/// This function may error if anything in the whole shebang crashed. This can be things client-side, but also remote-side.
 pub async fn run_instance(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState, workflow: &Workflow, profile: bool) -> Result<FullValue, Error> {
     let drv_endpoint: &str = drv_endpoint.as_ref();
 
@@ -426,46 +489,8 @@ pub async fn initialize_instance_vm(api_endpoint: impl AsRef<str>, drv_endpoint:
         Err(err)   => { return Err(Error::RemoteDataIndexError{ address: data_addr, err }); },
     };
 
-    // Connect to the server with gRPC
-    debug!("Connecting to driver '{}'...", drv_endpoint);
-    let mut client: DriverServiceClient = match DriverServiceClient::connect(drv_endpoint.to_string()).await {
-        Ok(client) => client,
-        Err(err)   => { return Err(Error::ClientConnectError{ address: drv_endpoint.into(), err }); }
-    };
-
-    // Either use the given Session UUID or create a new one (with matching session)
-    let session: AppId = if let Some(attach) = attach {
-        debug!("Using existing session '{}'", attach);
-        attach
-    } else {
-        // Setup a new session
-        let request = CreateSessionRequest {};
-        let reply = match client.create_session(request).await {
-            Ok(reply) => reply,
-            Err(err)  => { return Err(Error::SessionCreateError{ address: drv_endpoint.into(), err }); }
-        };
-
-        // Return the UUID of this session
-        let raw: String = reply.into_inner().uuid;
-        debug!("Using new session '{}'", raw);
-        match AppId::from_str(&raw) {
-            Ok(session) => session,
-            Err(err)    => { return Err(Error::AppIdError{ address: drv_endpoint.into(), raw, err: Box::new(err) }); },
-        }
-    };
-
-    // Prepare some states & options used across loops
-    Ok(InstanceVmState {
-        pindex,
-        dindex,
-
-        state  : CompileState::new(),
-        source : String::new(),
-        options,
-
-        session,
-        client,
-    })
+    // Pass the rest to `initialize_instance`
+    initialize_instance(drv_endpoint, pindex, dindex, attach, options).await
 }
 
 

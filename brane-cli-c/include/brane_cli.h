@@ -1,10 +1,10 @@
-/* BRANE TSK.h
+/* BRANE CLI.h
  *   by Lut99
  *
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   04 Jul 2023, 16:43:46
+ *   10 Jul 2023, 12:07:30
  * Auto updated?
  *   Yes
  *
@@ -20,6 +20,16 @@
 #include <dlfcn.h>
 
 
+/***** MACROS *****/
+/* Defines a shortcut for loading a symbol from a handle with `dlsym()`. */
+#define LOAD_SYMBOL(TARGET, PROTOTYPE) \
+    (state->TARGET) = (PROTOTYPE) dlsym(state->handle, (#TARGET)); \
+    if ((state->TARGET) == NULL) { fprintf(stderr, "Failed to load symbol '%s': %s\n", (#TARGET), dlerror()); return NULL; }
+
+
+
+
+
 /***** TYPES *****/
 /* Defines the error type returned by the library.
  * 
@@ -31,6 +41,21 @@ typedef struct _error Error;
  * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
  */
 typedef struct _source_error SourceError;
+
+/* Defines an index of available packages.
+ * 
+ * In reality, this actually wraps an `Arc<PackageIndex>`, meaning that you can safely deallocate this reference once given to a compiler- or VM-constructor without worrying about segfaults.
+ * 
+ * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
+ */
+typedef struct _package_index PackageIndex;
+/* Defines an index of available datasets.
+ * 
+ * In reality, this actually wraps an `Arc<DataIndex>`, meaning that you can safely deallocate this reference once given to a compiler- or VM-constructor without worrying about segfaults.
+ * 
+ * WARNING: Do not access any internals yourself, since there are no guarantees on the internal layout of this struct.
+ */
+typedef struct _data_index DataIndex;
 
 /* Defines a BraneScript AST, i.e., compiled source code.
  * 
@@ -63,7 +88,7 @@ typedef struct _virtual_machine VirtualMachine;
 
 /* Defines a struct that can be used to conveniently initialize the function pointers in this library.
  */
-struct _functions {
+struct _state {
     /* The dlopen handle that we use to load stuff with. */
     void* handle;
 
@@ -184,6 +209,58 @@ struct _functions {
 
 
 
+    /***** PACKAGE INDEX *****/
+    /* Constructs a new [`PackageIndex`] that lists the available packages in a remote instance.
+     * 
+     * # Arguments
+     * - `endpoint`: The remote API-endpoint to read the packages from. The path (`/graphql`) will be deduced and needn't be given, just the host and port.
+     * - `pindex`: Will point to the newly created [`PackageIndex`] when done. Will be [`NULL`] if there is an error (see below).
+     * 
+     * # Returns
+     * [`Null`] in all cases except when an error occurs. Then, an [`Error`]-struct is returned describing the error. Don't forget this has to be freed using [`error_free()`]!
+     * 
+     * # Panics
+     * This function can panic if the given `endpoint` does not point to a valud UTF-8 string.
+     */
+    Error* (*pindex_new_remote)(const char* endpoint, PackageIndex** pindex);
+
+    /* Destructor for the PackageIndex.
+     * 
+     * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+     * 
+     * # Arguments
+     * - `pindex`: The [`PackageIndex`] to free.
+     */
+    void (*pindex_free)(PackageIndex* pindex);
+
+
+
+    /***** DATA INDEX *****/
+    /* Constructs a new [`DataIndex`] that lists the available datasets in a remote instance.
+     * 
+     * # Arguments
+     * - `endpoint`: The remote API-endpoint to read the datasets from. The path (`/data/info`) will be deduced and needn't be given, just the host and port.
+     * - `dindex`: Will point to the newly created [`DataIndex`] when done. Will be [`NULL`] if there is an error (see below).
+     * 
+     * # Returns
+     * [`Null`] in all cases except when an error occurs. Then, an [`Error`]-struct is returned describing the error. Don't forget this has to be freed using [`error_free()`]!
+     * 
+     * # Panics
+     * This function can panic if the given `endpoint` does not point to a valud UTF-8 string.
+     */
+    Error* (*dindex_new_remote)(const char* endpoint, DataIndex** dindex);
+
+    /* Destructor for the DataIndex.
+     * 
+     * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+     * 
+     * # Arguments
+     * - `dindex`: The [`DataIndex`] to free.
+     */
+    void (*dindex_free)(DataIndex* dindex);
+
+
+
     /***** WORKFLOW *****/
     /* Destructor for the Workflow.
      * 
@@ -214,16 +291,17 @@ struct _functions {
     /* Constructor for the Compiler.
      * 
      * # Arguments
-     * - `endpoint`: The endpoint (as an address) to read the package & data index from. This is the address of a `brane-api` instance.
+     * - `pindex`: The [`PackageIndex`] to resolve package references in the snippets with.
+     * - `dindex`: The [`DataIndex`] to resolve dataset references in the snippets with.
      * - `compiler`: Will point to the newly created [`Compiler`] when done. Will be [`NULL`] if there is an error (see below).
      * 
      * # Returns
      * [`Null`] in all cases except when an error occurs. Then, an [`Error`]-struct is returned describing the error. Don't forget this has to be freed using [`error_free()`]!
      * 
      * # Panics
-     * This function can panic if the given `endpoint` does not point to a valid UTF-8 string.
+     * This function can panic if the given `pindex` or `dindex` points to NULL.
      */
-    Error* (*compiler_new)(const char* endpoint, Compiler** compiler);
+    Error* (*compiler_new)(PackageIndex* pindex, DataIndex* dindex, Compiler** compiler);
     /* Destructor for the Compiler.
      * 
      * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
@@ -274,17 +352,18 @@ struct _functions {
     /* Constructor for the VirtualMachine.
      * 
      * # Arguments
-     * - `api_endpoint`: The BRANE API endpoint to connect to for package information.
      * - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
+     * - `pindex`: The [`PackageIndex`] to resolve package references in the snippets with.
+     * - `dindex`: The [`DataIndex`] to resolve dataset references in the snippets with.
      * - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
      * 
      * # Returns
      * An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
      * 
      * # Panics
-     * This function can panic if the given `api_endpoint` or `drv_endpoint` do not point to a valid UTF-8 string.
+     * This function can panic if the given `pindex` or `dindex` are NULL, or if the given `drv_endpoint` does not point to a valid UTF-8 string.
      */
-    Error* (*vm_new)(const char* api_endpoint, const char* drv_endpoint, VirtualMachine** vm);
+    Error* (*vm_new)(const char* drv_endpoint, PackageIndex* pindex, DataIndex* dindex, VirtualMachine** vm);
     /* Destructor for the VirtualMachine.
      * 
      * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
@@ -309,68 +388,78 @@ struct _functions {
      */
     Error* (*vm_run)(VirtualMachine* vm, Workflow* workflow, FullValue** result);
 };
-typedef struct _functions Functions;
+typedef struct _state State;
 
 
 
 
 
 /***** FUNCTIONS *****/
-/* Loads the [`Functions`]-struct dynamically from the given .so file.
+/* Loads the [`State`]-struct dynamically from the given .so file.
  * 
  * # Arguments
  * - `path`: The path to the .so file to load.
  * 
  * # Returns
- * The [`Functions`]-struct with everything loaded, including the dlopen handle - unless an error occurred. Then `NULL` is returned.
+ * The [`State`]-struct with everything loaded, including the dlopen handle - unless an error occurred. Then `NULL` is returned.
  */
-Functions* functions_load(const char* path) {
+State* state_new(const char* path) {
     // Allocate the struct
-    Functions* functions = (Functions*) malloc(sizeof(Functions));
+    State* state = (State*) malloc(sizeof(State));
 
     // Attempt to load the dlopen handle
-    functions->handle = dlopen(path, RTLD_LAZY);
-    if (functions->handle == NULL) { fprintf(stderr, "Failed to load dynamic library '%s'", path); return NULL; }
+    state->handle = dlopen(path, RTLD_LAZY);
+    if (state->handle == NULL) { fprintf(stderr, "Failed to load dynamic library '%s': %s\n", path, dlerror()); return NULL; }
 
     // Load the error symbols
-    functions->error_free = (void (*)(Error*)) dlsym(functions->handle, "error_free");
-    functions->error_print_err = (void (*)(Error*)) dlsym(functions->handle, "error_print_err");
+    LOAD_SYMBOL(error_free, void(*)(Error*));
+    LOAD_SYMBOL(error_print_err, void (*)(Error*));
 
     // Load the source error symbols
-    functions->serror_free = (void (*)(SourceError*)) dlsym(functions->handle, "serror_free");
-    functions->serror_has_swarns = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_warns");
-    functions->serror_has_serrs = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_serrs");
-    functions->serror_has_err = (bool (*)(SourceError*)) dlsym(functions->handle, "serror_has_err");
-    functions->serror_print_swarns = (void (*)(SourceError*)) dlsym(functions->handle, "serror_print_swarns");
-    functions->serror_print_serrs = (void (*)(SourceError*)) dlsym(functions->handle, "serror_print_serrs");
-    functions->serror_print_err = (void (*)(SourceError*)) dlsym(functions->handle, "serror_print_err");
+    LOAD_SYMBOL(serror_free, void (*)(SourceError*));
+    LOAD_SYMBOL(serror_has_swarns, bool (*)(SourceError*));
+    LOAD_SYMBOL(serror_has_serrs, bool (*)(SourceError*));
+    LOAD_SYMBOL(serror_has_err, bool (*)(SourceError*));
+    LOAD_SYMBOL(serror_print_swarns, void (*)(SourceError*));
+    LOAD_SYMBOL(serror_print_serrs, void (*)(SourceError*));
+    LOAD_SYMBOL(serror_print_err, void (*)(SourceError*));
+
+    // Load the index symbols
+    LOAD_SYMBOL(pindex_new_remote, Error* (*)(const char*, PackageIndex**));
+    LOAD_SYMBOL(pindex_free, void (*)(PackageIndex*));
+    LOAD_SYMBOL(dindex_new_remote, Error* (*)(const char*, DataIndex**));
+    LOAD_SYMBOL(dindex_free, void (*)(DataIndex*));
 
     // Load the workflow symbols
-    functions->workflow_free = (void (*)(Workflow*)) dlsym(functions->handle, "workflow_free");
-    functions->workflow_disassemble = (Error* (*)(Workflow*, char**)) dlsym(functions->handle, "workflow_disassemble");
+    LOAD_SYMBOL(workflow_free, void (*)(Workflow*));
+    LOAD_SYMBOL(workflow_disassemble, Error* (*)(Workflow*, char**));
 
     // Load the compiler symbols
-    functions->compiler_new = (Error* (*)(const char*, Compiler**)) dlsym(functions->handle, "compiler_new");
-    functions->compiler_free = (void (*)(Compiler*)) dlsym(functions->handle, "compiler_free");
-    functions->compiler_compile = (SourceError* (*)(Compiler*, const char*, const char*, Workflow**)) dlsym(functions->handle, "compiler_compile");
+    LOAD_SYMBOL(compiler_new, Error* (*)(PackageIndex*, DataIndex*, Compiler**));
+    LOAD_SYMBOL(compiler_free, void (*)(Compiler*));
+    LOAD_SYMBOL(compiler_compile, SourceError* (*)(Compiler*, const char*, const char*, Workflow**));
 
     // Load the VM symbols
-    functions->vm_new = (Error* (*)(const char*, const char*, VirtualMachine**)) dlsym(functions->handle, "vm_new");
-    functions->vm_free = (void (*)(VirtualMachine*)) dlsym(functions->handle, "vm_free");
-    functions->vm_run = (Error* (*)(VirtualMachine*, Workflow*, FullValue**)) dlsym(functions->handle, "vm_run");
+    LOAD_SYMBOL(vm_new, Error* (*)(const char*, PackageIndex*, DataIndex*, VirtualMachine**));
+    LOAD_SYMBOL(vm_free, void (*)(VirtualMachine*));
+    LOAD_SYMBOL(vm_run, Error* (*)(VirtualMachine*, Workflow*, FullValue**));
 
     // Done
-    return functions;
+    return state;
 }
-/* Destroys the [`Functions`]-struct, unloading all the symbols within.
+/* Destroys the [`State`]-struct, unloading all the symbols within.
  * 
  * # Arguments
- * - `functions`: The [`Functions`]-struct to free.
+ * - `state`: The [`State`]-struct to free.
  */
-void functions_unload(Functions* functions) {
+void state_free(State* state) {
+    // Call the function to free the Tokio runtime
+    void (*free_tokio)() = (void (*)()) dlsym(state->handle, "free_tokio");
+    free_tokio();
+
     // Close the handle, then free
-    dlclose(functions->handle);
-    free(functions);
+    dlclose(state->handle);
+    free(state);
 }
 
 #endif

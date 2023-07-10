@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    04 Jul 2023, 17:01:43
+//    10 Jul 2023, 12:08:49
 //  Auto updated?
 //    Yes
 // 
@@ -18,11 +18,12 @@
 
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
-use std::sync::Once;
+use std::sync::{Arc, Once};
+use std::time::Instant;
 
 use humanlog::{DebugMode, HumanLogger};
 use lazy_static::lazy_static;
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 use tokio::runtime::{Builder, Runtime};
 
 use brane_ast::{CompileResult, Error as AstError, ParserOptions, Warning as AstWarning};
@@ -30,7 +31,7 @@ use brane_ast::ast::Workflow;
 use brane_ast::state::CompileState;
 use brane_ast::traversals::print::ast;
 use brane_cli::data::download_data;
-use brane_cli::run::{initialize_instance_vm, run_instance, InstanceVmState};
+use brane_cli::run::{initialize_instance, run_instance, InstanceVmState};
 use brane_exe::FullValue;
 use brane_tsk::api::{get_data_index, get_package_index};
 use specifications::data::DataIndex;
@@ -51,7 +52,7 @@ static LOG_INIT: Once = Once::new();
 
 lazy_static! {
     /// Ensures the the Tokio runtime is constructed
-    static ref TOKIO_RUNTIME: Result<Runtime, std::io::Error> = Builder::new_current_thread().enable_io().enable_time().build();
+    static ref TOKIO_RUNTIME: Result<Runtime, std::io::Error> = { debug!("Initializing Tokio runtime"); Builder::new_current_thread().enable_io().enable_time().build() };
 }
 
 
@@ -346,6 +347,136 @@ pub unsafe extern "C" fn serror_print_err(serr: *const SourceError) {
 
 
 
+/***** LIBRARY PACKAGEINDEX *****/
+/// Constructs a new [`PackageIndex`] that lists the available packages in a remote instance.
+/// 
+/// # Arguments
+/// - `endpoint`: The remote API-endpoint to read the packages from. The path (`/graphql`) will be deduced and needn't be given, just the host and port.
+/// - `pindex`: Will point to the newly created [`PackageIndex`] when done. Will be [`NULL`] if there is an error (see below).
+/// 
+/// # Returns
+/// [`Null`] in all cases except when an error occurs. Then, an [`Error`]-struct is returned describing the error. Don't forget this has to be freed using [`error_free()`]!
+/// 
+/// # Panics
+/// This function can panic if the given `endpoint` does not point to a valud UTF-8 string.
+#[no_mangle]
+pub unsafe extern "C" fn pindex_new_remote(endpoint: *const c_char, pindex: *mut *mut Arc<PackageIndex>) -> *const Error {
+    init_logger();
+    *pindex = std::ptr::null_mut();
+    info!("Collecting package index...");
+
+    // Read the input string
+    let endpoint: &str = cstr_to_rust(endpoint);
+
+    // Create a local threaded tokio context
+    let runtime: &Runtime = match init_tokio() {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
+            return Box::into_raw(Box::new(err));
+        }
+    };
+
+    // Build the package index around it
+    let addr: String = format!("{endpoint}/graphql");
+    let index: PackageIndex = match runtime.block_on(get_package_index(&addr)) {
+        Ok(index) => index,
+        Err(e) => {
+            let err: Error = Error { msg: format!("Failed to read package index from '{addr}': {e}") };
+            return Box::into_raw(Box::new(err));
+        }
+    };
+
+    // Store it and we're done
+    debug!("Found {} packages", index.packages.len());
+    *pindex = Box::into_raw(Box::new(Arc::new(index)));
+    std::ptr::null()
+}
+
+/// Destructor for the PackageIndex.
+/// 
+/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// 
+/// # Arguments
+/// - `pindex`: The [`PackageIndex`] to free.
+#[no_mangle]
+pub unsafe extern "C" fn pindex_free(pindex: *mut Arc<PackageIndex>) {
+    init_logger();
+    trace!("Destroying PackageIndex...");
+
+    // Simply capture the box, then drop
+    drop(Box::from_raw(pindex))
+}
+
+
+
+
+
+/***** LIBRARY DATAINDEX *****/
+/// Constructs a new [`DataIndex`] that lists the available datasets in a remote instance.
+/// 
+/// # Arguments
+/// - `endpoint`: The remote API-endpoint to read the datasets from. The path (`/data/info`) will be deduced and needn't be given, just the host and port.
+/// - `dindex`: Will point to the newly created [`DataIndex`] when done. Will be [`NULL`] if there is an error (see below).
+/// 
+/// # Returns
+/// [`Null`] in all cases except when an error occurs. Then, an [`Error`]-struct is returned describing the error. Don't forget this has to be freed using [`error_free()`]!
+/// 
+/// # Panics
+/// This function can panic if the given `endpoint` does not point to a valud UTF-8 string.
+#[no_mangle]
+pub unsafe extern "C" fn dindex_new_remote(endpoint: *const c_char, dindex: *mut *mut Arc<DataIndex>) -> *const Error {
+    init_logger();
+    *dindex = std::ptr::null_mut();
+    info!("Collecting data index...");
+
+    // Read the input string
+    let endpoint: &str = cstr_to_rust(endpoint);
+
+    // Create a local threaded tokio context
+    let runtime: &Runtime = match init_tokio() {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
+            return Box::into_raw(Box::new(err));
+        }
+    };
+
+    // Build the package index around it
+    let addr: String = format!("{endpoint}/data/info");
+    let index: DataIndex = match runtime.block_on(get_data_index(&addr)) {
+        Ok(index) => index,
+        Err(e) => {
+            let err: Error = Error { msg: format!("Failed to read data index from '{addr}': {e}") };
+            return Box::into_raw(Box::new(err));
+        }
+    };
+
+    // Store it and we're done
+    debug!("Found {} datasets", index.iter().count());
+    *dindex = Box::into_raw(Box::new(Arc::new(index)));
+    std::ptr::null()
+}
+
+/// Destructor for the DataIndex.
+/// 
+/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// 
+/// # Arguments
+/// - `dindex`: The [`DataIndex`] to free.
+#[no_mangle]
+pub unsafe extern "C" fn dindex_free(dindex: *mut Arc<DataIndex>) {
+    init_logger();
+    trace!("Destroying DataIndex...");
+
+    // Simply capture the box, then drop
+    drop(Box::from_raw(dindex))
+}
+
+
+
+
+
 /***** LIBRARY WORKFLOW *****/
 /// Destructor for the Workflow.
 /// 
@@ -358,7 +489,7 @@ pub unsafe extern "C" fn workflow_free(workflow: *mut Workflow) {
     init_logger();
     trace!("Destroying Workflow...");
 
-    // Simply captute the box, then drop
+    // Simply capture the box, then drop
     drop(Box::from_raw(workflow))
 }
 
@@ -423,9 +554,9 @@ pub unsafe extern "C" fn workflow_disassemble(workflow: *const Workflow, assembl
 #[derive(Debug)]
 pub struct Compiler {
     /// The package index to use for compilation.
-    pindex : PackageIndex,
+    pindex : Arc<PackageIndex>,
     /// The data index to use for compilation.
-    dindex : DataIndex,
+    dindex : Arc<DataIndex>,
 
     /// The additional, total collected source that we are working with
     source : String,
@@ -438,56 +569,38 @@ pub struct Compiler {
 /// Constructor for the Compiler.
 /// 
 /// # Arguments
-/// - `endpoint`: The endpoint (as an address) to read the package & data index from. This is the address of a `brane-api` instance.
+/// - `pindex`: The [`PackageIndex`] to resolve package references in the snippets with.
+/// - `dindex`: The [`DataIndex`] to resolve dataset references in the snippets with.
 /// - `compiler`: Will point to the newly created [`Compiler`] when done. Will be [`NULL`] if there is an error (see below).
 /// 
 /// # Returns
 /// [`Null`] in all cases except when an error occurs. Then, an [`Error`]-struct is returned describing the error. Don't forget this has to be freed using [`error_free()`]!
+/// 
+/// # Panics
+/// This function can panic if the given `pindex` or `dindex` points to NULL.
 #[no_mangle]
-pub unsafe extern "C" fn compiler_new(endpoint: *const c_char, compiler: *mut *mut Compiler) -> *const Error {
+pub unsafe extern "C" fn compiler_new(pindex: *const Arc<PackageIndex>, dindex: *const Arc<DataIndex>, compiler: *mut *mut Compiler) -> *const Error {
     init_logger();
     *compiler = std::ptr::null_mut();
     info!("Constructing BraneScript compiler v{}...", env!("CARGO_PKG_VERSION"));
 
-    // Read the endpoint string
-    let endpoint: &str = cstr_to_rust(endpoint);
-
-    // Create a local threaded tokio context
-    let runtime: &Runtime = match init_tokio() {
-        Ok(runtime) => runtime,
-        Err(e) => {
-            let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
-            return Box::into_raw(Box::new(err));
-        }
+    // Read the indices
+    let pindex: &Arc<PackageIndex> = match pindex.as_ref() {
+        Some(index) => index,
+        None => { panic!("Given PackageIndex is a NULL-pointer"); },
     };
-
-    // Load the package index
-    let package_endpoint: String = format!("{endpoint}/graphql");
-    debug!("Loading package index from '{package_endpoint}'...");
-    let pindex: PackageIndex = match runtime.block_on(get_package_index(package_endpoint)) {
-        Ok(index) => index,
-        Err(e) => {
-            let err: Error = Error { msg: format!("Failed to get package index: {e}") };
-            return Box::into_raw(Box::new(err));
-        },
-    };
-
-    // Load the data index
-    let data_endpoint: String = format!("{endpoint}/data/info");
-    debug!("Loading data index from '{data_endpoint}'...");
-    let dindex: DataIndex = match runtime.block_on(get_data_index(data_endpoint)) {
-        Ok(index) => index,
-        Err(e) => {
-            let err: Error = Error { msg: format!("Failed to get data index: {e}") };
-            return Box::into_raw(Box::new(err));
-        },
+    let dindex: &Arc<DataIndex> = match dindex.as_ref() {
+        Some(index) => index,
+        None => { panic!("Given DataIndex is a NULL-pointer"); },
     };
 
     // Construct a new Compiler and return it as a pointer
     *compiler = Box::into_raw(Box::new(Compiler {
-        pindex,
-        dindex,
-        state : CompileState::new(),
+        pindex : pindex.clone(),
+        dindex : dindex.clone(),
+
+        source : String::new(),
+        state  : CompileState::new(),
     }));
     debug!("Compiler created");
     std::ptr::null()
@@ -632,24 +745,34 @@ pub struct VirtualMachine {
 /// Constructor for the VirtualMachine.
 /// 
 /// # Arguments
-/// - `api_endpoint`: The BRANE API endpoint to connect to for package information.
 /// - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
+/// - `pindex`: The [`PackageIndex`] to resolve package references in the snippets with.
+/// - `dindex`: The [`DataIndex`] to resolve dataset references in the snippets with.
 /// - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
 /// 
 /// # Returns
 /// An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
 /// 
 /// # Panics
-/// This function can panic if the given `api_endpoint` or `drv_endpoint` do not point to a valid UTF-8 string.
+/// This function can panic if the given `pindex` or `dindex` are NULL, or if the given `drv_endpoint` does not point to a valid UTF-8 string.
 #[no_mangle]
-pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *const c_char, vm: *mut *mut VirtualMachine) -> *const Error {
+pub unsafe extern "C" fn vm_new(drv_endpoint: *const c_char, pindex: *const Arc<PackageIndex>, dindex: *const Arc<DataIndex>, vm: *mut *mut VirtualMachine) -> *const Error {
     init_logger();
     *vm = std::ptr::null_mut();
     info!("Constructing BraneScript virtual machine v{}...", env!("CARGO_PKG_VERSION"));
 
     // Read the endpoints
-    let api_endpoint: &str = cstr_to_rust(api_endpoint);
     let drv_endpoint: &str = cstr_to_rust(drv_endpoint);
+
+    // Read the indices
+    let pindex: &Arc<PackageIndex> = match pindex.as_ref() {
+        Some(index) => index,
+        None => { panic!("Given PackageIndex is a NULL-pointer"); },
+    };
+    let dindex: &Arc<DataIndex> = match dindex.as_ref() {
+        Some(index) => index,
+        None => { panic!("Given DataIndex is a NULL-pointer"); },
+    };
 
     // Prepare a tokio environment
     let runtime: &Runtime = match init_tokio() {
@@ -661,7 +784,7 @@ pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *cons
     };
 
     // Prepare the state
-    let state: InstanceVmState = match runtime.block_on(initialize_instance_vm(api_endpoint, drv_endpoint, None, ParserOptions::bscript())) {
+    let state: InstanceVmState = match runtime.block_on(initialize_instance(drv_endpoint, pindex.clone(), dindex.clone(), None, ParserOptions::bscript())) {
         Ok(state) => state,
         Err(e)  => {
             let err: Error = Error { msg: format!("Failed to create new InstanceVmState: {e}") };
@@ -711,7 +834,8 @@ pub unsafe extern "C" fn vm_free(vm: *mut VirtualMachine) {
 pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workflow, result: *mut *mut FullValue) -> *const Error {
     init_logger();
     *result = std::ptr::null_mut();
-    info!("Constructing BraneScript virtual machine v{}...", env!("CARGO_PKG_VERSION"));
+    info!("Executing workflow on virtual machine...");
+    let start: Instant = Instant::now();
 
     // Unwrap the VM
     let vm: &mut VirtualMachine = match vm.as_mut() {
@@ -734,6 +858,7 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
     };
 
     // Run the state
+    debug!("Executing snippet...");
     let value: FullValue = match runtime.block_on(run_instance(&vm.drv_endpoint, &mut vm.state, workflow, false)) {
         Ok(value) => value,
         Err(e) => {
@@ -743,9 +868,15 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
     };
 
     // If the value is a dataset, then download the data on top of it
-    todo!();
+    if let FullValue::Data(d) = &value {
+        debug!("Downloading dataset...");
+
+        /* TODO */
+        warn!("Downloading dataset not yet implemented");
+    }
 
     // Store it and we're done!
+    debug!("Done (execution took {:.2}s)", start.elapsed().as_secs_f32());
     *result = Box::into_raw(Box::new(value));
     std::ptr::null()
 }
