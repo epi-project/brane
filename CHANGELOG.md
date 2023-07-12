@@ -8,6 +8,7 @@ All notable changes to the Brane framework will be documented in this file.
 - The `branectl upgrade` subcommand, which can be used to upgrade old config files to the new style.
 - An extensive description of the `brane-prx` service in the generated docs.
 - The `--keep-containers` options to `brane run`, `brane repl` and `brane test` to keep containers around for debugging after running.
+- A garbage collector to `brane-drv` for running sessions, to terminate them if they haven't been accessed for over 24 hours.
 
 ### Changed
 - Bumped `brane-tsk` packages to newest version (base64).

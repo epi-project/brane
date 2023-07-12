@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:18:11
 //  Last edited:
-//    01 Feb 2023, 15:18:54
+//    12 Jul 2023, 16:53:22
 //  Auto updated?
 //    Yes
 // 
@@ -15,6 +15,7 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Instant;
 
 use dashmap::DashMap;
 use log::{debug, error};
@@ -32,6 +33,7 @@ use specifications::profiling::ProfileReport;
 use crate::errors::RemoteVmError;
 use crate::planner::InstancePlanner;
 use crate::vm::InstanceVm;
+use crate::gc;
 
 
 /***** HELPER MACROS *****/
@@ -97,7 +99,7 @@ pub struct DriverHandler {
     planner          : Arc<InstancePlanner>,
 
     /// Current sessions and active VMs. Note that this only concerns states if connected via a REPL-session; any in-statement state (i.e., calling nodes) is handled by virtue of the VM being implemented as `async`.
-    sessions : Arc<DashMap<AppId, InstanceVm>>,
+    sessions : Arc<DashMap<AppId, (InstanceVm, Instant)>>,
 }
 
 impl DriverHandler {
@@ -112,12 +114,17 @@ impl DriverHandler {
     /// A new DriverHandler instance.
     #[inline]
     pub fn new(node_config_path: impl Into<PathBuf>, proxy: Arc<ProxyClient>, planner: Arc<InstancePlanner>) -> Self {
+        // Create the new sessions list with its Garbage Collector (GC)
+        let sessions: Arc<DashMap<AppId, (InstanceVm, Instant)>> = Arc::new(DashMap::new());
+        tokio::spawn(gc::sessions(Arc::downgrade(&sessions)));
+
+        // Now use that as this handler's sessions
         Self {
             node_config_path : node_config_path.into(),
             proxy,
             planner,
 
-            sessions : Arc::new(DashMap::new()),
+            sessions,
         }
     }
 }
@@ -142,7 +149,7 @@ impl DriverService for DriverHandler {
 
         // Create a new VM for this session
         let app_id: AppId = AppId::generate();
-        self.sessions.insert(app_id.clone(), InstanceVm::new(&self.node_config_path, app_id.clone(), self.proxy.clone(), self.planner.clone()));
+        self.sessions.insert(app_id.clone(), (InstanceVm::new(&self.node_config_path, app_id.clone(), self.proxy.clone(), self.planner.clone()), Instant::now()));
 
         // Now return the ID to the user for future reference
         debug!("Created new session '{}'", app_id);
@@ -179,9 +186,9 @@ impl DriverService for DriverHandler {
         };
 
         // Fetch the VM
-        let sessions: Arc<DashMap<AppId, InstanceVm>> = self.sessions.clone();
+        let sessions: Arc<DashMap<AppId, (InstanceVm, Instant)>> = self.sessions.clone();
         let vm: InstanceVm = match sessions.get(&app_id) {
-            Some(vm) => vm.clone(),
+            Some(vm) => vm.0.clone(),
             None     => { fatal_err!(tx, rx, Status::internal(format!("No session with ID '{app_id}' found"))); }
         };
 
@@ -210,7 +217,7 @@ impl DriverService for DriverHandler {
 
             // Insert the VM again
             debug!("Saving state session state");
-            sessions.insert(app_id, vm);
+            sessions.insert(app_id, (vm, Instant::now()));
 
             // Switch on the actual result and send that back to the user
             match res {
