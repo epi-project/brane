@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    10 Jul 2023, 12:08:49
+//    12 Jul 2023, 16:20:11
 //  Auto updated?
 //    Yes
 // 
@@ -50,11 +50,6 @@ static C_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
 /// Ensures that the initialization function is run only once.
 static LOG_INIT: Once = Once::new();
 
-lazy_static! {
-    /// Ensures the the Tokio runtime is constructed
-    static ref TOKIO_RUNTIME: Result<Runtime, std::io::Error> = { debug!("Initializing Tokio runtime"); Builder::new_current_thread().enable_io().enable_time().build() };
-}
-
 
 
 
@@ -68,15 +63,6 @@ fn init_logger() {
             eprintln!("WARNING: Failed to setup Rust logger: {err} (logging disabled for this session)");
         }
     });
-}
-/// Initializes the tokio runtime if it hadn't already.
-/// 
-/// # Returns
-/// A reference to the initialize runtime, which can be used for operations.
-#[inline]
-fn init_tokio() -> &'static Result<Runtime, std::io::Error> {
-    // Simply dereference the thing to make it lazily initialized
-    &*TOKIO_RUNTIME
 }
 
 /// Reads a C-string as a Rust string (or at least, attempts to).
@@ -369,7 +355,7 @@ pub unsafe extern "C" fn pindex_new_remote(endpoint: *const c_char, pindex: *mut
     let endpoint: &str = cstr_to_rust(endpoint);
 
     // Create a local threaded tokio context
-    let runtime: &Runtime = match init_tokio() {
+    let runtime: Runtime = match Builder::new_current_thread().enable_all().build() {
         Ok(runtime) => runtime,
         Err(e) => {
             let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
@@ -434,7 +420,7 @@ pub unsafe extern "C" fn dindex_new_remote(endpoint: *const c_char, dindex: *mut
     let endpoint: &str = cstr_to_rust(endpoint);
 
     // Create a local threaded tokio context
-    let runtime: &Runtime = match init_tokio() {
+    let runtime: Runtime = match Builder::new_current_thread().enable_all().build() {
         Ok(runtime) => runtime,
         Err(e) => {
             let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
@@ -775,7 +761,7 @@ pub unsafe extern "C" fn vm_new(drv_endpoint: *const c_char, pindex: *const Arc<
     };
 
     // Prepare a tokio environment
-    let runtime: &Runtime = match init_tokio() {
+    let runtime: Runtime = match Builder::new_current_thread().enable_all().build() {
         Ok(runtime) => runtime,
         Err(e) => {
             let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
@@ -849,7 +835,7 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
     };
 
     // Prepare a tokio environment
-    let runtime: &Runtime = match init_tokio() {
+    let runtime: Runtime = match Builder::new_current_thread().enable_all().build() {
         Ok(runtime) => runtime,
         Err(e) => {
             let err: Box<Error> = Box::new(Error { msg: format!("Failed to create local Tokio context: {e}") });

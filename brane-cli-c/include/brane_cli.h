@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   10 Jul 2023, 12:07:30
+ *   12 Jul 2023, 16:17:46
  * Auto updated?
  *   Yes
  *
@@ -453,10 +453,6 @@ State* state_new(const char* path) {
  * - `state`: The [`State`]-struct to free.
  */
 void state_free(State* state) {
-    // Call the function to free the Tokio runtime
-    void (*free_tokio)() = (void (*)()) dlsym(state->handle, "free_tokio");
-    free_tokio();
-
     // Close the handle, then free
     dlclose(state->handle);
     free(state);
