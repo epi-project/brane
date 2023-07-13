@@ -4,7 +4,7 @@
 //  Created:
 //    02 Nov 2022, 16:21:33
 //  Last edited:
-//    07 Jun 2023, 16:29:36
+//    13 Jul 2023, 13:58:57
 //  Auto updated?
 //    Yes
 // 
@@ -42,7 +42,7 @@ use crate::spec::Context;
 /// # Errors
 /// This function may error (i.e., reject the request) if we failed to load the infrastructure file.
 pub async fn registries(context: Context) -> Result<impl Reply, Rejection> {
-    debug!("Handling GET on `/infra/registries` (i.e., list all regitsry endpoints)...");
+    debug!("Handling GET on `/infra/registries` (i.e., list all registry endpoints)...");
 
     // Load the node config file
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
