@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    12 Jul 2023, 16:20:11
+//    18 Jul 2023, 09:32:12
 //  Auto updated?
 //    Yes
 // 
@@ -16,14 +16,15 @@
 //!   http://blog.asleson.org/2021/02/23/how-to-writing-a-c-shared-library-in-rust/
 // 
 
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::{Arc, Once};
 use std::time::Instant;
 
 use humanlog::{DebugMode, HumanLogger};
-use lazy_static::lazy_static;
 use log::{debug, error, info, trace, warn};
+use parking_lot::{Mutex, MutexGuard};
 use tokio::runtime::{Builder, Runtime};
 
 use brane_ast::{CompileResult, Error as AstError, ParserOptions, Warning as AstWarning};
@@ -34,7 +35,7 @@ use brane_cli::data::download_data;
 use brane_cli::run::{initialize_instance, run_instance, InstanceVmState};
 use brane_exe::FullValue;
 use brane_tsk::api::{get_data_index, get_package_index};
-use specifications::data::DataIndex;
+use specifications::data::{AccessKind, DataIndex};
 use specifications::package::PackageIndex;
 
 
@@ -346,7 +347,7 @@ pub unsafe extern "C" fn serror_print_err(serr: *const SourceError) {
 /// # Panics
 /// This function can panic if the given `endpoint` does not point to a valud UTF-8 string.
 #[no_mangle]
-pub unsafe extern "C" fn pindex_new_remote(endpoint: *const c_char, pindex: *mut *mut Arc<PackageIndex>) -> *const Error {
+pub unsafe extern "C" fn pindex_new_remote(endpoint: *const c_char, pindex: *mut *mut Arc<Mutex<PackageIndex>>) -> *const Error {
     init_logger();
     *pindex = std::ptr::null_mut();
     info!("Collecting package index...");
@@ -375,7 +376,7 @@ pub unsafe extern "C" fn pindex_new_remote(endpoint: *const c_char, pindex: *mut
 
     // Store it and we're done
     debug!("Found {} packages", index.packages.len());
-    *pindex = Box::into_raw(Box::new(Arc::new(index)));
+    *pindex = Box::into_raw(Box::new(Arc::new(Mutex::new(index))));
     std::ptr::null()
 }
 
@@ -386,7 +387,7 @@ pub unsafe extern "C" fn pindex_new_remote(endpoint: *const c_char, pindex: *mut
 /// # Arguments
 /// - `pindex`: The [`PackageIndex`] to free.
 #[no_mangle]
-pub unsafe extern "C" fn pindex_free(pindex: *mut Arc<PackageIndex>) {
+pub unsafe extern "C" fn pindex_free(pindex: *mut Arc<Mutex<PackageIndex>>) {
     init_logger();
     trace!("Destroying PackageIndex...");
 
@@ -411,7 +412,7 @@ pub unsafe extern "C" fn pindex_free(pindex: *mut Arc<PackageIndex>) {
 /// # Panics
 /// This function can panic if the given `endpoint` does not point to a valud UTF-8 string.
 #[no_mangle]
-pub unsafe extern "C" fn dindex_new_remote(endpoint: *const c_char, dindex: *mut *mut Arc<DataIndex>) -> *const Error {
+pub unsafe extern "C" fn dindex_new_remote(endpoint: *const c_char, dindex: *mut *mut Arc<Mutex<DataIndex>>) -> *const Error {
     init_logger();
     *dindex = std::ptr::null_mut();
     info!("Collecting data index...");
@@ -440,7 +441,7 @@ pub unsafe extern "C" fn dindex_new_remote(endpoint: *const c_char, dindex: *mut
 
     // Store it and we're done
     debug!("Found {} datasets", index.iter().count());
-    *dindex = Box::into_raw(Box::new(Arc::new(index)));
+    *dindex = Box::into_raw(Box::new(Arc::new(Mutex::new(index))));
     std::ptr::null()
 }
 
@@ -451,7 +452,7 @@ pub unsafe extern "C" fn dindex_new_remote(endpoint: *const c_char, dindex: *mut
 /// # Arguments
 /// - `dindex`: The [`DataIndex`] to free.
 #[no_mangle]
-pub unsafe extern "C" fn dindex_free(dindex: *mut Arc<DataIndex>) {
+pub unsafe extern "C" fn dindex_free(dindex: *mut Arc<Mutex<DataIndex>>) {
     init_logger();
     trace!("Destroying DataIndex...");
 
@@ -540,9 +541,9 @@ pub unsafe extern "C" fn workflow_disassemble(workflow: *const Workflow, assembl
 #[derive(Debug)]
 pub struct Compiler {
     /// The package index to use for compilation.
-    pindex : Arc<PackageIndex>,
+    pindex : Arc<Mutex<PackageIndex>>,
     /// The data index to use for compilation.
-    dindex : Arc<DataIndex>,
+    dindex : Arc<Mutex<DataIndex>>,
 
     /// The additional, total collected source that we are working with
     source : String,
@@ -565,17 +566,17 @@ pub struct Compiler {
 /// # Panics
 /// This function can panic if the given `pindex` or `dindex` points to NULL.
 #[no_mangle]
-pub unsafe extern "C" fn compiler_new(pindex: *const Arc<PackageIndex>, dindex: *const Arc<DataIndex>, compiler: *mut *mut Compiler) -> *const Error {
+pub unsafe extern "C" fn compiler_new(pindex: *const Arc<Mutex<PackageIndex>>, dindex: *const Arc<Mutex<DataIndex>>, compiler: *mut *mut Compiler) -> *const Error {
     init_logger();
     *compiler = std::ptr::null_mut();
     info!("Constructing BraneScript compiler v{}...", env!("CARGO_PKG_VERSION"));
 
     // Read the indices
-    let pindex: &Arc<PackageIndex> = match pindex.as_ref() {
+    let pindex: &Arc<Mutex<PackageIndex>> = match pindex.as_ref() {
         Some(index) => index,
         None => { panic!("Given PackageIndex is a NULL-pointer"); },
     };
-    let dindex: &Arc<DataIndex> = match dindex.as_ref() {
+    let dindex: &Arc<Mutex<DataIndex>> = match dindex.as_ref() {
         Some(index) => index,
         None => { panic!("Given DataIndex is a NULL-pointer"); },
     };
@@ -664,23 +665,30 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, what: *const 
     serr.source = &compiler.source;
 
     // Compile that using `brane-ast`
-    let wf: Workflow = match brane_ast::compile_snippet(&mut compiler.state, compiler.source.as_bytes(), &compiler.pindex, &compiler.dindex, &ParserOptions::bscript()) {
-        CompileResult::Workflow(workflow, warns) => {
-            serr.warns = warns;
-            workflow
-        },
+    let wf: Workflow = {
+        // Acquire locks on the indices
+        let pindex: MutexGuard<PackageIndex> = compiler.pindex.lock();
+        let dindex: MutexGuard<DataIndex> = compiler.dindex.lock();
 
-        CompileResult::Eof(e) => {
-            serr.errs = vec![ e ];
-            return Box::into_raw(serr);
-        },
-        CompileResult::Err(errs) => {
-            serr.errs = errs;
-            return Box::into_raw(serr);
-        },
+        // Run the snippet
+        match brane_ast::compile_snippet(&mut compiler.state, compiler.source.as_bytes(), &*pindex, &*dindex, &ParserOptions::bscript()) {
+            CompileResult::Workflow(workflow, warns) => {
+                serr.warns = warns;
+                workflow
+            },
 
-        CompileResult::Program(_, _)    |
-        CompileResult::Unresolved(_, _) => { unreachable!(); },
+            CompileResult::Eof(e) => {
+                serr.errs = vec![ e ];
+                return Box::into_raw(serr);
+            },
+            CompileResult::Err(errs) => {
+                serr.errs = errs;
+                return Box::into_raw(serr);
+            },
+
+            CompileResult::Program(_, _)    |
+            CompileResult::Unresolved(_, _) => { unreachable!(); },
+        }
     };
 
     // Write the workflow to the output
@@ -720,8 +728,12 @@ pub unsafe extern "C" fn fvalue_free(fvalue: *mut FullValue) {
 /// 
 /// This can run a compiled workflow on a running instance.
 pub struct VirtualMachine {
+    /// The endpoint to connect to for downloading registries
+    api_endpoint : String,
     /// The endpoint to connect to when running.
     drv_endpoint : String,
+    /// The dataset to download directories to.
+    data_dir     : String,
     /// The state of everything we need to know about the virtual machine
     state        : InstanceVmState,
 }
@@ -731,7 +743,9 @@ pub struct VirtualMachine {
 /// Constructor for the VirtualMachine.
 /// 
 /// # Arguments
+/// - `api_endpoint`: The Brane API endpoint to connect to to download available registries and all that.
 /// - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
+/// - `data_dir`: The directory to download resulting datasets to.
 /// - `pindex`: The [`PackageIndex`] to resolve package references in the snippets with.
 /// - `dindex`: The [`DataIndex`] to resolve dataset references in the snippets with.
 /// - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
@@ -740,22 +754,24 @@ pub struct VirtualMachine {
 /// An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
 /// 
 /// # Panics
-/// This function can panic if the given `pindex` or `dindex` are NULL, or if the given `drv_endpoint` does not point to a valid UTF-8 string.
+/// This function can panic if the given `pindex` or `dindex` are NULL, or if the given `api_endpoint`, `drv_endpoint` or `data_dir` do not point to a valid UTF-8 string.
 #[no_mangle]
-pub unsafe extern "C" fn vm_new(drv_endpoint: *const c_char, pindex: *const Arc<PackageIndex>, dindex: *const Arc<DataIndex>, vm: *mut *mut VirtualMachine) -> *const Error {
+pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *const c_char, data_dir: *const c_char, pindex: *const Arc<Mutex<PackageIndex>>, dindex: *const Arc<Mutex<DataIndex>>, vm: *mut *mut VirtualMachine) -> *const Error {
     init_logger();
     *vm = std::ptr::null_mut();
     info!("Constructing BraneScript virtual machine v{}...", env!("CARGO_PKG_VERSION"));
 
     // Read the endpoints
+    let api_endpoint: &str = cstr_to_rust(api_endpoint);
     let drv_endpoint: &str = cstr_to_rust(drv_endpoint);
+    let data_dir: &str = cstr_to_rust(data_dir);
 
     // Read the indices
-    let pindex: &Arc<PackageIndex> = match pindex.as_ref() {
+    let pindex: &Arc<Mutex<PackageIndex>> = match pindex.as_ref() {
         Some(index) => index,
         None => { panic!("Given PackageIndex is a NULL-pointer"); },
     };
-    let dindex: &Arc<DataIndex> = match dindex.as_ref() {
+    let dindex: &Arc<Mutex<DataIndex>> = match dindex.as_ref() {
         Some(index) => index,
         None => { panic!("Given DataIndex is a NULL-pointer"); },
     };
@@ -780,7 +796,9 @@ pub unsafe extern "C" fn vm_new(drv_endpoint: *const c_char, pindex: *const Arc<
 
     // OK, return the new thing
     *vm = Box::into_raw(Box::new(VirtualMachine {
+        api_endpoint : api_endpoint.into(),
         drv_endpoint : drv_endpoint.into(),
+        data_dir     : data_dir.into(),
         state,
     }));
     debug!("Virtual machine created");
@@ -857,8 +875,45 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
     if let FullValue::Data(d) = &value {
         debug!("Downloading dataset...");
 
-        /* TODO */
-        warn!("Downloading dataset not yet implemented");
+        // Refresh the data index and get the access list for this dataset
+        let access: HashMap<String, AccessKind> = {
+            // Get a mutable lock to do so
+            let mut dindex: MutexGuard<DataIndex> = vm.state.dindex.lock();
+
+            // Simply load it again
+            *dindex = match runtime.block_on(get_data_index(&vm.api_endpoint)) {
+                Ok(index) => index,
+                Err(e) => {
+                    let err: Box<Error> = Box::new(Error { msg: format!("Failed to refresh data index: {e}") });
+                    return Box::into_raw(err);
+                },
+            };
+
+            // Fetch the correct map
+            match dindex.get(d) {
+                Some(info) => info.access.clone(),
+                None => {
+                    let err: Box<Error> = Box::new(Error { msg: format!("Resulting dataset '{d}' is not at any location") });
+                    return Box::into_raw(err);
+                },
+            }
+        };
+
+        // Run the process funtion
+        let res: Option<AccessKind> = match runtime.block_on(download_data(&vm.api_endpoint, &None, &vm.data_dir, d, &access)) {
+            Ok(res) => res,
+            Err(e) => {
+                let err: Box<Error> = Box::new(Error { msg: format!("Failed to download resulting data from '{}': {}", vm.api_endpoint, e) });
+                return Box::into_raw(err);
+            },
+        };
+        if let Some(AccessKind::File { path }) = res {
+            info!("Downloaded dataset to '{}'", path.display());
+        }
+
+    } else if matches!(value, FullValue::IntermediateResult(_)) {
+        // Emit a warning
+        warn!("Cannot download intermediate result");
     }
 
     // Store it and we're done!

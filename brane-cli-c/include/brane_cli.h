@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   12 Jul 2023, 16:17:46
+ *   18 Jul 2023, 09:33:20
  * Auto updated?
  *   Yes
  *
@@ -352,7 +352,9 @@ struct _state {
     /* Constructor for the VirtualMachine.
      * 
      * # Arguments
+     * - `api_endpoint`: The Brane API endpoint to connect to to download available registries and all that.
      * - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
+     * - `data_dir`: The directory to download resulting datasets to.
      * - `pindex`: The [`PackageIndex`] to resolve package references in the snippets with.
      * - `dindex`: The [`DataIndex`] to resolve dataset references in the snippets with.
      * - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
@@ -361,9 +363,9 @@ struct _state {
      * An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
      * 
      * # Panics
-     * This function can panic if the given `pindex` or `dindex` are NULL, or if the given `drv_endpoint` does not point to a valid UTF-8 string.
+     * This function can panic if the given `pindex` or `dindex` are NULL, or if the given `api_endpoint`, `drv_endpoint` or `data_dir` do not point to a valid UTF-8 string.
      */
-    Error* (*vm_new)(const char* drv_endpoint, PackageIndex* pindex, DataIndex* dindex, VirtualMachine** vm);
+    Error* (*vm_new)(const char* api_endpoint, const char* drv_endpoint, const char* data_dir, PackageIndex* pindex, DataIndex* dindex, VirtualMachine** vm);
     /* Destructor for the VirtualMachine.
      * 
      * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
@@ -440,7 +442,7 @@ State* state_new(const char* path) {
     LOAD_SYMBOL(compiler_compile, SourceError* (*)(Compiler*, const char*, const char*, Workflow**));
 
     // Load the VM symbols
-    LOAD_SYMBOL(vm_new, Error* (*)(const char*, PackageIndex*, DataIndex*, VirtualMachine**));
+    LOAD_SYMBOL(vm_new, Error* (*)(const char*, const char*, const char*, PackageIndex*, DataIndex*, VirtualMachine**));
     LOAD_SYMBOL(vm_free, void (*)(VirtualMachine*));
     LOAD_SYMBOL(vm_run, Error* (*)(VirtualMachine*, Workflow*, FullValue**));
 

@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 17:39:06
 //  Last edited:
-//    30 Jan 2023, 13:55:04
+//    18 Jul 2023, 09:11:25
 //  Auto updated?
 //    Yes
 // 
@@ -53,6 +53,7 @@ use crate::certs::get_active_certs_dir;
 /// # Arguments
 /// - `api_endpoint`: The remote `brane-api` endpoint that we use to download the possible registries.
 /// - `proxy_addr`: If given, the any data transfers will be proxied through this address.
+/// - `data_dir`: The directory to download the dataset to.
 /// - `name`: The name of the dataset to download.
 /// - `access`: The locations where it is available.
 /// 
@@ -61,8 +62,9 @@ use crate::certs::get_active_certs_dir;
 /// 
 /// # Errors
 /// This function errors if we failed to download the dataset somehow.
-pub async fn download_data(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, name: impl AsRef<str>, access: &HashMap<String, AccessKind>) -> Result<Option<AccessKind>, DataError> {
+pub async fn download_data(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, data_dir: impl AsRef<Path>, name: impl AsRef<str>, access: &HashMap<String, AccessKind>) -> Result<Option<AccessKind>, DataError> {
     let api_endpoint : &str  = api_endpoint.as_ref();
+    let data_dir     : &Path = data_dir.as_ref();
     let name         : &str  = name.as_ref();
 
 
@@ -134,14 +136,8 @@ pub async fn download_data(api_endpoint: impl AsRef<str>, proxy_addr: &Option<St
     };
     let tar_path: PathBuf = tar_dir.path().join(format!("data_{name}.tar.gz"));
 
-    // Compute the final data path in the datasets directory
-    let data_dir: PathBuf = match ensure_dataset_dir(name, true) {
-        Ok(datas_dir) => datas_dir,
-        Err(err)      => { return Err(DataError::DatasetDirError { name: name.into(), err }); },
-    };
-    let data_path: PathBuf = data_dir.join("data");
-
     // Make sure the old data path doesn't exist anymore
+    let data_path: PathBuf = data_dir.join("data");
     if data_path.exists() {
         if !data_path.is_dir() { return Err(DataError::DirNotADirError{ what: "target data", path: data_path }); }
         if let Err(err) = tfs::remove_dir_all(&data_path).await { return Err(DataError::DirRemoveError{ what: "target data", path: data_path, err }); }
@@ -436,7 +432,15 @@ pub async fn download(names: Vec<String>, locs: Vec<String>, proxy_addr: &Option
             Some(access) => access.clone(),
             None         => {
                 // Attempt to download it instead
-                match download_data(instance_info.api.to_string(), proxy_addr, &name, &access).await? {
+
+                // Get the path to download it to
+                let data_dir: PathBuf = match ensure_dataset_dir(&name, true) {
+                    Ok(dir)  => dir,
+                    Err(err) => { return Err(DataError::DatasetDirError { name, err }); },
+                };
+
+                // Run the download
+                match download_data(instance_info.api.to_string(), proxy_addr, data_dir, &name, &access).await? {
                     Some(access) => access,
                     None         => { return Err(DataError::UnavailableDataset{ name, locs: info.access.keys().cloned().collect() }); },
                 }

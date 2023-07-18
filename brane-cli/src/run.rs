@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    10 Jul 2023, 11:22:50
+//    18 Jul 2023, 09:26:57
 //  Auto updated?
 //    Yes
 // 
@@ -15,11 +15,12 @@
 use std::borrow::Cow;
 use std::io::Read;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
 use console::style;
+use parking_lot::{Mutex, MutexGuard};
 use tempfile::{tempdir, TempDir};
 
 use brane_ast::{compile_snippet, CompileResult, ParserOptions, Workflow};
@@ -124,7 +125,7 @@ fn compile(state: &mut CompileState, source: &mut String, pindex: &PackageIndex,
 /// 
 /// # Errors
 /// This function may error if we failed to reach the remote driver, or if the given session did not exist.
-pub async fn initialize_instance(drv_endpoint: impl AsRef<str>, pindex: Arc<PackageIndex>, dindex: Arc<DataIndex>, attach: Option<AppId>, options: ParserOptions) -> Result<InstanceVmState, Error> {
+pub async fn initialize_instance(drv_endpoint: impl AsRef<str>, pindex: Arc<Mutex<PackageIndex>>, dindex: Arc<Mutex<DataIndex>>, attach: Option<AppId>, options: ParserOptions) -> Result<InstanceVmState, Error> {
     let drv_endpoint: &str = drv_endpoint.as_ref();
 
     // Connect to the server with gRPC
@@ -270,6 +271,80 @@ pub async fn run_instance(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmS
     Ok(res)
 }
 
+/// Post-processes the result of a workflow.
+/// 
+/// This does nothing unless it's an IntermediateResult or a Dataset; it emits a warning in the first, attempts to download the referred dataset in the latter.
+/// 
+/// # Arguments
+/// - `api_endpoint`: The remote endpoint where we can potentially download data from (or, that at least knows about it).
+/// - `proxy_addr`: If given, proxies all data transfers through the proxy at the given location.
+/// - `datasets_dir`: The directory where we will download the data to. It will be added under a new folder with its own name.
+/// - `result`: The value to process.
+/// 
+/// # Returns
+/// Nothing, but does print any result to stdout. It may also download a remote dataset if one is given.
+/// 
+/// # Errors
+/// This function may error if the given result was a dataset and we failed to retrieve it.
+pub async fn process_instance(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, datasets_dir: impl AsRef<Path>, result: FullValue) -> Result<(), Error> {
+    let api_endpoint : &str  = api_endpoint.as_ref();
+    let datasets_dir : &Path = datasets_dir.as_ref();
+
+    // We only print
+    if result != FullValue::Void {
+        println!("\nWorkflow returned value {}", style(format!("'{result}'")).bold().cyan());
+
+        // Treat some values special
+        match result {
+            // Print sommat additional if it's an intermediate result.
+            FullValue::IntermediateResult(_) => {
+                println!("(Intermediate results are not available locally; promote it using 'commit_result()')");
+            },
+
+            // If it's a dataset, attempt to download it
+            FullValue::Data(name) => {
+                // Compute the directory to write to
+                let data_dir: PathBuf = datasets_dir.join(name.to_string());
+
+                // Fetch a new, local DataIndex to get up-to-date entries
+                let data_addr: String = format!("{api_endpoint}/data/info");
+                let index: DataIndex = match brane_tsk::api::get_data_index(&data_addr).await {
+                    Ok(dindex) => dindex,
+                    Err(err)   => { return Err(Error::RemoteDataIndexError{ address: data_addr, err }); },
+                };
+
+                // Fetch the method of its availability
+                let info: &DataInfo = match index.get(&name) {
+                    Some(info) => info,
+                    None       => { return Err(Error::UnknownDataset{ name: name.into() }); },
+                };
+                let access: AccessKind = match info.access.get(LOCALHOST) {
+                    Some(access) => access.clone(),
+                    None         => {
+                        // Attempt to download it instead
+                        match data::download_data(api_endpoint, proxy_addr, data_dir, &name, &info.access).await {
+                            Ok(Some(access)) => access,
+                            Ok(None)         => { return Err(Error::UnavailableDataset{ name: name.into(), locs: info.access.keys().cloned().collect() }); },
+                            Err(err)         => { return Err(Error::DataDownloadError{ err }); },
+                        }
+                    },
+                };
+
+                // Write the method of access
+                match access {
+                    AccessKind::File { path } => println!("(It's available under '{}')", path.display()),
+                }
+            },
+
+            // Nothing for the rest
+            _ => {},
+        }
+    }
+
+    // DOne
+    Ok(())
+}
+
 
 
 
@@ -316,9 +391,9 @@ pub struct OfflineVmState {
 /// A helper struct that contains what we need to know about a compiler + VM state for the instance use-case.
 pub struct InstanceVmState {
     /// The package index for this session.
-    pub pindex : Arc<PackageIndex>,
+    pub pindex : Arc<Mutex<PackageIndex>>,
     /// The data index for this session.
-    pub dindex : Arc<DataIndex>,
+    pub dindex : Arc<Mutex<DataIndex>>,
 
     /// The state of the compiler.
     pub state   : CompileState,
@@ -479,13 +554,13 @@ pub async fn initialize_instance_vm(api_endpoint: impl AsRef<str>, drv_endpoint:
     // We fetch a local copy of the indices for compiling
     debug!("Fetching global package & data indices from '{}'...", api_endpoint);
     let package_addr: String = format!("{api_endpoint}/graphql");
-    let pindex: Arc<PackageIndex> = match brane_tsk::api::get_package_index(&package_addr).await {
-        Ok(pindex) => Arc::new(pindex),
+    let pindex: Arc<Mutex<PackageIndex>> = match brane_tsk::api::get_package_index(&package_addr).await {
+        Ok(pindex) => Arc::new(Mutex::new(pindex)),
         Err(err)   => { return Err(Error::RemotePackageIndexError{ address: package_addr, err }); },
     };
     let data_addr: String = format!("{api_endpoint}/data/info");
-    let dindex: Arc<DataIndex> = match brane_tsk::api::get_data_index(&data_addr).await {
-        Ok(dindex) => Arc::new(dindex),
+    let dindex: Arc<Mutex<DataIndex>> = match brane_tsk::api::get_data_index(&data_addr).await {
+        Ok(dindex) => Arc::new(Mutex::new(dindex)),
         Err(err)   => { return Err(Error::RemoteDataIndexError{ address: data_addr, err }); },
     };
 
@@ -582,7 +657,12 @@ pub async fn run_offline_vm(state: &mut OfflineVmState, what: impl AsRef<str>, s
 #[inline]
 pub async fn run_instance_vm(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState, what: impl AsRef<str>, snippet: impl AsRef<str>, profile: bool) -> Result<FullValue, Error> {
     // Compile the workflow
-    let workflow: Workflow = compile(&mut state.state, &mut state.source, &state.pindex, &state.dindex, &state.options, what, snippet)?;
+    let workflow: Workflow = {
+        // Acquire the locks
+        let pindex: MutexGuard<PackageIndex> = state.pindex.lock();
+        let dindex: MutexGuard<DataIndex> = state.dindex.lock();
+        compile(&mut state.state, &mut state.source, &*pindex, &*dindex, &state.options, what, snippet)?
+    };
 
     // Run the thing using the other function
     run_instance(drv_endpoint, state, &workflow, profile).await
@@ -689,7 +769,6 @@ pub fn process_offline_result(result: FullValue) -> Result<(), Error> {
 /// # Arguments
 /// - `api_endpoint`: The remote endpoint where we can potentially download data from (or, that at least knows about it).
 /// - `proxy_addr`: If given, proxies all data transfers through the proxy at the given location.
-/// - `result_dir`: The directory where temporary results are stored.
 /// - `result`: The value to process.
 /// 
 /// # Returns
@@ -700,56 +779,14 @@ pub fn process_offline_result(result: FullValue) -> Result<(), Error> {
 pub async fn process_instance_result(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, result: FullValue) -> Result<(), Error> {
     let api_endpoint : &str  = api_endpoint.as_ref();
 
-    // We only print
-    if result != FullValue::Void {
-        println!("\nWorkflow returned value {}", style(format!("'{result}'")).bold().cyan());
+    // Fetch the data & result directories
+    let datasets_dir: PathBuf = match ensure_datasets_dir(true) {
+        Ok(datas_dir) => datas_dir,
+        Err(err)      => { return Err(Error::DatasetsDirError { err }); },
+    };
 
-        // Treat some values special
-        match result {
-            // Print sommat additional if it's an intermediate result.
-            FullValue::IntermediateResult(_) => {
-                println!("(Intermediate results are not available locally; promote it using 'commit_result()')");
-            },
-
-            // If it's a dataset, attempt to download it
-            FullValue::Data(name) => {
-                // Fetch a new, local DataIndex to get up-to-date entries
-                let data_addr: String = format!("{api_endpoint}/data/info");
-                let index: DataIndex = match brane_tsk::api::get_data_index(&data_addr).await {
-                    Ok(dindex) => dindex,
-                    Err(err)   => { return Err(Error::RemoteDataIndexError{ address: data_addr, err }); },
-                };
-
-                // Fetch the method of its availability
-                let info: &DataInfo = match index.get(&name) {
-                    Some(info) => info,
-                    None       => { return Err(Error::UnknownDataset{ name: name.into() }); },
-                };
-                let access: AccessKind = match info.access.get(LOCALHOST) {
-                    Some(access) => access.clone(),
-                    None         => {
-                        // Attempt to download it instead
-                        match data::download_data(api_endpoint, proxy_addr, &name, &info.access).await {
-                            Ok(Some(access)) => access,
-                            Ok(None)         => { return Err(Error::UnavailableDataset{ name: name.into(), locs: info.access.keys().cloned().collect() }); },
-                            Err(err)         => { return Err(Error::DataDownloadError{ err }); },
-                        }
-                    },
-                };
-
-                // Write the method of access
-                match access {
-                    AccessKind::File { path } => println!("(It's available under '{}')", path.display()),
-                }
-            },
-
-            // Nothing for the rest
-            _ => {},
-        }
-    }
-
-    // DOne
-    Ok(())
+    // Run the instance function
+    process_instance(api_endpoint, proxy_addr, datasets_dir, result).await
 }
 
 
