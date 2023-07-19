@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    07 Jun 2023, 17:00:14
+//    19 Jul 2023, 11:50:10
 //  Auto updated?
 //    Yes
 // 
@@ -1278,7 +1278,7 @@ async fn commit_result(worker_cfg: &WorkerConfig, name: impl AsRef<str>, data_na
             Ok(handle) => handle,
             Err(err)   => { return Err(CommitError::DataInfoCreateError{ path: info_path, err }); },
         };
-        let sinfo: String = match serde_json::to_string_pretty(&info) {
+        let sinfo: String = match serde_yaml::to_string(&info) {
             Ok(sinfo) => sinfo,
             Err(err)  => { return Err(CommitError::DataInfoSerializeError{ err }); },
         };

@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:34:05
 //  Last edited:
-//    07 Jun 2023, 16:59:36
+//    19 Jul 2023, 11:49:06
 //  Auto updated?
 //    Yes
 // 
@@ -244,7 +244,7 @@ impl VmPlugin for OfflinePlugin {
                 Ok(handle) => handle,
                 Err(err)   => { return Err(CommitError::DataInfoCreateError{ path: info_path, err }); },
             };
-            let sinfo: String = match serde_json::to_string_pretty(&info) {
+            let sinfo: String = match serde_yaml::to_string(&info) {
                 Ok(sinfo) => sinfo,
                 Err(err)  => { return Err(CommitError::DataInfoSerializeError{ err }); },
             };
