@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    18 Jul 2023, 09:32:12
+//    19 Jul 2023, 11:46:26
 //  Auto updated?
 //    Yes
 // 
@@ -51,6 +51,10 @@ static C_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
 /// Ensures that the initialization function is run only once.
 static LOG_INIT: Once = Once::new();
 
+/// Handle to the shared tokio runtime that is ref-counted among all compilers and virtual machines
+/// We do it this wacky way to ensure deallocation of the runtime when the last compiler/vm gets free'd, while still re-using the same one on every new().
+static RUNTIME: Mutex<Option<Arc<Runtime>>> = Mutex::new(None);
+
 
 
 
@@ -64,6 +68,45 @@ fn init_logger() {
             eprintln!("WARNING: Failed to setup Rust logger: {err} (logging disabled for this session)");
         }
     });
+}
+
+/// Initializes a tokio runtime if there wasn't one already.
+/// 
+/// # Returns
+/// A shared ownership of the global runtime.
+/// 
+/// # Errors
+/// This function may error if a new runtime needed to be initialized and that failed.
+#[inline]
+fn init_runtime() -> Result<Arc<Runtime>, std::io::Error> {
+    // Acquire a lock
+    let mut rt: MutexGuard<Option<Arc<Runtime>>> = RUNTIME.lock();
+
+    // Check if there is one to get
+    if let Some(rt) = &*rt {
+        // Return the downgraded reference to it
+        Ok(rt.clone())
+
+    } else {
+        // Spawn a new runtime and set it globally
+        let runtime: Arc<Runtime> = Arc::new(Builder::new_current_thread().enable_io().enable_time().build()?);
+        *rt = Some(runtime.clone());
+        Ok(runtime)
+    }
+}
+/// Cleans any runtime left in the global space _if_ it is not being used by any other VMs or whathaveyou.
+#[inline]
+fn cleanup_runtime() {
+    // Acquire a lock
+    let mut rt: MutexGuard<Option<Arc<Runtime>>> = RUNTIME.lock();
+
+    // Check if we need to delete it
+    let sc: usize = if let Some(rt) = &*rt {
+        Arc::strong_count(&rt)
+    } else { 0 };
+
+    // Delete it if necessary
+    if sc == 1 { *rt = None; }
 }
 
 /// Reads a C-string as a Rust string (or at least, attempts to).
@@ -127,7 +170,8 @@ pub unsafe extern "C" fn error_free(err: *mut Error) {
     trace!("Destroying Error...");
 
     // Simply captute the box, then drop
-    drop(Box::from_raw(err))
+    drop(Box::from_raw(err));
+    cleanup_runtime();
 }
 
 /// Prints the error message in this error to stderr.
@@ -186,7 +230,8 @@ pub unsafe extern "C" fn serror_free(serr: *mut SourceError) {
     trace!("Destroying SourceError...");
 
     // Simply captute the box, then drop
-    drop(Box::from_raw(serr))
+    drop(Box::from_raw(serr));
+    cleanup_runtime();
 }
 
 
@@ -356,7 +401,7 @@ pub unsafe extern "C" fn pindex_new_remote(endpoint: *const c_char, pindex: *mut
     let endpoint: &str = cstr_to_rust(endpoint);
 
     // Create a local threaded tokio context
-    let runtime: Runtime = match Builder::new_current_thread().enable_all().build() {
+    let runtime: Arc<Runtime> = match init_runtime() {
         Ok(runtime) => runtime,
         Err(e) => {
             let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
@@ -392,7 +437,8 @@ pub unsafe extern "C" fn pindex_free(pindex: *mut Arc<Mutex<PackageIndex>>) {
     trace!("Destroying PackageIndex...");
 
     // Simply capture the box, then drop
-    drop(Box::from_raw(pindex))
+    drop(Box::from_raw(pindex));
+    cleanup_runtime();
 }
 
 
@@ -421,7 +467,7 @@ pub unsafe extern "C" fn dindex_new_remote(endpoint: *const c_char, dindex: *mut
     let endpoint: &str = cstr_to_rust(endpoint);
 
     // Create a local threaded tokio context
-    let runtime: Runtime = match Builder::new_current_thread().enable_all().build() {
+    let runtime: Arc<Runtime> = match init_runtime() {
         Ok(runtime) => runtime,
         Err(e) => {
             let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
@@ -457,7 +503,8 @@ pub unsafe extern "C" fn dindex_free(dindex: *mut Arc<Mutex<DataIndex>>) {
     trace!("Destroying DataIndex...");
 
     // Simply capture the box, then drop
-    drop(Box::from_raw(dindex))
+    drop(Box::from_raw(dindex));
+    cleanup_runtime();
 }
 
 
@@ -477,7 +524,8 @@ pub unsafe extern "C" fn workflow_free(workflow: *mut Workflow) {
     trace!("Destroying Workflow...");
 
     // Simply capture the box, then drop
-    drop(Box::from_raw(workflow))
+    drop(Box::from_raw(workflow));
+    cleanup_runtime();
 }
 
 
@@ -606,6 +654,7 @@ pub unsafe extern "C" fn compiler_free(compiler: *mut Compiler) {
 
     // Take ownership of the compiler and then drop it to destroy
     drop(Box::from_raw(compiler));
+    cleanup_runtime();
 }
 
 
@@ -717,6 +766,36 @@ pub unsafe extern "C" fn fvalue_free(fvalue: *mut FullValue) {
 
     // Take ownership of the value and then drop it to destroy
     drop(Box::from_raw(fvalue));
+    cleanup_runtime();
+}
+
+
+
+/// Checks if this [`FullValue`] needs processing.
+/// 
+/// For now, this only occurs when it is a [`FullValue::Data`] (download it) or [`FullValue::IntermediateResult`] (throw a warning).
+/// 
+/// # Arguments
+/// - `fvalue`: The [`FullValue`] to analyse.
+/// 
+/// # Returns
+/// True if `vm_process()` should be called on this value or false otherwise.
+/// 
+/// # Panics
+/// This function can panic if `fvalue` pointed to [`NULL`].
+#[no_mangle]
+pub unsafe extern "C" fn fvalue_needs_processing(fvalue: *const FullValue) -> bool {
+    // Unwrap the input
+    let fvalue: &FullValue = match fvalue.as_ref() {
+        Some(vm) => vm,
+        None => { panic!("Given FullValue is a NULL-pointer"); },
+    };
+
+    // Match it
+    match fvalue {
+        FullValue::Data(_) | FullValue::IntermediateResult(_) => true,
+        _ => false,
+    }
 }
 
 
@@ -728,12 +807,12 @@ pub unsafe extern "C" fn fvalue_free(fvalue: *mut FullValue) {
 /// 
 /// This can run a compiled workflow on a running instance.
 pub struct VirtualMachine {
+    /// The tokio runtime handle to use for this VM
+    runtime      : Arc<Runtime>,
     /// The endpoint to connect to for downloading registries
     api_endpoint : String,
     /// The endpoint to connect to when running.
     drv_endpoint : String,
-    /// The dataset to download directories to.
-    data_dir     : String,
     /// The state of everything we need to know about the virtual machine
     state        : InstanceVmState,
 }
@@ -745,7 +824,6 @@ pub struct VirtualMachine {
 /// # Arguments
 /// - `api_endpoint`: The Brane API endpoint to connect to to download available registries and all that.
 /// - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
-/// - `data_dir`: The directory to download resulting datasets to.
 /// - `pindex`: The [`PackageIndex`] to resolve package references in the snippets with.
 /// - `dindex`: The [`DataIndex`] to resolve dataset references in the snippets with.
 /// - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
@@ -754,9 +832,9 @@ pub struct VirtualMachine {
 /// An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
 /// 
 /// # Panics
-/// This function can panic if the given `pindex` or `dindex` are NULL, or if the given `api_endpoint`, `drv_endpoint` or `data_dir` do not point to a valid UTF-8 string.
+/// This function can panic if the given `pindex` or `dindex` are NULL, or if the given `api_endpoint` or `drv_endpoint` do not point to a valid UTF-8 string.
 #[no_mangle]
-pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *const c_char, data_dir: *const c_char, pindex: *const Arc<Mutex<PackageIndex>>, dindex: *const Arc<Mutex<DataIndex>>, vm: *mut *mut VirtualMachine) -> *const Error {
+pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *const c_char, pindex: *const Arc<Mutex<PackageIndex>>, dindex: *const Arc<Mutex<DataIndex>>, vm: *mut *mut VirtualMachine) -> *const Error {
     init_logger();
     *vm = std::ptr::null_mut();
     info!("Constructing BraneScript virtual machine v{}...", env!("CARGO_PKG_VERSION"));
@@ -764,7 +842,6 @@ pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *cons
     // Read the endpoints
     let api_endpoint: &str = cstr_to_rust(api_endpoint);
     let drv_endpoint: &str = cstr_to_rust(drv_endpoint);
-    let data_dir: &str = cstr_to_rust(data_dir);
 
     // Read the indices
     let pindex: &Arc<Mutex<PackageIndex>> = match pindex.as_ref() {
@@ -777,7 +854,7 @@ pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *cons
     };
 
     // Prepare a tokio environment
-    let runtime: Runtime = match Builder::new_current_thread().enable_all().build() {
+    let runtime: Arc<Runtime> = match init_runtime() {
         Ok(runtime) => runtime,
         Err(e) => {
             let err: Error = Error { msg: format!("Failed to create local Tokio context: {e}") };
@@ -796,9 +873,9 @@ pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *cons
 
     // OK, return the new thing
     *vm = Box::into_raw(Box::new(VirtualMachine {
+        runtime,
         api_endpoint : api_endpoint.into(),
         drv_endpoint : drv_endpoint.into(),
-        data_dir     : data_dir.into(),
         state,
     }));
     debug!("Virtual machine created");
@@ -816,8 +893,12 @@ pub unsafe extern "C" fn vm_free(vm: *mut VirtualMachine) {
     init_logger();
     trace!("Destroying VirtualMachine...");
 
+    // See if the global context needs to be destroyed
+    cleanup_runtime();
+
     // Take ownership of the VM and then drop it to destroy
     drop(Box::from_raw(vm));
+    cleanup_runtime();
 }
 
 
@@ -852,18 +933,9 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
         None => { panic!("Given Workflow is a NULL-pointer"); },
     };
 
-    // Prepare a tokio environment
-    let runtime: Runtime = match Builder::new_current_thread().enable_all().build() {
-        Ok(runtime) => runtime,
-        Err(e) => {
-            let err: Box<Error> = Box::new(Error { msg: format!("Failed to create local Tokio context: {e}") });
-            return Box::into_raw(err);
-        }
-    };
-
     // Run the state
     debug!("Executing snippet...");
-    let value: FullValue = match runtime.block_on(run_instance(&vm.drv_endpoint, &mut vm.state, workflow, false)) {
+    let value: FullValue = match vm.runtime.block_on(run_instance(&vm.drv_endpoint, &mut vm.state, workflow, false)) {
         Ok(value) => value,
         Err(e) => {
             let err: Box<Error> = Box::new(Error { msg: format!("Failed to run workflow on '{}': {}", vm.drv_endpoint, e) });
@@ -871,9 +943,51 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
         },
     };
 
+    // Store it and we're done!
+    *result = Box::into_raw(Box::new(value));
+    debug!("Done (execution took {:.2}s)", start.elapsed().as_secs_f32());
+    std::ptr::null()
+}
+
+/// Processes the result referred to by the [`FullValue`].
+/// 
+/// Processing currently consists of:
+/// - Downloading the dataset if it's a [`FullValue::Data`]
+/// - Throwing a warning if it's a [`FullValue::IntermediateResult`]
+/// - Doing nothing otherwise
+/// 
+/// # Arguments
+/// - `vm`: The [`VirtualMachine`] that we download with. This determines which backend to use.
+/// - `result`: The [`FullValue`] which we will attempt to download if needed.
+/// - `data_dir`: The directory to download the result to. This should be the generic data directory, as a new directory for this dataset will be created within.
+/// 
+/// # Returns
+/// An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
+/// 
+/// # Panics
+/// This function may panic if the input `vm` or `result` pointed to a NULL-pointer, or if `data_dir` did not point to a valid UTF-8 string.
+#[no_mangle]
+pub unsafe extern "C" fn vm_process(vm: *mut VirtualMachine, result: *const FullValue, data_dir: *const c_char) -> *const Error {
+    init_logger();
+    info!("Processing result on virtual machine...");
+    let start: Instant = Instant::now();
+
+    // Unwrap the VM
+    let vm: &mut VirtualMachine = match vm.as_mut() {
+        Some(vm) => vm,
+        None => { panic!("Given VirtualMachine is a NULL-pointer"); },
+    };
+    // Unwrap the result
+    let result: &FullValue = match result.as_ref() {
+        Some(result) => result,
+        None => { panic!("Given FullValue is a NULL-pointer"); },
+    };
+    // Read the string
+    let data_dir: &str = cstr_to_rust(data_dir);
+
     // If the value is a dataset, then download the data on top of it
-    if let FullValue::Data(d) = &value {
-        debug!("Downloading dataset...");
+    if let FullValue::Data(d) = &result {
+        debug!("FullValue is a FullValue::Data, downloading...");
 
         // Refresh the data index and get the access list for this dataset
         let access: HashMap<String, AccessKind> = {
@@ -881,7 +995,8 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
             let mut dindex: MutexGuard<DataIndex> = vm.state.dindex.lock();
 
             // Simply load it again
-            *dindex = match runtime.block_on(get_data_index(&vm.api_endpoint)) {
+            let data_endpoint: String = format!("{}/data/info", vm.api_endpoint);
+            *dindex = match vm.runtime.block_on(get_data_index(data_endpoint)) {
                 Ok(index) => index,
                 Err(e) => {
                     let err: Box<Error> = Box::new(Error { msg: format!("Failed to refresh data index: {e}") });
@@ -900,7 +1015,7 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
         };
 
         // Run the process funtion
-        let res: Option<AccessKind> = match runtime.block_on(download_data(&vm.api_endpoint, &None, &vm.data_dir, d, &access)) {
+        let res: Option<AccessKind> = match vm.runtime.block_on(download_data(&vm.api_endpoint, &None, data_dir, d, &access)) {
             Ok(res) => res,
             Err(e) => {
                 let err: Box<Error> = Box::new(Error { msg: format!("Failed to download resulting data from '{}': {}", vm.api_endpoint, e) });
@@ -911,13 +1026,14 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
             info!("Downloaded dataset to '{}'", path.display());
         }
 
-    } else if matches!(value, FullValue::IntermediateResult(_)) {
+    } else if matches!(result, FullValue::IntermediateResult(_)) {
+        debug!("FullValue is a FullValue::IntermediateResult, downloading...");
+
         // Emit a warning
         warn!("Cannot download intermediate result");
     }
 
-    // Store it and we're done!
-    debug!("Done (execution took {:.2}s)", start.elapsed().as_secs_f32());
-    *result = Box::into_raw(Box::new(value));
+    // OK, nothing to return
+    debug!("Done (processing took {:.2}s)", start.elapsed().as_secs_f32());
     std::ptr::null()
 }

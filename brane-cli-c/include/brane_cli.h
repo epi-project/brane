@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   18 Jul 2023, 09:33:20
+ *   19 Jul 2023, 11:21:46
  * Auto updated?
  *   Yes
  *
@@ -88,7 +88,7 @@ typedef struct _virtual_machine VirtualMachine;
 
 /* Defines a struct that can be used to conveniently initialize the function pointers in this library.
  */
-struct _state {
+struct _functions {
     /* The dlopen handle that we use to load stuff with. */
     void* handle;
 
@@ -346,6 +346,21 @@ struct _state {
      */
     void (*fvalue_free)(FullValue* fvalue);
 
+    /* Checks if this [`FullValue`] needs processing.
+     * 
+     * For now, this only occurs when it is a [`FullValue::Data`] (download it) or [`FullValue::IntermediateResult`] (throw a warning).
+     * 
+     * # Arguments
+     * - `fvalue`: The [`FullValue`] to analyse.
+     * 
+     * # Returns
+     * True if `vm_process()` should be called on this value or false otherwise.
+     * 
+     * # Panics
+     * This function can panic if `fvalue` pointed to [`NULL`].
+     */
+    bool (*fvalue_needs_processing)(FullValue* fvalue);
+
 
 
     /***** VIRTUAL MACHINE *****/
@@ -354,7 +369,6 @@ struct _state {
      * # Arguments
      * - `api_endpoint`: The Brane API endpoint to connect to to download available registries and all that.
      * - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
-     * - `data_dir`: The directory to download resulting datasets to.
      * - `pindex`: The [`PackageIndex`] to resolve package references in the snippets with.
      * - `dindex`: The [`DataIndex`] to resolve dataset references in the snippets with.
      * - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
@@ -363,9 +377,9 @@ struct _state {
      * An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
      * 
      * # Panics
-     * This function can panic if the given `pindex` or `dindex` are NULL, or if the given `api_endpoint`, `drv_endpoint` or `data_dir` do not point to a valid UTF-8 string.
+     * This function can panic if the given `pindex` or `dindex` are NULL, or if the given `api_endpoint` or `drv_endpoint` do not point to a valid UTF-8 string.
      */
-    Error* (*vm_new)(const char* api_endpoint, const char* drv_endpoint, const char* data_dir, PackageIndex* pindex, DataIndex* dindex, VirtualMachine** vm);
+    Error* (*vm_new)(const char* api_endpoint, const char* drv_endpoint, PackageIndex* pindex, DataIndex* dindex, VirtualMachine** vm);
     /* Destructor for the VirtualMachine.
      * 
      * SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
@@ -389,25 +403,44 @@ struct _state {
      * This function may panic if the input `vm` or `workflow` pointed to a NULL-pointer.
      */
     Error* (*vm_run)(VirtualMachine* vm, Workflow* workflow, FullValue** result);
+    /* Processes the result referred to by the [`FullValue`].
+     * 
+     * Processing currently consists of:
+     * - Downloading the dataset if it's a [`FullValue::Data`]
+     * - Throwing a warning if it's a [`FullValue::IntermediateResult`]
+     * - Doing nothing otherwise
+     * 
+     * # Arguments
+     * - `vm`: The [`VirtualMachine`] that we download with. This determines which backend to use.
+     * - `result`: The [`FullValue`] which we will attempt to download if needed.
+     * - `data_dir`: The directory to download the result to. This should be the generic data directory, as a new directory for this dataset will be created within.
+     * 
+     * # Returns
+     * An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
+     * 
+     * # Panics
+     * This function may panic if the input `vm` or `result` pointed to a NULL-pointer, or if `data_dir` did not point to a valid UTF-8 string.
+     */
+    Error* (*vm_process)(VirtualMachine* vm, FullValue* result, const char* data_dir);
 };
-typedef struct _state State;
+typedef struct _functions Functions;
 
 
 
 
 
 /***** FUNCTIONS *****/
-/* Loads the [`State`]-struct dynamically from the given .so file.
+/* Loads the [`Functions`]-struct dynamically from the given .so file.
  * 
  * # Arguments
  * - `path`: The path to the .so file to load.
  * 
  * # Returns
- * The [`State`]-struct with everything loaded, including the dlopen handle - unless an error occurred. Then `NULL` is returned.
+ * The [`Functions`]-struct with everything loaded, including the dlopen handle - unless an error occurred. Then `NULL` is returned.
  */
-State* state_new(const char* path) {
+Functions* functions_load(const char* path) {
     // Allocate the struct
-    State* state = (State*) malloc(sizeof(State));
+    Functions* state = (Functions*) malloc(sizeof(Functions));
 
     // Attempt to load the dlopen handle
     state->handle = dlopen(path, RTLD_LAZY);
@@ -441,20 +474,25 @@ State* state_new(const char* path) {
     LOAD_SYMBOL(compiler_free, void (*)(Compiler*));
     LOAD_SYMBOL(compiler_compile, SourceError* (*)(Compiler*, const char*, const char*, Workflow**));
 
+    // Load the FullValue symbols
+    LOAD_SYMBOL(fvalue_free, void (*)(FullValue*));
+    LOAD_SYMBOL(fvalue_needs_processing, bool (*)(FullValue*));
+
     // Load the VM symbols
-    LOAD_SYMBOL(vm_new, Error* (*)(const char*, const char*, const char*, PackageIndex*, DataIndex*, VirtualMachine**));
+    LOAD_SYMBOL(vm_new, Error* (*)(const char*, const char*, PackageIndex*, DataIndex*, VirtualMachine**));
     LOAD_SYMBOL(vm_free, void (*)(VirtualMachine*));
     LOAD_SYMBOL(vm_run, Error* (*)(VirtualMachine*, Workflow*, FullValue**));
+    LOAD_SYMBOL(vm_process, Error* (*)(VirtualMachine*, FullValue*, const char*));
 
     // Done
     return state;
 }
-/* Destroys the [`State`]-struct, unloading all the symbols within.
+/* Destroys the [`Functions`]-struct, unloading all the symbols within.
  * 
  * # Arguments
- * - `state`: The [`State`]-struct to free.
+ * - `state`: The [`Functions`]-struct to free.
  */
-void state_free(State* state) {
+void functions_unload(Functions* state) {
     // Close the handle, then free
     dlclose(state->handle);
     free(state);

@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    10 May 2023, 16:34:50
+//    19 Jul 2023, 11:49:14
 //  Auto updated?
 //    Yes
 // 
@@ -481,7 +481,7 @@ pub enum CommitError {
     /// Failed to create a new DataInfo file.
     DataInfoCreateError{ path: PathBuf, err: std::io::Error },
     /// Failed to serialize a new DataInfo file.
-    DataInfoSerializeError{ err: serde_json::Error },
+    DataInfoSerializeError{ err: serde_yaml::Error },
     /// Failed to write the DataInfo the the created file.
     DataInfoWriteError{ path: PathBuf, err: std::io::Error },
     /// Failed to read the given directory.
