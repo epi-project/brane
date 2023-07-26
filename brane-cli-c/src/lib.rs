@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    19 Jul 2023, 11:46:26
+//    26 Jul 2023, 09:42:51
 //  Auto updated?
 //    Yes
 // 
@@ -813,6 +813,8 @@ pub struct VirtualMachine {
     api_endpoint : String,
     /// The endpoint to connect to when running.
     drv_endpoint : String,
+    /// The directory of certificates to use.
+    certs_dir    : String,
     /// The state of everything we need to know about the virtual machine
     state        : InstanceVmState,
 }
@@ -824,6 +826,7 @@ pub struct VirtualMachine {
 /// # Arguments
 /// - `api_endpoint`: The Brane API endpoint to connect to to download available registries and all that.
 /// - `drv_endpoint`: The BRANE driver endpoint to connect to to execute stuff.
+/// - `certs_dir`: The directory where certificates for downloading datasets are stored.
 /// - `pindex`: The [`PackageIndex`] to resolve package references in the snippets with.
 /// - `dindex`: The [`DataIndex`] to resolve dataset references in the snippets with.
 /// - `virtual_machine`: Will point to the newly created [`VirtualMachine`] when done. Will be [`NULL`] if there is an error (see below).
@@ -832,16 +835,17 @@ pub struct VirtualMachine {
 /// An [`Error`]-struct that contains the error occurred, or [`NULL`] otherwise.
 /// 
 /// # Panics
-/// This function can panic if the given `pindex` or `dindex` are NULL, or if the given `api_endpoint` or `drv_endpoint` do not point to a valid UTF-8 string.
+/// This function can panic if the given `pindex` or `dindex` are NULL, or if the given `api_endpoint`, `drv_endpoint` or `certs_dir` do not point to a valid UTF-8 string.
 #[no_mangle]
-pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *const c_char, pindex: *const Arc<Mutex<PackageIndex>>, dindex: *const Arc<Mutex<DataIndex>>, vm: *mut *mut VirtualMachine) -> *const Error {
+pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *const c_char, certs_dir: *const c_char, pindex: *const Arc<Mutex<PackageIndex>>, dindex: *const Arc<Mutex<DataIndex>>, vm: *mut *mut VirtualMachine) -> *const Error {
     init_logger();
     *vm = std::ptr::null_mut();
     info!("Constructing BraneScript virtual machine v{}...", env!("CARGO_PKG_VERSION"));
 
-    // Read the endpoints
+    // Read the endpoints & directories
     let api_endpoint: &str = cstr_to_rust(api_endpoint);
     let drv_endpoint: &str = cstr_to_rust(drv_endpoint);
+    let certs_dir: &str = cstr_to_rust(certs_dir);
 
     // Read the indices
     let pindex: &Arc<Mutex<PackageIndex>> = match pindex.as_ref() {
@@ -876,6 +880,7 @@ pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *cons
         runtime,
         api_endpoint : api_endpoint.into(),
         drv_endpoint : drv_endpoint.into(),
+        certs_dir    : certs_dir.into(),
         state,
     }));
     debug!("Virtual machine created");
@@ -1015,7 +1020,7 @@ pub unsafe extern "C" fn vm_process(vm: *mut VirtualMachine, result: *const Full
         };
 
         // Run the process funtion
-        let res: Option<AccessKind> = match vm.runtime.block_on(download_data(&vm.api_endpoint, &None, data_dir, d, &access)) {
+        let res: Option<AccessKind> = match vm.runtime.block_on(download_data(&vm.api_endpoint, &None, &vm.certs_dir, data_dir, d, &access)) {
             Ok(res) => res,
             Err(e) => {
                 let err: Box<Error> = Box::new(Error { msg: format!("Failed to download resulting data from '{}': {}", vm.api_endpoint, e) });

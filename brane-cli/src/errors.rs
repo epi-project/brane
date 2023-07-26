@@ -4,7 +4,7 @@
 //  Created:
 //    17 Feb 2022, 10:27:28
 //  Last edited:
-//    22 May 2023, 13:55:59
+//    26 Jul 2023, 09:39:35
 //  Auto updated?
 //    Yes
 // 
@@ -509,6 +509,10 @@ pub enum DataError {
     NoEqualsInKeyPair{ raw: String },
     /// Failed to fetch the login file.
     InstanceInfoError{ err: InstanceError },
+    /// Failed to get the path of the active instance.
+    ActiveInstanceReadError { err: InstanceError },
+    /// Failed to get the active instance.
+    InstancePathError { name: String, err: InstanceError },
     /// Failed to create the remote data index.
     RemoteDataIndexError{ address: String, err: brane_tsk::errors::ApiError },
     /// Failed to select the download location in case there are multiple.
@@ -572,6 +576,8 @@ impl Display for DataError {
 
             NoEqualsInKeyPair{ raw }             => write!(f, "Missing '=' in key/value pair '{raw}'"),
             InstanceInfoError{ err }             => write!(f, "Could not read active instance info file: {err}"),
+            ActiveInstanceReadError { err }      => write!(f, "Failed to read active instance link: {err}"),
+            InstancePathError { name, err }      => write!(f, "Could not get path of instance '{name}': {err}"),
             RemoteDataIndexError{ address, err } => write!(f, "Failed to fetch remote data index from '{address}': {err}"),
             DataSelectError{ err }               => write!(f, "Failed to ask the user (you!) to select a download location: {err}"),
             UnknownLocation{ name }              => write!(f, "Unknown location '{name}'"),
@@ -924,6 +930,10 @@ pub enum RunError {
 
     /// Failed to fetch the login file.
     InstanceInfoError{ err: InstanceError },
+    /// Failed to get the path of the active instance.
+    ActiveInstanceReadError { err: InstanceError },
+    /// Failed to get the active instance.
+    InstancePathError { name: String, err: InstanceError },
     /// Failed to create the remote package index.
     RemotePackageIndexError{ address: String, err: brane_tsk::errors::ApiError },
     /// Failed to create the remote data index.
@@ -980,6 +990,8 @@ impl Display for RunError {
             ResultsDirCreateError{ err }   => write!(f, "Failed to create new temporary directory as an intermediate result directory: {err}"),
 
             InstanceInfoError{ err }                => write!(f, "{err}"),
+            ActiveInstanceReadError { err }         => write!(f, "Failed to read active instance link: {err}"),
+            InstancePathError { name, err }         => write!(f, "Could not get path of instance '{name}': {err}"),
             RemotePackageIndexError{ address, err } => write!(f, "Failed to fetch remote package index from '{address}': {err}"),
             RemoteDataIndexError{ address, err }    => write!(f, "Failed to fetch remote data index from '{address}': {err}"),
             RemoteDelegatesError{ address, err }    => write!(f, "Failed to fetch delegates map from '{address}': {err}"),

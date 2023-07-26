@@ -4,7 +4,7 @@
 //  Created:
 //    30 Jan 2023, 09:35:00
 //  Last edited:
-//    07 Jun 2023, 16:58:31
+//    26 Jul 2023, 09:35:32
 //  Auto updated?
 //    Yes
 // 
@@ -29,7 +29,7 @@ use rustls::{Certificate, PrivateKey};
 use x509_parser::certificate::X509Certificate;
 use x509_parser::extensions::{ParsedExtension, X509Extension};
 use x509_parser::oid_registry::OID_X509_EXT_KEY_USAGE;
-use x509_parser::prelude::{FromDer as _};
+use x509_parser::prelude::FromDer as _;
 use x509_parser::x509::X509Name;
 
 use brane_cfg::certs::load_all;

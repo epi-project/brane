@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    18 Jul 2023, 09:26:57
+//    26 Jul 2023, 09:38:53
 //  Auto updated?
 //    Yes
 // 
@@ -278,6 +278,7 @@ pub async fn run_instance(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmS
 /// # Arguments
 /// - `api_endpoint`: The remote endpoint where we can potentially download data from (or, that at least knows about it).
 /// - `proxy_addr`: If given, proxies all data transfers through the proxy at the given location.
+/// - `certs_dir`: The directory where certificates are stored. Expected to contain nested directories that store the certs by domain ID.
 /// - `datasets_dir`: The directory where we will download the data to. It will be added under a new folder with its own name.
 /// - `result`: The value to process.
 /// 
@@ -286,8 +287,9 @@ pub async fn run_instance(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmS
 /// 
 /// # Errors
 /// This function may error if the given result was a dataset and we failed to retrieve it.
-pub async fn process_instance(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, datasets_dir: impl AsRef<Path>, result: FullValue) -> Result<(), Error> {
+pub async fn process_instance(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, certs_dir: impl AsRef<Path>, datasets_dir: impl AsRef<Path>, result: FullValue) -> Result<(), Error> {
     let api_endpoint : &str  = api_endpoint.as_ref();
+    let certs_dir    : &Path = certs_dir.as_ref();
     let datasets_dir : &Path = datasets_dir.as_ref();
 
     // We only print
@@ -322,7 +324,7 @@ pub async fn process_instance(api_endpoint: impl AsRef<str>, proxy_addr: &Option
                     Some(access) => access.clone(),
                     None         => {
                         // Attempt to download it instead
-                        match data::download_data(api_endpoint, proxy_addr, data_dir, &name, &info.access).await {
+                        match data::download_data(api_endpoint, proxy_addr, certs_dir, data_dir, &name, &info.access).await {
                             Ok(Some(access)) => access,
                             Ok(None)         => { return Err(Error::UnavailableDataset{ name: name.into(), locs: info.access.keys().cloned().collect() }); },
                             Err(err)         => { return Err(Error::DataDownloadError{ err }); },
@@ -779,14 +781,21 @@ pub fn process_offline_result(result: FullValue) -> Result<(), Error> {
 pub async fn process_instance_result(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, result: FullValue) -> Result<(), Error> {
     let api_endpoint : &str  = api_endpoint.as_ref();
 
-    // Fetch the data & result directories
+    // Fetch the certificae & data directories
+    let certs_dir: PathBuf = match InstanceInfo::get_active_name() {
+        Ok(name) => match InstanceInfo::get_instance_path(&name) {
+            Ok(path) => path.join("certs"),
+            Err(err) => { return Err(Error::InstancePathError { name, err }); },
+        },
+        Err(err) => { return Err(Error::ActiveInstanceReadError { err }); },
+    };
     let datasets_dir: PathBuf = match ensure_datasets_dir(true) {
         Ok(datas_dir) => datas_dir,
         Err(err)      => { return Err(Error::DatasetsDirError { err }); },
     };
 
     // Run the instance function
-    process_instance(api_endpoint, proxy_addr, datasets_dir, result).await
+    process_instance(api_endpoint, proxy_addr, certs_dir, datasets_dir, result).await
 }
 
 

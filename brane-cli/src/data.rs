@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 17:39:06
 //  Last edited:
-//    18 Jul 2023, 09:11:25
+//    26 Jul 2023, 09:36:57
 //  Auto updated?
 //    Yes
 // 
@@ -42,7 +42,6 @@ use brane_tsk::spec::LOCALHOST;
 use crate::errors::DataError;
 use crate::instance::InstanceInfo;
 use crate::utils::{ensure_dataset_dir, ensure_datasets_dir, get_dataset_dir};
-use crate::certs::get_active_certs_dir;
 
 
 /***** LIBRARY *****/
@@ -53,6 +52,7 @@ use crate::certs::get_active_certs_dir;
 /// # Arguments
 /// - `api_endpoint`: The remote `brane-api` endpoint that we use to download the possible registries.
 /// - `proxy_addr`: If given, the any data transfers will be proxied through this address.
+/// - `certs_dir`: The directory where certificates are stored. Expected to contain nested directories that store the certs by domain ID.
 /// - `data_dir`: The directory to download the dataset to.
 /// - `name`: The name of the dataset to download.
 /// - `access`: The locations where it is available.
@@ -62,8 +62,9 @@ use crate::certs::get_active_certs_dir;
 /// 
 /// # Errors
 /// This function errors if we failed to download the dataset somehow.
-pub async fn download_data(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, data_dir: impl AsRef<Path>, name: impl AsRef<str>, access: &HashMap<String, AccessKind>) -> Result<Option<AccessKind>, DataError> {
+pub async fn download_data(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, certs_dir: impl AsRef<Path>, data_dir: impl AsRef<Path>, name: impl AsRef<str>, access: &HashMap<String, AccessKind>) -> Result<Option<AccessKind>, DataError> {
     let api_endpoint : &str  = api_endpoint.as_ref();
+    let certs_dir    : &Path = certs_dir.as_ref();
     let data_dir     : &Path = data_dir.as_ref();
     let name         : &str  = name.as_ref();
 
@@ -98,7 +99,8 @@ pub async fn download_data(api_endpoint: impl AsRef<str>, proxy_addr: &Option<St
     debug!("Loading certificate for location '{}'...", location);
     let (identity, ca_cert): (Identity, Certificate) = {
         // Compute the paths
-        let cert_dir : PathBuf = match get_active_certs_dir(location) { Ok(path) => path, Err(err) => { return Err(DataError::CertsDirError{ err }); }, };
+        // let cert_dir : PathBuf = match get_active_certs_dir(location) { Ok(path) => path, Err(err) => { return Err(DataError::CertsDirError{ err }); }, };
+        let cert_dir : PathBuf = certs_dir.join(location);
         let idfile   : PathBuf = cert_dir.join("client-id.pem");
         let cafile   : PathBuf = cert_dir.join("ca.pem");
 
@@ -433,6 +435,15 @@ pub async fn download(names: Vec<String>, locs: Vec<String>, proxy_addr: &Option
             None         => {
                 // Attempt to download it instead
 
+                // Get the certificate path
+                let certs_dir: PathBuf = match InstanceInfo::get_active_name() {
+                    Ok(name) => match InstanceInfo::get_instance_path(&name) {
+                        Ok(path) => path.join("certs"),
+                        Err(err) => { return Err(DataError::InstancePathError { name, err }); },
+                    },
+                    Err(err) => { return Err(DataError::ActiveInstanceReadError{ err }); },
+                };
+
                 // Get the path to download it to
                 let data_dir: PathBuf = match ensure_dataset_dir(&name, true) {
                     Ok(dir)  => dir,
@@ -440,7 +451,7 @@ pub async fn download(names: Vec<String>, locs: Vec<String>, proxy_addr: &Option
                 };
 
                 // Run the download
-                match download_data(instance_info.api.to_string(), proxy_addr, data_dir, &name, &access).await? {
+                match download_data(instance_info.api.to_string(), proxy_addr, certs_dir, data_dir, &name, &access).await? {
                     Some(access) => access,
                     None         => { return Err(DataError::UnavailableDataset{ name, locs: info.access.keys().cloned().collect() }); },
                 }
