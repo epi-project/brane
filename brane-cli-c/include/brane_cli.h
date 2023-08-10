@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   09 Aug 2023, 15:58:22
+ *   10 Aug 2023, 15:57:06
  * Auto updated?
  *   Yes
  *
@@ -114,6 +114,17 @@ struct _functions {
      */
     void (*error_free)(Error* err);
 
+    /* Serializes the error message in this error to the given buffer.
+     * 
+     * # Arguments
+     * - `err`: the [`Error`] to serialize the error of.
+     * - `buffer`: The buffer to serialize to. Will be freshly allocated using `malloc` for the correct size; can be freed using `free()`.
+     * 
+     * # Panics
+     * This function can panic if the given `err` or `buffer` are NULL-pointers.
+     */
+    void (*error_serialize_err)(Error* err, char** buffer);
+
     /* Prints the error message in this error to stderr.
      * 
      * # Arguments
@@ -172,6 +183,43 @@ struct _functions {
      * This function can panic if the given `serr` is a NULL-pointer.
      */
     bool (*serror_has_err)(SourceError* serr);
+
+    /* Serializes the source warnings in this error to the given buffer.
+     * 
+     * Note that there may be zero or more warnings at once. To discover if there are any, check [`serror_has_swarns()`].
+     * 
+     * # Arguments
+     * - `serr`: the [`SourceError`] to serialize the source warnings of.
+     * - `buffer`: The buffer to serialize to. Will be freshly allocated using `malloc` for the correct size; can be freed using `free()`.
+     * 
+     * # Panics
+     * This function can panic if the given `serr` or `buffer` are NULL-pointers.
+     */
+    void (*serror_serialize_swarns)(SourceError* serr, char** buffer);
+    /* Serializes the source errors in this error to the given buffer.
+     * 
+     * Note that there may be zero or more errors at once. To discover if there are any, check [`serror_has_serrs()`].
+     * 
+     * # Arguments
+     * - `serr`: the [`SourceError`] to serialize the source errors of.
+     * - `buffer`: The buffer to serialize to. Will be freshly allocated using `malloc` for the correct size; can be freed using `free()`.
+     * 
+     * # Panics
+     * This function can panic if the given `serr` or `buffer` are NULL-pointers.
+     */
+    void (*serror_serialize_serrs)(SourceError* serr, char** buffer);
+    /* Serializes the error message in this error to the given buffer.
+     * 
+     * Note that there may be no error, but only source warnings- or errors. To discover if there is any, check [`serror_has_err()`].
+     * 
+     * # Arguments
+     * - `serr`: the [`SourceError`] to serialize the error of.
+     * - `buffer`: The buffer to serialize to. Will be freshly allocated using `malloc` for the correct size; can be freed using `free()`.
+     * 
+     * # Panics
+     * This function can panic if the given `serr` or `buffer` are NULL-pointers.
+     */
+    void (*serror_serialize_err)(SourceError* serr, char** buffer);
 
     /* Prints the source warnings in this error to stderr.
      * 
@@ -361,6 +409,17 @@ struct _functions {
      */
     bool (*fvalue_needs_processing)(FullValue* fvalue);
 
+    /* Serializes the FullValue to show as result of the workflow.
+     * 
+     * # Arguments
+     * - `fvalue`: the [`FullValue`] to serialize the source warnings of.
+     * - `result`: The buffer to serialize to. Will be freshly allocated using `malloc` for the correct size; can be freed using `free()`.
+     * 
+     * # Panics
+     * This function can panic if the given `fvalue` or `result` are NULL-pointers.
+     */
+    void (*fvalue_serialize)(FullValue* fvalue, char** result);
+
 
 
     /***** VIRTUAL MACHINE *****/
@@ -452,6 +511,7 @@ Functions* functions_load(const char* path) {
 
     // Load the error symbols
     LOAD_SYMBOL(error_free, void (*)(Error*));
+    LOAD_SYMBOL(error_serialize_err, void (*)(Error*, char**));
     LOAD_SYMBOL(error_print_err, void (*)(Error*));
 
     // Load the source error symbols
@@ -459,6 +519,9 @@ Functions* functions_load(const char* path) {
     LOAD_SYMBOL(serror_has_swarns, bool (*)(SourceError*));
     LOAD_SYMBOL(serror_has_serrs, bool (*)(SourceError*));
     LOAD_SYMBOL(serror_has_err, bool (*)(SourceError*));
+    LOAD_SYMBOL(serror_serialize_swarns, void (*)(SourceError*, char**));
+    LOAD_SYMBOL(serror_serialize_serrs, void (*)(SourceError*, char**));
+    LOAD_SYMBOL(serror_serialize_err, void (*)(SourceError*, char**));
     LOAD_SYMBOL(serror_print_swarns, void (*)(SourceError*));
     LOAD_SYMBOL(serror_print_serrs, void (*)(SourceError*));
     LOAD_SYMBOL(serror_print_err, void (*)(SourceError*));
@@ -481,6 +544,7 @@ Functions* functions_load(const char* path) {
     // Load the FullValue symbols
     LOAD_SYMBOL(fvalue_free, void (*)(FullValue*));
     LOAD_SYMBOL(fvalue_needs_processing, bool (*)(FullValue*));
+    LOAD_SYMBOL(fvalue_serialize, void (*)(FullValue*, char**));
 
     // Load the VM symbols
     LOAD_SYMBOL(vm_new, Error* (*)(const char*, const char*, const char*, PackageIndex*, DataIndex*, VirtualMachine**));

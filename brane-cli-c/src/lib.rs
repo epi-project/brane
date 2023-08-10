@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    26 Jul 2023, 09:42:51
+//    10 Aug 2023, 16:40:40
 //  Auto updated?
 //    Yes
 // 
@@ -129,6 +129,28 @@ unsafe fn cstr_to_rust<'s>(cstr: *const c_char) -> &'s str {
     }
 }
 
+/// Converts a Rust string to a [malloc](libc::malloc())-allocated C-string.
+/// 
+/// # Arguments
+/// - `string`: The Rust-string to convert.
+/// 
+/// # Returns
+/// The newly allocated C-style string.
+#[inline]
+unsafe fn rust_to_cstr(string: String) -> *mut c_char {
+    // Convert it to a CString first to get the trailing null-byte (and proper encoding and such)
+    let string: CString = CString::new(string).unwrap();
+
+    // Write that in a malloc-allocated area (so C can free() it), and then set it in the output
+    let n_chars: usize = libc::strlen(string.as_ptr());
+    let target: *mut c_char = libc::malloc(n_chars + 1) as *mut c_char;
+    libc::strncpy(target, string.as_ptr(), n_chars);
+    std::slice::from_raw_parts_mut(target, n_chars + 1)[n_chars] = '\0' as i8;
+
+    // Return the string
+    target
+}
+
 
 
 
@@ -174,6 +196,30 @@ pub unsafe extern "C" fn error_free(err: *mut Error) {
     cleanup_runtime();
 }
 
+/// Serializes the error message in this error to the given buffer.
+/// 
+/// # Arguments
+/// - `err`: the [`Error`] to serialize the error of.
+/// - `buffer`: The buffer to serialize to. Will be freshly allocated using `malloc` for the correct size; can be freed using `free()`.
+/// 
+/// # Panics
+/// This function can panic if the given `err` or `buffer` are NULL-pointers.
+#[no_mangle]
+pub unsafe extern "C" fn error_serialize_err(err: *const Error, buffer: *mut *mut c_char) {
+    *buffer = std::ptr::null_mut();
+
+    // Unwrap the pointers
+    let err: &Error = match err.as_ref() {
+        Some(err) => err,
+        None => { panic!("Given Error is a NULL-pointer"); },
+    };
+
+    // Set the C-string equivalent of this as the result
+    *buffer = rust_to_cstr(err.msg.clone());
+
+    // OK, done!
+}
+
 /// Prints the error message in this error to stderr.
 /// 
 /// # Arguments
@@ -202,11 +248,11 @@ pub unsafe extern "C" fn error_print_err(err: *const Error) {
 /***** LIBRARY SOURCE ERROR *****/
 /// Defines the error type returned by this library.
 #[derive(Debug)]
-pub struct SourceError<'f, 's> {
+pub struct SourceError<'f> {
     /// The filename of the file we are referencing.
     file   : &'f str,
-    /// The complete source we attempted to parse.
-    source : &'s str,
+    /// The complete source we attempted to parse. Note that we copy instead of reference to be cooler (and to rollback the state on errors).
+    source : String,
 
     /// The warning messages to print.
     warns : Vec<AstWarning>,
@@ -304,6 +350,136 @@ pub unsafe extern "C" fn serror_has_err(serr: *const SourceError) -> bool {
 
 
 
+/// Serializes the source warnings in this error to the given buffer.
+/// 
+/// Note that there may be zero or more warnings at once. To discover if there are any, check [`serror_has_swarns()`].
+/// 
+/// # Arguments
+/// - `serr`: the [`SourceError`] to serialize the source warnings of.
+/// - `buffer`: The buffer to serialize to. Will be freshly allocated using `malloc` for the correct size; can be freed using `free()`.
+/// 
+/// # Panics
+/// This function can panic if the given `serr` or `buffer` are NULL-pointers.
+#[no_mangle]
+pub unsafe extern "C" fn serror_serialize_swarns(serr: *const SourceError, buffer: *mut *mut c_char) {
+    *buffer = std::ptr::null_mut();
+
+    // Unwrap the pointers
+    let serr: &SourceError = match serr.as_ref() {
+        Some(err) => err,
+        None => { panic!("Given SourceError is a NULL-pointer"); },
+    };
+
+    // Early quit if there is no warning
+    if serr.warns.is_empty() {
+        // Write a single-byte buffer with only the null buffer
+        let target: *mut c_char = libc::malloc(1) as *mut c_char;
+        std::slice::from_raw_parts_mut(target, 1)[0] = '\0' as i8;
+        *buffer = target;
+
+        // A'ight that's it then
+        return;
+    }
+
+    // Otherwise, serialize all warnings to a C-string
+    let mut warns: Vec<u8> = Vec::new();
+    for warn in &serr.warns {
+        // Write them to a Rust string first
+        warn.prettywrite(&mut warns, serr.file, &serr.source).unwrap();
+    }
+    let warns: String = String::from_utf8(warns).unwrap();
+
+    // Set the C-string equivalent of this as the result
+    *buffer = rust_to_cstr(warns);
+
+    // And that's it
+}
+
+/// Serializes the source errors in this error to the given buffer.
+/// 
+/// Note that there may be zero or more errors at once. To discover if there are any, check [`serror_has_serrs()`].
+/// 
+/// # Arguments
+/// - `serr`: the [`SourceError`] to serialize the source errors of.
+/// - `buffer`: The buffer to serialize to.
+/// - `max_len`: The length of the buffer. Will simply stop writing if this length is exceeded.
+/// 
+/// # Panics
+/// This function can panic if the given `serr` or `buffer` are NULL-pointers.
+#[no_mangle]
+pub unsafe extern "C" fn serror_serialize_serrs(serr: *const SourceError, buffer: *mut *mut c_char) {
+    *buffer = std::ptr::null_mut();
+
+    // Unwrap the pointers
+    let serr: &SourceError = match serr.as_ref() {
+        Some(err) => err,
+        None => { panic!("Given SourceError is a NULL-pointer"); },
+    };
+
+    // Early quit if there is no warning
+    if serr.errs.is_empty() {
+        // Write a single-byte buffer with only the null buffer
+        let target: *mut c_char = libc::malloc(1) as *mut c_char;
+        std::slice::from_raw_parts_mut(target, 1)[0] = '\0' as i8;
+        *buffer = target;
+
+        // A'ight that's it then
+        return;
+    }
+
+    // Otherwise, serialize all warnings to a C-string
+    let mut errs: Vec<u8> = Vec::new();
+    for err in &serr.errs {
+        // Write them to a Rust string first
+        err.prettywrite(&mut errs, serr.file, &serr.source).unwrap();
+    }
+    let errs: String = String::from_utf8(errs).unwrap();
+
+    // Set the C-string equivalent of this as the result
+    *buffer = rust_to_cstr(errs);
+
+    // And that's it
+}
+
+/// Serializes the error message in this error to the given buffer.
+/// 
+/// Note that there may be no error, but only source warnings- or errors. To discover if there is any, check [`serror_has_err()`].
+/// 
+/// # Arguments
+/// - `serr`: the [`SourceError`] to serialize the error of.
+/// - `buffer`: The buffer to serialize to.
+/// - `max_len`: The length of the buffer. Will simply stop writing if this length is exceeded.
+/// 
+/// # Panics
+/// This function can panic if the given `serr` or `buffer` are NULL-pointers.
+#[no_mangle]
+pub unsafe extern "C" fn serror_serialize_err(serr: *const SourceError, buffer: *mut *mut c_char) {
+    *buffer = std::ptr::null_mut();
+
+    // Unwrap the pointers
+    let serr: &SourceError = match serr.as_ref() {
+        Some(err) => err,
+        None => { panic!("Given SourceError is a NULL-pointer"); },
+    };
+
+    // We only have something to print if we have something to print
+    match &serr.msg {
+        Some(msg) => {
+            // We can simply attempt to copy the message
+            *buffer = rust_to_cstr(msg.clone());
+        },
+
+        None => {
+            // Write a single-byte buffer with only the null buffer
+            let target: *mut c_char = libc::malloc(1) as *mut c_char;
+            std::slice::from_raw_parts_mut(target, 1)[0] = '\0' as i8;
+            *buffer = target;
+        },
+    }
+}
+
+
+
 /// Prints the source warnings in this error to stderr.
 /// 
 /// Note that there may be zero or more warnings at once. To discover if there are any, check [`serror_has_swarns()`].
@@ -323,7 +499,7 @@ pub unsafe extern "C" fn serror_print_swarns(serr: *const SourceError) {
 
     // Iterate over the warnings to print them
     for warn in &serr.warns {
-        warn.prettyprint(serr.file, serr.source);
+        warn.prettyprint(serr.file, &serr.source);
     }
 }
 
@@ -346,7 +522,7 @@ pub unsafe extern "C" fn serror_print_serrs(serr: *const SourceError) {
 
     // Iterate over the errors to print them
     for err in &serr.errs {
-        err.prettyprint(serr.file, serr.source);
+        err.prettyprint(serr.file, &serr.source);
     }
 }
 
@@ -561,21 +737,8 @@ pub unsafe extern "C" fn workflow_disassemble(workflow: *const Workflow, assembl
         return Box::into_raw(Box::new(err));
     };
 
-    // Convert the resulting string to a C-string.
-    let result: CString = match CString::new(result) {
-        Ok(result) => result,
-        Err(e) => {
-            let err: Error = Error { msg: format!("Failed to convert disassembly to a C-compatible string: {e}") };
-            return Box::into_raw(Box::new(err));
-        },
-    };
-
     // Write that in a malloc-allocated area (so C can free it), and then set it in the output
-    let n_chars: usize = libc::strlen(result.as_ptr());
-    let target: *mut c_char = libc::malloc(n_chars + 1) as *mut c_char;
-    libc::strncpy(target, result.as_ptr(), n_chars);
-    std::slice::from_raw_parts_mut(target, n_chars + 1)[n_chars] = '\0' as i8;
-    *assembly = target;
+    *assembly = rust_to_cstr(String::from_utf8_unchecked(bytes));
 
     // Done, return that no error occurred
     std::ptr::null()
@@ -680,7 +843,7 @@ pub unsafe extern "C" fn compiler_free(compiler: *mut Compiler) {
 /// # Panics
 /// This function can panic if the given `compiler` points to NULL, or `what`/`raw` does not point to a valid UTF-8 string.
 #[no_mangle]
-pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, what: *const c_char, raw: *const c_char, workflow: *mut *mut Workflow) -> *const SourceError<'static, 'static> {
+pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, what: *const c_char, raw: *const c_char, workflow: *mut *mut Workflow) -> *const SourceError<'static> {
     // Initialize the logger if we hadn't already
     init_logger();
     *workflow = std::ptr::null_mut();
@@ -701,17 +864,20 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, what: *const 
     let raw: &str = cstr_to_rust(raw);
 
     // Create the error already
-    let mut serr: Box<SourceError> = Box::new(SourceError { file: what, source: raw, warns: vec![], errs: vec![], msg: None });
+    let mut serr: Box<SourceError> = Box::new(SourceError { file: what, source: String::new(), warns: vec![], errs: vec![], msg: None });
 
 
 
     /* COMPILE */
     debug!("Compiling snippet...");
 
+    // Clone the source to restore later
+    let old_source: String = compiler.source.clone();
+
     // Append the source we keep track of
     compiler.source.push_str(raw);
     compiler.source.push('\n');
-    serr.source = &compiler.source;
+    serr.source = compiler.source.clone();
 
     // Compile that using `brane-ast`
     let wf: Workflow = {
@@ -727,10 +893,12 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, what: *const 
             },
 
             CompileResult::Eof(e) => {
+                compiler.source = old_source;
                 serr.errs = vec![ e ];
                 return Box::into_raw(serr);
             },
             CompileResult::Err(errs) => {
+                compiler.source = old_source;
                 serr.errs = errs;
                 return Box::into_raw(serr);
             },
@@ -796,6 +964,21 @@ pub unsafe extern "C" fn fvalue_needs_processing(fvalue: *const FullValue) -> bo
         FullValue::Data(_) | FullValue::IntermediateResult(_) => true,
         _ => false,
     }
+}
+
+
+
+/// Serializes the FullValue to show as result of the workflow.
+/// 
+/// # Arguments
+/// - `fvalue`: the [`FullValue`] to serialize the source warnings of.
+/// - `result`: The buffer to serialize to. Will be freshly allocated using `malloc` for the correct size; can be freed using `free()`.
+/// 
+/// # Panics
+/// This function can panic if the given `fvalue` or `result` are NULL-pointers.
+#[no_mangle]
+pub unsafe extern "C" fn fvalue_serialize(fvalue: *const FullValue, result: *mut *mut c_char) {
+    
 }
 
 

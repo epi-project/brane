@@ -4,7 +4,7 @@
 //  Created:
 //    10 Aug 2022, 13:52:37
 //  Last edited:
-//    09 Jan 2023, 13:19:38
+//    10 Aug 2023, 14:09:37
 //  Auto updated?
 //    Yes
 // 
@@ -14,6 +14,7 @@
 
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FResult};
+use std::io::Write;
 
 use console::{style, Style};
 
@@ -102,19 +103,20 @@ fn prettyprint_list<T: Display, S: AsRef<str>>(list: &[T], word: S) -> String {
 /// 
 /// If the range is multi-line, then only the first line is printed.
 /// 
-/// # Generic arguments
-/// - `S`: The &str-like type of the `source` text.
-/// 
 /// # Arguments
+/// - `writer`: The [`Write`]-enabled stream to write to.
 /// - `source`: The source text (as a string) to extract the line from.
 /// - `range`: The TextRange to extract.
 /// - `colour`: The colour to print in.
 /// 
+/// # Errors
+/// This function may error if we failed to write to the given writer.
+/// 
 /// # Panics
 /// This function errors if the range is out-of-bounds for the source text.
-pub(crate) fn eprint_range<S: AsRef<str>>(source: S, range: &TextRange, colour: Style) {
+pub(crate) fn ewrite_range(mut writer: impl Write, source: impl AsRef<str>, range: &TextRange, colour: Style) -> Result<(), std::io::Error> {
     // Do nothing if the range is none
-    if range.is_none() { return; }
+    if range.is_none() { return Ok(()); }
 
     // Convert the &str-like into a &str
     let source: &str = source.as_ref();
@@ -142,173 +144,164 @@ pub(crate) fn eprint_range<S: AsRef<str>>(source: S, range: &TextRange, colour: 
     // Now print the line up until the correct position
     let red_start : usize = range.start.col - 1;
     let red_end   : usize = if range.start.line == range.end.line { range.end.col - 1 } else { line.len() };
-    eprint!("{} {}", style(format!(" {} |", if range.start.line == range.end.line { format!("{}", range.start.line) } else { pad_num(range.start.line, num_len(range.end.line)) })).blue().bright(), &line[0..red_start]);
+    write!(&mut writer, "{} {}", style(format!(" {} |", if range.start.line == range.end.line { format!("{}", range.start.line) } else { pad_num(range.start.line, num_len(range.end.line)) })).blue().bright(), &line[0..red_start])?;
     // Print the red part
-    eprint!("{}", colour.apply_to(&line[red_start..red_end]));
+    write!(&mut writer, "{}", colour.apply_to(&line[red_start..red_end]))?;
     // Print the rest (if any)
-    eprintln!("{}", &line[red_end..]);
+    writeln!(&mut writer, "{}", &line[red_end..])?;
 
     // Print the red area
-    eprintln!(" {} {} {}{}",
+    writeln!(&mut writer, " {} {} {}{}",
         (0..(if range.start.line == range.end.line { num_len(range.start.line) } else { num_len(range.end.line) })).map(|_| ' ').collect::<String>(),
         style("|").blue().bright(),
         (0..red_start).map(|_| ' ').collect::<String>(),
         colour.apply_to((red_start..red_end).map(|_| '^').collect::<String>()),
-    );
+    )?;
 
     // If the range is longer, print dots
     if range.start.line != range.end.line {
-        eprintln!("{} {}", style(format!(" {} |", range.start.line + 1)).blue().bright(), colour.apply_to("..."));
-        eprintln!("{} {}", style(format!(" {} |", (0..num_len(range.end.line)).map(|_| ' ').collect::<String>())).blue().bright(), colour.apply_to("^^^"));
+        writeln!(&mut writer, "{} {}", style(format!(" {} |", range.start.line + 1)).blue().bright(), colour.apply_to("..."))?;
+        writeln!(&mut writer, "{} {}", style(format!(" {} |", (0..num_len(range.end.line)).map(|_| ' ').collect::<String>())).blue().bright(), colour.apply_to("^^^"))?;
     }
 
     // Done
+    Ok(())
 }
 
 /// Prettyprints an error with only one 'reason'.
 /// 
-/// # Generic arguments
-/// - `S1`: The &str-like type of the `file` path.
-/// - `S2`: The &str-like type of the `source` text.
-/// 
 /// # Arguments
+/// - `writer`: The [`Write`]-enabled stream to write to.
 /// - `source`: The source text to extract the line from.
 /// - `err`: The Error to print.
 /// - `range`: The range of the error.
 /// 
-/// # Returns
-/// Nothing, but does print the err to stderr.
-fn prettyprint_err<S1: AsRef<str>, S2: AsRef<str>>(file: S1, source: S2, err: &dyn Error, range: &TextRange) {
+/// # Errors
+/// This function may error if we failed to write to the given writer.
+fn prettywrite_err(mut writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>, err: &dyn Error, range: &TextRange) -> Result<(), std::io::Error> {
     // Print the top line
-    eprintln!("{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(range.start.line), n!(range.start.col))).bold(), style("error").red().bold(), err);
+    writeln!(&mut writer, "{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(range.start.line), n!(range.start.col))).bold(), style("error").red().bold(), err)?;
 
     // Print the range
-    eprint_range(source, range, Style::new().red().bold());
-    eprintln!();
+    ewrite_range(&mut writer, source, range, Style::new().red().bold())?;
+    writeln!(&mut writer)?;
 
     // Done
+    Ok(())
 }
 
 /// Prettyprints an error with a range and a 'it's defined here' range.
 /// 
-/// # Generic arguments
-/// - `S1`: The &str-like type of the `file` path.
-/// - `S2`: The &str-like type of the `source` text.
-/// 
 /// # Arguments
+/// - `writer`: The [`Write`]-enabled stream to write to.
 /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
 /// - `source`: The source text to extract the line from.
 /// - `err`: The Error to print.
 /// - `range`: The range that indicates the actual reference.
 /// - `defined`: The range that indicates the location of the defition.
 /// 
-/// # Returns
-/// Nothing, but does print the err to stderr.
-fn prettyprint_err_defined<S1: AsRef<str>, S2: AsRef<str>>(file: S1, source: S2, err: &dyn Error, range: &TextRange, defined: &TextRange) {
+/// # Errors
+/// This function may error if we failed to write to the given writer.
+fn prettywrite_err_defined(mut writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>, err: &dyn Error, range: &TextRange, defined: &TextRange) -> Result<(), std::io::Error> {
     // Print the top line
-    eprintln!("{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(range.start.line), n!(range.start.col))).bold(), style("error").red().bold(), err);
+    writeln!(&mut writer, "{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(range.start.line), n!(range.start.col))).bold(), style("error").red().bold(), err)?;
 
     // Print the normal range
-    eprint_range(&source, range, Style::new().red().bold());
+    ewrite_range(&mut writer, &source, range, Style::new().red().bold())?;
 
     // Print the expected range
-    eprintln!("{}: Defined here:", style("note").cyan().bold());
-    eprint_range(source, defined, Style::new().cyan().bold());
-    eprintln!();
+    writeln!(&mut writer, "{}: Defined here:", style("note").cyan().bold())?;
+    ewrite_range(&mut writer, source, defined, Style::new().cyan().bold())?;
+    writeln!(&mut writer)?;
 
     // Done
+    Ok(())
 }
 
 /// Prettyprints an error with only one 'expected' value or type and one 'got' value or type.
 /// 
-/// # Generic arguments
-/// - `S1`: The &str-like type of the `file` path.
-/// - `S2`: The &str-like type of the `source` text.
-/// 
 /// # Arguments
+/// - `writer`: The [`Write`]-enabled stream to write to.
 /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
 /// - `source`: The source text to extract the line from.
 /// - `err`: The Error to print.
 /// - `expected`: The range that indicates the expected value or type.
 /// - `got`: The range that indicates the got value or type.
 /// 
-/// # Returns
-/// Nothing, but does print the err to stderr.
-fn prettyprint_err_exp_got<S1: AsRef<str>, S2: AsRef<str>>(file: S1, source: S2, err: &dyn Error, expected: &TextRange, got: &TextRange) {
+/// # Errors
+/// This function may error if we failed to write to the given writer.
+fn prettywrite_err_exp_got(mut writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>, err: &dyn Error, expected: &TextRange, got: &TextRange) -> Result<(), std::io::Error> {
     // Print the top line
-    eprintln!("{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(got.start.line), n!(got.start.col))).bold(), style("error").red().bold(), err);
+    writeln!(&mut writer, "{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(got.start.line), n!(got.start.col))).bold(), style("error").red().bold(), err)?;
 
     // Print the normal range
-    eprint_range(&source, got, Style::new().red().bold());
+    ewrite_range(&mut writer, &source, got, Style::new().red().bold())?;
 
     // Print the expected range
-    eprintln!("{}: Expected because of:", style("note").cyan().bold());
-    eprint_range(source, expected, Style::new().cyan().bold());
-    eprintln!();
+    writeln!(&mut writer, "{}: Expected because of:", style("note").cyan().bold())?;
+    ewrite_range(&mut writer, source, expected, Style::new().cyan().bold())?;
+    writeln!(&mut writer)?;
 
     // Done
+    Ok(())
 }
 
 /// Prettyprints an error with only one 'existing' value or type and one 'new' value or type.
 /// 
-/// # Generic arguments
-/// - `S1`: The &str-like type of the `file` path.
-/// - `S2`: The &str-like type of the `source` text.
-/// 
 /// # Arguments
+/// - `writer`: The [`Write`]-enabled stream to write to.
 /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
 /// - `source`: The source text to extract the line from.
 /// - `err`: The Error to print.
 /// - `existing`: The range that indicates the existing value or type.
 /// - `new`: The range that indicates the new value or type.
 /// 
-/// # Returns
-/// Nothing, but does print the err to stderr.
-fn prettyprint_err_exist_new<S1: AsRef<str>, S2: AsRef<str>>(file: S1, source: S2, err: &dyn Error, existing: &TextRange, new: &TextRange) {
+/// # Errors
+/// This function may error if we failed to write to the given writer.
+fn prettywrite_err_exist_new(mut writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>, err: &dyn Error, existing: &TextRange, new: &TextRange) -> Result<(), std::io::Error> {
     // Print the top line
-    eprintln!("{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(new.start.line), n!(new.start.col))).bold(), style("error").red().bold(), err);
+    writeln!(&mut writer, "{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(new.start.line), n!(new.start.col))).bold(), style("error").red().bold(), err)?;
 
     // Print the normal range
-    eprint_range(&source, new, Style::new().red().bold());
+    ewrite_range(&mut writer, &source, new, Style::new().red().bold())?;
 
     // Print the expected range
-    eprintln!("{}: Previous occurrence:", style("note").cyan().bold());
-    eprint_range(source, existing, Style::new().cyan().bold());
-    eprintln!();
+    writeln!(&mut writer, "{}: Previous occurrence:", style("note").cyan().bold())?;
+    ewrite_range(&mut writer, source, existing, Style::new().cyan().bold())?;
+    writeln!(&mut writer)?;
 
     // Done
+    Ok(())
 }
 
 /// Prettyprints an error with somewhere between zero and many reasons for this happening.
 /// 
-/// # Generic arguments
-/// - `S1`: The &str-like type of the `file` path.
-/// - `S2`: The &str-like type of the `source` text.
-/// 
 /// # Arguments
+/// - `writer`: The [`Write`]-enabled stream to write to.
 /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
 /// - `source`: The source text to extract the line from.
 /// - `err`: The Error to print.
 /// - `range`: The range that indicates the error itself.
 /// - `reasons`: Zero or more ranges that indicates the sources.
 /// 
-/// # Returns
-/// Nothing, but does print the err to stderr.
-fn prettyprint_err_reasons<S1: AsRef<str>, S2: AsRef<str>>(file: S1, source: S2, err: &dyn Error, range: &TextRange, reasons: &[TextRange]) {
+/// # Errors
+/// This function may error if we failed to write to the given writer.
+fn prettywrite_err_reasons(mut writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>, err: &dyn Error, range: &TextRange, reasons: &[TextRange]) -> Result<(), std::io::Error> {
     // Print the top line
-    eprintln!("{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(range.start.line), n!(range.start.col))).bold(), style("error").red().bold(), err);
+    writeln!(&mut writer, "{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(range.start.line), n!(range.start.col))).bold(), style("error").red().bold(), err)?;
 
     // Print the normal range
-    eprint_range(&source, range, Style::new().red().bold());
+    ewrite_range(&mut writer, &source, range, Style::new().red().bold())?;
 
     // Print the expected ranges
     for r in reasons {
-        eprintln!("{}: Error occurred because of:", style("note").cyan().bold());
-        eprint_range(&source, r, Style::new().cyan().bold());
-        eprintln!();
+        writeln!(&mut writer, "{}: Error occurred because of:", style("note").cyan().bold())?;
+        ewrite_range(&mut writer, &source, r, Style::new().cyan().bold())?;
+        writeln!(&mut writer)?;
     }
 
     // Done
+    Ok(())
 }
 
 
@@ -345,33 +338,38 @@ pub enum AstError {
 }
 
 impl AstError {
-    /// Prints the error in a pretty way to stderr.
-    /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
+    /// Prints the warning in a pretty way to stderr.
     /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
-    /// 
-    /// # Returns
-    /// Nothing, but does print the error to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    #[inline]
+    pub fn prettywrite(&self, mut writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use AstError::*;
         match self {
-            ReaderReadError { .. } => { eprintln!("{self}"); },
-            ParseError { .. }      => { eprintln!("{self}"); },
-            WriteError{ .. }       => { eprintln!("{self}"); },
+            ReaderReadError { .. } => { writeln!(writer, "{self}") },
+            ParseError { .. }      => { writeln!(writer, "{self}") },
+            WriteError{ .. }       => { writeln!(writer, "{self}") },
 
-            SanityError(err)   => err.prettyprint(file, source),
-            ResolveError(err)  => err.prettyprint(file, source),
-            TypeError(err)     => err.prettyprint(file, source),
-            NullError(err)     => err.prettyprint(file, source),
-            LocationError(err) => err.prettyprint(file, source),
-            PruneError(err)    => err.prettyprint(file, source),
-            FlattenError(err)  => err.prettyprint(file, source),
+            SanityError(err)   => err.prettywrite(writer, file, source),
+            ResolveError(err)  => err.prettywrite(writer, file, source),
+            TypeError(err)     => err.prettywrite(writer, file, source),
+            NullError(err)     => err.prettywrite(writer, file, source),
+            LocationError(err) => err.prettywrite(writer, file, source),
+            PruneError(err)    => err.prettywrite(writer, file, source),
+            FlattenError(err)  => err.prettywrite(writer, file, source),
         }
     }
 }
@@ -451,23 +449,28 @@ pub enum SanityError {
 }
 
 impl SanityError {
-    /// Prints the error in a pretty way to stderr.
-    /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
+    /// Prints the warning in a pretty way to stderr.
     /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
-    /// 
-    /// # Returns
-    /// Nothing, but does print the error to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    #[inline]
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use SanityError::*;
         match self {
-            ProjError{ range, .. } => prettyprint_err(file, source, self, range),
+            ProjError{ range, .. } => prettywrite_err(writer, file, source, self, range),
         }
     }
 }
@@ -537,48 +540,52 @@ pub enum ResolveError {
 }
 
 impl ResolveError {
-    /// Prints the error in a pretty way to stderr.
-    /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
+    /// Prints the warning in a pretty way to stderr.
     /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
-    /// 
-    /// # Returns
-    /// Nothing, but does print the error to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use ResolveError::*;
         match self {
-            VersionParseError{ range, .. }   => prettyprint_err(file, source, self, range),
-            UnknownPackageError{ range, .. } => prettyprint_err(file, source, self, range),
-            FunctionImportError{ range, .. } => prettyprint_err(file, source, self, range),
-            ClassImportError{ range, .. }    => prettyprint_err(file, source, self, range),
+            VersionParseError{ range, .. }   => prettywrite_err(writer, file, source, self, range),
+            UnknownPackageError{ range, .. } => prettywrite_err(writer, file, source, self, range),
+            FunctionImportError{ range, .. } => prettywrite_err(writer, file, source, self, range),
+            ClassImportError{ range, .. }    => prettywrite_err(writer, file, source, self, range),
 
-            FunctionDefineError{ range, .. }  => prettyprint_err(file, source, self, range),
-            ParameterDefineError{ range, .. } => prettyprint_err(file, source, self, range),
+            FunctionDefineError{ range, .. }  => prettywrite_err(writer, file, source, self, range),
+            ParameterDefineError{ range, .. } => prettywrite_err(writer, file, source, self, range),
 
-            ClassDefineError{ range, .. }                               => prettyprint_err(file, source, self, range),
-            UndefinedClass{ range, .. }                                 => prettyprint_err(file, source, self, range),
-            DuplicateMethodAndProperty{ new_range, existing_range, .. } => prettyprint_err_exist_new(file, source, self, existing_range, new_range),
-            IllegalSelf{ range, .. }                                    => prettyprint_err(file, source, self, range),
-            MissingSelf{ range, .. }                                    => prettyprint_err(file, source, self, range),
+            ClassDefineError{ range, .. }                               => prettywrite_err(writer, file, source, self, range),
+            UndefinedClass{ range, .. }                                 => prettywrite_err(writer, file, source, self, range),
+            DuplicateMethodAndProperty{ new_range, existing_range, .. } => prettywrite_err_exist_new(writer, file, source, self, existing_range, new_range),
+            IllegalSelf{ range, .. }                                    => prettywrite_err(writer, file, source, self, range),
+            MissingSelf{ range, .. }                                    => prettywrite_err(writer, file, source, self, range),
 
-            UnknownMergeStrategy{ range, .. } => prettyprint_err(file, source, self, range),
-            VariableDefineError{ range, .. }  => prettyprint_err(file, source, self, range),
+            UnknownMergeStrategy{ range, .. } => prettywrite_err(writer, file, source, self, range),
+            VariableDefineError{ range, .. }  => prettywrite_err(writer, file, source, self, range),
 
-            UndefinedFunction{ range, .. } => prettyprint_err(file, source, self, range),
+            UndefinedFunction{ range, .. } => prettywrite_err(writer, file, source, self, range),
 
-            NonClassProjection{ range, .. } => prettyprint_err(file, source, self, range),
-            UnknownField{ range, .. }       => prettyprint_err(file, source, self, range),
+            NonClassProjection{ range, .. } => prettywrite_err(writer, file, source, self, range),
+            UnknownField{ range, .. }       => prettywrite_err(writer, file, source, self, range),
 
-            DataIncorrectExpr{ range, .. } => prettyprint_err(file, source, self, range),
-            UnknownDataError{ range, .. }  => prettyprint_err(file, source, self, range),
+            DataIncorrectExpr{ range, .. } => prettywrite_err(writer, file, source, self, range),
+            UnknownDataError{ range, .. }  => prettywrite_err(writer, file, source, self, range),
 
-            UndefinedVariable{ range, .. } => prettyprint_err(file, source, self, range),
+            UndefinedVariable{ range, .. } => prettywrite_err(writer, file, source, self, range),
         }
     }
 }
@@ -672,48 +679,52 @@ pub enum TypeError {
 }
 
 impl TypeError {
-    /// Prints the error in a pretty way to stderr.
-    /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
+    /// Prints the warning in a pretty way to stderr.
     /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
-    /// 
-    /// # Returns
-    /// Nothing, but does print the error to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use TypeError::*;
         match self {
-            ProjOnNonClassError{ range, .. } => prettyprint_err(file, source, self, range),
-            UnexpectedMethod{ range, .. }    => prettyprint_err(file, source, self, range),
-            UnknownField{ range, .. }        => prettyprint_err(file, source, self, range),
+            ProjOnNonClassError{ range, .. } => prettywrite_err(writer, file, source, self, range),
+            UnexpectedMethod{ range, .. }    => prettywrite_err(writer, file, source, self, range),
+            UnknownField{ range, .. }        => prettywrite_err(writer, file, source, self, range),
 
-            IncorrectType{ range, .. } => prettyprint_err(file, source, self, range),
+            IncorrectType{ range, .. } => prettywrite_err(writer, file, source, self, range),
 
-            IllegalDataReturnError{ range, .. } => prettyprint_err(file, source, self, range),
+            IllegalDataReturnError{ range, .. } => prettywrite_err(writer, file, source, self, range),
 
-            IncompatibleReturns{ got_range, expected_range, .. } => prettyprint_err_exp_got(file, source, self, expected_range, got_range),
+            IncompatibleReturns{ got_range, expected_range, .. } => prettywrite_err_exp_got(writer, file, source, self, expected_range, got_range),
 
-            ParallelNoReturn{ range, .. }            => prettyprint_err(file, source, self, range),
-            ParallelUnexpectedReturn{ range, .. }    => prettyprint_err(file, source, self, range),
-            ParallelIncompleteReturn{ range, .. }    => prettyprint_err(file, source, self, range),
-            ParallelIllegalType{ range, reason, .. } => prettyprint_err_reasons(file, source, self, range, &[ reason.clone() ]),
-            ParallelNoStrategy{ range, .. }          => prettyprint_err(file, source, self, range),
+            ParallelNoReturn{ range, .. }            => prettywrite_err(writer, file, source, self, range),
+            ParallelUnexpectedReturn{ range, .. }    => prettywrite_err(writer, file, source, self, range),
+            ParallelIncompleteReturn{ range, .. }    => prettywrite_err(writer, file, source, self, range),
+            ParallelIllegalType{ range, reason, .. } => prettywrite_err_reasons(writer, file, source, self, range, &[ reason.clone() ]),
+            ParallelNoStrategy{ range, .. }          => prettywrite_err(writer, file, source, self, range),
 
-            NonFunctionCall{ range, defined_range, .. }         => prettyprint_err_defined(file, source, self, range, defined_range),
-            UndefinedFunctionCall{ range, .. }                  => prettyprint_err(file, source, self, range),
-            FunctionArityError{ got_range, expected_range, .. } => prettyprint_err_exp_got(file, source, self, expected_range, got_range),
+            NonFunctionCall{ range, defined_range, .. }         => prettywrite_err_defined(writer, file, source, self, range, defined_range),
+            UndefinedFunctionCall{ range, .. }                  => prettywrite_err(writer, file, source, self, range),
+            FunctionArityError{ got_range, expected_range, .. } => prettywrite_err_exp_got(writer, file, source, self, expected_range, got_range),
 
-            InconsistentArrayError{ got_range, expected_range, .. } => prettyprint_err_exp_got(file, source, self, expected_range, got_range),
+            InconsistentArrayError{ got_range, expected_range, .. } => prettywrite_err_exp_got(writer, file, source, self, expected_range, got_range),
 
-            NonArrayIndexError{ range, .. } => prettyprint_err(file, source, self, range),
+            NonArrayIndexError{ range, .. } => prettywrite_err(writer, file, source, self, range),
 
-            DataNameNotAStringError{ range, .. } => prettyprint_err(file, source, self, range),
-            DataNoNamePropertyError{ range, .. } => prettyprint_err(file, source, self, range),
+            DataNameNotAStringError{ range, .. } => prettywrite_err(writer, file, source, self, range),
+            DataNoNamePropertyError{ range, .. } => prettywrite_err(writer, file, source, self, range),
         }
     }
 }
@@ -765,23 +776,27 @@ pub enum NullError {
 }
 
 impl NullError {
-    /// Prints the error in a pretty way to stderr.
-    /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
+    /// Prints the warning in a pretty way to stderr.
     /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
-    /// 
-    /// # Returns
-    /// Nothing, but does print the error to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use NullError::*;
         match self {
-            IllegalNull{ range } => prettyprint_err(file, source, self, range),
+            IllegalNull{ range } => prettywrite_err(writer, file, source, self, range),
         }
     }
 }
@@ -812,26 +827,31 @@ pub enum LocationError {
 }
 
 impl LocationError {
-    /// Prints the error in a pretty way to stderr.
-    /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
+    
+    /// Prints the warning in a pretty way to stderr.
     /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
-    /// 
-    /// # Returns
-    /// Nothing, but does print the error to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use LocationError::*;
         match self {
-            IllegalLocation{ range, .. }       => prettyprint_err(file, source, self, range),
-            OnNoLocation{ range, reasons, .. } => prettyprint_err_reasons(file, source, self, range, reasons),
+            IllegalLocation{ range, .. }       => prettywrite_err(writer, file, source, self, range),
+            OnNoLocation{ range, reasons, .. } => prettywrite_err_reasons(writer, file, source, self, range, reasons),
 
-            NoLocation{ range, reasons, .. } => prettyprint_err_reasons(file, source, self, range, reasons),
+            NoLocation{ range, reasons, .. } => prettywrite_err_reasons(writer, file, source, self, range, reasons),
         }
     }
 }
@@ -861,23 +881,27 @@ pub enum PruneError {
 }
 
 impl PruneError {
-    /// Prints the error in a pretty way to stderr.
-    /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
+    /// Prints the warning in a pretty way to stderr.
     /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
-    /// 
-    /// # Returns
-    /// Nothing, but does print the error to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use PruneError::*;
         match self {
-            MissingReturn{ range, .. } => prettyprint_err(file, source, self, range),
+            MissingReturn{ range, .. } => prettywrite_err(writer, file, source, self, range),
         }
     }
 }
@@ -904,23 +928,27 @@ pub enum FlattenError {
 }
 
 impl FlattenError {
-    /// Prints the error in a pretty way to stderr.
-    /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
+    /// Prints the warning in a pretty way to stderr.
     /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
-    /// 
-    /// # Returns
-    /// Nothing, but does print the error to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use FlattenError::*;
         match self {
-            IntermediateResultConflict{ .. } => prettyprint_err(file, source, self, &TextRange::none()),
+            IntermediateResultConflict{ .. } => prettywrite_err(writer, file, source, self, &TextRange::none()),
         }
     }
 }
