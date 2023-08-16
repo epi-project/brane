@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    16 Aug 2023, 10:57:39
+//    16 Aug 2023, 11:57:44
 //  Auto updated?
 //    Yes
 // 
@@ -16,11 +16,15 @@
 //!   http://blog.asleson.org/2021/02/23/how-to-writing-a-c-shared-library-in-rust/
 // 
 
+use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Write as _;
+use std::io::Write;
+use std::mem;
 use std::os::raw::c_char;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::{Arc, Once};
 use std::time::Instant;
 
@@ -152,6 +156,91 @@ unsafe fn rust_to_cstr(string: String) -> *mut c_char {
 
     // Return the string
     target
+}
+
+
+
+
+
+/***** HELPER STRUCTS *****/
+/// Defines a [`Write`]-capable, shared handle over a single bytes buffer.
+#[derive(Clone, Debug)]
+struct BytesHandle {
+    /// The shared bytes buffer to write to.
+    buffer : Rc<RefCell<Vec<u8>>>,
+}
+
+impl Default for BytesHandle {
+    #[inline]
+    fn default() -> Self { Self::new() }
+}
+impl BytesHandle {
+    /// Constructor for the StringHandle.
+    /// 
+    /// # Returns
+    /// A new instance of Self that is empty, ready for writing.
+    #[inline]
+    pub fn new() -> Self {
+        Self {
+            buffer : Rc::new(RefCell::new(vec![])),
+        }
+    }
+
+
+
+    /// Flushes the bytes handle, returning its contents and the resetting them to empty.
+    /// 
+    /// # Returns
+    /// A byte vector representing the internal contents.
+    #[inline]
+    fn flush_as_bytes(&self) -> Vec<u8> {
+        let mut result: Vec<u8> = vec![];
+        {
+            // Get a mutable borrow
+            let mut buffer: RefMut<Vec<u8>> = self.buffer.borrow_mut();
+            // Swap the contents with a fresh un
+            mem::swap(&mut result, buffer.as_mut());
+        }
+
+        // Done, return the reaped results
+        result
+    }
+
+    /// Flushes the bytes handle, returning its contents as a string and the resetting them to empty.
+    /// 
+    /// # Returns
+    /// A string representing the internal contents.
+    /// 
+    /// # Errors
+    /// This function errors if we failed to get the internals as valid UTF-8.
+    #[inline]
+    fn flush_as_string(&self) -> Result<String, std::string::FromUtf8Error> {
+        String::from_utf8(self.flush_as_bytes())
+    }
+}
+impl Write for BytesHandle {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.buffer.borrow_mut().write(buf)
+    }
+    #[inline]
+    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
+        self.buffer.borrow_mut().write_all(buf)
+    }
+    #[inline]
+    fn write_fmt(&mut self, fmt: std::fmt::Arguments<'_>) -> std::io::Result<()> {
+        self.buffer.borrow_mut().write_fmt(fmt)
+    }
+    #[inline]
+    fn write_vectored(&mut self, bufs: &[std::io::IoSlice<'_>]) -> std::io::Result<usize> {
+        self.buffer.borrow_mut().write_vectored(bufs)
+    }
+    #[inline]
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.buffer.borrow_mut().flush()
+    }
+    #[inline]
+    fn by_ref(&mut self) -> &mut Self { self }
 }
 
 
@@ -1035,7 +1124,7 @@ pub struct VirtualMachine {
     /// The directory of certificates to use.
     certs_dir    : String,
     /// The state of everything we need to know about the virtual machine
-    state        : InstanceVmState,
+    state        : InstanceVmState<BytesHandle, BytesHandle>,
 }
 
 
@@ -1086,7 +1175,8 @@ pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *cons
     };
 
     // Prepare the state
-    let state: InstanceVmState = match runtime.block_on(initialize_instance(drv_endpoint, pindex.clone(), dindex.clone(), None, ParserOptions::bscript())) {
+    let handle: BytesHandle = BytesHandle::new();
+    let state: InstanceVmState<BytesHandle, BytesHandle> = match runtime.block_on(initialize_instance(handle.clone(), handle, drv_endpoint, pindex.clone(), dindex.clone(), None, ParserOptions::bscript())) {
         Ok(state) => state,
         Err(e)  => {
             let err: Error = Error { msg: format!("Failed to create new InstanceVmState: {e}") };
@@ -1132,6 +1222,7 @@ pub unsafe extern "C" fn vm_free(vm: *mut VirtualMachine) {
 /// # Arguments
 /// - `vm`: The [`VirtualMachine`] that we execute with. This determines which backend to use.
 /// - `workflow`: The compiled workflow to execute.
+/// - `prints`: A newly allocated string which represents any stdout- or stderr prints done during workflow execution. Will be [`NULL`] if there is an error (see below).
 /// - `result`: A [`FullValue`] which represents the return value of the workflow. Will be [`NULL`] if there is an error (see below).
 /// 
 /// # Returns
@@ -1140,8 +1231,9 @@ pub unsafe extern "C" fn vm_free(vm: *mut VirtualMachine) {
 /// # Panics
 /// This function may panic if the input `vm` or `workflow` pointed to a NULL-pointer.
 #[no_mangle]
-pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workflow, result: *mut *mut FullValue) -> *const Error {
+pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workflow, prints: *mut *mut c_char, result: *mut *mut FullValue) -> *const Error {
     init_logger();
+    *prints = std::ptr::null_mut();
     *result = std::ptr::null_mut();
     info!("Executing workflow on virtual machine...");
     let start: Instant = Instant::now();
@@ -1168,6 +1260,7 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
     };
 
     // Store it and we're done!
+    *prints = rust_to_cstr(vm.state.stdout.flush_as_string().unwrap());
     *result = Box::into_raw(Box::new(value));
     debug!("Done (execution took {:.2}s)", start.elapsed().as_secs_f32());
     std::ptr::null()

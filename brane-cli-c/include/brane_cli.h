@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   16 Aug 2023, 11:02:28
+ *   16 Aug 2023, 11:58:09
  * Auto updated?
  *   Yes
  *
@@ -455,6 +455,7 @@ struct _functions {
      * # Arguments
      * - `vm`: The [`VirtualMachine`] that we execute with. This determines which backend to use.
      * - `workflow`: The compiled workflow to execute.
+     * - `prints`: A newly allocated string which represents any stdout- or stderr prints done during workflow execution. Will be [`NULL`] if there is an error (see below).
      * - `result`: A [`FullValue`] which represents the return value of the workflow. Will be [`NULL`] if there is an error (see below).
      * 
      * # Returns
@@ -463,7 +464,7 @@ struct _functions {
      * # Panics
      * This function may panic if the input `vm` or `workflow` pointed to a NULL-pointer.
      */
-    Error* (*vm_run)(VirtualMachine* vm, Workflow* workflow, FullValue** result);
+    Error* (*vm_run)(VirtualMachine* vm, Workflow* workflow, char** prints, FullValue** result);
     /* Processes the result referred to by the [`FullValue`].
      * 
      * Processing currently consists of:
@@ -550,7 +551,7 @@ Functions* functions_load(const char* path) {
     // Load the VM symbols
     LOAD_SYMBOL(vm_new, Error* (*)(const char*, const char*, const char*, PackageIndex*, DataIndex*, VirtualMachine**));
     LOAD_SYMBOL(vm_free, void (*)(VirtualMachine*));
-    LOAD_SYMBOL(vm_run, Error* (*)(VirtualMachine*, Workflow*, FullValue**));
+    LOAD_SYMBOL(vm_run, Error* (*)(VirtualMachine*, Workflow*, char**, FullValue**));
     LOAD_SYMBOL(vm_process, Error* (*)(VirtualMachine*, FullValue*, const char*));
 
     // Done

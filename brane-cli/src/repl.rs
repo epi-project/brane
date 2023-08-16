@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:47
 //  Last edited:
-//    07 Jun 2023, 16:59:07
+//    16 Aug 2023, 11:40:44
 //  Auto updated?
 //    Yes
 // 
@@ -14,6 +14,7 @@
 
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::fs;
+use std::io::{Stderr, Stdout};
 
 use log::warn;
 use rustyline::{CompletionType, Config, Context, EditMode, Editor};
@@ -270,7 +271,7 @@ async fn remote_repl(rl: &mut Editor<ReplHelper, DefaultHistory>, api_endpoint: 
     let drv_endpoint: &str  = drv_endpoint.as_ref();
 
     // First we initialize the remote thing
-    let mut state: InstanceVmState = match initialize_instance_vm(api_endpoint, drv_endpoint, attach, options).await {
+    let mut state: InstanceVmState<Stdout, Stderr> = match initialize_instance_vm(api_endpoint, drv_endpoint, attach, options).await {
         Ok(state) => state,
         Err(err)  => { return Err(Error::InitializeError{ what: "remote instance client", err }); },
     };

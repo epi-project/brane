@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    26 Jul 2023, 09:38:53
+//    16 Aug 2023, 11:40:24
 //  Auto updated?
 //    Yes
 // 
@@ -13,7 +13,7 @@
 // 
 
 use std::borrow::Cow;
-use std::io::Read;
+use std::io::{Read, Stderr, Stdout, Write};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -114,6 +114,8 @@ fn compile(state: &mut CompileState, source: &mut String, pindex: &PackageIndex,
 /// This implements most of [`initialize_instance_vm()`], which we separate to have some clients (\*cough\* IDE \*cough\*) able to create a VM while sharing an index.
 /// 
 /// # Arguments
+/// - `stdout_writer`: Some [`Write`]-handle that we use to write stdout to.
+/// - `stderr_writer`: Some [`Write`]-handle that we use to write stderr to.
 /// - `drv_endpoint`: The `brane-drv` endpoint that we will connect to to run stuff.
 /// - `pindex`: The [`PackageIndex`] that contains the remote's available packages.
 /// - `dindex`: The [`DataIndex`] that contains the remote's available datasets.
@@ -125,7 +127,7 @@ fn compile(state: &mut CompileState, source: &mut String, pindex: &PackageIndex,
 /// 
 /// # Errors
 /// This function may error if we failed to reach the remote driver, or if the given session did not exist.
-pub async fn initialize_instance(drv_endpoint: impl AsRef<str>, pindex: Arc<Mutex<PackageIndex>>, dindex: Arc<Mutex<DataIndex>>, attach: Option<AppId>, options: ParserOptions) -> Result<InstanceVmState, Error> {
+pub async fn initialize_instance<O: Write, E: Write>(stdout_writer: O, stderr_writer: E, drv_endpoint: impl AsRef<str>, pindex: Arc<Mutex<PackageIndex>>, dindex: Arc<Mutex<DataIndex>>, attach: Option<AppId>, options: ParserOptions) -> Result<InstanceVmState<O, E>, Error> {
     let drv_endpoint: &str = drv_endpoint.as_ref();
 
     // Connect to the server with gRPC
@@ -158,6 +160,9 @@ pub async fn initialize_instance(drv_endpoint: impl AsRef<str>, pindex: Arc<Mute
 
     // Prepare some states & options used across loops
     Ok(InstanceVmState {
+        stdout : stdout_writer,
+        stderr : stderr_writer,
+
         pindex,
         dindex,
 
@@ -185,7 +190,7 @@ pub async fn initialize_instance(drv_endpoint: impl AsRef<str>, pindex: Arc<Mute
 /// 
 /// # Errors
 /// This function may error if anything in the whole shebang crashed. This can be things client-side, but also remote-side.
-pub async fn run_instance(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState, workflow: &Workflow, profile: bool) -> Result<FullValue, Error> {
+pub async fn run_instance<O: Write, E: Write>(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState<O, E>, workflow: &Workflow, profile: bool) -> Result<FullValue, Error> {
     let drv_endpoint: &str = drv_endpoint.as_ref();
 
     // Serialize the workflow
@@ -227,13 +232,13 @@ pub async fn run_instance(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmS
                 // The remote send us a normal text message
                 if let Some(stdout) = reply.stdout {
                     debug!("Remote returned stdout");
-                    print!("{stdout}");
+                    write!(&mut state.stdout, "{stdout}");
                 }
 
                 // The remote send us an error
                 if let Some(stderr) = reply.stderr {
                     debug!("Remote returned error");
-                    eprintln!("{stderr}");
+                    writeln!(&mut state.stderr, "{stderr}");
                 }
 
                 // Update the value to the latest if one is sent
@@ -391,7 +396,12 @@ pub struct OfflineVmState {
 }
 
 /// A helper struct that contains what we need to know about a compiler + VM state for the instance use-case.
-pub struct InstanceVmState {
+pub struct InstanceVmState<O, E> {
+    /// A stdout to write incoming stdout messages on.
+    pub stdout : O,
+    /// A stderr to write outgoing stdout messages on.
+    pub stderr : E,
+
     /// The package index for this session.
     pub pindex : Arc<Mutex<PackageIndex>>,
     /// The data index for this session.
@@ -549,7 +559,7 @@ pub fn initialize_offline_vm(parse_opts: ParserOptions, docker_opts: DockerOptio
 /// 
 /// # Errors
 /// This function errors if we failed to get the new package indices or other information.
-pub async fn initialize_instance_vm(api_endpoint: impl AsRef<str>, drv_endpoint: impl AsRef<str>, attach: Option<AppId>, options: ParserOptions) -> Result<InstanceVmState, Error> {
+pub async fn initialize_instance_vm(api_endpoint: impl AsRef<str>, drv_endpoint: impl AsRef<str>, attach: Option<AppId>, options: ParserOptions) -> Result<InstanceVmState<Stdout, Stderr>, Error> {
     let api_endpoint: &str = api_endpoint.as_ref();
     let drv_endpoint: &str = drv_endpoint.as_ref();
 
@@ -567,7 +577,7 @@ pub async fn initialize_instance_vm(api_endpoint: impl AsRef<str>, drv_endpoint:
     };
 
     // Pass the rest to `initialize_instance`
-    initialize_instance(drv_endpoint, pindex, dindex, attach, options).await
+    initialize_instance(std::io::stdout(), std::io::stderr(), drv_endpoint, pindex, dindex, attach, options).await
 }
 
 
@@ -657,7 +667,7 @@ pub async fn run_offline_vm(state: &mut OfflineVmState, what: impl AsRef<str>, s
 /// # Errors
 /// This function errors if we failed to compile the workflow, communicate with the remote driver or remote execution failed somehow.
 #[inline]
-pub async fn run_instance_vm(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState, what: impl AsRef<str>, snippet: impl AsRef<str>, profile: bool) -> Result<FullValue, Error> {
+pub async fn run_instance_vm(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState<Stdout, Stderr>, what: impl AsRef<str>, snippet: impl AsRef<str>, profile: bool) -> Result<FullValue, Error> {
     // Compile the workflow
     let workflow: Workflow = {
         // Acquire the locks
@@ -925,7 +935,7 @@ async fn remote_run(api_endpoint: impl AsRef<str>, drv_endpoint: impl AsRef<str>
     let source       : &str  = source.as_ref();
 
     // First we initialize the remote thing
-    let mut state: InstanceVmState = initialize_instance_vm(api_endpoint, drv_endpoint, None, options).await?;
+    let mut state: InstanceVmState<Stdout, Stderr> = initialize_instance_vm(api_endpoint, drv_endpoint, None, options).await?;
     // Next, we run the VM (one snippet only ayway)
     let res: FullValue = run_instance_vm(drv_endpoint, &mut state, what, source, profile).await?;
     // Then, we collect and process the result
