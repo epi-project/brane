@@ -4,7 +4,7 @@
  * Created:
  *   14 Jun 2023, 11:49:07
  * Last edited:
- *   10 Aug 2023, 15:57:06
+ *   16 Aug 2023, 11:02:28
  * Auto updated?
  *   Yes
  *
@@ -409,16 +409,17 @@ struct _functions {
      */
     bool (*fvalue_needs_processing)(FullValue* fvalue);
 
-    /* Serializes the FullValue to show as result of the workflow.
+    /* Serializes a FullValue to show as result of the workflow.
      * 
      * # Arguments
-     * - `fvalue`: the [`FullValue`] to serialize the source warnings of.
+     * - `fvalue`: the [`FullValue`] to serialize.
+     * - `data_dir`: The data directory to which we downloaded the `fvalue`, if we did so.
      * - `result`: The buffer to serialize to. Will be freshly allocated using `malloc` for the correct size; can be freed using `free()`.
      * 
      * # Panics
-     * This function can panic if the given `fvalue` or `result` are NULL-pointers.
+     * This function can panic if the given `fvalue` is a NULL-pointer or if `data_dir` did not point to a valid UTF-8 string.
      */
-    void (*fvalue_serialize)(FullValue* fvalue, char** result);
+    void (*fvalue_serialize)(FullValue* fvalue, const char* data_dir, char** result);
 
 
 
@@ -544,7 +545,7 @@ Functions* functions_load(const char* path) {
     // Load the FullValue symbols
     LOAD_SYMBOL(fvalue_free, void (*)(FullValue*));
     LOAD_SYMBOL(fvalue_needs_processing, bool (*)(FullValue*));
-    LOAD_SYMBOL(fvalue_serialize, void (*)(FullValue*, char**));
+    LOAD_SYMBOL(fvalue_serialize, void (*)(FullValue*, const char*, char**));
 
     // Load the VM symbols
     LOAD_SYMBOL(vm_new, Error* (*)(const char*, const char*, const char*, PackageIndex*, DataIndex*, VirtualMachine**));

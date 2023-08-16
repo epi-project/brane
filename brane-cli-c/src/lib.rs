@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    10 Aug 2023, 16:40:40
+//    16 Aug 2023, 10:57:39
 //  Auto updated?
 //    Yes
 // 
@@ -18,10 +18,13 @@
 
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
+use std::fmt::Write as _;
 use std::os::raw::c_char;
+use std::path::PathBuf;
 use std::sync::{Arc, Once};
 use std::time::Instant;
 
+use console::style;
 use humanlog::{DebugMode, HumanLogger};
 use log::{debug, error, info, trace, warn};
 use parking_lot::{Mutex, MutexGuard};
@@ -738,7 +741,7 @@ pub unsafe extern "C" fn workflow_disassemble(workflow: *const Workflow, assembl
     };
 
     // Write that in a malloc-allocated area (so C can free it), and then set it in the output
-    *assembly = rust_to_cstr(String::from_utf8_unchecked(bytes));
+    *assembly = rust_to_cstr(String::from_utf8_unchecked(result));
 
     // Done, return that no error occurred
     std::ptr::null()
@@ -966,19 +969,52 @@ pub unsafe extern "C" fn fvalue_needs_processing(fvalue: *const FullValue) -> bo
     }
 }
 
-
-
-/// Serializes the FullValue to show as result of the workflow.
+/// Serializes a FullValue to show as result of the workflow.
 /// 
 /// # Arguments
-/// - `fvalue`: the [`FullValue`] to serialize the source warnings of.
+/// - `fvalue`: the [`FullValue`] to serialize.
+/// - `data_dir`: The data directory to which we downloaded the `fvalue`, if we did so.
 /// - `result`: The buffer to serialize to. Will be freshly allocated using `malloc` for the correct size; can be freed using `free()`.
 /// 
 /// # Panics
-/// This function can panic if the given `fvalue` or `result` are NULL-pointers.
+/// This function can panic if the given `fvalue` is a NULL-pointer or if `data_dir` did not point to a valid UTF-8 string.
 #[no_mangle]
-pub unsafe extern "C" fn fvalue_serialize(fvalue: *const FullValue, result: *mut *mut c_char) {
-    
+pub unsafe extern "C" fn fvalue_serialize(fvalue: *const FullValue, data_dir: *const c_char, result: *mut *mut c_char) {
+    *result = std::ptr::null_mut();
+
+    // Unwrap the pointers
+    let fvalue: &FullValue = match fvalue.as_ref() {
+        Some(fvalue) => fvalue,
+        None => { panic!("Given FullValue is a NULL-pointer"); },
+    };
+    let data_dir: PathBuf = PathBuf::from(cstr_to_rust(data_dir));
+
+    // Serialize the result only if there is anything to serialize
+    let mut sfvalue: String = String::new();
+    if fvalue != &FullValue::Void {
+        writeln!(&mut sfvalue, "\nWorkflow returned value {}", style(format!("'{fvalue}'")).bold().cyan()).unwrap();
+
+        // Treat some values special
+        match fvalue {
+            // Print sommat additional if it's an intermediate result.
+            FullValue::IntermediateResult(_) => {
+                writeln!(&mut sfvalue, "(Intermediate results are not available locally; promote it using 'commit_result()')").unwrap();
+            },
+
+            // If it's a dataset, show where to access it
+            FullValue::Data(name) => {
+                writeln!(&mut sfvalue, "(It's available under '{}')", data_dir.join(name.as_ref()).display()).unwrap();
+            },
+
+            // Nothing for the rest
+            _ => {},
+        }
+    }
+
+    // That's what we serialize to the output
+    *result = rust_to_cstr(sfvalue);
+
+    // Done!
 }
 
 

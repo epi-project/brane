@@ -12,6 +12,7 @@ crate-type = ["rlib", "cdylib"]
 
 
 [dependencies]
+console = "0.15"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
 libc = "0.2"
 log = "0.4"

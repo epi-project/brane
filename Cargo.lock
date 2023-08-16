@@ -647,6 +647,7 @@ dependencies = [
  "brane-cli",
  "brane-exe",
  "brane-tsk",
+ "console",
  "humanlog",
  "libc",
  "log",
