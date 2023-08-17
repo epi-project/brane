@@ -5,7 +5,7 @@
 # Created:
 #   09 Jun 2022, 12:20:28
 # Last edited:
-#   13 Apr 2023, 10:07:16
+#   17 Aug 2023, 14:08:08
 # Auto updated?
 #   Yes
 #
@@ -3374,6 +3374,9 @@ targets = {
     "worker-instance" : VoidTarget("worker-instance",
         deps=[ f"{svc}-image" for svc in WORKER_SERVICES ] + [ f"{svc}-image" for svc in AUX_WORKER_SERVICES ],
         description="Builds the container images that comprise a worker node in a Brane instance."
+    ),
+    "libbrane_cli" : CrateTarget("libbrane_cli",
+        "brane-cli-c", target="$ARCH-unknown-linux-musl", give_target_on_unspecified=False,
     ),
 
 

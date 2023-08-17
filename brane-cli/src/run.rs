@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    16 Aug 2023, 11:40:24
+//    17 Aug 2023, 17:48:33
 //  Auto updated?
 //    Yes
 // 
@@ -232,13 +232,13 @@ pub async fn run_instance<O: Write, E: Write>(drv_endpoint: impl AsRef<str>, sta
                 // The remote send us a normal text message
                 if let Some(stdout) = reply.stdout {
                     debug!("Remote returned stdout");
-                    write!(&mut state.stdout, "{stdout}");
+                    if let Err(err) = write!(&mut state.stdout, "{stdout}") { return Err(Error::WriteError { err }); }
                 }
 
                 // The remote send us an error
                 if let Some(stderr) = reply.stderr {
                     debug!("Remote returned error");
-                    writeln!(&mut state.stderr, "{stderr}");
+                    if let Err(err) = writeln!(&mut state.stderr, "{stderr}") { return Err(Error::WriteError { err }); }
                 }
 
                 // Update the value to the latest if one is sent
@@ -263,7 +263,7 @@ pub async fn run_instance<O: Write, E: Write>(drv_endpoint: impl AsRef<str>, sta
             }
             Err(status) => {
                 // Did not receive the message properly
-                eprintln!("\nStatus error: {}", status.message());
+                if let Err(err) = writeln!(&mut state.stderr, "\nStatus error: {}", status.message()) { return Err(Error::WriteError { err }); }
             }
             Ok(None) => {
                 // Stream closed by the remote for some rason

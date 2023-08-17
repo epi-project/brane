@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    16 Aug 2023, 11:57:44
+//    17 Aug 2023, 17:40:45
 //  Auto updated?
 //    Yes
 // 
@@ -256,6 +256,21 @@ impl Write for BytesHandle {
 pub extern "C" fn version() -> *const c_char {
     // SAFETY: We can easily do this without a care in the world, since the string is static and won't need deallocation.
     C_VERSION.as_ptr() as *const c_char
+}
+
+
+
+/// Forces the serialization functions to either use colour or not.
+/// 
+/// If you don't call this function, then it depends on whether the backend [`console`] library thinks if the stdout/stderr support ANSI colours.
+/// 
+/// # Arguments
+/// - `force`: If true, then ANSI characters will be forced to be printed. Otherwise, if false, they will be forced to _not_ be printed.
+#[no_mangle]
+pub extern "C" fn set_force_colour(force: bool) {
+    // Delegate to the console functions, is all we need to do.
+    console::set_colors_enabled(force);
+    console::set_colors_enabled_stderr(force);
 }
 
 
@@ -963,35 +978,33 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, what: *const 
     /* COMPILE */
     debug!("Compiling snippet...");
 
-    // Clone the source to restore later
-    let old_source: String = compiler.source.clone();
-
     // Append the source we keep track of
     compiler.source.push_str(raw);
     compiler.source.push('\n');
-    serr.source = compiler.source.clone();
 
     // Compile that using `brane-ast`
+    serr.source = compiler.source.clone();
     let wf: Workflow = {
         // Acquire locks on the indices
         let pindex: MutexGuard<PackageIndex> = compiler.pindex.lock();
         let dindex: MutexGuard<DataIndex> = compiler.dindex.lock();
 
         // Run the snippet
-        match brane_ast::compile_snippet(&mut compiler.state, compiler.source.as_bytes(), &*pindex, &*dindex, &ParserOptions::bscript()) {
+        match brane_ast::compile_snippet(&mut compiler.state, raw.as_bytes(), &*pindex, &*dindex, &ParserOptions::bscript()) {
             CompileResult::Workflow(workflow, warns) => {
+                compiler.state.offset += 1 + raw.chars().filter(|c| *c == '\n').count();
                 serr.warns = warns;
                 workflow
             },
 
             CompileResult::Eof(e) => {
-                compiler.source = old_source;
                 serr.errs = vec![ e ];
+                compiler.state.offset += 1 + raw.chars().filter(|c| *c == '\n').count();
                 return Box::into_raw(serr);
             },
             CompileResult::Err(errs) => {
-                compiler.source = old_source;
                 serr.errs = errs;
+                compiler.state.offset += 1 + raw.chars().filter(|c| *c == '\n').count();
                 return Box::into_raw(serr);
             },
 
