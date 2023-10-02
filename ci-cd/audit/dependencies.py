@@ -5,7 +5,7 @@
 # Created:
 #   26 Apr 2023, 15:16:49
 # Last edited:
-#   26 Apr 2023, 16:34:10
+#   02 Oct 2023, 13:56:13
 # Auto updated?
 #   Yes
 #
@@ -23,7 +23,7 @@ import typing
 
 ##### GLOBALS #####
 # Defines whether we are in debug mode or not
-debug: bool = False
+DEBUG: bool = False
 
 
 
@@ -44,38 +44,35 @@ def supports_color() -> bool:
     is_a_tty = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
     return supported_platform and is_a_tty
 
-def pdebug(text: str, colour: typing.Optional[str] = "\033[90;1m"):
+def pdebug(text: str):
     """
         Prints some output to stdout as if it was a debug string.
     """
 
     # Only print if debugging
-    if debug:
+    if DEBUG:
         # Determine is we're on a colour terminal or na
         use_colour: bool = supports_color()
 
         # Resolve the colours
-        start = colour if use_colour else ""
+        start = "\033[90;1m" if use_colour else ""
         end   = "\033[0m" if use_colour else ""
 
         # Print the text
-        print(f"{start}[debug] {text}{end}")
-def perror(text: str, colour: typing.Optional[str] = "\033[91;1m"):
+        print(f"{start}[DEBUG] {text}{end}")
+def perror(text: str):
     """
         Prints some output to stdout as if it was a debug string.
     """
 
-    # Only print if debugging
-    if debug:
-        # Determine is we're on a colour terminal or na
-        use_colour: bool = supports_color()
+    # Resolve the colours
+    use_colour: bool = supports_color()
+    start = "\033[91;1m" if use_colour else ""
+    bold  = "\033[1m" if use_colour else ""
+    end   = "\033[0m" if use_colour else ""
 
-        # Resolve the colours
-        start = colour if use_colour else ""
-        end   = "\033[0m" if use_colour else ""
-
-        # Print the text
-        print(f"{start}Error: {text}{end}")
+    # Print the text
+    print(f"{start}[ERROR]{end} {bold}{text}{end}")
 
 def run_command(cmd: list[str], cwd: typing.Optional[str] = None, env:dict[str, str] = os.environ) -> int:
     """
@@ -156,14 +153,12 @@ def setup_ubuntu() -> int:
 
     # Install the build stuff
     if code := run_command([ "apt-get", "update" ]): return code
-    if code := run_command([ "apt-get", "install", "-y", "curl", "git", "gcc", "g++", "cmake", "pkg-config", "libssl-dev" ]): return code
+    # if code := run_command([ "apt-get", "install", "-y", "curl", "git", "gcc", "g++", "cmake", "pkg-config", "libssl-dev" ]): return code
+    if code := run_command([ "apt-get", "install", "-y", "curl", "gcc", "g++", "cmake", "pkg-config", "libssl-dev" ]): return code
 
     # Install Rust
     if code := run_command([ "bash", "-c", "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile default -y" ]): return code
     if code := run_command([ "/root/.cargo/bin/cargo", "install", "cargo-audit" ]): return code
-
-    # Clone the repo
-    if code := run_command([ "git", "clone", "https://github.com/epi-project/brane", "/brane" ]): return code
 
     # Done
     pdebug("Done initializing environment")
@@ -206,13 +201,14 @@ if __name__ == "__main__":
     # Let's define the arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("OS", choices=["windows", "macos", "ubuntu", "arch"], help="Determines the installation stuff for the target OS.")
+    parser.add_argument("REPOSITORY", help="The path to the repository itself.")
     parser.add_argument("--debug", action="store_true", help="If given, enables additional debug prints.")
 
     # Let's parse the arguments
     args = parser.parse_args()
 
     # Set some stuff globally
-    debug = args.debug
+    DEBUG = args.debug
 
     # Call main
     exit(main(args.OS))

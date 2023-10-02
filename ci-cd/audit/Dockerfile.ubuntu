@@ -11,10 +11,11 @@ FROM ubuntu:22.04
 RUN apt-get update && apt-get install -y python3 && rm -rf /var/apt/lists/*
 
 # Simply copy the files
-COPY ./dependencies.py /dependencies.py
+RUN mkdir -p /brane
+COPY . /brane/
 
 # Make them executable
-RUN chmod +x /dependencies.py
+RUN chmod +x /brane/ci-cd/audit/dependencies.py
 
 # Mark one of them as entrypoint
-ENTRYPOINT [ "/dependencies.py", "ubuntu", "--debug" ]
+ENTRYPOINT [ "/brane/ci-cd/audit/dependencies.py", "ubuntu", "/brane", "--debug" ]
