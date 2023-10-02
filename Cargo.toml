@@ -1,5 +1,9 @@
 [workspace]
 members = [
+    ### OVERVIEW ###
+    "overview",
+
+
     ### BINARIES ###
     # These crates directly relate to the CTL tool
     "brane-ctl",

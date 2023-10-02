@@ -4,6 +4,7 @@ All notable changes to the Brane framework will be documented in this file.
 
 ## [3.0.0] - 2023-05-22
 ### Added
+- The `libbrane_cli.so` library (`brane-cli-c` crate), which provides C-bindings to the client functionality of the `brane` CLI tool. This can be used by other projects (e.g., [Brane IDE](https://github.com/epi-project/brane-ide)) to provide client functionality when written in C/C++.
 - The `branectl wizard` subcommand, which interactively goes through the steps of setting up a node.
 - The `branectl upgrade` subcommand, which can be used to upgrade old config files to the new style.
 - An extensive description of the `brane-prx` service in the generated docs.
@@ -15,9 +16,9 @@ All notable changes to the Brane framework will be documented in this file.
 - The `backend.yml` and `data.yml` files to use the default tagging option in serde (i.e., use `!<variant>` instead of the `kind`-field) [**breaking change**].
 - The `node.yml` file to accept `delegate` as an alias for `job` instead of `driver` [**breaking change**].
 
-### Fixed
+<!-- ### Fixed
 - Kubernetes backend support (it used to work, got broken in 1.0.0+)
-  - To do so, `branelet` has added the `ENABLE_STDOUT_PREFIX` environment variable to allow the Kubernetes engine to distinguish between actual output and logging. As a consequence, all packages have to be rebuilt, which is a [**breaking change**].
+  - To do so, `branelet` has added the `ENABLE_STDOUT_PREFIX` environment variable to allow the Kubernetes engine to distinguish between actual output and logging. As a consequence, all packages have to be rebuilt, which is a [**breaking change**]. -->
 
 ## [2.0.0] - 2023-02-27
 ### Added
