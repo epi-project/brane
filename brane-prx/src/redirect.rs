@@ -4,7 +4,7 @@
 //  Created:
 //    23 Nov 2022, 11:26:46
 //  Last edited:
-//    07 Jun 2023, 16:29:35
+//    02 Oct 2023, 17:53:30
 //  Auto updated?
 //    Yes
 // 
@@ -251,7 +251,7 @@ pub async fn path_server(node_config_path: PathBuf, listener: TcpListener, clien
                 .with_safe_defaults()
                 .with_root_certificates(ca);
             let config: ClientConfig = if let Some((path, certs, key)) = client {
-                match config.with_single_cert(certs, key) {
+                match config.with_client_auth_cert(certs, key) {
                     Ok(config) => config,
                     Err(err)   => {
                         error!(":{}->{}: Failed to build client config from '{}' and '{}': {}", socket_addr.port(), address, ca_path.display(), path.display(), err);

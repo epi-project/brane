@@ -1,17 +1,16 @@
-#!/usr/bin/env python3
-# DEPENDENCIES.py
+# CODE QUALITY.py
 #   by Lut99
 #
 # Created:
-#   26 Apr 2023, 15:16:49
+#   02 Oct 2023, 16:51:52
 # Last edited:
-#   02 Oct 2023, 17:46:44
+#   02 Oct 2023, 17:46:38
 # Auto updated?
 #   Yes
 #
 # Description:
-#   Python script for implementing the `audit` GitHub action. Essentially
-#   just calls `cargo audit`, after installing the target stuff.
+#   Performs the setup & execution of a `clippy` run in either GitHub
+#   Actions or a local container.
 #
 
 import argparse
@@ -69,7 +68,6 @@ def setup_ubuntu(refresh_mirrors: bool) -> int:
 
     # Install Rust
     if code := common.run_command([ "bash", "-c", "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile default -y" ]): return code
-    if code := common.run_command([ "/root/.cargo/bin/cargo", "install", "cargo-audit" ]): return code
 
     # Done
     common.pdebug("Done initializing environment")
@@ -109,7 +107,7 @@ def run(args: argparse.Namespace) -> int:
     env["PATH"] = f"{env['PATH']}:/root/.cargo/bin"
 
     # Run the cargo audit
-    if code := common.run_command([ "cargo", "audit" ], cwd=args.repo, env=env):
+    if code := common.run_command([ "cargo", "clippy", "--all-targets", "--all-features", "--", "-D", "warnings", "--allow", "clippy::manual_range_contains" ], cwd=args.repo, env=env):
         common.perror(f"Cargo audit failed with return code {code} (see output above)")
         return code
 

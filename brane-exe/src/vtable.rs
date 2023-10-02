@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:42:52
 //  Last edited:
-//    19 Jan 2023, 15:23:07
+//    02 Oct 2023, 17:08:19
 //  Auto updated?
 //    Yes
 // 
@@ -61,7 +61,7 @@ impl<'a, T> VirtualSymTableIterator<'a, T> {
             i       : 0,
 
             scopes,
-            _type : PhantomData::default(),
+            _type : PhantomData,
         }
     }
 }

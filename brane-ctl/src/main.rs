@@ -4,7 +4,7 @@
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    10 Jul 2023, 10:48:43
+//    02 Oct 2023, 17:41:06
 //  Auto updated?
 //    Yes
 // 
@@ -387,7 +387,7 @@ async fn main() {
         human_panic::setup_panic!(Metadata {
             name: "Brane CTL".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            authors: env!("CARGO_PKG_AUTHORS").replace(":", ", ").into(),
+            authors: env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
             homepage: env!("CARGO_PKG_HOMEPAGE").into(),
         });
     }

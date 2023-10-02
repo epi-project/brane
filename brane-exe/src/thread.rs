@@ -4,7 +4,7 @@
 //  Created:
 //    09 Sep 2022, 13:23:41
 //  Last edited:
-//    03 Jul 2023, 16:13:40
+//    02 Oct 2023, 17:08:43
 //  Auto updated?
 //    Yes
 // 
@@ -766,7 +766,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Map them with the class names (alphabetically)
             let mut field_names: Vec<std::string::String> = class.props.iter().map(|v| v.name.clone()).collect();
             field_names.sort_by_key(|n| n.to_lowercase());
-            let mut values: HashMap<std::string::String, Value> = field_names.into_iter().zip(fields.into_iter()).collect();
+            let mut values: HashMap<std::string::String, Value> = field_names.into_iter().zip(fields).collect();
 
             // Push an instance with those values - unless it's a specific builtin
             if class.name == BuiltinClasses::Data.name() {

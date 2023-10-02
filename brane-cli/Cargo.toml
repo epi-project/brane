@@ -40,7 +40,7 @@ parking_lot = "0.12"
 path-clean = "1.0"
 prettytable-rs = "0.10"
 rand = "0.8"
-reqwest = {version = "0.11.13", features = ["rustls-tls-manual-roots","json", "stream", "multipart"] }
+reqwest = {version = "0.11", features = ["rustls-tls-manual-roots","json", "stream", "multipart"] }
 rustls = "0.21"
 rustyline = "11.0"
 rustyline-derive = "0.8"

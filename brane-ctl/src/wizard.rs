@@ -4,7 +4,7 @@
 //  Created:
 //    01 Jun 2023, 12:43:20
 //  Last edited:
-//    07 Jun 2023, 16:05:50
+//    02 Oct 2023, 17:34:34
 //  Auto updated?
 //    Yes
 // 
@@ -177,7 +177,7 @@ where
             header_name.push(c);
         } else if !ext && c >= 'a' && c <= 'z' {
             // Capitalize it
-            header_name.push((c as u8 - 'a' as u8 + 'A' as u8) as char);
+            header_name.push((c as u8 - b'a' + b'A') as char);
         } else {
             // The rest is pushed as-is
             header_name.push(c);

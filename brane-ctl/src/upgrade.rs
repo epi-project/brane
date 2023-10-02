@@ -4,7 +4,7 @@
 //  Created:
 //    03 Jul 2023, 13:01:31
 //  Last edited:
-//    03 Jul 2023, 16:02:35
+//    02 Oct 2023, 17:33:58
 //  Auto updated?
 //    Yes
 // 
@@ -35,6 +35,19 @@ use crate::spec::VersionFix;
 /***** CONSTANTS *****/
 /// The maximum length of files we consider.
 const MAX_FILE_LEN: u64 = 1024 * 1024;
+
+
+
+
+
+/***** TYPE ALIASES *****/
+/// Alias for the closure that parses according to a particular version number.
+/// 
+/// Note that this closure returns another closure, which converts the parsed value into an up-to-date version of the file.
+type VersionParser<'f1, 'f2, T> = Box<dyn 'f1 + Fn(&str) -> Option<VersionConverter<'f2, T>>>;
+
+/// Alias for the closure that takes a parsed file and converts it to an up-to-date version of the file.
+type VersionConverter<'f, T> = Box<dyn 'f + FnOnce(&Path, bool) -> Result<T, Error>>;
 
 
 
@@ -120,7 +133,7 @@ impl error::Error for Error {
 /// 
 /// # Errors
 /// This function may error if we failed to read from disk.
-fn upgrade<'f1, 'f2, T: Serialize>(what: &'static str, path: impl Into<PathBuf>, versions: Vec<(Version, Box<dyn 'f1 + Fn(&str) -> Option<Box<dyn 'f2 + FnOnce(&Path, bool) -> Result<T, Error>>>>)>, dry_run: bool, overwrite: bool) -> Result<(), Error> {
+fn upgrade<T: Serialize>(what: &'static str, path: impl Into<PathBuf>, versions: Vec<(Version, VersionParser<T>)>, dry_run: bool, overwrite: bool) -> Result<(), Error> {
     // Create a queue to parse
     let mut todo: Vec<PathBuf> = vec![ path.into() ];
     while let Some(path) = todo.pop() {
@@ -161,7 +174,7 @@ fn upgrade<'f1, 'f2, T: Serialize>(what: &'static str, path: impl Into<PathBuf>,
                     debug!("File '{}' is a v{} {} file", path.display(), version, what);
 
                     // Convert it to another file
-                    let parent: Cow<Path> = path.parent().map(|p| Cow::Borrowed(p)).unwrap_or_else(|| if path.is_absolute() { Cow::Owned("/".into()) } else { Cow::Owned("./".into()) });
+                    let parent: Cow<Path> = path.parent().map(Cow::Borrowed).unwrap_or_else(|| if path.is_absolute() { Cow::Owned("/".into()) } else { Cow::Owned("./".into()) });
                     if !dry_run && overwrite {
                         // We upgrade in-place
                         println!("Upgrading file {} from {} to {}...", style(path.display()).green().bold(), style(format!("v{version}")).bold(), style(format!("v{}", env!("CARGO_PKG_VERSION"))).bold());
@@ -276,8 +289,8 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
     };
 
     // Construct the list of versions
-    let mut versions: Vec<(Version, Box<dyn Fn(&str) -> Option<Box<dyn FnOnce(&Path, bool) -> Result<NodeConfig, Error>>>>)> = vec![
-        (Version::new(1, 0, 0), Box::new(|raw: &str| -> Option<Box<dyn FnOnce(&Path, bool) -> Result<NodeConfig, Error>>> {
+    let mut versions: Vec<(Version, VersionParser<NodeConfig>)> = vec![
+        (Version::new(1, 0, 0), Box::new(|raw: &str| -> Option<VersionConverter<NodeConfig>> {
             // Attempt to read it with the file
             let cfg: v1_0_0::NodeConfig = match serde_yaml::from_str(raw) {
                 Ok(cfg) => cfg,
@@ -414,7 +427,7 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
     ];
     // Limit the version to only the given one if applicable
     if let Some(version) = version.0 {
-        versions = versions.into_iter().filter(|(v, _)| v == &version).collect();
+        versions.retain(|(v, _)| v == &version);
     }
 
     // Call the function that does the heavy lifting

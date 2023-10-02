@@ -4,7 +4,7 @@
 //  Created:
 //    22 May 2023, 13:13:51
 //  Last edited:
-//    22 May 2023, 13:52:42
+//    02 Oct 2023, 17:13:55
 //  Auto updated?
 //    Yes
 // 
@@ -171,6 +171,7 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
 /// 
 /// # Errors
 /// This function errors if querying the user failed.
+#[allow(clippy::too_many_arguments)]
 fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl AsRef<str>, name: impl AsRef<str>, data_type: DataType, optional: bool, default: Option<FullValue>, types: &HashMap<String, ClassDef>) -> Result<FullValue, Error> {
     let what: &str = what.as_ref();
     let name: &str = name.as_ref();

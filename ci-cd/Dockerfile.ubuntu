@@ -15,7 +15,7 @@ RUN mkdir -p /brane
 COPY . /brane/
 
 # Make them executable
-RUN chmod +x /brane/ci-cd/audit/dependencies.py
+RUN chmod +x /brane/ci-cd/ci_cd.py
 
 # Mark one of them as entrypoint
-ENTRYPOINT [ "/brane/ci-cd/audit/dependencies.py", "ubuntu", "/brane", "--debug" ]
+ENTRYPOINT [ "/brane/ci-cd/ci_cd.py", "--os", "ubuntu", "--repo", "/brane", "--debug" ]

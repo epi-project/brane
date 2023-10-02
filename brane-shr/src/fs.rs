@@ -4,7 +4,7 @@
 //  Created:
 //    09 Nov 2022, 11:12:06
 //  Last edited:
-//    12 May 2023, 12:01:17
+//    02 Oct 2023, 16:59:28
 //  Auto updated?
 //    Yes
 // 
@@ -875,7 +875,7 @@ pub async fn download_file_async(source: impl AsRef<str>, target: impl AsRef<Pat
     let mut stream = res.bytes_stream();
     while let Some(next) = stream.next().await {
         // Unwrap the result
-        let next: _ = match next {
+        let next = match next {
             Ok(next) => next,
             Err(err) => { return Err(Error::DownloadError{ address: source.into(), err }); },
         };

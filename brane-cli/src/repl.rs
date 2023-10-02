@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:47
 //  Last edited:
-//    16 Aug 2023, 11:40:44
+//    02 Oct 2023, 17:34:18
 //  Auto updated?
 //    Yes
 // 
@@ -187,6 +187,7 @@ impl Validator for ReplHelper {
 /// 
 /// # Errors
 /// This function errors if we could not properly read from/write to the terminal. Additionally, it may error if any of the given statements fails for whatever reason.
+#[allow(clippy::too_many_arguments)]
 pub async fn start(proxy_addr: Option<String>, remote: bool, attach: Option<AppId>, language: Language, clear: bool, profile: bool, docker_opts: DockerOptions, keep_containers: bool) -> Result<(), Error> {
     // Build the config for the rustyline REPL.
     let config = Config::builder()

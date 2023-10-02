@@ -4,7 +4,7 @@
 //  Created:
 //    18 Nov 2022, 14:36:55
 //  Last edited:
-//    04 Jul 2023, 15:50:55
+//    02 Oct 2023, 17:22:35
 //  Auto updated?
 //    Yes
 // 
@@ -280,7 +280,7 @@ async fn main() {
         setup_panic!(Metadata {
             name: "Brane CLI".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            authors: env!("CARGO_PKG_AUTHORS").replace(":", ", ").into(),
+            authors: env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
             homepage: env!("CARGO_PKG_HOMEPAGE").into(),
         });
     }

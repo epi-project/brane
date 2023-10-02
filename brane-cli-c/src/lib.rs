@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    17 Aug 2023, 17:40:45
+//    02 Oct 2023, 17:40:45
 //  Auto updated?
 //    Yes
 // 
@@ -109,7 +109,7 @@ fn cleanup_runtime() {
 
     // Check if we need to delete it
     let sc: usize = if let Some(rt) = &*rt {
-        Arc::strong_count(&rt)
+        Arc::strong_count(rt)
     } else { 0 };
 
     // Delete it if necessary
@@ -149,7 +149,7 @@ unsafe fn rust_to_cstr(string: String) -> *mut c_char {
     let string: CString = CString::new(string).unwrap();
 
     // Write that in a malloc-allocated area (so C can free() it), and then set it in the output
-    let n_chars: usize = libc::strlen(string.as_ptr());
+    let n_chars: usize = string.as_bytes().len();
     let target: *mut c_char = libc::malloc(n_chars + 1) as *mut c_char;
     libc::strncpy(target, string.as_ptr(), n_chars);
     std::slice::from_raw_parts_mut(target, n_chars + 1)[n_chars] = '\0' as i8;
@@ -289,7 +289,8 @@ pub struct Error {
 
 /// Destructor for the Error type.
 ///
-/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// # Safety
+/// You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
 ///
 /// # Arguments
 /// - `err`: The [`Error`] to deallocate.
@@ -311,6 +312,7 @@ pub unsafe extern "C" fn error_free(err: *mut Error) {
 /// 
 /// # Panics
 /// This function can panic if the given `err` or `buffer` are NULL-pointers.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn error_serialize_err(err: *const Error, buffer: *mut *mut c_char) {
     *buffer = std::ptr::null_mut();
@@ -334,6 +336,7 @@ pub unsafe extern "C" fn error_serialize_err(err: *const Error, buffer: *mut *mu
 /// 
 /// # Panics
 /// This function can panic if the given `err` is a NULL-pointer.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn error_print_err(err: *const Error) {
     init_logger();
@@ -373,7 +376,8 @@ pub struct SourceError<'f> {
 
 /// Destructor for the Error type.
 ///
-/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// # Safety
+/// You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
 ///
 /// # Arguments
 /// - `serr`: The [`SourceError`] to deallocate.
@@ -399,6 +403,7 @@ pub unsafe extern "C" fn serror_free(serr: *mut SourceError) {
 /// 
 /// # Panics
 /// This function can panic if the given `serr` is a NULL-pointer.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn serror_has_swarns(serr: *const SourceError) -> bool {
     // Unwrap the pointer
@@ -408,7 +413,7 @@ pub unsafe extern "C" fn serror_has_swarns(serr: *const SourceError) -> bool {
     };
 
     // Now return if there are any warnings
-    !(*serr).warns.is_empty()
+    !serr.warns.is_empty()
 }
 
 /// Returns if a source error has occurred.
@@ -421,6 +426,7 @@ pub unsafe extern "C" fn serror_has_swarns(serr: *const SourceError) -> bool {
 /// 
 /// # Panics
 /// This function can panic if the given `err` is a NULL-pointer.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn serror_has_serrs(serr: *const SourceError) -> bool {
     // Unwrap the pointer
@@ -430,7 +436,7 @@ pub unsafe extern "C" fn serror_has_serrs(serr: *const SourceError) -> bool {
     };
 
     // Now return if there are any errors
-    !(*serr).errs.is_empty()
+    !serr.errs.is_empty()
 }
 
 /// Returns if a program error has occurred.
@@ -443,6 +449,7 @@ pub unsafe extern "C" fn serror_has_serrs(serr: *const SourceError) -> bool {
 /// 
 /// # Panics
 /// This function can panic if the given `err` is a NULL-pointer.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn serror_has_err(serr: *const SourceError) -> bool {
     // Unwrap the pointer
@@ -452,7 +459,7 @@ pub unsafe extern "C" fn serror_has_err(serr: *const SourceError) -> bool {
     };
 
     // Now return if there is a message
-    (*serr).msg.is_some()
+    serr.msg.is_some()
 }
 
 
@@ -467,6 +474,7 @@ pub unsafe extern "C" fn serror_has_err(serr: *const SourceError) -> bool {
 /// 
 /// # Panics
 /// This function can panic if the given `serr` or `buffer` are NULL-pointers.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn serror_serialize_swarns(serr: *const SourceError, buffer: *mut *mut c_char) {
     *buffer = std::ptr::null_mut();
@@ -513,6 +521,7 @@ pub unsafe extern "C" fn serror_serialize_swarns(serr: *const SourceError, buffe
 /// 
 /// # Panics
 /// This function can panic if the given `serr` or `buffer` are NULL-pointers.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn serror_serialize_serrs(serr: *const SourceError, buffer: *mut *mut c_char) {
     *buffer = std::ptr::null_mut();
@@ -559,6 +568,7 @@ pub unsafe extern "C" fn serror_serialize_serrs(serr: *const SourceError, buffer
 /// 
 /// # Panics
 /// This function can panic if the given `serr` or `buffer` are NULL-pointers.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn serror_serialize_err(serr: *const SourceError, buffer: *mut *mut c_char) {
     *buffer = std::ptr::null_mut();
@@ -596,6 +606,7 @@ pub unsafe extern "C" fn serror_serialize_err(serr: *const SourceError, buffer: 
 /// 
 /// # Panics
 /// This function can panic if the given `serr` is a NULL-pointer.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn serror_print_swarns(serr: *const SourceError) {
     // Unwrap the pointer
@@ -619,6 +630,7 @@ pub unsafe extern "C" fn serror_print_swarns(serr: *const SourceError) {
 /// 
 /// # Panics
 /// This function can panic if the given `serr` is a NULL-pointer.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn serror_print_serrs(serr: *const SourceError) {
     // Unwrap the pointer
@@ -642,6 +654,7 @@ pub unsafe extern "C" fn serror_print_serrs(serr: *const SourceError) {
 /// 
 /// # Panics
 /// This function can panic if the given `serr` is a NULL-pointer.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn serror_print_err(serr: *const SourceError) {
     init_logger();
@@ -674,6 +687,7 @@ pub unsafe extern "C" fn serror_print_err(serr: *const SourceError) {
 /// 
 /// # Panics
 /// This function can panic if the given `endpoint` does not point to a valud UTF-8 string.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn pindex_new_remote(endpoint: *const c_char, pindex: *mut *mut Arc<Mutex<PackageIndex>>) -> *const Error {
     init_logger();
@@ -710,7 +724,8 @@ pub unsafe extern "C" fn pindex_new_remote(endpoint: *const c_char, pindex: *mut
 
 /// Destructor for the PackageIndex.
 /// 
-/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// # Safety
+/// You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
 /// 
 /// # Arguments
 /// - `pindex`: The [`PackageIndex`] to free.
@@ -740,6 +755,7 @@ pub unsafe extern "C" fn pindex_free(pindex: *mut Arc<Mutex<PackageIndex>>) {
 /// 
 /// # Panics
 /// This function can panic if the given `endpoint` does not point to a valud UTF-8 string.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn dindex_new_remote(endpoint: *const c_char, dindex: *mut *mut Arc<Mutex<DataIndex>>) -> *const Error {
     init_logger();
@@ -776,7 +792,8 @@ pub unsafe extern "C" fn dindex_new_remote(endpoint: *const c_char, dindex: *mut
 
 /// Destructor for the DataIndex.
 /// 
-/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// # Safety
+/// You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
 /// 
 /// # Arguments
 /// - `dindex`: The [`DataIndex`] to free.
@@ -797,7 +814,8 @@ pub unsafe extern "C" fn dindex_free(dindex: *mut Arc<Mutex<DataIndex>>) {
 /***** LIBRARY WORKFLOW *****/
 /// Destructor for the Workflow.
 /// 
-/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// # Safety
+/// You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
 /// 
 /// # Arguments
 /// - `workflow`: The [`Workflow`] to free.
@@ -824,6 +842,7 @@ pub unsafe extern "C" fn workflow_free(workflow: *mut Workflow) {
 /// 
 /// # Panics
 /// This function can panic if the given `workflow` is a NULL-pointer.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn workflow_disassemble(workflow: *const Workflow, assembly: *mut *mut c_char) -> *const Error {
     // Set the output to NULL
@@ -883,6 +902,7 @@ pub struct Compiler {
 /// 
 /// # Panics
 /// This function can panic if the given `pindex` or `dindex` points to NULL.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn compiler_new(pindex: *const Arc<Mutex<PackageIndex>>, dindex: *const Arc<Mutex<DataIndex>>, compiler: *mut *mut Compiler) -> *const Error {
     init_logger();
@@ -913,7 +933,8 @@ pub unsafe extern "C" fn compiler_new(pindex: *const Arc<Mutex<PackageIndex>>, d
 
 /// Destructor for the Compiler.
 /// 
-/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// # Safety
+/// You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
 /// 
 /// # Arguments
 /// - `compiler`: The [`Compiler`] to free.
@@ -933,6 +954,11 @@ pub unsafe extern "C" fn compiler_free(compiler: *mut Compiler) {
 /// 
 /// Note that this function changes the `compiler`'s state.
 /// 
+/// # Safety
+/// Be aware that the returned [`SourceError`] refers the the given `compiler` and `what`. Freeing any of those two and then using the [`SourceError`] _will_ lead to undefined behaviour.
+/// 
+/// You _must_ free this [`SourceError`] using [`serror_free()`], since its allocated using Rust internals and cannot be deallocated directly using `malloc`. Note, however, that it's safe to call [`serror_free()`] _after_ freeing `compiler` or `what` (but that's the only function).
+/// 
 /// # Arguments
 /// - `compiler`: The [`Compiler`] to compile with. Essentially this determines which previous compile state to use.
 /// - `what`: Some string describing what we are compiling (e.g., a file, `<intern>`, a cell, etc.)
@@ -941,11 +967,6 @@ pub unsafe extern "C" fn compiler_free(compiler: *mut Compiler) {
 /// 
 /// # Returns
 /// A [`SourceError`]-struct describing the error, if any, and source warnings/errors.
-/// 
-/// ## SAFETY
-/// Be aware that the returned [`SourceError`] refers the the given `compiler` and `what`. Freeing any of those two and then using the [`SourceError`] _will_ lead to undefined behaviour.
-/// 
-/// You _must_ free this [`SourceError`] using [`serror_free()`], since its allocated using Rust internals and cannot be deallocated directly using `malloc`. Note, however, that it's safe to call [`serror_free()`] _after_ freeing `compiler` or `what` (but that's the only function).
 /// 
 /// # Panics
 /// This function can panic if the given `compiler` points to NULL, or `what`/`raw` does not point to a valid UTF-8 string.
@@ -990,7 +1011,7 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, what: *const 
         let dindex: MutexGuard<DataIndex> = compiler.dindex.lock();
 
         // Run the snippet
-        match brane_ast::compile_snippet(&mut compiler.state, raw.as_bytes(), &*pindex, &*dindex, &ParserOptions::bscript()) {
+        match brane_ast::compile_snippet(&mut compiler.state, raw.as_bytes(), &pindex, &dindex, &ParserOptions::bscript()) {
             CompileResult::Workflow(workflow, warns) => {
                 compiler.state.offset += 1 + raw.chars().filter(|c| *c == '\n').count();
                 serr.warns = warns;
@@ -1028,7 +1049,8 @@ pub unsafe extern "C" fn compiler_compile(compiler: *mut Compiler, what: *const 
 /***** FULL VALUE *****/
 /// Destructor for the FullValue.
 /// 
-/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// # Safety
+/// You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
 /// 
 /// # Arguments
 /// - `fvalue`: The [`FullValue`] to free.
@@ -1056,6 +1078,7 @@ pub unsafe extern "C" fn fvalue_free(fvalue: *mut FullValue) {
 /// 
 /// # Panics
 /// This function can panic if `fvalue` pointed to [`NULL`].
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn fvalue_needs_processing(fvalue: *const FullValue) -> bool {
     // Unwrap the input
@@ -1065,10 +1088,7 @@ pub unsafe extern "C" fn fvalue_needs_processing(fvalue: *const FullValue) -> bo
     };
 
     // Match it
-    match fvalue {
-        FullValue::Data(_) | FullValue::IntermediateResult(_) => true,
-        _ => false,
-    }
+    matches!(fvalue, FullValue::Data(_) | FullValue::IntermediateResult(_))
 }
 
 /// Serializes a FullValue to show as result of the workflow.
@@ -1080,6 +1100,7 @@ pub unsafe extern "C" fn fvalue_needs_processing(fvalue: *const FullValue) -> bo
 /// 
 /// # Panics
 /// This function can panic if the given `fvalue` is a NULL-pointer or if `data_dir` did not point to a valid UTF-8 string.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn fvalue_serialize(fvalue: *const FullValue, data_dir: *const c_char, result: *mut *mut c_char) {
     *result = std::ptr::null_mut();
@@ -1157,6 +1178,7 @@ pub struct VirtualMachine {
 /// 
 /// # Panics
 /// This function can panic if the given `pindex` or `dindex` are NULL, or if the given `api_endpoint`, `drv_endpoint` or `certs_dir` do not point to a valid UTF-8 string.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *const c_char, certs_dir: *const c_char, pindex: *const Arc<Mutex<PackageIndex>>, dindex: *const Arc<Mutex<DataIndex>>, vm: *mut *mut VirtualMachine) -> *const Error {
     init_logger();
@@ -1211,7 +1233,8 @@ pub unsafe extern "C" fn vm_new(api_endpoint: *const c_char, drv_endpoint: *cons
 
 /// Destructor for the VirtualMachine.
 /// 
-/// SAFETY: You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
+/// # Safety
+/// You _must_ call this destructor yourself whenever you are done with the struct to cleanup any code. _Don't_ use any C-library free!
 /// 
 /// # Arguments
 /// - `vm`: The [`VirtualMachine`] to free.
@@ -1243,6 +1266,7 @@ pub unsafe extern "C" fn vm_free(vm: *mut VirtualMachine) {
 /// 
 /// # Panics
 /// This function may panic if the input `vm` or `workflow` pointed to a NULL-pointer.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workflow, prints: *mut *mut c_char, result: *mut *mut FullValue) -> *const Error {
     init_logger();
@@ -1296,6 +1320,7 @@ pub unsafe extern "C" fn vm_run(vm: *mut VirtualMachine, workflow: *const Workfl
 /// 
 /// # Panics
 /// This function may panic if the input `vm` or `result` pointed to a NULL-pointer, or if `data_dir` did not point to a valid UTF-8 string.
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn vm_process(vm: *mut VirtualMachine, result: *const FullValue, data_dir: *const c_char) -> *const Error {
     init_logger();

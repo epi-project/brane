@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    17 Aug 2023, 17:48:33
+//    02 Oct 2023, 17:35:09
 //  Auto updated?
 //    Yes
 // 
@@ -673,7 +673,7 @@ pub async fn run_instance_vm(drv_endpoint: impl AsRef<str>, state: &mut Instance
         // Acquire the locks
         let pindex: MutexGuard<PackageIndex> = state.pindex.lock();
         let dindex: MutexGuard<DataIndex> = state.dindex.lock();
-        compile(&mut state.state, &mut state.source, &*pindex, &*dindex, &state.options, what, snippet)?
+        compile(&mut state.state, &mut state.source, &pindex, &dindex, &state.options, what, snippet)?
     };
 
     // Run the thing using the other function
@@ -828,6 +828,7 @@ pub async fn process_instance_result(api_endpoint: impl AsRef<str>, proxy_addr: 
 /// 
 /// # Returns
 /// Nothing, but does print results and such to stdout. Might also produce new datasets.
+#[allow(clippy::too_many_arguments)]
 pub async fn handle(proxy_addr: Option<String>, language: Language, file: PathBuf, dummy: bool, remote: bool, profile: bool, docker_opts: DockerOptions, keep_containers: bool) -> Result<(), Error> {
     // Either read the file or read stdin
     let (what, source_code): (Cow<str>, String) = if file == PathBuf::from("-") {

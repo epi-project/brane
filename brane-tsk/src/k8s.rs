@@ -4,7 +4,7 @@
 //  Created:
 //    08 May 2023, 13:01:23
 //  Last edited:
-//    22 May 2023, 14:21:53
+//    02 Oct 2023, 17:21:24
 //  Auto updated?
 //    Yes
 // 
@@ -14,6 +14,7 @@
 
 use std::any::type_name;
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::mem;
@@ -94,12 +95,12 @@ mod tests {
 
 /***** CONSTANTS *****/
 /// Defines the address we download the x86-64 `crane` tar from.
-pub const CRANE_TAR_URL_X86_64: &'static str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_x86_64.tar.gz";
+pub const CRANE_TAR_URL_X86_64: &str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_x86_64.tar.gz";
 /// Defines the address we download the ARM64 `crane` tar from.
-pub const CRANE_TAR_URL_ARM64: &'static str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_arm64.tar.gz";
+pub const CRANE_TAR_URL_ARM64: &str = "https://github.com/google/go-containerregistry/releases/download/v0.15.1/go-containerregistry_Linux_arm64.tar.gz";
 
 /// The location where we expect the `crane` executable to be, locally.
-pub const CRANE_PATH: &'static str = "/tmp/crane";
+pub const CRANE_PATH: &str = "/tmp/crane";
 /// The checksum of the executable.
 pub const CRANE_TAR_CHECKSUM: [u8; 32] = hex!("d4710014a3bd135eb1d4a9142f509cfd61d2be242e5f5785788e404448a4f3f2");
 
@@ -333,9 +334,9 @@ async fn ensure_crane_exe(path: impl AsRef<Path>, temp_dir: impl AsRef<Path>) ->
 
     // Resolve where to get the executable from
     #[cfg(target_arch = "x86_64")]
-    const URL: &'static str = CRANE_TAR_URL_X86_64;
+    const URL: &str = CRANE_TAR_URL_X86_64;
     #[cfg(target_arch = "aarch64")]
-    const URL: &'static str = CRANE_TAR_URL_ARM64;
+    const URL: &str = CRANE_TAR_URL_ARM64;
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     compile_error!("Unsupported non-x86_64, non-ARM64 architecture");
 
@@ -393,7 +394,7 @@ async fn ensure_crane_exe(path: impl AsRef<Path>, temp_dir: impl AsRef<Path>) ->
 fn create_k8s_registry_secret(registry: impl AsRef<Address>, auth: RegistryAuth) -> (String, Secret) {
     // Generate an identifier for this secret
     let registry: &Address = registry.as_ref();
-    let id: String = format!("docker-registry-{}", rand::thread_rng().sample_iter(Uniform::new(0, 26 + 10)).take(8).map(|i: u8| if i < 10 { (i + '0' as u8) as char } else { (i - 10 + 'a' as u8) as char }).collect::<String>());
+    let id: String = format!("docker-registry-{}", rand::thread_rng().sample_iter(Uniform::new(0, 26 + 10)).take(8).map(|i: u8| if i < 10 { (i + b'0') as char } else { (i - 10 + b'a') as char }).collect::<String>());
 
     // Create a base64-encoded variation of the Docker config
     let docker_config: String = match auth {
@@ -439,9 +440,9 @@ fn create_k8s_registry_secret(registry: impl AsRef<Address>, auth: RegistryAuth)
 fn create_k8s_pod(einfo: ExecuteInfo, secret: Option<String>) -> (String, Pod) {
     // Generate an identifier for this job by sanitizing the parts we want
     // (Note: jeez Kubernetes is pedantic about its names... Regex that determines what to allow: `[a-z0-9]([-a-z0-9]*[a-z0-9])?`)
-    let name: String = einfo.image.name.chars().filter_map(|c| if c >= 'A' && c <= 'Z' { Some((c as u8 - 'A' as u8 + 'a' as u8) as char) } else if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') { Some(c) } else { None }).collect::<String>();
-    let version: String = einfo.image.version.map(|v| v.to_string().replace('.', "")).unwrap_or("latest".into());
-    let id: String = format!("{}-{}-{}", name, version, rand::thread_rng().sample_iter(Uniform::new(0, 26 + 10)).take(8).map(|i: u8| if i < 10 { (i + '0' as u8) as char } else { (i - 10 + 'a' as u8) as char }).collect::<String>());
+    let name: String = einfo.image.name.chars().filter_map(|c| if c >= 'A' && c <= 'Z' { Some((c as u8 - b'A' + b'a') as char) } else if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') { Some(c) } else { None }).collect::<String>();
+    let version: String = einfo.image.version.map(|v| v.replace('.', "")).unwrap_or("latest".into());
+    let id: String = format!("{}-{}-{}", name, version, rand::thread_rng().sample_iter(Uniform::new(0, 26 + 10)).take(8).map(|i: u8| if i < 10 { (i + b'0') as char } else { (i - 10 + b'a') as char }).collect::<String>());
 
     // Define the main JSON body
     let mut body: serde_json::Value = json!({
@@ -570,30 +571,26 @@ pub async fn resolve_image_source(name: impl AsRef<Image>, source: impl Into<Ima
     if let Err(err) = ensure_crane_exe(CRANE_PATH, "/tmp").await { return Err(ResolveError::CraneExe{ err }); }
 
     // If there is any auth, run the command first
-    match auth {
-        Some(RegistryAuth::Basic(basic)) => {
-            info!("Using basic auth to login to registry");
+    if let Some(RegistryAuth::Basic(basic)) = auth {
+        info!("Using basic auth to login to registry");
 
-            // Prepare the login command in `crane`
-            debug!("Logging in to registry as user '{}'...", basic.username);
-            let mut cmd: Command = Command::new(CRANE_PATH);
-            cmd.args(["auth", "login", "-u"]);
-            cmd.arg(basic.username);
-            cmd.arg("-p");
-            cmd.arg(basic.password);
-            cmd.arg(registry.to_string());
-            cmd.stdout(Stdio::piped());
-            cmd.stderr(Stdio::piped());
+        // Prepare the login command in `crane`
+        debug!("Logging in to registry as user '{}'...", basic.username);
+        let mut cmd: Command = Command::new(CRANE_PATH);
+        cmd.args(["auth", "login", "-u"]);
+        cmd.arg(basic.username);
+        cmd.arg("-p");
+        cmd.arg(basic.password);
+        cmd.arg(registry.to_string());
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
 
-            // Run it
-            let output: Output = match cmd.output() {
-                Ok(output) => output,
-                Err(err)   => { return Err(ResolveError::LaunchLogin { what: cmd, err }); },
-            };
-            if !output.status.success() { return Err(ResolveError::LoginFailure { registry: registry.clone(), err: Box::new(ResolveError::CommandFailure { what: cmd, status: output.status, stdout: String::from_utf8_lossy(&output.stdout).into(), stderr: String::from_utf8_lossy(&output.stderr).into() }) }); }        
-        },
-
-        None => {},
+        // Run it
+        let output: Output = match cmd.output() {
+            Ok(output) => output,
+            Err(err)   => { return Err(ResolveError::LaunchLogin { what: cmd, err }); },
+        };
+        if !output.status.success() { return Err(ResolveError::LoginFailure { registry: registry.clone(), err: Box::new(ResolveError::CommandFailure { what: cmd, status: output.status, stdout: String::from_utf8_lossy(&output.stdout).into(), stderr: String::from_utf8_lossy(&output.stderr).into() }) }); }        
     }
 
     // Next up, prepare to launch crane with the tarball path
@@ -819,7 +816,7 @@ impl Scope<Secret> {
         info!("Creating Docker registry secret for registry '{registry}' on Kubernetes backend");
 
         // Prepare the Kubernetes secrets file
-        let (id, secret): (String, Secret) = create_k8s_registry_secret(&registry, auth);
+        let (id, secret): (String, Secret) = create_k8s_registry_secret(registry, auth);
 
         // Submit the secret
         debug!("Creating secret '{id}'...");
@@ -873,7 +870,7 @@ impl Scope<Pod> {
         // Submit the job
         debug!("Launching pod '{id}'...");
         if let Err(err) = self.api.create(&PostParams::default(), &pod).await {
-            return Err(ScopeError::CreateJob{ name: image.name, version: image.version.map(|v| Version::from_str(&v).ok()).flatten().unwrap_or(Version::latest()), id, err });
+            return Err(ScopeError::CreateJob{ name: image.name, version: image.version.and_then(|v| Version::from_str(&v).ok()).unwrap_or(Version::latest()), id, err });
         }
 
         // Done
@@ -970,8 +967,11 @@ impl Handle<Pod> {
                 if let Some(pod) = obj {
                     if let Some(status) = &pod.status {
                         if let Some(statuses) = &status.container_statuses {
-                            if statuses.len() == 1 { return statuses[0].state.is_some(); }
-                            else if statuses.len() > 1 { warn!("Pod '{}' has more than one containers (assumption falsified)", self.id); return statuses[0].state.is_some(); }
+                            match statuses.len().cmp(&1) {
+                                Ordering::Greater => { warn!("Pod '{}' has more than one containers (assumption falsified)", self.id); return statuses[0].state.is_some(); },
+                                Ordering::Equal   => { return statuses[0].state.is_some(); },
+                                Ordering::Less    => {},
+                            }
                         }
                     }
                 }
@@ -1038,20 +1038,24 @@ impl Handle<Pod> {
                         if let Some(status) = &pod.status {
                             if let Some(statuses) = &status.container_statuses {
                                 // Check there is a container to get the status of
-                                if statuses.len() == 1 {
-                                    if let Some(state) = &statuses[0].state {
-                                        // Match the state to discover if we can return (that is, any state that is not a wait after a non-terminated)
-                                        match (&state.running, &state.waiting, &state.terminated) {
-                                            (Some(_), None, None) |
-                                            (None, None, Some(_)) => { return true; },
-                                            (None, Some(_), None) => { return matches!(&statuses[0].last_state, Some(ContainerState{ terminated: Some(_), .. })) },
+                                match statuses.len().cmp(&1) {
+                                    Ordering::Greater => {
+                                        warn!("Pod '{}' has more than one containers (assumption falsified)", self.id);
+                                        return statuses[0].state.is_some();
+                                    },
+                                    Ordering::Equal => {
+                                        if let Some(state) = &statuses[0].state {
+                                            // Match the state to discover if we can return (that is, any state that is not a wait after a non-terminated)
+                                            match (&state.running, &state.waiting, &state.terminated) {
+                                                (Some(_), None, None) |
+                                                (None, None, Some(_)) => { return true; },
+                                                (None, Some(_), None) => { return matches!(&statuses[0].last_state, Some(ContainerState{ terminated: Some(_), .. })) },
 
-                                            _ => { panic!("Assumption that only one of running, waiting, terminated is active falsified"); },
+                                                _ => { panic!("Assumption that only one of running, waiting, terminated is active falsified"); },
+                                            }
                                         }
-                                    }
-                                } else if statuses.len() > 1 {
-                                    warn!("Pod '{}' has more than one containers (assumption falsified)", self.id);
-                                    return statuses[0].state.is_some();
+                                    },
+                                    Ordering::Less => {},
                                 }
                             }
                         }
@@ -1084,8 +1088,11 @@ impl Handle<Pod> {
                 if let Some(pod) = obj {
                     if let Some(status) = &pod.status {
                         if let Some(statuses) = &status.container_statuses {
-                            if statuses.len() == 1 { if let Some(state) = &statuses[0].state { return state.terminated.is_some(); } }
-                            else if statuses.len() > 1 { warn!("Pod '{}' has more than one containers (assumption falsified)", self.id); if let Some(state) = &statuses[0].state { return state.terminated.is_some(); } }
+                            match statuses.len().cmp(&1) {
+                                Ordering::Greater => { warn!("Pod '{}' has more than one containers (assumption falsified)", self.id); if let Some(state) = &statuses[0].state { return state.terminated.is_some(); } },
+                                Ordering::Equal   => { if let Some(state) = &statuses[0].state { return state.terminated.is_some(); } },
+                                Ordering::Less    => {},
+                            }
                         }
                     }
                 }

@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 14:58:16
 //  Last edited:
-//    17 Nov 2022, 16:07:38
+//    02 Oct 2023, 17:51:00
 //  Auto updated?
 //    Yes
 // 
@@ -24,36 +24,6 @@ use url::{Host, Url};
 use specifications::container::ContainerInfo;
 use specifications::data::{DataIndex, DataInfo};
 use specifications::package::{PackageIndex, PackageInfo};
-
-
-/***** TESTS *****/
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Test some basic HTTP schemas
-    #[test]
-    fn ensurehttpschema_noschema_added() {
-        let url = ensure_http_schema("localhost", true).unwrap();
-        assert_eq!(url, "https://localhost");
-
-        let url = ensure_http_schema("localhost", false).unwrap();
-        assert_eq!(url, "http://localhost");
-    }
-
-    /// Test some more basic HTTP schemas
-    #[test]
-    fn ensurehttpschema_schema_nothing() {
-        let url = ensure_http_schema("http://localhost", true).unwrap();
-        assert_eq!(url, "http://localhost");
-
-        let url = ensure_http_schema("https://localhost", false).unwrap();
-        assert_eq!(url, "https://localhost");
-    }
-}
-
-
-
 
 
 /***** TEST HELPERS *****/
@@ -82,9 +52,7 @@ pub fn create_package_index() -> PackageIndex {
     // Start a 'recursive' process where we run all '*.bscript' files.
     let mut infos: Vec<PackageInfo> = vec![];
     let mut todo: Vec<(PathBuf, ReadDir)> = vec![ (tests_dir, dir) ];
-    while !todo.is_empty() {
-        // Get the next directory to search
-        let (path, dir): (PathBuf, ReadDir) = todo.pop().unwrap();
+    while let Some((path, dir)) = todo.pop() {
         // Iterate through it
         for entry in dir {
             // Attempt to unwrap the entry
@@ -149,9 +117,7 @@ pub fn create_data_index() -> DataIndex {
     // Start a 'recursive' process where we run all '*.bscript' files.
     let mut infos: Vec<DataInfo> = vec![];
     let mut todo: Vec<(PathBuf, ReadDir)> = vec![ (tests_dir, dir) ];
-    while !todo.is_empty() {
-        // Get the next directory to search
-        let (path, dir): (PathBuf, ReadDir) = todo.pop().unwrap();
+    while let Some((path, dir)) = todo.pop() {
         // Iterate through it
         for entry in dir {
             // Attempt to unwrap the entry
@@ -260,10 +226,7 @@ where
     // Start a 'recursive' process where we run all '*.bscript' files.
     let mut todo: Vec<(PathBuf, ReadDir)> = vec![ (tests_dir, dir) ];
     let mut counter = 0;
-    while !todo.is_empty() {
-        // Get the next directory to search
-        let (path, dir): (PathBuf, ReadDir) = todo.pop().unwrap();
-
+    while let Some((path, dir)) = todo.pop() {
         // Iterate through it
         for entry in dir {
             // Attempt to unwrap the entry
@@ -380,5 +343,35 @@ pub fn is_ip_addr(address: impl AsRef<str>) -> bool {
     } else {
         debug!("Address '{}' has no hostname (so also no IP address)", address);
         false
+    }
+}
+
+
+
+
+
+/***** TESTS *****/
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test some basic HTTP schemas
+    #[test]
+    fn ensurehttpschema_noschema_added() {
+        let url = ensure_http_schema("localhost", true).unwrap();
+        assert_eq!(url, "https://localhost");
+
+        let url = ensure_http_schema("localhost", false).unwrap();
+        assert_eq!(url, "http://localhost");
+    }
+
+    /// Test some more basic HTTP schemas
+    #[test]
+    fn ensurehttpschema_schema_nothing() {
+        let url = ensure_http_schema("http://localhost", true).unwrap();
+        assert_eq!(url, "http://localhost");
+
+        let url = ensure_http_schema("https://localhost", false).unwrap();
+        assert_eq!(url, "https://localhost");
     }
 }
