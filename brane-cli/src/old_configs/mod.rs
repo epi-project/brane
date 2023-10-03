@@ -2,9 +2,9 @@
 //    by Lut99
 // 
 //  Created:
-//    03 Jul 2023, 13:27:44
+//    03 Oct 2023, 10:53:58
 //  Last edited:
-//    03 Oct 2023, 10:53:18
+//    03 Oct 2023, 10:54:04
 //  Auto updated?
 //    Yes
 // 
@@ -13,5 +13,5 @@
 //!   upgrade them.
 // 
 
-// Declare the files
-pub mod node;
+// Declare submodules
+pub mod v1_0_0;

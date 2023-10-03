@@ -4,7 +4,7 @@
 //  Created:
 //    17 Feb 2022, 10:27:28
 //  Last edited:
-//    26 Jul 2023, 09:39:35
+//    03 Oct 2023, 11:36:00
 //  Auto updated?
 //    Yes
 // 
@@ -61,6 +61,8 @@ pub enum CliError {
     VerifyError{ err: VerifyError },
     /// Errors that occur in the version command
     VersionError{ err: VersionError },
+    /// Errors that occur when upgrading old config files.
+    UpgradeError { err: crate::upgrade::Error },
     /// Errors that occur in some inter-subcommand utility
     UtilError{ err: UtilError },
     /// Temporary wrapper around any anyhow error
@@ -92,6 +94,7 @@ impl Display for CliError {
             TestError{ err }     => write!(f, "{err}"),
             VerifyError{ err }   => write!(f, "{err}"),
             VersionError{ err }  => write!(f, "{err}"),
+            UpgradeError{ err }  => write!(f, "{err}"),
             UtilError{ err }     => write!(f, "{err}"),
             OtherError{ err }    => write!(f, "{err}"),
 

@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    02 Oct 2023, 17:41:26
+//    03 Oct 2023, 11:36:15
 //  Auto updated?
 //    Yes
 // 
@@ -34,9 +34,9 @@ use specifications::arch::Arch;
 use specifications::package::PackageKind;
 use specifications::version::Version as SemVersion;
 
-use brane_cli::{build_ecu, build_oas, certs, data, instance, packages, registry, repl, run, test, verify, version};
+use brane_cli::{build_ecu, build_oas, certs, data, instance, packages, registry, repl, run, test, upgrade, verify, version};
 use brane_cli::errors::{CliError, ImportError};
-use brane_cli::spec::{API_DEFAULT_VERSION, Hostname};
+use brane_cli::spec::{API_DEFAULT_VERSION, Hostname, VersionFix};
 
 
 /***** ARGUMENTS *****/
@@ -316,6 +316,13 @@ enum SubCommand {
         force: bool,
     },
 
+    #[clap(name = "upgrade", about = "Upgrades outdated configuration files to this Brane version")]
+    Upgrade {
+        // We subcommand further
+        #[clap(subcommand)]
+        subcommand : UpgradeSubcommand,
+    },
+
     #[clap(name = "verify", about = "Verifies parts of Brane's configuration (useful mostly if you are in charge of an instance.")]
     Verify {
         // We subcommand further
@@ -501,6 +508,27 @@ enum InstanceSubcommand {
         #[clap(short, long, help = "If given, changes the port of the driver service for this instance to this.")]
         drv_port : Option<u16>,
     },
+}
+
+/// Defines the subcommands for the upgrade subcommand.
+#[derive(Parser)]
+enum UpgradeSubcommand {
+    #[clap(name = "data", about = "Upgrades old data.yml files to this Brane version.")]
+    Data {
+        /// The file or folder to upgrade.
+        #[clap(name = "PATH", default_value = "./", help = "The path to the file or folder (recursively traversed) of files to upgrade to this version. If a directory, will consider any YAML files (*.yml or *.yaml) that are successfully parsed with an old data.yml parser.")]
+        path : PathBuf,
+
+        /// Whether to run dryly or not
+        #[clap(short, long, help = "If given, does not do anything but instead just reports which files would be updated.")]
+        dry_run   : bool,
+        /// Whether to keep old versions
+        #[clap(short='O', long, help = "If given, will not keep the old versions alongside the new ones but instead overwrite them. Use them only if you are certain no unrelated files are converted or converted incorrectly! (see '--dry-run')")]
+        overwrite : bool,
+        /// Fixes the version from which we are converting.
+        #[clap(short, long, default_value = "all", help = "Whether to consider only one version when examining a file. Can be any valid BRANE version or 'auto' to use all supported versions.")]
+        version   : VersionFix,
+    }
 }
 
 /// Defines the subcommands for the verify subcommand.
@@ -796,6 +824,16 @@ async fn run(options: Cli) -> Result<(), CliError> {
         Unpublish { name, version, force } => {
             if let Err(err) = registry::unpublish(name, version, force).await { return Err(CliError::OtherError{ err }); };
         }
+        Upgrade { subcommand } => {
+            // Match the subcommand in question
+            use UpgradeSubcommand::*;
+            match subcommand {
+                Data { path, dry_run, overwrite, version } => {
+                    // Upgrade the file
+                    if let Err(err) = upgrade::data(path, dry_run, overwrite, version) { return Err(CliError::UpgradeError{ err }); }
+                },
+            }
+        },
         Verify { subcommand } => {
             // Match the subcommand in question
             use VerifySubcommand::*;

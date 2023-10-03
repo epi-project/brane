@@ -4,7 +4,7 @@
 //  Created:
 //    28 Nov 2022, 15:56:23
 //  Last edited:
-//    25 May 2023, 20:11:05
+//    03 Oct 2023, 10:55:47
 //  Auto updated?
 //    Yes
 // 
@@ -21,6 +21,7 @@ use brane_exe::spec::CustomGlobalState;
 use brane_tsk::docker::DockerOptions;
 use specifications::data::DataIndex;
 use specifications::package::PackageIndex;
+use specifications::version::Version;
 
 use crate::errors::HostnameParseError;
 
@@ -117,6 +118,28 @@ impl FromStr for Hostname {
             hostname : hostname.into(),
             scheme,
         })
+    }
+}
+
+
+
+/// Parses a version number that scopes a particular operation down. In other words, can be a specific version number or `all`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VersionFix(pub Option<Version>);
+impl Display for VersionFix {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        write!(f, "{}", if let Some(version) = self.0 { version.to_string() } else { "all".into() })
+    }
+}
+impl FromStr for VersionFix {
+    type Err = specifications::version::ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Parse the auto first
+        if s == "all" { return Ok(Self(None)); }
+        // Otherwise, delegate to the version parser
+        Ok(Self(Some(Version::from_str(s)?)))
     }
 }
 
