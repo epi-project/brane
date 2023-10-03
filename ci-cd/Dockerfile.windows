@@ -1,0 +1,8 @@
+# DOCKERFILE.ubuntu
+#   by Tim Müller
+# 
+# Simple Windows-based wrapper around the scripts in this directory that we can
+# use to emulate the GitHub actions locally.
+#
+
+FROM mcr.microsoft.com/windows/server:ltsc2022

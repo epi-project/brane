@@ -6,18 +6,25 @@ All notable changes to the Brane framework will be documented in this file.
 ### Added
 - The `libbrane_cli.so` library (`brane-cli-c` crate), which provides C-bindings to the client functionality of the `brane` CLI tool. This can be used by other projects (e.g., [Brane IDE](https://github.com/epi-project/brane-ide)) to provide client functionality when written in C/C++.
 - The `branectl wizard` subcommand, which interactively goes through the steps of setting up a node.
-- The `branectl upgrade` subcommand, which can be used to upgrade old config files to the new style.
+- The `branectl upgrade` subcommand, which can be used to upgrade old backend-facing config files to the new style.
+  - Added support for `node.yml` files
+- The `brane upgrade` subcommand, which can be used to upgrade old user-facing config files to the new style.
+  - Added support for `data.yml` files
 - An extensive description of the `brane-prx` service in the generated docs.
 - The `--keep-containers` options to `brane run`, `brane repl` and `brane test` to keep containers around for debugging after running.
 - A garbage collector to `brane-drv` for running sessions, to terminate them if they haven't been accessed for over 24 hours.
+- An `overview`-crate acting as a proper entrypoint to auto-generated docs.
+  - This overview includes a proper crate overview.
 
 ### Changed
 - Bumped `brane-tsk` packages to newest version (base64).
 - The `backend.yml` and `data.yml` files to use the default tagging option in serde (i.e., use `!<variant>` instead of the `kind`-field) [**breaking change**].
 - The `node.yml` file to accept `delegate` as an alias for `job` instead of `driver` [**breaking change**].
 
-<!-- ### Fixed
-- Kubernetes backend support (it used to work, got broken in 1.0.0+)
+### Fixed
+- Lots of `clippy` errors.
+- CI/CD in the repository by moving most of it to scripts which we _can_ test offline.
+<!-- - Kubernetes backend support (it used to work, got broken in 1.0.0+)
   - To do so, `branelet` has added the `ENABLE_STDOUT_PREFIX` environment variable to allow the Kubernetes engine to distinguish between actual output and logging. As a consequence, all packages have to be rebuilt, which is a [**breaking change**]. -->
 
 ## [2.0.0] - 2023-02-27

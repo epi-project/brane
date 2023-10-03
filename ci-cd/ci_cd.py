@@ -5,7 +5,7 @@
 # Created:
 #   02 Oct 2023, 14:57:26
 # Last edited:
-#   02 Oct 2023, 16:55:57
+#   03 Oct 2023, 10:37:03
 # Auto updated?
 #   Yes
 #
@@ -18,6 +18,7 @@ import typing
 
 import common
 from audit import code_quality, dependencies
+from ci import unit_tests
 
 
 ##### ENTRYPOINT #####
@@ -42,6 +43,14 @@ def main(category: str, task: typing.Optional[str], args: argparse.Namespace) ->
         if task is not None and task != "code_quality" and task != "dependencies":
             common.perror(f"Unknown audit task '{task}'")
             return 1
+
+    elif category == "ci":
+        if task is None or task == "unit_tests":
+            return unit_tests.run(args)
+        if task is not None and task != "unit_tests":
+            common.perror(f"Unknown ci task '{task}'")
+            return 1
+
     else:
         common.perror(f"Unknown category '{category}'")
         return 1
@@ -65,6 +74,11 @@ if __name__ == "__main__":
     audit_subparsers = audit_parser.add_subparsers(dest="task")
     audit_subparsers.add_parser("code_quality", parents=[code_quality.parser], add_help=False)
     audit_subparsers.add_parser("dependencies", parents=[dependencies.parser], add_help=False)
+
+    # Add the ci subcommand etc
+    audit_parser = subparsers.add_parser("ci")
+    audit_subparsers = audit_parser.add_subparsers(dest="task")
+    audit_subparsers.add_parser("unit_tests", parents=[unit_tests.parser], add_help=False)
 
     # Alright parse everything
     args = parser.parse_args()

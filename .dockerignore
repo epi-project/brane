@@ -5,4 +5,3 @@ config*
 examples/
 kube/
 target/
-tests/

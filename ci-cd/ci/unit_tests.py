@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-# CODE QUALITY.py
+# UNIT TESTS.py
 #   by Lut99
 #
 # Created:
 #   02 Oct 2023, 16:51:52
 # Last edited:
-#   03 Oct 2023, 10:38:17
+#   03 Oct 2023, 10:38:08
 # Auto updated?
 #   Yes
 #
 # Description:
-#   Performs the setup & execution of a `clippy` run in either GitHub
+#   Performs the setup & execution of a `cargo test` run in either GitHub
 #   Actions or a local container.
 #
 
@@ -108,8 +108,8 @@ def run(args: argparse.Namespace) -> int:
     env["PATH"] = f"{env['PATH']}:/root/.cargo/bin"
 
     # Run the cargo audit
-    if code := common.run_command([ "cargo", "clippy", "--all-targets", "--all-features", "--", "-D", "warnings", "--allow", "clippy::manual_range_contains" ], cwd=args.repo, env=env):
-        common.perror(f"Clippy failed with return code {code} (see output above)")
+    if code := common.run_command([ "cargo", "test", "--all-targets", "--all-features" ], cwd=args.repo, env=env):
+        common.perror(f"Cargo test failed with return code {code} (see output above)")
         return code
 
     # Done!
