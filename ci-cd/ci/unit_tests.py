@@ -5,7 +5,7 @@
 # Created:
 #   02 Oct 2023, 16:51:52
 # Last edited:
-#   03 Oct 2023, 10:38:08
+#   03 Oct 2023, 16:00:23
 # Auto updated?
 #   Yes
 #
@@ -37,15 +37,37 @@ def setup(os_id: str, refresh_mirrors: bool) -> int:
 
     # Switch on the given OS for proper setup
     if os_id == "windows":
-        raise ValueError(f"Dependency analysis is not implemented for non-Ubuntu operating systems such as '{os_id}'")
+        return setup_windows()
     elif os_id == "macos":
-        raise ValueError(f"Dependency analysis is not implemented for non-Ubuntu operating systems such as '{os_id}'")
+        raise ValueError(f"Unit testing is not implemented for non-Ubuntu operating systems such as '{os_id}'")
     elif os_id == "ubuntu":
         return setup_ubuntu(refresh_mirrors)
     elif os_id == "arch":
-        raise ValueError(f"Dependency analysis is not implemented for non-Ubuntu operating systems such as '{os_id}'")
+        raise ValueError(f"Unit testing is not implemented for non-Ubuntu operating systems such as '{os_id}'")
     else:
         raise ValueError(f"Unsupported OS string '{os_id}'")
+
+def setup_windows() -> int:
+    """
+        Function that initializes the environment within the Windows container
+        (Windows 10 20H2).
+
+        Returns 0 on success, or else some error code.
+    """
+
+    common.pdebug("Initializing Windows environment...")
+
+    # Install the C++ stuff
+    if code := common.run_command([ "choco", "install", "-y", "visualcpp-build-tools" ]): return code
+
+    # Download the rustup executable
+    if code := common.run_command([ "powershell", "-Command", "Invoke-WebRequest \"https://win.rustup.rs/x86_64\" -OutFile C:\\rustup-init.exe" ]): return code
+    # Install Rust
+    if code := common.run_command([ "C:\\rustup-init.exe", "--profile", "default", "-y" ]): return code
+
+    # Done
+    common.pdebug("Done initializing environment")
+    return 0
 
 def setup_ubuntu(refresh_mirrors: bool) -> int:
     """
@@ -61,7 +83,7 @@ def setup_ubuntu(refresh_mirrors: bool) -> int:
     if refresh_mirrors:
         if code := common.run_command([ "apt-get", "update" ]): return code
         if code := common.run_command([ "apt-get", "install", "-y", "ca-certificates" ]): return code
-        if code := common.run_command([ "sed", "-i", "s/htt[p|ps]:\/\/archive.ubuntu.com\/ubuntu\//mirror:\/\/mirrors.ubuntu.com\/mirrors.txt/g", "/etc/apt/sources.list" ]): return code
+        if code := common.run_command([ "sed", "-i", "s/htt[p|ps]:\\/\\/archive.ubuntu.com\\/ubuntu\\//mirror:\\/\\/mirrors.ubuntu.com\\/mirrors.txt/g", "/etc/apt/sources.list" ]): return code
 
     # Install the build stuff
     if code := common.run_command([ "apt-get", "update" ]): return code
@@ -103,12 +125,16 @@ def run(args: argparse.Namespace) -> int:
         common.perror("Failed to prepare environment (see output above)")
         return code
 
-    # Prepare the environment with cargo stuff
-    env = os.environ.copy()
-    env["PATH"] = f"{env['PATH']}:/root/.cargo/bin"
+    # # Prepare the environment with cargo stuff
+    # env = os.environ.copy()
+    # if args.os == "windows":
+    #     env["PATH"] = f"{env['PATH']};/root/.cargo/bin"
+    # else:
+    #     env["PATH"] = f"{env['PATH']}:/root/.cargo/bin"
 
     # Run the cargo audit
-    if code := common.run_command([ "cargo", "test", "--all-targets", "--all-features" ], cwd=args.repo, env=env):
+    # if code := common.run_command([ "cargo", "test", "--all-targets", "--all-features" ], cwd=args.repo, env=env):
+    if code := common.run_command([ "cargo", "test", "--all-targets", "--all-features" ], cwd=args.repo):
         common.perror(f"Cargo test failed with return code {code} (see output above)")
         return code
 

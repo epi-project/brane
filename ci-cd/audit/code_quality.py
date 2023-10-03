@@ -5,7 +5,7 @@
 # Created:
 #   02 Oct 2023, 16:51:52
 # Last edited:
-#   03 Oct 2023, 10:38:17
+#   03 Oct 2023, 15:53:42
 # Auto updated?
 #   Yes
 #
@@ -37,13 +37,13 @@ def setup(os_id: str, refresh_mirrors: bool) -> int:
 
     # Switch on the given OS for proper setup
     if os_id == "windows":
-        raise ValueError(f"Dependency analysis is not implemented for non-Ubuntu operating systems such as '{os_id}'")
+        raise ValueError(f"Code quality analysis is not implemented for non-Ubuntu operating systems such as '{os_id}'")
     elif os_id == "macos":
-        raise ValueError(f"Dependency analysis is not implemented for non-Ubuntu operating systems such as '{os_id}'")
+        raise ValueError(f"Code quality analysis is not implemented for non-Ubuntu operating systems such as '{os_id}'")
     elif os_id == "ubuntu":
         return setup_ubuntu(refresh_mirrors)
     elif os_id == "arch":
-        raise ValueError(f"Dependency analysis is not implemented for non-Ubuntu operating systems such as '{os_id}'")
+        raise ValueError(f"Code quality analysis is not implemented for non-Ubuntu operating systems such as '{os_id}'")
     else:
         raise ValueError(f"Unsupported OS string '{os_id}'")
 
@@ -61,7 +61,7 @@ def setup_ubuntu(refresh_mirrors: bool) -> int:
     if refresh_mirrors:
         if code := common.run_command([ "apt-get", "update" ]): return code
         if code := common.run_command([ "apt-get", "install", "-y", "ca-certificates" ]): return code
-        if code := common.run_command([ "sed", "-i", "s/htt[p|ps]:\/\/archive.ubuntu.com\/ubuntu\//mirror:\/\/mirrors.ubuntu.com\/mirrors.txt/g", "/etc/apt/sources.list" ]): return code
+        if code := common.run_command([ "sed", "-i", "s/htt[p|ps]:\\/\\/archive.ubuntu.com\\/ubuntu\\//mirror:\\/\\/mirrors.ubuntu.com\\/mirrors.txt/g", "/etc/apt/sources.list" ]): return code
 
     # Install the build stuff
     if code := common.run_command([ "apt-get", "update" ]): return code
