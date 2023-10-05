@@ -4,7 +4,7 @@
 # Created:
 #   02 Oct 2023, 14:52:22
 # Last edited:
-#   02 Oct 2023, 14:56:42
+#   04 Oct 2023, 15:03:06
 # Auto updated?
 #   Yes
 #
@@ -72,7 +72,7 @@ def perror(text: str):
     # Print the text
     print(f"{start}[ERROR]{end} {bold}{text}{end}")
 
-def run_command(cmd: list[str], cwd: typing.Optional[str] = None, env:dict[str, str] = os.environ) -> int:
+def run_command(cmd: list[str], cwd: typing.Optional[str] = None, env:dict[str, str] = os.environ, print_stdout: bool = False, print_stderr: bool = False) -> int:
     """
         Runs the given command as a subprocess, with some nice printing in advance.
 
@@ -99,6 +99,18 @@ def run_command(cmd: list[str], cwd: typing.Optional[str] = None, env:dict[str, 
     print(f"{end}")
 
     # Run it as a subprocess
-    handle = subprocess.Popen(cmd, env=env, cwd=cwd)
-    handle.communicate()
-    return handle.returncode
+    try:
+        handle = subprocess.Popen(cmd, env=env, cwd=cwd, stdout=subprocess.PIPE if print_stdout else None, stderr=subprocess.PIPE if print_stderr else None)
+        stdout, stderr = handle.communicate()
+
+        # Print stdout/stderr if told to do so
+        if print_stdout:
+            print(f"stdout:\n{'-' * 80}\n{stdout}\n{'-' * 80}\n")
+        if print_stderr:
+            print(f"stdout:\n{'-' * 80}\n{stderr}\n{'-' * 80}\n")
+
+        # Alright cowboy that's it
+        return handle.returncode
+    except Exception as e:
+        perror(f"Failed to start process: {e}")
+        return 1

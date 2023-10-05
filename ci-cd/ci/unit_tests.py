@@ -5,7 +5,7 @@
 # Created:
 #   02 Oct 2023, 16:51:52
 # Last edited:
-#   03 Oct 2023, 16:00:23
+#   05 Oct 2023, 17:01:46
 # Auto updated?
 #   Yes
 #
@@ -58,10 +58,29 @@ def setup_windows() -> int:
     common.pdebug("Initializing Windows environment...")
 
     # Install the C++ stuff
-    if code := common.run_command([ "choco", "install", "-y", "visualcpp-build-tools" ]): return code
+    if code := common.run_command([ "curl", "-SL", "--output", "C:\\vs_buildtools.exe", "https://aka.ms/vs/17/release/vs_buildtools.exe" ]): return code
+    if code := common.run_command([ "C:\\Windows\\System32\\cmd.exe", "/c", "({} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} || {})".format(
+        "start /w C:\\vs_buildtools.exe --quiet --wait --norestart --nocache",
+        "--installPath \"%ProgramFiles(x86)%\\Microsoft Visual Studio\\2022\\BuildTools\"",
+        "--add Microsoft.VisualStudio.Component.MSBuild",
+        "--add Microsoft.VisualStudio.Component.TextTemplating",
+        "--add Microsoft.VisualStudio.Component.VC.CoreBuildTools",
+        "--add Microsoft.VisualStudio.Component.VC.CoreIde",
+        "--add Microsoft.VisualStudio.Component.VC.Redist.14.Latest",
+        "--add Microsoft.VisualStudio.Component.Windows10SDK",
+        "--add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Core",
+        "--add Microsoft.VisualStudio.Component.VC.ASAN",
+        "--add Microsoft.VisualStudio.Component.VC.CMake.Project",
+        "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+        "--remove Microsoft.VisualStudio.Component.Windows10SDK.10240",
+        "--remove Microsoft.VisualStudio.Component.Windows10SDK.10586",
+        "--remove Microsoft.VisualStudio.Component.Windows10SDK.14393",
+        "--remove Microsoft.VisualStudio.Component.Windows81SDK",
+        "IF \"%ERRORLEVEL%\"==\"3010\" EXIT 0"
+    )]): return code
 
     # Download the rustup executable
-    if code := common.run_command([ "powershell", "-Command", "Invoke-WebRequest \"https://win.rustup.rs/x86_64\" -OutFile C:\\rustup-init.exe" ]): return code
+    if code := common.run_command([ "curl", "-SL", "--output", "C:\\rustup-init.exe", "https://win.rustup.rs/x86_64" ]): return code
     # Install Rust
     if code := common.run_command([ "C:\\rustup-init.exe", "--profile", "default", "-y" ]): return code
 
@@ -125,16 +144,14 @@ def run(args: argparse.Namespace) -> int:
         common.perror("Failed to prepare environment (see output above)")
         return code
 
-    # # Prepare the environment with cargo stuff
-    # env = os.environ.copy()
-    # if args.os == "windows":
-    #     env["PATH"] = f"{env['PATH']};/root/.cargo/bin"
-    # else:
-    #     env["PATH"] = f"{env['PATH']}:/root/.cargo/bin"
+    # Prepare the command to run
+    if args.os == "windows":
+        cmd = [ "RefreshEnv.cmd", "&&", "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\VsDevCmd.bat", "&&", "cargo", "test", "--all-targets", "--all-features" ]
+    else:
+        cmd = [ "cargo", "test", "--all-targets", "--all-features" ]
 
     # Run the cargo audit
-    # if code := common.run_command([ "cargo", "test", "--all-targets", "--all-features" ], cwd=args.repo, env=env):
-    if code := common.run_command([ "cargo", "test", "--all-targets", "--all-features" ], cwd=args.repo):
+    if code := common.run_command(cmd, cwd=args.repo):
         common.perror(f"Cargo test failed with return code {code} (see output above)")
         return code
 
