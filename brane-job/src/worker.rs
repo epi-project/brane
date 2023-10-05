@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    19 Jul 2023, 11:50:10
+//    05 Oct 2023, 12:38:20
 //  Auto updated?
 //    Yes
 // 
@@ -297,12 +297,6 @@ async fn preprocess_transfer_tar_local(worker_cfg: &WorkerConfig, proxy: Arc<Pro
             if data_path.exists() {
                 if !data_path.is_dir() { return Err(PreprocessError::DirNotADirError{ what: "temporary data", path: data_path }); }
                 if let Err(err) = tfs::remove_dir_all(&data_path).await { return Err(PreprocessError::DirRemoveError{ what: "temporary data", path: data_path, err }); }
-            }
-
-            // Create a fresh one
-            debug!("Creating temporary data folder '{}'...", data_path.display());
-            if let Err(err) = tfs::create_dir_all(&data_path).await {
-                return Err(PreprocessError::DirCreateError{ what: "temporary data", path: data_path, err });
             }
 
             // Add the name of the file as the final result path
