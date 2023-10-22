@@ -4,7 +4,7 @@
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    02 Oct 2023, 17:41:06
+//    22 Oct 2023, 14:15:43
 //  Auto updated?
 //    Yes
 // 
@@ -261,7 +261,7 @@ enum GenerateSubcommand {
         #[clap(short, long, help = "If given, will generate any missing directories.")]
         fix_dirs : bool,
         /// The path to write to.
-        #[clap(short, long, default_value = "./policies.yml", help = "The path to write the policy file to.")]
+        #[clap(short, long, default_value = "./proxy.yml", help = "The path to write the proxy file to.")]
         path     : PathBuf,
 
         /// Defines the range of ports that we can allocate for outgoing connections.
