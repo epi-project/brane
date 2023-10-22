@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "brane-api"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-compression 0.3.15",
  "brane-cfg",
@@ -541,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "brane-ast"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "brane-dsl",
  "brane-shr",
@@ -558,7 +558,7 @@ dependencies = [
 
 [[package]]
 name = "brane-cc"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "brane-ast",
  "brane-dsl",
@@ -579,7 +579,7 @@ dependencies = [
 
 [[package]]
 name = "brane-cfg"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "brane-shr",
@@ -596,7 +596,7 @@ dependencies = [
 
 [[package]]
 name = "brane-cli"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "async-compression 0.4.3",
@@ -661,7 +661,7 @@ dependencies = [
 
 [[package]]
 name = "brane-cli-c"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "brane-ast",
  "brane-cli",
@@ -679,7 +679,7 @@ dependencies = [
 
 [[package]]
 name = "brane-ctl"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "bollard",
  "brane-cfg",
@@ -707,7 +707,7 @@ dependencies = [
 
 [[package]]
 name = "brane-drv"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "brane-ast",
@@ -735,7 +735,7 @@ dependencies = [
 
 [[package]]
 name = "brane-dsl"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "brane-shr",
  "bytes",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "brane-exe"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -777,7 +777,7 @@ dependencies = [
 
 [[package]]
 name = "brane-job"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "base64 0.21.4",
  "bollard",
@@ -811,7 +811,7 @@ dependencies = [
 
 [[package]]
 name = "brane-let"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
@@ -836,7 +836,7 @@ dependencies = [
 
 [[package]]
 name = "brane-log"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -863,7 +863,7 @@ dependencies = [
 
 [[package]]
 name = "brane-oas"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "backoff 0.3.0",
@@ -884,7 +884,7 @@ dependencies = [
 
 [[package]]
 name = "brane-plr"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-recursion",
  "brane-ast",
@@ -907,7 +907,7 @@ dependencies = [
 
 [[package]]
 name = "brane-prx"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "brane-cfg",
@@ -933,7 +933,7 @@ dependencies = [
 
 [[package]]
 name = "brane-reg"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "base64 0.21.4",
  "brane-cfg",
@@ -957,7 +957,7 @@ dependencies = [
 
 [[package]]
 name = "brane-shr"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-compression 0.3.15",
  "console",
@@ -985,7 +985,7 @@ dependencies = [
 
 [[package]]
 name = "brane-tsk"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "base64 0.21.4",
@@ -3328,7 +3328,7 @@ dependencies = [
 
 [[package]]
 name = "overview"
-version = "2.0.0"
+version = "3.0.0"
 
 [[package]]
 name = "parking_lot"
@@ -4500,7 +4500,7 @@ dependencies = [
 
 [[package]]
 name = "specifications"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
