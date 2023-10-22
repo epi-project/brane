@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    12 Apr 2023, 12:07:11
+//    19 Jul 2023, 11:49:14
 //  Auto updated?
 //    Yes
 // 
@@ -24,7 +24,7 @@ use tonic::Status;
 
 use brane_ast::locations::{Location, Locations};
 use brane_ast::ast::DataName;
-use brane_shr::debug::{BlockFormatter, Capitalizeable};
+use brane_shr::formatters::{BlockFormatter, Capitalizeable};
 use specifications::address::Address;
 use specifications::container::Image;
 use specifications::package::Capability;
@@ -163,7 +163,7 @@ pub enum PreprocessError {
 
     // Instance only (client-side)
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_cfg::spec::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_cfg::info::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.
@@ -224,6 +224,11 @@ pub enum PreprocessError {
     DataExtractError{ err: brane_shr::fs::Error },
     /// Failed to serialize the preprocessrequest.
     AccessKindSerializeError{ err: serde_json::Error },
+
+    /// Failed to parse the backend file.
+    BackendFileError{ err: brane_cfg::backend::Error },
+    /// The given backend type is not (yet) supported.
+    UnsupportedBackend{ what: &'static str },
 }
 impl Display for PreprocessError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -262,6 +267,9 @@ impl Display for PreprocessError {
             TarWriteError{ path, err }                       => write!(f, "Failed to write to tarball file '{}': {}", path.display(), err),
             DataExtractError{ err }                          => write!(f, "Failed to extract dataset: {err}"),
             AccessKindSerializeError{ err }                  => write!(f, "Failed to serialize the given AccessKind: {err}"),
+
+            BackendFileError{ err }    => write!(f, "Failed to load backend file: {err}"),
+            UnsupportedBackend{ what } => write!(f, "Backend type '{what}' is not (yet) supported"),
         }
     }
 }
@@ -312,7 +320,7 @@ pub enum ExecuteError {
     /// Failed to update the client of a status change.
     ClientUpdateError{ status: TaskStatus, err: tokio::sync::mpsc::error::SendError<Result<TaskReply, Status>> },
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_cfg::spec::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_cfg::info::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.
@@ -473,7 +481,7 @@ pub enum CommitError {
     /// Failed to create a new DataInfo file.
     DataInfoCreateError{ path: PathBuf, err: std::io::Error },
     /// Failed to serialize a new DataInfo file.
-    DataInfoSerializeError{ err: serde_json::Error },
+    DataInfoSerializeError{ err: serde_yaml::Error },
     /// Failed to write the DataInfo the the created file.
     DataInfoWriteError{ path: PathBuf, err: std::io::Error },
     /// Failed to read the given directory.
@@ -485,7 +493,7 @@ pub enum CommitError {
 
     // Instance-only (client side)
     /// Failed to load the node config file.
-    NodeConfigReadError{ path: PathBuf, err: brane_cfg::spec::YamlError },
+    NodeConfigReadError{ path: PathBuf, err: brane_cfg::info::YamlError },
     /// Failed to load the infra file.
     InfraReadError{ path: PathBuf, err: brane_cfg::infra::Error },
     /// The given location was unknown.

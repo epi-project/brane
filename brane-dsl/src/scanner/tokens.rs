@@ -158,7 +158,7 @@ pub enum Token<'a> {
 impl<'a> Token<'a> {
     pub fn as_bool(&self) -> bool {
         if let Token::Boolean(span) = self {
-            bool::from_str(&span.to_string()).unwrap()
+            bool::from_str(span.as_ref()).unwrap()
         } else {
             unreachable!()
         }
@@ -177,7 +177,7 @@ impl<'a> Token<'a> {
 
     pub fn as_f64(&self) -> f64 {
         if let Token::Real(span) = self {
-            f64::from_str(&span.to_string()).unwrap()
+            f64::from_str(span.as_ref()).unwrap()
         } else {
             unreachable!()
         }

@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:55:30
 //  Last edited:
-//    26 Oct 2022, 17:20:58
+//    25 May 2023, 20:43:21
 //  Auto updated?
 //    Yes
 // 
@@ -18,7 +18,8 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use tokio::io::AsyncReadExt;
+use log::{debug, info};
+use tokio::io::AsyncReadExt as _;
 use tokio::process::{Command as TokioCommand, Child as TokioChild};
 use tokio::time::{self, Duration};
 
@@ -452,6 +453,10 @@ async fn complete(
     // Convert the bytes to text
     let stdout = String::from_utf8_lossy(&stdout_text).to_string();
     let stderr = String::from_utf8_lossy(&stderr_text).to_string();
+
+    // Always print stdout/stderr
+    debug!("Job stdout (unprocessed):\n{}\n{}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), stdout, (0..80).map(|_| '-').collect::<String>());
+    debug!("Job stderr (unprocessed):\n{}\n{}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), stdout, (0..80).map(|_| '-').collect::<String>());
 
     // If the process failed, return it does
     if !status.success() {

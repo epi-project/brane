@@ -4,7 +4,7 @@
 //  Created:
 //    05 Jan 2023, 11:35:25
 //  Last edited:
-//    01 Mar 2023, 11:01:22
+//    07 Jun 2023, 16:29:40
 //  Auto updated?
 //    Yes
 // 
@@ -21,7 +21,7 @@ use warp::http::HeaderValue;
 use warp::hyper::Body;
 use warp::reply::Response;
 
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::backend::BackendFile;
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig, WorkerConfig};
 use specifications::package::Capability;

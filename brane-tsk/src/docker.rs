@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2022, 14:57:17
 //  Last edited:
-//    13 Apr 2023, 09:53:11
+//    15 May 2023, 12:56:37
 //  Auto updated?
 //    Yes
 // 
@@ -25,7 +25,7 @@ use bollard::container::{
 };
 use bollard::image::{CreateImageOptions, ImportImageOptions, RemoveImageOptions, TagImageOptions};
 use bollard::models::{DeviceRequest, EndpointSettings, HostConfig};
-use enum_debug::EnumDebug as _;
+use enum_debug::EnumDebug;
 use futures_util::stream::TryStreamExt as _;
 use futures_util::StreamExt as _;
 use hyper::Body;
@@ -126,7 +126,7 @@ impl<'a> Display for ImageSourceSerializer<'a> {
 }
 
 /// Defines the source of an image (either a file or from a repo).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EnumDebug)]
 pub enum ImageSource {
     /// It's a file, and this is the path to load.
     Path(PathBuf),
@@ -135,6 +135,68 @@ pub enum ImageSource {
 }
 
 impl ImageSource {
+    /// Checks whether this source is a file.
+    /// 
+    /// # Returns
+    /// True if we are [`ImageSource::Path`], or false otherwise.
+    pub fn is_path(&self) -> bool { matches!(self, Self::Path(_)) }
+    /// Provides access to the internal path.
+    /// 
+    /// # Returns
+    /// A reference to the internal [`PathBuf`].
+    /// 
+    /// # Panics
+    /// This function panics if we are not the [`ImageSource::Path`] we assumed we were.
+    pub fn path(&self) -> &Path { if let Self::Path(path) = self { path } else { panic!("Cannot unwrap an ImageSource::{} as an ImageSource::Path", self.variant()); } }
+    /// Provides mutable access to the internal path.
+    /// 
+    /// # Returns
+    /// A mutable reference to the internal [`PathBuf`].
+    /// 
+    /// # Panics
+    /// This function panics if we are not the [`ImageSource::Path`] we assumed we were.
+    pub fn path_mut(&mut self) -> &mut PathBuf { if let Self::Path(path) = self { path } else { panic!("Cannot unwrap an ImageSource::{} as an ImageSource::Path", self.variant()); } }
+    /// Takes ownership of the internal path.
+    /// 
+    /// # Returns
+    /// The internal [`PathBuf`].
+    /// 
+    /// # Panics
+    /// This function panics if we are not the [`ImageSource::Path`] we assumed we were.
+    pub fn into_path(self) -> PathBuf { if let Self::Path(path) = self { path } else { panic!("Cannot unwrap an ImageSource::{} as an ImageSource::Path", self.variant()); } }
+
+    /// Checks whether this source is a registry.
+    /// 
+    /// # Returns
+    /// True if we are [`ImageSource::Registry`], or false otherwise.
+    pub fn is_registry(&self) -> bool { matches!(self, Self::Registry(_)) }
+    /// Provides access to the internal address.
+    /// 
+    /// # Returns
+    /// A reference to the internal [`String`] address.
+    /// 
+    /// # Panics
+    /// This function panics if we are not the [`ImageSource::Registry`] we assumed we were.
+    pub fn registry(&self) -> &str { if let Self::Registry(addr) = self { addr } else { panic!("Cannot unwrap an ImageSource::{} as an ImageSource::Registry", self.variant()); } }
+    /// Provides mutable access to the internal address.
+    /// 
+    /// # Returns
+    /// A mutable reference to the internal [`String`] address.
+    /// 
+    /// # Panics
+    /// This function panics if we are not the [`ImageSource::Registry`] we assumed we were.
+    pub fn registry_mut(&mut self) -> &mut String { if let Self::Registry(addr) = self { addr } else { panic!("Cannot unwrap an ImageSource::{} as an ImageSource::Registry", self.variant()); } }
+    /// Takes ownership of the internal address.
+    /// 
+    /// # Returns
+    /// The internal [`String`] address.
+    /// 
+    /// # Panics
+    /// This function panics if we are not the [`ImageSource::Registry`] we assumed we were.
+    pub fn into_registry(self) -> String { if let Self::Registry(addr) = self { addr } else { panic!("Cannot unwrap an ImageSource::{} as an ImageSource::Registry", self.variant()); } }
+
+
+
     /// Returns a formatter for the ImageSource that can serialize it in a deterministic manner. This method should be preferred if `ImageSource::from_str()` should read it.
     #[inline]
     pub fn serialize(&self) -> ImageSourceSerializer { ImageSourceSerializer{ source: self } }
@@ -450,7 +512,7 @@ fn preprocess_arg(data_dir: Option<impl AsRef<Path>>, results_dir: impl AsRef<Pa
 async fn create_and_start_container(docker: &Docker, info: &ExecuteInfo) -> Result<String, Error> {
     // Generate unique (temporary) container name
     let container_name: String = format!("{}-{}", info.name, &uuid::Uuid::new_v4().to_string()[..6]);
-    let create_options = CreateContainerOptions { name: &container_name };
+    let create_options = CreateContainerOptions { name: &container_name, platform: None };
 
     // Extract device requests from the capabilities
     #[allow(clippy::unnecessary_filter_map)]

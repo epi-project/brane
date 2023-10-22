@@ -62,7 +62,7 @@ pub async fn handle(
 
     // Lock the directory, build, unlock the directory
     {
-        let _lock = match FileLock::lock(&document.name, &document.version, package_dir.join(".lock")) {
+        let _lock = match FileLock::lock(&document.name, document.version, package_dir.join(".lock")) {
             Ok(lock) => lock,
             Err(err) => { return Err(BuildError::LockCreateError{ name: document.name, err }); },
         };
@@ -249,7 +249,7 @@ fn generate_dockerfile(
 
     // Copy the entrypoint executable
     let entrypoint = clean_path(&document.entrypoint.exec);
-    if entrypoint.contains("..") { return Err(BuildError::UnsafePath{ path: entrypoint }); }
+    if entrypoint.to_string_lossy().contains("..") { return Err(BuildError::UnsafePath{ path: entrypoint }); }
     let entrypoint = context.join(entrypoint);
     if !entrypoint.exists() || !entrypoint.is_file() { return Err(BuildError::MissingExecutable{ path: entrypoint }); }
     writeln_build!(contents, "RUN chmod +x /opt/wd/{}", &document.entrypoint.exec)?;
@@ -346,11 +346,11 @@ fn prepare_directory(
     }
 
     // Copy any other files marked in the ecu document
-    if let Some(mut files) = document.files.as_ref().map(|files| files.iter().map(|f| PathBuf::from(f)).collect::<Vec<PathBuf>>()) {
+    if let Some(mut files) = document.files.as_ref().map(|files| files.iter().map(PathBuf::from).collect::<Vec<PathBuf>>()) {
         while let Some(file) = files.pop() {
             // Make sure the target path is safe (does not escape the working directory)
-            let target = clean_path(&file.to_string_lossy());
-            if target.contains("..") { return Err(BuildError::UnsafePath{ path: target }) }
+            let target = clean_path(&file);
+            if target.to_string_lossy().contains("..") { return Err(BuildError::UnsafePath{ path: target }) }
             let target = wd.join(target);
 
             // Create the target folder if it does not exist
@@ -471,7 +471,7 @@ fn prepare_directory(
 
                                 // If we have a buffered carriage return, write it unless it is superceded by a newline
                                 if saw_cr && c != '\n' {
-                                    lf_buffer[lf_buffer_len] = '\r' as u8;
+                                    lf_buffer[lf_buffer_len] = b'\r';
                                     lf_buffer_len += 1;
                                 }
                                 saw_cr = false;
@@ -486,7 +486,7 @@ fn prepare_directory(
                             }
                             // Write any leftover carriage return
                             if saw_cr {
-                                lf_buffer[lf_buffer_len] = '\r' as u8;
+                                lf_buffer[lf_buffer_len] = b'\r';
                                 lf_buffer_len += 1;
                             }
 

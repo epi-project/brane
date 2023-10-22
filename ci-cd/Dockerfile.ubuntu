@@ -1,0 +1,21 @@
+# DOCKERFILE.ubuntu
+#   by Tim Müller
+# 
+# Simple Ubuntu-based wrapper around the scripts in this directory that we can
+# use to emulate the GitHub actions locally.
+#
+
+FROM ubuntu:22.04
+
+# Install python3
+RUN apt-get update && apt-get install -y python3 && rm -rf /var/apt/lists/*
+
+# Simply copy the files
+RUN mkdir -p /brane
+COPY . /brane/
+
+# Make them executable
+RUN chmod +x /brane/ci-cd/ci_cd.py
+
+# Mark one of them as entrypoint
+ENTRYPOINT [ "/brane/ci-cd/ci_cd.py", "--os", "ubuntu", "--repo", "/brane", "--debug" ]

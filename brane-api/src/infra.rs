@@ -4,7 +4,7 @@
 //  Created:
 //    02 Nov 2022, 16:21:33
 //  Last edited:
-//    28 Feb 2023, 18:27:55
+//    13 Jul 2023, 13:58:57
 //  Auto updated?
 //    Yes
 // 
@@ -19,7 +19,7 @@ use warp::{Reply, Rejection};
 use warp::hyper::{Body, Response};
 use warp::hyper::header::HeaderValue;
 
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::infra::{InfraFile, InfraLocation};
 use brane_cfg::node::NodeConfig;
 use brane_prx::spec::NewPathRequestTlsOptions;
@@ -42,7 +42,7 @@ use crate::spec::Context;
 /// # Errors
 /// This function may error (i.e., reject the request) if we failed to load the infrastructure file.
 pub async fn registries(context: Context) -> Result<impl Reply, Rejection> {
-    debug!("Handling GET on `/infra/registries` (i.e., list all regitsry endpoints)...");
+    debug!("Handling GET on `/infra/registries` (i.e., list all registry endpoints)...");
 
     // Load the node config file
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {

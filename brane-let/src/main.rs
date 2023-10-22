@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:53:43
 //  Last edited:
-//    05 Jan 2023, 12:59:59
+//    02 Oct 2023, 17:13:16
 //  Auto updated?
 //    Yes
 // 
@@ -26,6 +26,16 @@ use brane_let::errors::LetError;
 use brane_let::exec_ecu;
 use brane_let::exec_nop;
 use brane_let::exec_oas;
+
+
+/***** CONSTANTS *****/
+/// Defines the name of the output prefix environment variable.
+const OUTPUT_PREFIX_NAME: &str = "ENABLE_STDOUT_PREFIX";
+/// The thing we prefix to the output stdout so the Kubernetes engine can recognize valid output when it sees it.
+const OUTPUT_PREFIX: &str = "[OUTPUT] ";
+
+
+
 
 
 /***** ARGUMENTS *****/
@@ -203,7 +213,12 @@ async fn run(
             //     if let Err(err) = callback.finished(output).await { log::error!("Could not update driver on Finished: {}", err); }
             // } else {
                 // Print to stdout as (base64-encoded) JSON
-                println!("{}", base64::encode(output));
+                if std::env::vars().any(|(name, value)| name == OUTPUT_PREFIX_NAME && value == "1") {
+                    debug!("Writing output prefix enabled");
+                    println!("{}{}", OUTPUT_PREFIX, base64::encode(output));
+                } else {
+                    println!("{}", base64::encode(output));
+                }
             // }
 
             Ok(0)

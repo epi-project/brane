@@ -28,7 +28,7 @@ use tonic::{Response, Status, Streaming};
 use brane_ast::Workflow;
 use brane_ast::locations::Location;
 use brane_ast::ast::DataName;
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::infra::InfraFile;
 use brane_cfg::node::NodeConfig;
 use brane_exe::{Error as VmError, FullValue, RunState, Vm};

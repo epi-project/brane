@@ -26,7 +26,7 @@ use warp::http::HeaderValue;
 use warp::hyper::{Body, StatusCode};
 use warp::hyper::body::{Bytes, Sender};
 use warp::reply::{self, Response};
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::certs::extract_client_name;
 use brane_cfg::node::NodeConfig;
 use brane_cfg::policies::{PolicyFile, UserPolicy};

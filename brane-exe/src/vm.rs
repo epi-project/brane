@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 17:41:33
 //  Last edited:
-//    01 Feb 2023, 14:14:09
+//    03 Jul 2023, 16:12:36
 //  Auto updated?
 //    Yes
 // 
@@ -97,7 +97,7 @@ pub mod tests {
                     };
 
                     // Print the file itself
-                    let workflow = ast::do_traversal(workflow, std::io::stdout()).unwrap();
+                    ast::do_traversal(&workflow, std::io::stdout()).unwrap();
                     println!("{}", (0..40).map(|_| "- ").collect::<String>());
 
                     // Run the VM on this snippet

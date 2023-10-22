@@ -20,7 +20,7 @@ use std::str::FromStr;
 
 use log::{debug, info, warn};
 
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, NodeKind, NodeSpecificConfig};
 use brane_tsk::docker;
 use specifications::version::Version;

@@ -30,7 +30,7 @@ use rand::Rng;
 use rand::distributions::Alphanumeric;
 use serde::{Deserialize, Serialize};
 
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::proxy::ProxyConfig;
 use brane_cfg::node::{CentralPaths, CentralServices, NodeConfig, NodeKind, NodeSpecificConfig, PrivateOrExternalService, ProxyPaths, ProxyServices, WorkerPaths, WorkerServices};
 use brane_tsk::docker::{ensure_image, get_digest, DockerOptions, ImageSource};

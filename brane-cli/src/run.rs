@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    13 Apr 2023, 10:31:15
+//    02 Oct 2023, 17:35:09
 //  Auto updated?
 //    Yes
 // 
@@ -13,13 +13,14 @@
 // 
 
 use std::borrow::Cow;
-use std::io::Read;
+use std::io::{Read, Stderr, Stdout, Write};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
 use console::style;
+use parking_lot::{Mutex, MutexGuard};
 use tempfile::{tempdir, TempDir};
 
 use brane_ast::{compile_snippet, CompileResult, ParserOptions, Workflow};
@@ -95,10 +96,260 @@ fn compile(state: &mut CompileState, source: &mut String, pindex: &PackageIndex,
         _ => { unreachable!(); },
     };
     debug!("Compiled to workflow:\n\n");
-    let workflow = if log::max_level() == log::LevelFilter::Debug{ brane_ast::traversals::print::ast::do_traversal(workflow, std::io::stdout()).unwrap() } else { workflow };
+    if log::max_level() == log::LevelFilter::Debug {
+        brane_ast::traversals::print::ast::do_traversal(&workflow, std::io::stdout()).unwrap();
+    }
 
     // Return
     Ok(workflow)
+}
+
+
+
+
+
+/***** AUXILLARY FUNCTIONS *****/
+/// Initializes the state for an instance VM.
+/// 
+/// This implements most of [`initialize_instance_vm()`], which we separate to have some clients (\*cough\* IDE \*cough\*) able to create a VM while sharing an index.
+/// 
+/// # Arguments
+/// - `stdout_writer`: Some [`Write`]-handle that we use to write stdout to.
+/// - `stderr_writer`: Some [`Write`]-handle that we use to write stderr to.
+/// - `drv_endpoint`: The `brane-drv` endpoint that we will connect to to run stuff.
+/// - `pindex`: The [`PackageIndex`] that contains the remote's available packages.
+/// - `dindex`: The [`DataIndex`] that contains the remote's available datasets.
+/// - `attach`: If given, we will try to attach to a session with that ID. Otherwise, we start a new session.
+/// - `options`: The ParserOptions that describe how to parse the given source.
+/// 
+/// # Returns
+/// A new [`InstanceVmState`] that represents the initialized VM.
+/// 
+/// # Errors
+/// This function may error if we failed to reach the remote driver, or if the given session did not exist.
+pub async fn initialize_instance<O: Write, E: Write>(stdout_writer: O, stderr_writer: E, drv_endpoint: impl AsRef<str>, pindex: Arc<Mutex<PackageIndex>>, dindex: Arc<Mutex<DataIndex>>, attach: Option<AppId>, options: ParserOptions) -> Result<InstanceVmState<O, E>, Error> {
+    let drv_endpoint: &str = drv_endpoint.as_ref();
+
+    // Connect to the server with gRPC
+    debug!("Connecting to driver '{}'...", drv_endpoint);
+    let mut client: DriverServiceClient = match DriverServiceClient::connect(drv_endpoint.to_string()).await {
+        Ok(client) => client,
+        Err(err)   => { return Err(Error::ClientConnectError{ address: drv_endpoint.into(), err }); }
+    };
+
+    // Either use the given Session UUID or create a new one (with matching session)
+    let session: AppId = if let Some(attach) = attach {
+        debug!("Using existing session '{}'", attach);
+        attach
+    } else {
+        // Setup a new session
+        let request = CreateSessionRequest {};
+        let reply = match client.create_session(request).await {
+            Ok(reply) => reply,
+            Err(err)  => { return Err(Error::SessionCreateError{ address: drv_endpoint.into(), err }); }
+        };
+
+        // Return the UUID of this session
+        let raw: String = reply.into_inner().uuid;
+        debug!("Using new session '{}'", raw);
+        match AppId::from_str(&raw) {
+            Ok(session) => session,
+            Err(err)    => { return Err(Error::AppIdError{ address: drv_endpoint.into(), raw, err: Box::new(err) }); },
+        }
+    };
+
+    // Prepare some states & options used across loops
+    Ok(InstanceVmState {
+        stdout : stdout_writer,
+        stderr : stderr_writer,
+
+        pindex,
+        dindex,
+
+        state  : CompileState::new(),
+        source : String::new(),
+        options,
+
+        session,
+        client,
+    })
+}
+
+/// Runs the given compiled workflow on the remote instance.
+/// 
+/// This implements the other half of [`run_instance_vm()`], which we separate to have some clients (\*cough\* IDE \*cough\*) do the compilation by themselves.
+/// 
+/// # Arguments
+/// - `drv_endpoint`: The `brane-drv` endpoint that we will connect to to run stuff (used for debugging only).
+/// - `state`: The InstanceVmState that we use to connect to the driver.
+/// - `workflow`: The already compiled [`Workflow`] to execute.
+/// - `profile`: If given, prints the profile timings to stdout if reported by the remote.
+/// 
+/// # Returns
+/// A [`FullValue`] carrying the result of the snippet (or [`FullValue::Void`]).
+/// 
+/// # Errors
+/// This function may error if anything in the whole shebang crashed. This can be things client-side, but also remote-side.
+pub async fn run_instance<O: Write, E: Write>(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState<O, E>, workflow: &Workflow, profile: bool) -> Result<FullValue, Error> {
+    let drv_endpoint: &str = drv_endpoint.as_ref();
+
+    // Serialize the workflow
+    let sworkflow: String = match serde_json::to_string(&workflow) {
+        Ok(sworkflow) => sworkflow,
+        Err(err)      => { return Err(Error::WorkflowSerializeError{ err }); },
+    };
+
+    // Prepare the request to execute this command
+    let request = ExecuteRequest {
+        uuid  : state.session.to_string(),
+        input : sworkflow,
+    };
+
+    // Run it
+    let response = match state.client.execute(request).await {
+        Ok(response) => response,
+        Err(err)     => { return Err(Error::CommandRequestError{ address: drv_endpoint.into(), err }); }
+    };
+    let mut stream = response.into_inner();
+
+    // Switch on the type of message that the remote returned
+    let mut res: FullValue = FullValue::Void;
+    loop {
+        // Match on the message
+        match stream.message().await {
+            // The message itself went alright
+            Ok(Some(reply)) => {
+                // Show profile times
+                if profile {
+                    /* TODO */
+                }
+
+                // The remote send us some debug message
+                if let Some(debug) = reply.debug {
+                    debug!("Remote: {}", debug);
+                }
+
+                // The remote send us a normal text message
+                if let Some(stdout) = reply.stdout {
+                    debug!("Remote returned stdout");
+                    if let Err(err) = write!(&mut state.stdout, "{stdout}") { return Err(Error::WriteError { err }); }
+                }
+
+                // The remote send us an error
+                if let Some(stderr) = reply.stderr {
+                    debug!("Remote returned error");
+                    if let Err(err) = writeln!(&mut state.stderr, "{stderr}") { return Err(Error::WriteError { err }); }
+                }
+
+                // Update the value to the latest if one is sent
+                if let Some(value) = reply.value {
+                    debug!("Remote returned new value: '{}'", value);
+
+                    // Parse it
+                    let value: FullValue = match serde_json::from_str(&value) {
+                        Ok(value) => value,
+                        Err(err)  => { return Err(Error::ValueParseError{ address: drv_endpoint.into(), raw: value, err }); },
+                    };
+
+                    // Set the result, packed
+                    res = value;
+                }
+
+                // The remote is done with this
+                if reply.close {
+                    println!();
+                    break;
+                }
+            }
+            Err(status) => {
+                // Did not receive the message properly
+                if let Err(err) = writeln!(&mut state.stderr, "\nStatus error: {}", status.message()) { return Err(Error::WriteError { err }); }
+            }
+            Ok(None) => {
+                // Stream closed by the remote for some rason
+                break;
+            }
+        }
+    }
+
+    // Done
+    Ok(res)
+}
+
+/// Post-processes the result of a workflow.
+/// 
+/// This does nothing unless it's an IntermediateResult or a Dataset; it emits a warning in the first, attempts to download the referred dataset in the latter.
+/// 
+/// # Arguments
+/// - `api_endpoint`: The remote endpoint where we can potentially download data from (or, that at least knows about it).
+/// - `proxy_addr`: If given, proxies all data transfers through the proxy at the given location.
+/// - `certs_dir`: The directory where certificates are stored. Expected to contain nested directories that store the certs by domain ID.
+/// - `datasets_dir`: The directory where we will download the data to. It will be added under a new folder with its own name.
+/// - `result`: The value to process.
+/// 
+/// # Returns
+/// Nothing, but does print any result to stdout. It may also download a remote dataset if one is given.
+/// 
+/// # Errors
+/// This function may error if the given result was a dataset and we failed to retrieve it.
+pub async fn process_instance(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, certs_dir: impl AsRef<Path>, datasets_dir: impl AsRef<Path>, result: FullValue) -> Result<(), Error> {
+    let api_endpoint : &str  = api_endpoint.as_ref();
+    let certs_dir    : &Path = certs_dir.as_ref();
+    let datasets_dir : &Path = datasets_dir.as_ref();
+
+    // We only print
+    if result != FullValue::Void {
+        println!("\nWorkflow returned value {}", style(format!("'{result}'")).bold().cyan());
+
+        // Treat some values special
+        match result {
+            // Print sommat additional if it's an intermediate result.
+            FullValue::IntermediateResult(_) => {
+                println!("(Intermediate results are not available locally; promote it using 'commit_result()')");
+            },
+
+            // If it's a dataset, attempt to download it
+            FullValue::Data(name) => {
+                // Compute the directory to write to
+                let data_dir: PathBuf = datasets_dir.join(name.to_string());
+
+                // Fetch a new, local DataIndex to get up-to-date entries
+                let data_addr: String = format!("{api_endpoint}/data/info");
+                let index: DataIndex = match brane_tsk::api::get_data_index(&data_addr).await {
+                    Ok(dindex) => dindex,
+                    Err(err)   => { return Err(Error::RemoteDataIndexError{ address: data_addr, err }); },
+                };
+
+                // Fetch the method of its availability
+                let info: &DataInfo = match index.get(&name) {
+                    Some(info) => info,
+                    None       => { return Err(Error::UnknownDataset{ name: name.into() }); },
+                };
+                let access: AccessKind = match info.access.get(LOCALHOST) {
+                    Some(access) => access.clone(),
+                    None         => {
+                        // Attempt to download it instead
+                        match data::download_data(api_endpoint, proxy_addr, certs_dir, data_dir, &name, &info.access).await {
+                            Ok(Some(access)) => access,
+                            Ok(None)         => { return Err(Error::UnavailableDataset{ name: name.into(), locs: info.access.keys().cloned().collect() }); },
+                            Err(err)         => { return Err(Error::DataDownloadError{ err }); },
+                        }
+                    },
+                };
+
+                // Write the method of access
+                match access {
+                    AccessKind::File { path } => println!("(It's available under '{}')", path.display()),
+                }
+            },
+
+            // Nothing for the rest
+            _ => {},
+        }
+    }
+
+    // DOne
+    Ok(())
 }
 
 
@@ -145,11 +396,16 @@ pub struct OfflineVmState {
 }
 
 /// A helper struct that contains what we need to know about a compiler + VM state for the instance use-case.
-pub struct InstanceVmState {
+pub struct InstanceVmState<O, E> {
+    /// A stdout to write incoming stdout messages on.
+    pub stdout : O,
+    /// A stderr to write outgoing stdout messages on.
+    pub stderr : E,
+
     /// The package index for this session.
-    pub pindex : Arc<PackageIndex>,
+    pub pindex : Arc<Mutex<PackageIndex>>,
     /// The data index for this session.
-    pub dindex : Arc<DataIndex>,
+    pub dindex : Arc<Mutex<DataIndex>>,
 
     /// The state of the compiler.
     pub state   : CompileState,
@@ -229,13 +485,14 @@ pub fn initialize_dummy_vm(options: ParserOptions) -> Result<DummyVmState, Error
 /// # Arguments
 /// - `parse_opts`: The ParserOptions that describe how to parse the given source.
 /// - `docker_opts`: The configuration of our Docker client.
+/// - `keep_containers`: Whether to keep the containers after execution or not.
 /// 
 /// # Returns
 /// The newly created virtual machine together with associated states as an OfflineVmState.
 /// 
 /// # Errors
 /// This function errors if we failed to get the new package indices or other information.
-pub fn initialize_offline_vm(parse_opts: ParserOptions, docker_opts: DockerOptions) -> Result<OfflineVmState, Error> {
+pub fn initialize_offline_vm(parse_opts: ParserOptions, docker_opts: DockerOptions, keep_containers: bool) -> Result<OfflineVmState, Error> {
     // Get the directory with the packages
     let packages_dir = match ensure_packages_dir(false) {
         Ok(dir)  => dir,
@@ -285,7 +542,7 @@ pub fn initialize_offline_vm(parse_opts: ParserOptions, docker_opts: DockerOptio
         source  : String::new(),
         options : parse_opts,
 
-        vm : Some(OfflineVm::new(docker_opts, packages_dir, datasets_dir, temp_dir_path, package_index, data_index)),
+        vm : Some(OfflineVm::new(docker_opts, keep_containers, packages_dir, datasets_dir, temp_dir_path, package_index, data_index)),
     })
 }
 
@@ -302,63 +559,25 @@ pub fn initialize_offline_vm(parse_opts: ParserOptions, docker_opts: DockerOptio
 /// 
 /// # Errors
 /// This function errors if we failed to get the new package indices or other information.
-pub async fn initialize_instance_vm(api_endpoint: impl AsRef<str>, drv_endpoint: impl AsRef<str>, attach: Option<AppId>, options: ParserOptions) -> Result<InstanceVmState, Error> {
+pub async fn initialize_instance_vm(api_endpoint: impl AsRef<str>, drv_endpoint: impl AsRef<str>, attach: Option<AppId>, options: ParserOptions) -> Result<InstanceVmState<Stdout, Stderr>, Error> {
     let api_endpoint: &str = api_endpoint.as_ref();
     let drv_endpoint: &str = drv_endpoint.as_ref();
 
     // We fetch a local copy of the indices for compiling
     debug!("Fetching global package & data indices from '{}'...", api_endpoint);
     let package_addr: String = format!("{api_endpoint}/graphql");
-    let pindex: Arc<PackageIndex> = match brane_tsk::api::get_package_index(&package_addr).await {
-        Ok(pindex) => Arc::new(pindex),
+    let pindex: Arc<Mutex<PackageIndex>> = match brane_tsk::api::get_package_index(&package_addr).await {
+        Ok(pindex) => Arc::new(Mutex::new(pindex)),
         Err(err)   => { return Err(Error::RemotePackageIndexError{ address: package_addr, err }); },
     };
     let data_addr: String = format!("{api_endpoint}/data/info");
-    let dindex: Arc<DataIndex> = match brane_tsk::api::get_data_index(&data_addr).await {
-        Ok(dindex) => Arc::new(dindex),
+    let dindex: Arc<Mutex<DataIndex>> = match brane_tsk::api::get_data_index(&data_addr).await {
+        Ok(dindex) => Arc::new(Mutex::new(dindex)),
         Err(err)   => { return Err(Error::RemoteDataIndexError{ address: data_addr, err }); },
     };
 
-    // Connect to the server with gRPC
-    debug!("Connecting to driver '{}'...", drv_endpoint);
-    let mut client: DriverServiceClient = match DriverServiceClient::connect(drv_endpoint.to_string()).await {
-        Ok(client) => client,
-        Err(err)   => { return Err(Error::ClientConnectError{ address: drv_endpoint.into(), err }); }
-    };
-
-    // Either use the given Session UUID or create a new one (with matching session)
-    let session: AppId = if let Some(attach) = attach {
-        debug!("Using existing session '{}'", attach);
-        attach
-    } else {
-        // Setup a new session
-        let request = CreateSessionRequest {};
-        let reply = match client.create_session(request).await {
-            Ok(reply) => reply,
-            Err(err)  => { return Err(Error::SessionCreateError{ address: drv_endpoint.into(), err }); }
-        };
-
-        // Return the UUID of this session
-        let raw: String = reply.into_inner().uuid;
-        debug!("Using new session '{}'", raw);
-        match AppId::from_str(&raw) {
-            Ok(session) => session,
-            Err(err)    => { return Err(Error::AppIdError{ address: drv_endpoint.into(), raw, err: Box::new(err) }); },
-        }
-    };
-
-    // Prepare some states & options used across loops
-    Ok(InstanceVmState {
-        pindex,
-        dindex,
-
-        state  : CompileState::new(),
-        source : String::new(),
-        options,
-
-        session,
-        client,
-    })
+    // Pass the rest to `initialize_instance`
+    initialize_instance(std::io::stdout(), std::io::stderr(), drv_endpoint, pindex, dindex, attach, options).await
 }
 
 
@@ -447,95 +666,18 @@ pub async fn run_offline_vm(state: &mut OfflineVmState, what: impl AsRef<str>, s
 /// 
 /// # Errors
 /// This function errors if we failed to compile the workflow, communicate with the remote driver or remote execution failed somehow.
-pub async fn run_instance_vm(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState, what: impl AsRef<str>, snippet: impl AsRef<str>, profile: bool) -> Result<FullValue, Error> {
-    let drv_endpoint: &str = drv_endpoint.as_ref();
-    let what: &str         = what.as_ref();
-    let snippet: &str      = snippet.as_ref();
-
+#[inline]
+pub async fn run_instance_vm(drv_endpoint: impl AsRef<str>, state: &mut InstanceVmState<Stdout, Stderr>, what: impl AsRef<str>, snippet: impl AsRef<str>, profile: bool) -> Result<FullValue, Error> {
     // Compile the workflow
-    let workflow: Workflow = compile(&mut state.state, &mut state.source, &state.pindex, &state.dindex, &state.options, what, snippet)?;
-
-    // Serialize the workflow
-    let sworkflow: String = match serde_json::to_string(&workflow) {
-        Ok(sworkflow) => sworkflow,
-        Err(err)      => { return Err(Error::WorkflowSerializeError{ err }); },
+    let workflow: Workflow = {
+        // Acquire the locks
+        let pindex: MutexGuard<PackageIndex> = state.pindex.lock();
+        let dindex: MutexGuard<DataIndex> = state.dindex.lock();
+        compile(&mut state.state, &mut state.source, &pindex, &dindex, &state.options, what, snippet)?
     };
 
-    // Prepare the request to execute this command
-    let request = ExecuteRequest {
-        uuid  : state.session.to_string(),
-        input : sworkflow,
-    };
-
-    // Run it
-    let response = match state.client.execute(request).await {
-        Ok(response) => response,
-        Err(err)     => { return Err(Error::CommandRequestError{ address: drv_endpoint.into(), err }); }
-    };
-    let mut stream = response.into_inner();
-
-    // Switch on the type of message that the remote returned
-    let mut res: FullValue = FullValue::Void;
-    loop {
-        // Match on the message
-        match stream.message().await {
-            // The message itself went alright
-            Ok(Some(reply)) => {
-                // Show profile times
-                if profile {
-                    /* TODO */
-                }
-
-                // The remote send us some debug message
-                if let Some(debug) = reply.debug {
-                    debug!("Remote: {}", debug);
-                }
-
-                // The remote send us a normal text message
-                if let Some(stdout) = reply.stdout {
-                    debug!("Remote returned stdout");
-                    print!("{stdout}");
-                }
-
-                // The remote send us an error
-                if let Some(stderr) = reply.stderr {
-                    debug!("Remote returned error");
-                    eprintln!("{stderr}");
-                }
-
-                // Update the value to the latest if one is sent
-                if let Some(value) = reply.value {
-                    debug!("Remote returned new value: '{}'", value);
-
-                    // Parse it
-                    let value: FullValue = match serde_json::from_str(&value) {
-                        Ok(value) => value,
-                        Err(err)  => { return Err(Error::ValueParseError{ address: drv_endpoint.into(), raw: value, err }); },
-                    };
-
-                    // Set the result, packed
-                    res = value;
-                }
-
-                // The remote is done with this
-                if reply.close {
-                    println!();
-                    break;
-                }
-            }
-            Err(status) => {
-                // Did not receive the message properly
-                eprintln!("\nStatus error: {}", status.message());
-            }
-            Ok(None) => {
-                // Stream closed by the remote for some rason
-                break;
-            }
-        }
-    }
-
-    // Done
-    Ok(res)
+    // Run the thing using the other function
+    run_instance(drv_endpoint, state, &workflow, profile).await
 }
 
 
@@ -639,7 +781,6 @@ pub fn process_offline_result(result: FullValue) -> Result<(), Error> {
 /// # Arguments
 /// - `api_endpoint`: The remote endpoint where we can potentially download data from (or, that at least knows about it).
 /// - `proxy_addr`: If given, proxies all data transfers through the proxy at the given location.
-/// - `result_dir`: The directory where temporary results are stored.
 /// - `result`: The value to process.
 /// 
 /// # Returns
@@ -650,56 +791,21 @@ pub fn process_offline_result(result: FullValue) -> Result<(), Error> {
 pub async fn process_instance_result(api_endpoint: impl AsRef<str>, proxy_addr: &Option<String>, result: FullValue) -> Result<(), Error> {
     let api_endpoint : &str  = api_endpoint.as_ref();
 
-    // We only print
-    if result != FullValue::Void {
-        println!("\nWorkflow returned value {}", style(format!("'{result}'")).bold().cyan());
+    // Fetch the certificae & data directories
+    let certs_dir: PathBuf = match InstanceInfo::get_active_name() {
+        Ok(name) => match InstanceInfo::get_instance_path(&name) {
+            Ok(path) => path.join("certs"),
+            Err(err) => { return Err(Error::InstancePathError { name, err }); },
+        },
+        Err(err) => { return Err(Error::ActiveInstanceReadError { err }); },
+    };
+    let datasets_dir: PathBuf = match ensure_datasets_dir(true) {
+        Ok(datas_dir) => datas_dir,
+        Err(err)      => { return Err(Error::DatasetsDirError { err }); },
+    };
 
-        // Treat some values special
-        match result {
-            // Print sommat additional if it's an intermediate result.
-            FullValue::IntermediateResult(_) => {
-                println!("(Intermediate results are not available locally; promote it using 'commit_result()')");
-            },
-
-            // If it's a dataset, attempt to download it
-            FullValue::Data(name) => {
-                // Fetch a new, local DataIndex to get up-to-date entries
-                let data_addr: String = format!("{api_endpoint}/data/info");
-                let index: DataIndex = match brane_tsk::api::get_data_index(&data_addr).await {
-                    Ok(dindex) => dindex,
-                    Err(err)   => { return Err(Error::RemoteDataIndexError{ address: data_addr, err }); },
-                };
-
-                // Fetch the method of its availability
-                let info: &DataInfo = match index.get(&name) {
-                    Some(info) => info,
-                    None       => { return Err(Error::UnknownDataset{ name: name.into() }); },
-                };
-                let access: AccessKind = match info.access.get(LOCALHOST) {
-                    Some(access) => access.clone(),
-                    None         => {
-                        // Attempt to download it instead
-                        match data::download_data(api_endpoint, proxy_addr, &name, &info.access).await {
-                            Ok(Some(access)) => access,
-                            Ok(None)         => { return Err(Error::UnavailableDataset{ name: name.into(), locs: info.access.keys().cloned().collect() }); },
-                            Err(err)         => { return Err(Error::DataDownloadError{ err }); },
-                        }
-                    },
-                };
-
-                // Write the method of access
-                match access {
-                    AccessKind::File { path } => println!("(It's available under '{}')", path.display()),
-                }
-            },
-
-            // Nothing for the rest
-            _ => {},
-        }
-    }
-
-    // DOne
-    Ok(())
+    // Run the instance function
+    process_instance(api_endpoint, proxy_addr, certs_dir, datasets_dir, result).await
 }
 
 
@@ -718,10 +824,12 @@ pub async fn process_instance_result(api_endpoint: impl AsRef<str>, proxy_addr: 
 /// - `file`: The file to read and run. Can also be '-', in which case it is read from stdin instead.
 /// - `profile`: If given, prints the profile timings to stdout if available.
 /// - `docker_opts`: The options with which we connect to the local Docker daemon.
+/// - `keep_containers`: Whether to keep containers after execution or not.
 /// 
 /// # Returns
 /// Nothing, but does print results and such to stdout. Might also produce new datasets.
-pub async fn handle(proxy_addr: Option<String>, language: Language, file: PathBuf, dummy: bool, remote: bool, profile: bool, docker_opts: DockerOptions) -> Result<(), Error> {
+#[allow(clippy::too_many_arguments)]
+pub async fn handle(proxy_addr: Option<String>, language: Language, file: PathBuf, dummy: bool, remote: bool, profile: bool, docker_opts: DockerOptions, keep_containers: bool) -> Result<(), Error> {
     // Either read the file or read stdin
     let (what, source_code): (Cow<str>, String) = if file == PathBuf::from("-") {
         let mut result: String = String::new();
@@ -749,7 +857,7 @@ pub async fn handle(proxy_addr: Option<String>, language: Language, file: PathBu
             // Run the thing
             remote_run(info.api.to_string(), info.drv.to_string(), proxy_addr, options, what, source_code, profile).await
         } else {
-            local_run(options, docker_opts, what, source_code).await
+            local_run(options, docker_opts, what, source_code, keep_containers).await
         }
     } else {
         dummy_run(options, what, source_code).await
@@ -789,15 +897,16 @@ async fn dummy_run(options: ParserOptions, what: impl AsRef<str>, source: impl A
 /// - `docker_opts`: The options with which we connect to the local Docker daemon.
 /// - `what`: A description of the source we're reading (e.g., the filename or `<stdin>`)
 /// - `source`: The source code to read.
+/// - `keep_containers`: Whether to keep containers after execution or not.
 /// 
 /// # Returns
 /// Nothing, but does print results and such to stdout. Might also produce new datasets.
-async fn local_run(parse_opts: ParserOptions, docker_opts: DockerOptions, what: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), Error> {
+async fn local_run(parse_opts: ParserOptions, docker_opts: DockerOptions, what: impl AsRef<str>, source: impl AsRef<str>, keep_containers: bool) -> Result<(), Error> {
     let what      : &str  = what.as_ref();
     let source    : &str  = source.as_ref();
 
     // First we initialize the remote thing
-    let mut state: OfflineVmState = initialize_offline_vm(parse_opts, docker_opts)?;
+    let mut state: OfflineVmState = initialize_offline_vm(parse_opts, docker_opts, keep_containers)?;
     // Next, we run the VM (one snippet only ayway)
     let res: FullValue = run_offline_vm(&mut state, what, source).await?;
     // Then, we collect and process the result
@@ -827,7 +936,7 @@ async fn remote_run(api_endpoint: impl AsRef<str>, drv_endpoint: impl AsRef<str>
     let source       : &str  = source.as_ref();
 
     // First we initialize the remote thing
-    let mut state: InstanceVmState = initialize_instance_vm(api_endpoint, drv_endpoint, None, options).await?;
+    let mut state: InstanceVmState<Stdout, Stderr> = initialize_instance_vm(api_endpoint, drv_endpoint, None, options).await?;
     // Next, we run the VM (one snippet only ayway)
     let res: FullValue = run_instance_vm(drv_endpoint, &mut state, what, source, profile).await?;
     // Then, we collect and process the result

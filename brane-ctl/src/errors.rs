@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    13 Apr 2023, 10:28:19
+//    03 Jul 2023, 15:59:31
 //  Auto updated?
 //    Yes
 // 
@@ -21,7 +21,7 @@ use console::style;
 use enum_debug::EnumDebug as _;
 
 use brane_cfg::node::NodeKind;
-use brane_shr::debug::Capitalizeable;
+use brane_shr::formatters::Capitalizeable;
 use brane_tsk::docker::ImageSource;
 use specifications::container::Image;
 use specifications::version::Version;
@@ -139,7 +139,7 @@ pub enum GenerateError {
     /// Failed to write the header to the new file.
     FileHeaderWriteError{ what: &'static str, path: PathBuf, err: std::io::Error },
     /// Failed to write the main body to the new file.
-    FileBodyWriteError{ what: &'static str, path: PathBuf, err: brane_cfg::spec::YamlError },
+    FileBodyWriteError{ what: &'static str, path: PathBuf, err: brane_cfg::info::YamlError },
 
     /// The given location is unknown.
     UnknownLocation{ loc: String },
@@ -206,7 +206,7 @@ pub enum LifetimeError {
     DockerComposeWriteError{ path: PathBuf, err: std::io::Error },
 
     /// Failed to read the `proxy.yml` file.
-    ProxyReadError{ err: brane_cfg::spec::YamlError },
+    ProxyReadError{ err: brane_cfg::info::YamlError },
     /// Failed to open the extra hosts file.
     HostsFileCreateError{ path: PathBuf, err: std::io::Error },
     /// Failed to write to the extra hosts file.
@@ -223,7 +223,7 @@ pub enum LifetimeError {
     MissingProxyService,
 
     /// Failed to load the given node config file.
-    NodeConfigLoadError{ err: brane_cfg::spec::YamlError },
+    NodeConfigLoadError{ err: brane_cfg::info::YamlError },
     /// Failed to connect to the local Docker daemon.
     DockerConnectError{ err: brane_tsk::errors::DockerError },
     /// The given start command (got) did not match the one in the `node.yml` file (expected).
@@ -254,8 +254,8 @@ impl Display for LifetimeError {
             ImageDigestError{ path, err }        => write!(f, "Failed to get digest of image {}: {}", style(path.display()).bold(), err),
             ImageLoadError{ image, source, err } => write!(f, "Failed to load image {} from '{}': {}", style(image).bold(), style(source).bold(), err),
 
-            MissingProxyPath    => write!(f, "A path to a 'proxy.yml' file is given, but not a proxy service specification. Specify both if you want to host a proxy service in this node."),
-            MissingProxyService => write!(f, "A proxy service specification is given, but not a path to a 'proxy.yml' file. Specify both if you want to host a proxy service in this node."),
+            MissingProxyPath    => write!(f, "A proxy service specification is given, but not a path to a 'proxy.yml' file. Specify both if you want to host a proxy service in this node, or none if you want to use an external one."),
+            MissingProxyService => write!(f, "A path to a 'proxy.yml' file is given, but not a proxy service specification. Specify both if you want to host a proxy service in this node, or none if you want to use an external one."),
 
             NodeConfigLoadError{ err }         => write!(f, "Failed to load node.yml file: {err}"),
             DockerConnectError{ err }          => write!(f, "Failed to connect to local Docker socket: {}", err),
@@ -274,7 +274,7 @@ impl Error for LifetimeError {}
 #[derive(Debug)]
 pub enum PackagesError {
     /// Failed to load the given node config file.
-    NodeConfigLoadError{ err: brane_cfg::spec::YamlError },
+    NodeConfigLoadError{ err: brane_cfg::info::YamlError },
     /// The given node type is not supported for this operation.
     /// 
     /// The `what` should fill in the `<WHAT>` in: "Cannot <WHAT> on a ... node"
@@ -315,7 +315,7 @@ impl Error for PackagesError {}
 #[derive(Debug)]
 pub enum UnpackError {
     /// Failed to get the NodeConfig file.
-    NodeConfigError{ err: brane_cfg::spec::YamlError },
+    NodeConfigError{ err: brane_cfg::info::YamlError },
     /// Failed to write the given file.
     FileWriteError{ what: &'static str, path: PathBuf, err: std::io::Error },
     /// Failed to create the target directory.

@@ -4,7 +4,7 @@
 //  Created:
 //    17 Feb 2022, 10:27:28
 //  Last edited:
-//    19 Apr 2023, 13:12:39
+//    03 Oct 2023, 11:36:00
 //  Auto updated?
 //    Yes
 // 
@@ -18,7 +18,8 @@ use std::path::PathBuf;
 
 use reqwest::StatusCode;
 
-use brane_shr::debug::PrettyListFormatter;
+use brane_shr::errors::ErrorTrace as _;
+use brane_shr::formatters::PrettyListFormatter;
 use specifications::package::{PackageInfoError, PackageKindError};
 use specifications::container::{ContainerInfoError, Image, LocalContainerInfoError};
 use specifications::version::{ParseError as VersionParseError, Version};
@@ -60,6 +61,8 @@ pub enum CliError {
     VerifyError{ err: VerifyError },
     /// Errors that occur in the version command
     VersionError{ err: VersionError },
+    /// Errors that occur when upgrading old config files.
+    UpgradeError { err: crate::upgrade::Error },
     /// Errors that occur in some inter-subcommand utility
     UtilError{ err: UtilError },
     /// Temporary wrapper around any anyhow error
@@ -91,6 +94,7 @@ impl Display for CliError {
             TestError{ err }     => write!(f, "{err}"),
             VerifyError{ err }   => write!(f, "{err}"),
             VersionError{ err }  => write!(f, "{err}"),
+            UpgradeError{ err }  => write!(f, "{err}"),
             UtilError{ err }     => write!(f, "{err}"),
             OtherError{ err }    => write!(f, "{err}"),
 
@@ -134,7 +138,7 @@ pub enum BuildError {
     /// Could not write to the DockerFile string.
     DockerfileStrWriteError{ err: std::fmt::Error },
     /// A given filepath escaped the working directory
-    UnsafePath{ path: String },
+    UnsafePath{ path: PathBuf },
     /// The entrypoint executable referenced was not found
     MissingExecutable{ path: PathBuf },
 
@@ -266,7 +270,7 @@ impl Display for BuildError {
             LockCreateError{ name, err } => write!(f, "Failed to create lockfile for package '{name}': {err}"),
 
             DockerfileStrWriteError{ err } => write!(f, "Could not write to the internal DockerFile: {err}"),
-            UnsafePath{ path }             => write!(f, "File '{path}' tries to escape package working directory; consider moving Brane's working directory up (using --workdir) and avoid '..'"),
+            UnsafePath{ path }             => write!(f, "File '{}' tries to escape package working directory; consider moving Brane's working directory up (using --workdir) and avoid '..'", path.display()),
             MissingExecutable{ path }      => write!(f, "Could not find the package entrypoint '{}'", path.display()),
 
             DockerfileCreateError{ path, err }                  => write!(f, "Could not create Dockerfile '{}': {}", path.display(), err),
@@ -508,6 +512,10 @@ pub enum DataError {
     NoEqualsInKeyPair{ raw: String },
     /// Failed to fetch the login file.
     InstanceInfoError{ err: InstanceError },
+    /// Failed to get the path of the active instance.
+    ActiveInstanceReadError { err: InstanceError },
+    /// Failed to get the active instance.
+    InstancePathError { name: String, err: InstanceError },
     /// Failed to create the remote data index.
     RemoteDataIndexError{ address: String, err: brane_tsk::errors::ApiError },
     /// Failed to select the download location in case there are multiple.
@@ -571,6 +579,8 @@ impl Display for DataError {
 
             NoEqualsInKeyPair{ raw }             => write!(f, "Missing '=' in key/value pair '{raw}'"),
             InstanceInfoError{ err }             => write!(f, "Could not read active instance info file: {err}"),
+            ActiveInstanceReadError { err }      => write!(f, "Failed to read active instance link: {err}"),
+            InstancePathError { name, err }      => write!(f, "Could not get path of instance '{name}': {err}"),
             RemoteDataIndexError{ address, err } => write!(f, "Failed to fetch remote data index from '{address}': {err}"),
             DataSelectError{ err }               => write!(f, "Failed to ask the user (you!) to select a download location: {err}"),
             UnknownLocation{ name }              => write!(f, "Unknown location '{name}'"),
@@ -923,6 +933,10 @@ pub enum RunError {
 
     /// Failed to fetch the login file.
     InstanceInfoError{ err: InstanceError },
+    /// Failed to get the path of the active instance.
+    ActiveInstanceReadError { err: InstanceError },
+    /// Failed to get the active instance.
+    InstancePathError { name: String, err: InstanceError },
     /// Failed to create the remote package index.
     RemotePackageIndexError{ address: String, err: brane_tsk::errors::ApiError },
     /// Failed to create the remote data index.
@@ -979,6 +993,8 @@ impl Display for RunError {
             ResultsDirCreateError{ err }   => write!(f, "Failed to create new temporary directory as an intermediate result directory: {err}"),
 
             InstanceInfoError{ err }                => write!(f, "{err}"),
+            ActiveInstanceReadError { err }         => write!(f, "Failed to read active instance link: {err}"),
+            InstancePathError { name, err }         => write!(f, "Could not get path of instance '{name}': {err}"),
             RemotePackageIndexError{ address, err } => write!(f, "Failed to fetch remote package index from '{address}': {err}"),
             RemoteDataIndexError{ address, err }    => write!(f, "Failed to fetch remote data index from '{address}': {err}"),
             RemoteDelegatesError{ address, err }    => write!(f, "Failed to fetch delegates map from '{address}': {err}"),
@@ -1013,19 +1029,10 @@ impl From<std::io::Error> for RunError {
 /// Collects errors during the test subcommand.
 #[derive(Debug)]
 pub enum TestError {
-    /// A package defines the same function as a builtin
-    PackageDefinesBuiltin{ name: String, version: Version, duplicate: String },
-    /// Failed to query the function to run.
-    FunctionQueryError{ err: std::io::Error },
-
-    /// Failed to ask the user for confirmation
-    YesNoQueryError{ err: std::io::Error },
     /// Failed to get the local data index.
     DataIndexError{ err: brane_tsk::local::Error },
-    /// Failed to query the user.
-    ValueQueryError{ res_type: &'static str, err: std::io::Error },
-    /// Failed to resolve a given class' name.
-    UndefinedClass{ name: String },
+    /// Failed to prompt the user for the function/input selection.
+    InputError { err: brane_tsk::input::Error },
 
     /// Failed to create a temporary directory
     TempDirError{ err: std::io::Error },
@@ -1054,13 +1061,8 @@ impl Display for TestError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use TestError::*;
         match self {
-            PackageDefinesBuiltin{ name, version, duplicate } => write!(f, "Package '{name}' (version {version}) attempts to re-define builtin class '{duplicate}'"),
-            FunctionQueryError{ err }                         => write!(f, "Failed to query the user (you) for which function to run: {err}"),
-
-            YesNoQueryError{ err }           => write!(f, "Failed to query the user (you) for confirmation: {err}"),
-            DataIndexError{ err }            => write!(f, "Failed to load local data index: {err}"),
-            ValueQueryError{ res_type, err } => write!(f, "Failed to query the user (you) for a value of type {res_type}: {err}"),
-            UndefinedClass{ name }           => write!(f, "Encountered undefined class '{name}'"),
+            DataIndexError{ err } => write!(f, "Failed to load local data index: {err}"),
+            InputError { err }    => write!(f, "Failed to ask the user (you!) for input: {}", err.trace()),
 
             TempDirError{ err }                    => write!(f, "Failed to create temporary results directory: {err}"),
             DatasetUnavailable{ name, locs }       => write!(f, "Dataset '{}' is unavailable{}", name, if !locs.is_empty() { format!("; however, locations {} do (try to get download permission to those datasets)", locs.iter().map(|l| format!("'{l}'")).collect::<Vec<String>>().join(", ")) } else { String::new() }),

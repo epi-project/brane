@@ -1,5 +1,10 @@
 [workspace]
+resolver = "2"
 members = [
+    ### OVERVIEW ###
+    "overview",
+
+
     ### BINARIES ###
     # These crates directly relate to the CTL tool
     "brane-ctl",
@@ -27,6 +32,11 @@ members = [
     "brane-prx",
 
 
+    ### C-INTERFACES ###
+    # These crates provide C-compatible interfaces to other libraries
+    "brane-cli-c",
+
+
     ### LIBRARIES ###
     # These crates provide the full BraneScript/Bakery/... stack
     "brane-tsk",
@@ -46,7 +56,7 @@ members = [
 
 
 [workspace.package]
-version = "2.0.0"
+version = "3.0.0"
 authors = [ "Onno Valkering", "Tim Müller" ]
 description = "The Brane Framework is a workflow execution system that is capable of dealing with sensitive dataset. Created for the [EPI project](https://enablingpersonalizedinterventions.nl)."
 documentation = "https://wiki.enablingpersonalizedinterventions.nl"

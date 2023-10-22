@@ -4,7 +4,7 @@
 //  Created:
 //    18 Oct 2022, 13:50:11
 //  Last edited:
-//    10 Mar 2023, 15:52:47
+//    23 May 2023, 15:22:15
 //  Auto updated?
 //    Yes
 // 
@@ -18,16 +18,17 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use specifications::address::Address;
 use specifications::package::Capability;
 
-pub use crate::spec::YamlError as Error;
-use crate::spec::YamlConfig;
+pub use crate::info::YamlError as Error;
+use crate::info::YamlInfo;
 
 
 /***** AUXILLARY *****/
 /// Defines the possible credentials we may encounter.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", tag = "kind")]
+#[serde(rename_all = "snake_case")]
 pub enum Credentials {
     // Job node acting as a node
     /// Defines that this job node connects to the "backend" by simply spinning up the local Docker daemon.
@@ -42,7 +43,7 @@ pub enum Credentials {
     /// Defines that this job node connects to one node by use of SSH. This effectively allows the centralized Brane manager to orchestrate over nodes instead of clusters.
     Ssh {
         /// The address of the machine to connect to. Should include any ports if needed.
-        address : String,
+        address : Address,
         /// The path to the key file to connect with.
         key     : PathBuf,
     },
@@ -54,10 +55,10 @@ pub enum Credentials {
     },
     /// Defines that this job node connects to a backend Kubernetes cluster.
     Kubernetes {
-        /// The address or URL of the machine to connect to. Should include the port if so.
-        address : String,
+        /// The address of the Docker registry that we push container images to.
+        registry_address : Address,
         /// The path to the Kubernetes config file to connect with.
-        config  : PathBuf,
+        config           : PathBuf,
     },
 }
 
@@ -87,4 +88,4 @@ impl BackendFile {
     #[inline]
     pub fn hash_containers(&self) -> bool { self.hash_containers.unwrap_or(true) }
 }
-impl<'de> YamlConfig<'de> for BackendFile {}
+impl<'de> YamlInfo<'de> for BackendFile {}

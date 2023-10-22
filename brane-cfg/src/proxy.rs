@@ -24,9 +24,9 @@ use serde::ser::Serializer;
 
 use specifications::address::Address;
 
-pub use crate::spec::YamlError as Error;
+pub use crate::info::YamlError as Error;
 use crate::errors::ProxyProtocolParseError;
-use crate::spec::YamlConfig;
+use crate::info::YamlInfo;
 
 
 /***** AUXILLARY *****/
@@ -127,7 +127,7 @@ impl Default for ProxyConfig {
         }
     }
 }
-impl<'de> YamlConfig<'de> for ProxyConfig {}
+impl<'de> YamlInfo<'de> for ProxyConfig {}
 
 
 

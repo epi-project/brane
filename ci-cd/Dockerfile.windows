@@ -1,0 +1,29 @@
+# DOCKERFILE.ubuntu
+#   by Tim Müller
+# 
+# Simple Windows-based wrapper around the scripts in this directory that we can
+# use to emulate the GitHub actions locally.
+# 
+# Note: this is a Windows container, which generally sucks. This means:
+# - Run this container in a Windows host
+# - Don't use BuildX, but the default build system (since BuildX only supports Linux containers)
+# - You might need to change images if you're running from another Windows version/Windows Server instead of the consumer OS.
+#
+
+FROM mcr.microsoft.com/windows:20H2
+
+# Restore the default Windows shell for correct batch processing.
+SHELL ["cmd", "/S", "/C"]
+
+# Install Chocolatey
+RUN @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+
+# Install Python
+RUN choco install -y python3
+
+# Copy the files over
+RUN md C:\brane
+COPY . \brane
+
+# Run the entrypoint
+ENTRYPOINT [ "python", "C:\\brane\\ci-cd\\ci_cd.py", "--os", "windows", "--repo", "C:\\brane", "--debug" ]

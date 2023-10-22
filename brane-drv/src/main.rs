@@ -20,7 +20,7 @@ use dotenvy::dotenv;
 use log::{debug, error, info, LevelFilter};
 use tonic::transport::Server;
 
-use brane_cfg::spec::Config as _;
+use brane_cfg::info::Info as _;
 use brane_cfg::node::{CentralConfig, NodeConfig};
 use brane_prx::client::ProxyClient;
 use specifications::driving::DriverServiceServer;

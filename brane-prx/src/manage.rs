@@ -4,7 +4,7 @@
 //  Created:
 //    23 Nov 2022, 11:07:05
 //  Last edited:
-//    09 Mar 2023, 18:39:29
+//    02 Oct 2023, 17:21:55
 //  Auto updated?
 //    Yes
 // 
@@ -163,7 +163,7 @@ pub async fn new_incoming_path(port: u16, address: Address, context: Arc<Context
     if context.proxy.outgoing_range.contains(&port) { return Err(RedirectError::PortInOutgoingRange{ port, range: context.proxy.outgoing_range.clone() }); }
 
     // Attempt to start listening on that port
-    let socket_addr: SocketAddr = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0).into(), port).into();
+    let socket_addr: SocketAddr = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port).into();
     debug!("Creating listener on '{}'", socket_addr);
     let listener: TcpListener = match TcpListener::bind(socket_addr).await {
         Ok(listener) => listener,

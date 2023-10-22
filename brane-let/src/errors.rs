@@ -4,7 +4,7 @@
 //  Created:
 //    11 Feb 2022, 13:09:23
 //  Last edited:
-//    26 Oct 2022, 17:21:44
+//    22 May 2023, 10:12:51
 //  Auto updated?
 //    Yes
 // 
@@ -19,8 +19,6 @@ use std::path::PathBuf;
 use brane_ast::DataType;
 use specifications::container::LocalContainerInfoError;
 use specifications::package::PackageKind;
-
-// use crate::callback::CallbackError;
 
 
 /***** ERRORS *****/

@@ -4,7 +4,7 @@
 //  Created:
 //    28 Feb 2023, 10:01:27
 //  Last edited:
-//    16 Mar 2023, 16:18:10
+//    23 May 2023, 17:14:24
 //  Auto updated?
 //    Yes
 // 
@@ -26,7 +26,7 @@ use specifications::address::Address;
 
 pub use crate::errors::NodeConfigError as Error;
 use crate::errors::NodeKindParseError;
-use crate::spec::YamlConfig;
+use crate::info::YamlInfo;
 
 
 /***** AUXILLARY *****/
@@ -78,7 +78,7 @@ pub struct NodeConfig {
     /// Any node-specific config
     pub node : NodeSpecificConfig,
 }
-impl<'de> YamlConfig<'de> for NodeConfig {}
+impl<'de> YamlInfo<'de> for NodeConfig {}
 
 
 
@@ -367,7 +367,7 @@ pub struct WorkerServices {
     #[serde(alias = "registry")]
     pub reg : PublicService,
     /// Defines the job (local driver) service.
-    #[serde(alias = "driver")]
+    #[serde(alias = "delegate")]
     pub job : PublicService,
     /// Defines the checker service.
     #[serde(alias = "checker")]

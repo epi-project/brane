@@ -54,7 +54,7 @@ pub async fn handle(
 
     // Lock the directory, build, unlock the directory
     {
-        let _lock = match FileLock::lock(&package_info.name, &package_info.version, package_dir.join(".lock")) {
+        let _lock = match FileLock::lock(&package_info.name, package_info.version, package_dir.join(".lock")) {
             Ok(lock) => lock,
             Err(err) => { return Err(BuildError::LockCreateError{ name: package_info.name, err }); },
         };

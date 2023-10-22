@@ -4,7 +4,7 @@
 //  Created:
 //    28 Nov 2022, 15:56:23
 //  Last edited:
-//    13 Apr 2023, 12:23:03
+//    03 Oct 2023, 10:55:47
 //  Auto updated?
 //    Yes
 // 
@@ -21,6 +21,7 @@ use brane_exe::spec::CustomGlobalState;
 use brane_tsk::docker::DockerOptions;
 use specifications::data::DataIndex;
 use specifications::package::PackageIndex;
+use specifications::version::Version;
 
 use crate::errors::HostnameParseError;
 
@@ -122,11 +123,35 @@ impl FromStr for Hostname {
 
 
 
+/// Parses a version number that scopes a particular operation down. In other words, can be a specific version number or `all`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VersionFix(pub Option<Version>);
+impl Display for VersionFix {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        write!(f, "{}", if let Some(version) = self.0 { version.to_string() } else { "all".into() })
+    }
+}
+impl FromStr for VersionFix {
+    type Err = specifications::version::ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Parse the auto first
+        if s == "all" { return Ok(Self(None)); }
+        // Otherwise, delegate to the version parser
+        Ok(Self(Some(Version::from_str(s)?)))
+    }
+}
+
+
+
 /// The global state for the OfflineVm.
 #[derive(Clone, Debug)]
 pub struct GlobalState {
     /// The information we want to know for Docker
-    pub docker_opts : DockerOptions,
+    pub docker_opts     : DockerOptions,
+    /// Whether to keep containers after execution or not
+    pub keep_containers : bool,
 
     /// The path to the directory where packages (and thus container images) are stored for this session.
     pub package_dir : PathBuf,

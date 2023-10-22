@@ -4,7 +4,7 @@
 //  Created:
 //    26 Jan 2023, 09:22:13
 //  Last edited:
-//    19 Apr 2023, 12:52:27
+//    10 May 2023, 16:34:46
 //  Auto updated?
 //    Yes
 // 
@@ -27,7 +27,7 @@ use prettytable::Table;
 use prettytable::format::FormatBuilder;
 use serde::{Deserialize, Serialize};
 
-use brane_shr::debug::PrettyListFormatter;
+use brane_shr::formatters::PrettyListFormatter;
 use specifications::address::Address;
 
 pub use crate::errors::InstanceError as Error;

@@ -4,7 +4,7 @@
 //  Created:
 //    04 Oct 2022, 11:09:56
 //  Last edited:
-//    10 Mar 2023, 16:07:32
+//    07 Jun 2023, 16:27:48
 //  Auto updated?
 //    Yes
 // 
@@ -135,48 +135,3 @@ impl Display for NodeKindParseError {
     }
 }
 impl Error for NodeKindParseError {}
-
-
-
-/// Defines general errors for configs.
-#[derive(Debug)]
-pub enum ConfigError<E: Debug> {
-    /// Failed to create the output file.
-    OutputCreateError{ path: PathBuf, err: std::io::Error },
-    /// Failed to open the input file.
-    InputOpenError{ path: PathBuf, err: std::io::Error },
-    /// Failed to read the input file.
-    InputReadError{ path: PathBuf, err: std::io::Error },
-
-    /// Failed to serialize the config to a string.
-    StringSerializeError{ err: E },
-    /// Failed to serialize the config to a given writer.
-    WriterSerializeError{ err: E },
-    /// Failed to serialize the config to a given file.
-    FileSerializeError{ path: PathBuf, err: E },
-
-    /// Failed to deserialize a string to the config.
-    StringDeserializeError{ err: E },
-    /// Failed to deserialize a reader to the config.
-    ReaderDeserializeError{ err: E },
-    /// Failed to deserialize a file to the config.
-    FileDeserializeError{ path: PathBuf, err: E },
-}
-impl<E: Error> Display for ConfigError<E> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use ConfigError::*;
-        match self {
-            OutputCreateError{ path, err } => write!(f, "Failed to create output file '{}': {}", path.display(), err),
-            InputOpenError{ path, err }    => write!(f, "Failed to open input file '{}': {}", path.display(), err),
-            InputReadError{ path, err }    => write!(f, "Failed to read input file '{}': {}", path.display(), err),
-
-            StringSerializeError{ err }     => write!(f, "Failed to serialize to string: {err}"),
-            WriterSerializeError{ err }     => write!(f, "Failed to serialize to a writer: {err}"),
-            FileSerializeError{ path, err } => write!(f, "Failed to serialize to output file '{}': {}", path.display(), err),
-
-            StringDeserializeError{ err }     => write!(f, "Failed to deserialize from string: {err}"),
-            ReaderDeserializeError{ err }     => write!(f, "Failed to deserialize from a reader: {err}"),
-            FileDeserializeError{ path, err } => write!(f, "Failed to deserialize from input file '{}': {}", path.display(), err),
-        }
-    }
-}

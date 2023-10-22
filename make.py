@@ -5,7 +5,7 @@
 # Created:
 #   09 Jun 2022, 12:20:28
 # Last edited:
-#   13 Apr 2023, 10:07:16
+#   22 Oct 2023, 17:52:48
 # Auto updated?
 #   Yes
 #
@@ -3355,7 +3355,7 @@ targets = {
     ),
     "branelet" : EitherTarget("branelet",
         "con", {
-            True  : InContainerTarget("branelet-con",
+            True : InContainerTarget("branelet-con",
                 "brane-build", volumes=[ ("$CWD", "/build") ], command=["brane-let", "--arch", "$ARCH"],
                 keep_alive=True,
                 dsts=["./target/containers/x86_64-unknown-linux-musl/release/branelet"],
@@ -3374,6 +3374,20 @@ targets = {
     "worker-instance" : VoidTarget("worker-instance",
         deps=[ f"{svc}-image" for svc in WORKER_SERVICES ] + [ f"{svc}-image" for svc in AUX_WORKER_SERVICES ],
         description="Builds the container images that comprise a worker node in a Brane instance."
+    ),
+    "libbrane_cli" : EitherTarget("libbrane_cli",
+        "con", {
+            True : InContainerTarget("libbrane_cli-con",
+                "brane-build", volumes=[ ("$CWD", "/build") ], command=["brane-cli-c", "--arch", "$ARCH"],
+                keep_alive=True,
+                dsts=["./target/containers/x86_64-unknown-linux-musl/release/libbrane_cli.so"],
+                deps=["install-build-image"],
+            ),
+            False : CrateTarget("libbrane_cli-compiled",
+                "brane-cli-c", target="$ARCH-unknown-linux-musl", give_target_on_unspecified=False,
+            ),
+        },
+        description = "Builds the Brane CLI dynamic C-library (as an `.so`-file). You may use '--containerized' to build it in a container."
     ),
 
 

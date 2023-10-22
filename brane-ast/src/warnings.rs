@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 16:08:42
 //  Last edited:
-//    20 Oct 2022, 15:29:41
+//    10 Aug 2023, 14:03:24
 //  Auto updated?
 //    Yes
 // 
@@ -13,39 +13,39 @@
 // 
 
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
+use std::io::Write;
 
 use console::{style, Style};
 
 use brane_dsl::TextRange;
 use brane_dsl::spec::MergeStrategy;
 
-use crate::errors::{n, eprint_range};
+use crate::errors::{n, ewrite_range};
 use crate::spec::BuiltinClasses;
 
 
 /***** HELPER FUNCTIONS *****/
-/// Prettyprints a warning with only one 'reason'.
-/// 
-/// # Generic arguments
-/// - `S1`: The &str-like type of the `file` path.
-/// - `S2`: The &str-like type of the `source` text.
+/// Prettyprints a warning with only one 'reason' to the given [`Write`]r.
 /// 
 /// # Arguments
+/// - `writer`: The [`Write`]-enabled object to write the serialized warning to.
+/// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
 /// - `source`: The source text to extract the line from.
 /// - `warn`: The Warning to print.
 /// - `range`: The range of the warning.
 /// 
-/// # Returns
-/// Nothing, but does print the warning to stderr.
-pub(crate) fn prettyprint_warn<S1: AsRef<str>, S2: AsRef<str>>(file: S1, source: S2, err: &dyn Display, range: &TextRange) {
+/// # Errors
+/// This function may error if we failed to write to the given writer.
+pub(crate) fn prettywrite_warn(mut writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>, warn: &dyn Display, range: &TextRange) -> Result<(), std::io::Error> {
     // Print the top line
-    eprintln!("{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(range.start.line), n!(range.start.col))).bold(), style("warning").yellow().bold(), err);
+    writeln!(&mut writer, "{}: {}: {}", style(format!("{}:{}:{}", file.as_ref(), n!(range.start.line), n!(range.start.col))).bold(), style("warning").yellow().bold(), warn)?;
 
     // Print the range
-    eprint_range(source, range, Style::new().yellow().bold());
-    eprintln!();
+    ewrite_range(&mut writer, source, range, Style::new().yellow().bold())?;
+    writeln!(&mut writer)?;
 
     // Done
+    Ok(())
 }
 
 
@@ -73,22 +73,27 @@ pub enum AstWarning {
 impl AstWarning {
     /// Prints the warning in a pretty way to stderr.
     /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
-    /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
-    /// 
-    /// # Returns
-    /// Nothing, but does print the warning to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    #[inline]
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use AstWarning::*;
         match self {
-            TypeWarning(warn)    => warn.prettyprint(file, source),
-            CompileWarning(warn) => warn.prettyprint(file, source),
+            TypeWarning(warn)    => warn.prettywrite(writer, file, source),
+            CompileWarning(warn) => warn.prettywrite(writer, file, source),
         }
     }
 }
@@ -135,10 +140,6 @@ pub enum TypeWarning {
 impl TypeWarning {
     /// Prints the warning in a pretty way to stderr.
     /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
-    /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
@@ -146,12 +147,24 @@ impl TypeWarning {
     /// # Returns
     /// Nothing, but does print the warning to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    #[inline]
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use TypeWarning::*;
         match self {
-            UnusedMergeStrategy{ range, .. } => prettyprint_warn(file, source, self, range),
+            UnusedMergeStrategy{ range, .. } => prettywrite_warn(writer, file, source, self, range),
 
-            ReturningIntermediateResult{ range, .. } => prettyprint_warn(file, source, self, range),
+            ReturningIntermediateResult{ range, .. } => prettywrite_warn(writer, file, source, self, range),
         }
     }
 }
@@ -182,10 +195,6 @@ pub enum CompileWarning {
 impl CompileWarning {
     /// Prints the warning in a pretty way to stderr.
     /// 
-    /// # Generic arguments:
-    /// - `S1`: The &str-like type of the `file` path.
-    /// - `S2`: The &str-like type of the `source` text.
-    /// 
     /// # Arguments
     /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
     /// - `source`: The source text to read the debug range from.
@@ -193,10 +202,22 @@ impl CompileWarning {
     /// # Returns
     /// Nothing, but does print the warning to stderr.
     #[inline]
-    pub fn prettyprint<S1: AsRef<str>, S2: AsRef<str>>(&self, file: S1, source: S2) {
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    /// 
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    #[inline]
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
         use CompileWarning::*;
         match self {
-            OnDeprecated{ range, .. } => prettyprint_warn(file, source, self, range),
+            OnDeprecated{ range, .. } => prettywrite_warn(writer, file, source, self, range),
         }
     }
 }

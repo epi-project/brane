@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 09:27:32
 //  Last edited:
-//    23 Jan 2023, 11:41:11
+//    02 Oct 2023, 17:11:55
 //  Auto updated?
 //    Yes
 // 
@@ -13,6 +13,7 @@
 //!   during compilation.
 // 
 
+use std::borrow::Cow;
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
@@ -334,11 +335,11 @@ impl EdgeBufferNode {
         // If there was already a link, move it to the other link
         if self.next.is_some() {
             // Get the last pointer in the other branch
-            let mut last: EdgeBufferNodePtr = other.clone();
+            let mut last: Cow<EdgeBufferNodePtr> = Cow::Borrowed(&other);
             loop {
                 let next: Option<EdgeBufferNodePtr> = last.borrow().next();
                 match next {
-                    Some(next) => { last = next; },
+                    Some(next) => { last = Cow::Owned(next); },
                     None       => { break; }
                 }
             }
@@ -414,11 +415,11 @@ impl EdgeBufferNode {
         // If there was already a link, move it to the other link
         if self.next.is_some() {
             // Get the last pointer in the other branch
-            let mut last: EdgeBufferNodePtr = join.clone();
+            let mut last: Cow<EdgeBufferNodePtr> = Cow::Borrowed(&join);
             loop {
                 let next: Option<EdgeBufferNodePtr> = last.borrow().next();
                 match next {
-                    Some(next) => { last = next; },
+                    Some(next) => { last = Cow::Owned(next); },
                     None       => { break; }
                 }
             }

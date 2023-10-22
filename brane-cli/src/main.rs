@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    19 Apr 2023, 12:16:51
+//    03 Oct 2023, 11:36:15
 //  Auto updated?
 //    Yes
 // 
@@ -34,9 +34,9 @@ use specifications::arch::Arch;
 use specifications::package::PackageKind;
 use specifications::version::Version as SemVersion;
 
-use brane_cli::{build_ecu, build_oas, certs, data, instance, packages, registry, repl, run, test, verify, version};
+use brane_cli::{build_ecu, build_oas, certs, data, instance, packages, registry, repl, run, test, upgrade, verify, version};
 use brane_cli::errors::{CliError, ImportError};
-use brane_cli::spec::{API_DEFAULT_VERSION, Hostname};
+use brane_cli::spec::{API_DEFAULT_VERSION, Hostname, VersionFix};
 
 
 /***** ARGUMENTS *****/
@@ -216,18 +216,21 @@ enum SubCommand {
         /// The Docker socket location.
         #[cfg(unix)]
         #[clap(short='s', long, default_value = "/var/run/docker.sock", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(windows)]
         #[clap(short='s', long, default_value = "//./pipe/docker_engine", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(not(any(unix, windows)))]
         #[clap(short='s', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker client version.
         #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
-        client_version : ClientVersion,
+        client_version  : ClientVersion,
+        /// Whether to keep container after running or not.
+        #[clap(short='k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
+        keep_containers : bool,
     },
 
     #[clap(name = "run", about = "Run a DSL script locally")]
@@ -251,18 +254,21 @@ enum SubCommand {
         /// The Docker socket location.
         #[cfg(unix)]
         #[clap(short='s', long, default_value = "/var/run/docker.sock", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(windows)]
         #[clap(short='s', long, default_value = "//./pipe/docker_engine", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(not(any(unix, windows)))]
         #[clap(short='s', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker client version.
         #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
-        client_version : ClientVersion,
+        client_version  : ClientVersion,
+        /// Whether to keep container after running or not.
+        #[clap(short='k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
+        keep_containers : bool,
     },
 
     #[clap(name = "test", about = "Test a package locally")]
@@ -277,18 +283,21 @@ enum SubCommand {
         /// The Docker socket location.
         #[cfg(unix)]
         #[clap(short='s', long, default_value = "/var/run/docker.sock", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(windows)]
         #[clap(short='s', long, default_value = "//./pipe/docker_engine", help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker socket location.
         #[cfg(not(any(unix, windows)))]
         #[clap(short='s', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket  : PathBuf,
+        docker_socket   : PathBuf,
         /// The Docker client version.
         #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
-        client_version : ClientVersion,
+        client_version  : ClientVersion,
+        /// Whether to keep container after running or not.
+        #[clap(short='k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
+        keep_containers : bool,
     },
 
     #[clap(name = "search", about = "Search a registry for packages")]
@@ -305,6 +314,13 @@ enum SubCommand {
         version: SemVersion,
         #[clap(short, long, action, help = "Don't ask for confirmation")]
         force: bool,
+    },
+
+    #[clap(name = "upgrade", about = "Upgrades outdated configuration files to this Brane version")]
+    Upgrade {
+        // We subcommand further
+        #[clap(subcommand)]
+        subcommand : UpgradeSubcommand,
     },
 
     #[clap(name = "verify", about = "Verifies parts of Brane's configuration (useful mostly if you are in charge of an instance.")]
@@ -494,6 +510,27 @@ enum InstanceSubcommand {
     },
 }
 
+/// Defines the subcommands for the upgrade subcommand.
+#[derive(Parser)]
+enum UpgradeSubcommand {
+    #[clap(name = "data", about = "Upgrades old data.yml files to this Brane version.")]
+    Data {
+        /// The file or folder to upgrade.
+        #[clap(name = "PATH", default_value = "./", help = "The path to the file or folder (recursively traversed) of files to upgrade to this version. If a directory, will consider any YAML files (*.yml or *.yaml) that are successfully parsed with an old data.yml parser.")]
+        path : PathBuf,
+
+        /// Whether to run dryly or not
+        #[clap(short, long, help = "If given, does not do anything but instead just reports which files would be updated.")]
+        dry_run   : bool,
+        /// Whether to keep old versions
+        #[clap(short='O', long, help = "If given, will not keep the old versions alongside the new ones but instead overwrite them. Use them only if you are certain no unrelated files are converted or converted incorrectly! (see '--dry-run')")]
+        overwrite : bool,
+        /// Fixes the version from which we are converting.
+        #[clap(short, long, default_value = "all", help = "Whether to consider only one version when examining a file. Can be any valid BRANE version or 'auto' to use all supported versions.")]
+        version   : VersionFix,
+    }
+}
+
 /// Defines the subcommands for the verify subcommand.
 #[derive(Parser)]
 enum VerifySubcommand {
@@ -527,7 +564,7 @@ async fn main() -> Result<()> {
         setup_panic!(Metadata {
             name: "Brane CLI".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            authors: env!("CARGO_PKG_AUTHORS").replace(":", ", ").into(),
+            authors: env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
             homepage: env!("CARGO_PKG_HOMEPAGE").into(),
         });
     }
@@ -772,14 +809,14 @@ async fn run(options: Cli) -> Result<(), CliError> {
             // Now delegate the parsed pairs to the actual remove() function
             if let Err(err) = packages::remove(force, parsed, DockerOptions{ socket: docker_socket, version: client_version }).await { return Err(CliError::PackageError{ err }); };
         }
-        Repl { proxy_addr, bakery, clear, remote, attach, profile, docker_socket, client_version } => {
-            if let Err(err) = repl::start(proxy_addr, remote, attach, if bakery { Language::Bakery } else { Language::BraneScript }, clear, profile, DockerOptions{ socket: docker_socket, version: client_version }).await { return Err(CliError::ReplError{ err }); };
+        Repl { proxy_addr, bakery, clear, remote, attach, profile, docker_socket, client_version, keep_containers } => {
+            if let Err(err) = repl::start(proxy_addr, remote, attach, if bakery { Language::Bakery } else { Language::BraneScript }, clear, profile, DockerOptions{ socket: docker_socket, version: client_version }, keep_containers).await { return Err(CliError::ReplError{ err }); };
         }
-        Run { proxy_addr, bakery, file, dry_run, remote, profile, docker_socket, client_version } => {
-            if let Err(err) = run::handle(proxy_addr, if bakery { Language::Bakery } else { Language::BraneScript }, file, dry_run, remote, profile, DockerOptions{ socket: docker_socket, version: client_version }).await { return Err(CliError::RunError{ err }); };
+        Run { proxy_addr, bakery, file, dry_run, remote, profile, docker_socket, client_version, keep_containers } => {
+            if let Err(err) = run::handle(proxy_addr, if bakery { Language::Bakery } else { Language::BraneScript }, file, dry_run, remote, profile, DockerOptions{ socket: docker_socket, version: client_version }, keep_containers).await { return Err(CliError::RunError{ err }); };
         }
-        Test { name, version, show_result, docker_socket, client_version } => {
-            if let Err(err) = test::handle(name, version, show_result, DockerOptions{ socket: docker_socket, version: client_version }).await { return Err(CliError::TestError{ err }); };
+        Test { name, version, show_result, docker_socket, client_version, keep_containers } => {
+            if let Err(err) = test::handle(name, version, show_result, DockerOptions{ socket: docker_socket, version: client_version }, keep_containers).await { return Err(CliError::TestError{ err }); };
         }
         Search { term } => {
             if let Err(err) = registry::search(term).await { return Err(CliError::OtherError{ err }); };
@@ -787,6 +824,16 @@ async fn run(options: Cli) -> Result<(), CliError> {
         Unpublish { name, version, force } => {
             if let Err(err) = registry::unpublish(name, version, force).await { return Err(CliError::OtherError{ err }); };
         }
+        Upgrade { subcommand } => {
+            // Match the subcommand in question
+            use UpgradeSubcommand::*;
+            match subcommand {
+                Data { path, dry_run, overwrite, version } => {
+                    // Upgrade the file
+                    if let Err(err) = upgrade::data(path, dry_run, overwrite, version) { return Err(CliError::UpgradeError{ err }); }
+                },
+            }
+        },
         Verify { subcommand } => {
             // Match the subcommand in question
             use VerifySubcommand::*;

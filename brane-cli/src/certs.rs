@@ -4,7 +4,7 @@
 //  Created:
 //    30 Jan 2023, 09:35:00
 //  Last edited:
-//    19 Apr 2023, 13:09:07
+//    26 Jul 2023, 09:35:32
 //  Auto updated?
 //    Yes
 // 
@@ -18,6 +18,8 @@ use std::fs::{self, DirEntry, File, ReadDir};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use console::{pad_str, style, Alignment};
 use dialoguer::Confirm;
 use enum_debug::EnumDebug;
@@ -27,11 +29,11 @@ use rustls::{Certificate, PrivateKey};
 use x509_parser::certificate::X509Certificate;
 use x509_parser::extensions::{ParsedExtension, X509Extension};
 use x509_parser::oid_registry::OID_X509_EXT_KEY_USAGE;
-use x509_parser::prelude::{FromDer as _};
+use x509_parser::prelude::FromDer as _;
 use x509_parser::x509::X509Name;
 
 use brane_cfg::certs::load_all;
-use brane_shr::debug::PrettyListFormatter;
+use brane_shr::formatters::PrettyListFormatter;
 
 pub use crate::errors::CertsError as Error;
 use crate::utils::{ensure_instances_dir, get_instance_dir};
@@ -313,7 +315,7 @@ pub fn add(instance_name: Option<String>, paths: Vec<PathBuf>, mut domain_name: 
 
         // Write the CA certificate with all the bells and whistles
         if let Err(err) = writeln!(handle, "-----BEGIN CERTIFICATE-----") { return Err(Error::FileWriteError{ what: "ca", path: ca_path, err }); }
-        for chunk in base64::encode(ca_cert.0).as_bytes().chunks(64) {
+        for chunk in STANDARD.encode(ca_cert.0).as_bytes().chunks(64) {
             if let Err(err) = handle.write(chunk) { return Err(Error::FileWriteError{ what: "ca", path: ca_path, err }); }
             if let Err(err) = writeln!(handle) { return Err(Error::FileWriteError{ what: "ca", path: ca_path, err }); }
         }
@@ -333,7 +335,7 @@ pub fn add(instance_name: Option<String>, paths: Vec<PathBuf>, mut domain_name: 
 
         // Write the client certificate with all the bells and whistles
         if let Err(err) = writeln!(handle, "-----BEGIN CERTIFICATE-----") { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
-        for chunk in base64::encode(client_cert.0).as_bytes().chunks(64) {
+        for chunk in STANDARD.encode(client_cert.0).as_bytes().chunks(64) {
             if let Err(err) = handle.write(chunk) { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
             if let Err(err) = writeln!(handle) { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
         }
@@ -341,7 +343,7 @@ pub fn add(instance_name: Option<String>, paths: Vec<PathBuf>, mut domain_name: 
 
         // Write the client key with all the bells and whistles
         if let Err(err) = writeln!(handle, "-----BEGIN RSA PRIVATE KEY-----") { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
-        for chunk in base64::encode(client_key.0).as_bytes().chunks(64) {
+        for chunk in STANDARD.encode(client_key.0).as_bytes().chunks(64) {
             if let Err(err) = handle.write(chunk) { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
             if let Err(err) = writeln!(handle) { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
         }

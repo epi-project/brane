@@ -4,7 +4,7 @@
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    18 Apr 2023, 10:08:37
+//    22 Oct 2023, 14:15:43
 //  Auto updated?
 //    Yes
 // 
@@ -21,14 +21,15 @@ use humanlog::{DebugMode, HumanLogger};
 use log::error;
 
 use brane_cfg::proxy::{ForwardConfig, ProxyProtocol};
+use brane_shr::errors::ErrorTrace as _;
 use brane_tsk::docker::{ClientVersion, DockerOptions};
 use specifications::address::Address;
 use specifications::arch::Arch;
 use specifications::package::Capability;
 use specifications::version::Version;
 
-use brane_ctl::spec::{API_DEFAULT_VERSION, DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair, ResolvableNodeKind, StartOpts, StartSubcommand};
-use brane_ctl::{download, generate, lifetime, packages, unpack};
+use brane_ctl::spec::{API_DEFAULT_VERSION, DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair, ResolvableNodeKind, StartOpts, StartSubcommand, VersionFix};
+use brane_ctl::{download, generate, lifetime, packages, unpack, upgrade, wizard};
 
 
 /***** ARGUMENTS *****/
@@ -60,6 +61,10 @@ enum CtlSubcommand {
     Generate(Box<GenerateSubcommand>),
     #[clap(subcommand)]
     Unpack(Box<UnpackSubcommand>),
+    #[clap(subcommand)]
+    Upgrade(Box<UpgradeSubcommand>),
+    #[clap(subcommand)]
+    Wizard(Box<WizardSubcommand>),
 
     #[clap(subcommand)]
     Packages(Box<PackageSubcommand>),
@@ -256,7 +261,7 @@ enum GenerateSubcommand {
         #[clap(short, long, help = "If given, will generate any missing directories.")]
         fix_dirs : bool,
         /// The path to write to.
-        #[clap(short, long, default_value = "./policies.yml", help = "The path to write the policy file to.")]
+        #[clap(short, long, default_value = "./proxy.yml", help = "The path to write the proxy file to.")]
         path     : PathBuf,
 
         /// Defines the range of ports that we can allocate for outgoing connections.
@@ -291,6 +296,36 @@ enum UnpackSubcommand {
         #[clap(short, long, help="If given, will create missing directories instead of throwing an error.")]
         fix_dirs : bool,
     }
+}
+
+/// Defines the subcommands for the upgrade subcommand
+#[derive(Debug, Subcommand)]
+#[clap(name = "upgrade", about = "Updates configuration files from an older BRANE version to this one.")]
+enum UpgradeSubcommand {
+    #[clap(name = "node", about = "Upgrade node.yml files to be compatible with this BRANE version.")]
+    Node {
+        /// The file or folder to upgrade.
+        #[clap(name = "PATH", default_value = "./", help = "The path to the file or folder (recursively traversed) of files to upgrade to this version. If a directory, will consider any YAML files (*.yml or *.yaml) that are successfully parsed with an old node.yml parser.")]
+        path : PathBuf,
+
+        /// Whether to run dryly or not
+        #[clap(short, long, help = "If given, does not do anything but instead just reports which files would be updated.")]
+        dry_run   : bool,
+        /// Whether to keep old versions
+        #[clap(short='O', long, help = "If given, will not keep the old versions alongside the new ones but instead overwrite them. Use them only if you are certain no unrelated files are converted or converted incorrectly! (see '--dry-run')")]
+        overwrite : bool,
+        /// Fixes the version from which we are converting.
+        #[clap(short, long, default_value = "all", help = "Whether to consider only one version when examining a file. Can be any valid BRANE version or 'auto' to use all supported versions.")]
+        version   : VersionFix,
+    },
+}
+
+/// Defines subcommands relating to the wizard
+#[derive(Debug, Subcommand)]
+#[clap(name = "wizard", about = "A suite of interactive wizards to ease particular processes.")]
+enum WizardSubcommand {
+    #[clap(name = "setup", alias = "node", about = "Starts a wizard that sets up a new node.")]
+    Setup {},
 }
 
 /// Defines package-related subcommands for the `branectl` tool.
@@ -352,7 +387,7 @@ async fn main() {
         human_panic::setup_panic!(Metadata {
             name: "Brane CTL".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            authors: env!("CARGO_PKG_AUTHORS").replace(":", ", ").into(),
+            authors: env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
             homepage: env!("CARGO_PKG_HOMEPAGE").into(),
         });
     }
@@ -362,49 +397,59 @@ async fn main() {
         CtlSubcommand::Download(subcommand) => match *subcommand {
             DownloadSubcommand::Services { fix_dirs, path, arch, version, force, kind } => {
                 // Run the subcommand
-                if let Err(err) = download::services(fix_dirs, path, arch, version, force, kind).await { error!("{}", err); std::process::exit(1); }
+                if let Err(err) = download::services(fix_dirs, path, arch, version, force, kind).await { error!("{}", err.trace()); std::process::exit(1); }
             },
         },
         CtlSubcommand::Generate(subcommand) => match *subcommand {
             GenerateSubcommand::Node{ hosts, fix_dirs, config_path, kind } => {
                 // Call the thing
-                if let Err(err) = generate::node(args.node_config, hosts, fix_dirs, config_path, *kind) { error!("{}", err); std::process::exit(1); }
+                if let Err(err) = generate::node(args.node_config, hosts, fix_dirs, config_path, *kind) { error!("{}", err.trace()); std::process::exit(1); }
             },
 
             GenerateSubcommand::Certs { fix_dirs, path, temp_dir, kind } => {
                 // Call the thing
-                if let Err(err) = generate::certs(fix_dirs, path, temp_dir, *kind).await { error!("{}", err); std::process::exit(1); }
+                if let Err(err) = generate::certs(fix_dirs, path, temp_dir, *kind).await { error!("{}", err.trace()); std::process::exit(1); }
             },
 
             GenerateSubcommand::Infra{ locations, fix_dirs, path, names, reg_ports, job_ports } => {
                 // Call the thing
-                if let Err(err) = generate::infra(locations, fix_dirs, path, names, reg_ports, job_ports) { error!("{}", err); std::process::exit(1); }
+                if let Err(err) = generate::infra(locations, fix_dirs, path, names, reg_ports, job_ports) { error!("{}", err.trace()); std::process::exit(1); }
             },
 
             GenerateSubcommand::Backend{ fix_dirs, path, capabilities, disable_hashing, kind } => {
                 // Call the thing
-                if let Err(err) = generate::backend(fix_dirs, path, capabilities, !disable_hashing, *kind) { error!("{}", err); std::process::exit(1); }
+                if let Err(err) = generate::backend(fix_dirs, path, capabilities, !disable_hashing, *kind) { error!("{}", err.trace()); std::process::exit(1); }
             },
             GenerateSubcommand::Policy{ fix_dirs, path, allow_all } => {
                 // Call the thing
-                if let Err(err) = generate::policy(fix_dirs, path, allow_all) { error!("{}", err); std::process::exit(1); }
+                if let Err(err) = generate::policy(fix_dirs, path, allow_all) { error!("{}", err.trace()); std::process::exit(1); }
             },
 
             GenerateSubcommand::Proxy{ fix_dirs, path, outgoing_range, incoming, forward, forward_protocol } => {
                 // Call the thing
-                if let Err(err) = generate::proxy(fix_dirs, path, outgoing_range.0, incoming.into_iter().map(|p| (p.0, p.1)).collect(), forward.map(|a| ForwardConfig { address: a, protocol: forward_protocol })) { error!("{}", err); std::process::exit(1); }
+                if let Err(err) = generate::proxy(fix_dirs, path, outgoing_range.0, incoming.into_iter().map(|p| (p.0, p.1)).collect(), forward.map(|a| ForwardConfig { address: a, protocol: forward_protocol })) { error!("{}", err.trace()); std::process::exit(1); }
+            },
+        },
+        CtlSubcommand::Upgrade(subcommand) => match *subcommand {
+            UpgradeSubcommand::Node { path, dry_run, overwrite, version } => {
+                if let Err(err) = upgrade::node(path, dry_run, overwrite, version) { error!("{}", err.trace()); std::process::exit(1); }
             },
         },
         CtlSubcommand::Unpack(subcommand) => match *subcommand {
             UnpackSubcommand::Compose { kind, path, fix_dirs } => {
-                if let Err(err) = unpack::compose(kind, fix_dirs, path, args.node_config) { error!("{err}"); std::process::exit(1); }
+                if let Err(err) = unpack::compose(kind, fix_dirs, path, args.node_config) { error!("{}", err.trace()); std::process::exit(1); }
+            },
+        },
+        CtlSubcommand::Wizard(subcommand) => match *subcommand {
+            WizardSubcommand::Setup {  } => {
+                if let Err(err) = wizard::setup() { error!("{}", err.trace()); std::process::exit(1); }
             },
         },
 
         CtlSubcommand::Packages(subcommand) => match *subcommand {
             PackageSubcommand::Hash{ image } => {
                 // Call the thing
-                if let Err(err) = packages::hash(args.node_config, image).await { error!("{}", err); std::process::exit(1); }
+                if let Err(err) = packages::hash(args.node_config, image).await { error!("{}", err.trace()); std::process::exit(1); }
             }
         },
         CtlSubcommand::Data(subcommand) => match *subcommand {
@@ -412,10 +457,10 @@ async fn main() {
         },
 
         CtlSubcommand::Start{ exe, file, docker_socket, docker_version, version, image_dir, local_aux, skip_import, profile_dir, kind, } => {
-            if let Err(err) = lifetime::start(exe, file, args.node_config, DockerOptions{ socket: docker_socket, version: docker_version }, StartOpts{ compose_verbose: args.debug || args.trace, version, image_dir, local_aux, skip_import, profile_dir }, *kind).await { error!("{}", err); std::process::exit(1); }
+            if let Err(err) = lifetime::start(exe, file, args.node_config, DockerOptions{ socket: docker_socket, version: docker_version }, StartOpts{ compose_verbose: args.debug || args.trace, version, image_dir, local_aux, skip_import, profile_dir }, *kind).await { error!("{}", err.trace()); std::process::exit(1); }
         },
         CtlSubcommand::Stop{ exe, file } => {
-            if let Err(err) = lifetime::stop(args.debug || args.trace, exe, file, args.node_config) { error!("{}", err); std::process::exit(1); }
+            if let Err(err) = lifetime::stop(args.debug || args.trace, exe, file, args.node_config) { error!("{}", err.trace()); std::process::exit(1); }
         },
 
         CtlSubcommand::Version { arch: _, kind: _, ctl: _, node: _ } => {

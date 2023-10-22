@@ -74,7 +74,7 @@ where
         // Finally, create the config itself
         match ServerConfig::builder()
             .with_safe_defaults()
-            .with_client_cert_verifier(AllowAnyAnonymousOrAuthenticatedClient::new(client_roots))
+            .with_client_cert_verifier(Arc::new(AllowAnyAnonymousOrAuthenticatedClient::new(client_roots)))
             .with_single_cert(vec![ certs ], key)
         {
             Ok(config) => Arc::new(config),
