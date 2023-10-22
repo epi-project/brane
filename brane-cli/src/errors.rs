@@ -4,7 +4,7 @@
 //  Created:
 //    17 Feb 2022, 10:27:28
 //  Last edited:
-//    03 Oct 2023, 11:36:00
+//    22 Oct 2023, 22:58:55
 //  Auto updated?
 //    Yes
 // 
@@ -605,8 +605,8 @@ pub enum ImportError {
     TempDirError{ err: std::io::Error },
     /// Could not resolve the path to the temporary repository directory
     TempDirCanonicalizeError{ path: PathBuf, err: std::io::Error },
-    /// Error for when we failed to clone a repository
-    RepoCloneError{ repo: String, target: PathBuf, err: git2::Error },
+    /// Error for when we failed to download a repository
+    RepoCloneError{ repo: String, target: PathBuf, err: brane_shr::fs::Error },
 
     /// Error for when a path supposed to refer inside the repository escaped out of it
     RepoEscapeError{ path: PathBuf },

@@ -5,6 +5,7 @@ All notable changes to the Brane framework will be documented in this file.
 ## [3.1.0] - TODO
 ### Added
 - The `branectl wizard` subcommand, which interactively goes through the steps of setting up a node.
+- Commands for cross-compiling to macOS x86-64 _and_ ARM 64-bit from Linux :)
 
 ### Fixed
 - CI/CD in the repository by moving most of it to scripts which we _can_ test offline.
@@ -21,11 +22,14 @@ All notable changes to the Brane framework will be documented in this file.
 - A garbage collector to `brane-drv` for running sessions, to terminate them if they haven't been accessed for over 24 hours.
 - An `overview`-crate acting as a proper entrypoint to auto-generated docs.
   - This overview includes a proper crate overview.
+- `brane import` now has a `--branch` flag to import a package on the non-`main` branch instead \[**breaking change**\].
+  - This is breaking because it used to be the _default_ branch instead of the `main`-branch.
 
 ### Changed
-- Bumped `brane-tsk` packages to newest version (base64).
 - The `backend.yml` and `data.yml` files to use the default tagging option in serde (i.e., use `!<variant>` instead of the `kind`-field) \[**breaking change**\].
 - The `node.yml` file to accept `delegate` as an alias for `job` instead of `driver` \[**breaking change**\].
+- Bumped `brane-tsk` packages to newest version (base64).
+- No longer depending on git2 in any fashion.
 
 ### Fixed
 - Lots of `clippy` errors.

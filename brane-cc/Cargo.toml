@@ -25,3 +25,8 @@ brane-shr = { path = "../brane-shr" }
 brane-tsk = { path = "../brane-tsk" }
 serde_json = "1"
 specifications = { path = "../specifications" }
+
+
+# Hacky indeed but necessary to dodge OpenSSL linking, which we need to make cross-compilation _so_ much easier
+[dependencies.openssl-sys]
+features = ["vendored"]

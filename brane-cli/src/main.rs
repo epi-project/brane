@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    03 Oct 2023, 11:36:15
+//    22 Oct 2023, 23:23:57
 //  Auto updated?
 //    Yes
 // 
@@ -23,11 +23,12 @@ use anyhow::Result;
 use clap::Parser;
 use console::style;
 use dotenvy::dotenv;
-use git2::Repository;
+// use git2::Repository;
 use log::LevelFilter;
-use tempfile::tempdir;
+use tempfile::TempDir;
 
 use brane_dsl::Language;
+use brane_shr::fs::DownloadSecurity;
 use brane_tsk::spec::AppId;
 use brane_tsk::docker::{ClientVersion, DockerOptions};
 use specifications::arch::Arch;
@@ -91,6 +92,8 @@ enum SubCommand {
         arch: Option<Arch>,
         #[clap(name = "REPO", help = "Name of the GitHub repository containing the package")]
         repo: String,
+        #[clap(short, long, default_value = "main", help = "Name of the GitHub branch containing the package")]
+        branch: String,
         #[clap(short, long, help = "Path to the directory to use as container working directory, relative to the repository (defaults to the folder of the package file itself)")]
         workdir: Option<PathBuf>,
         #[clap(name = "FILE", help = "Path to the file to build, relative to the repository")]
@@ -676,21 +679,27 @@ async fn run(options: Cli) -> Result<(), CliError> {
                 },
             }
         }
-        Import { arch, repo, workdir, file, kind, init, crlf_ok } => {
+        Import { arch, repo, branch, workdir, file, kind, init, crlf_ok } => {
             // Prepare the input URL and output directory
-            let url = format!("https://github.com/{repo}");
-            let dir = match tempdir() {
+            let url = format!("https://api.github.com/repos/{repo}/tarball/{branch}");
+            let dir = match TempDir::new() {
                 Ok(dir)  => dir,
                 Err(err) => { return Err(CliError::ImportError{ err: ImportError::TempDirError{ err } }); }
             };
-            let dir_path = match std::fs::canonicalize(dir.path()) {
-                Ok(dir_path) => dir_path,
-                Err(err)     => { return Err(CliError::ImportError{ err: ImportError::TempDirCanonicalizeError{ path: dir.path().to_path_buf(), err } }); }
-            };
 
-            // Pull the repository
-            if let Err(err) = Repository::clone(&url, &dir_path) {
+            // Download the file
+            let tar_path: PathBuf = dir.path().join(format!("repo.tar.gz"));
+            let dir_path: PathBuf = dir.path().join(format!("repo"));
+            if let Err(err) = brane_shr::fs::download_file_async(&url, &tar_path, DownloadSecurity { checksum: None, https: true }, None).await {
                 return Err(CliError::ImportError{ err: ImportError::RepoCloneError{ repo: url, target: dir_path, err } });
+            }
+            if let Err(err) = brane_shr::fs::unarchive_async(&tar_path, &dir_path).await {
+                return Err(CliError::ImportError{ err: ImportError::RepoCloneError{ repo: url, target: dir_path, err } });
+            }
+            // Resolve that one weird folder in there
+            let dir_path: PathBuf = match brane_shr::fs::recurse_in_only_child_async(&dir_path).await {
+                Ok(path) => path,
+                Err(err) => { return Err(CliError::ImportError{ err: ImportError::RepoCloneError{ repo: url, target: dir_path, err } }); },
             };
 
             // Try to get which file we need to use as package file

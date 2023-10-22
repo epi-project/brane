@@ -4,7 +4,7 @@
 //  Created:
 //    09 Nov 2022, 11:12:06
 //  Last edited:
-//    02 Oct 2023, 16:59:28
+//    22 Oct 2023, 23:23:14
 //  Auto updated?
 //    Yes
 // 
@@ -25,7 +25,7 @@ use console::{style, Style};
 use fs2::FileExt as _;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, warn};
-use reqwest::{Response, StatusCode, Url};
+use reqwest::{Client, Request, Response, StatusCode, Url};
 use sha2::{Digest as _, Sha256};
 use tokio::fs as tfs;
 use tokio::io::{self as tio, AsyncWriteExt};
@@ -267,6 +267,10 @@ pub enum Error {
     DirEntryReadError{ what: &'static str, path: PathBuf, entry: usize, err: std::io::Error },
     /// Failed to remove a directory.
     DirRemoveError{ path: PathBuf, err: std::io::Error },
+    /// A given dir had not exactly one child.
+    DirNotOneEntry { what: &'static str, path: PathBuf },
+    /// A given dir had not a directory as child.
+    DirNonDirChild { what: &'static str, path: PathBuf, child: OsString },
 
     /// The given address did not have HTTPS enabled.
     NotHttpsError{ address: String },
@@ -319,7 +323,9 @@ impl Display for Error {
             DirCreateError{ what, path, err }           => write!(f, "Failed to create {} directory '{}': {}", what, path.display(), err),
             DirReadError{ what, path, err }             => write!(f, "Failed to read {} directory '{}': {}", what, path.display(), err),
             DirEntryReadError{ what, path, entry, err } => write!(f, "Failed to read entry {} from {} directory '{}': {}", entry, what, path.display(), err),
-            DirRemoveError{ path, err }                 => write!(f, "Failed to remove director '{}': {}", path.display(), err),
+            DirRemoveError{ path, err }                 => write!(f, "Failed to remove directory '{}': {}", path.display(), err),
+            DirNotOneEntry { what, path }               => write!(f, "{} directory '{}' does not have exactly one entry", what.capitalize(), path.display()),
+            DirNonDirChild { what, path, child }        => write!(f, "Entry '{}' in {} directory '{}' is not a directory", child.to_string_lossy(), what, path.display()),
 
             NotHttpsError{ address }             => write!(f, "Security policy requires HTTPS is enabled, but '{address}' does not enable it (or we cannot parse the URL)"),
             RequestError{ address, err }         => write!(f, "Failed to send GET-request to '{address}': {err}"),
@@ -664,6 +670,44 @@ pub fn set_executable(path: impl AsRef<Path>) -> Result<(), Error> {
 
 
 
+/// Unwraps a folder into its only child folder.
+/// 
+/// # Arguments
+/// - `dir`: The directory to recurse in.
+/// 
+/// # Returns
+/// The path of the nested directory.
+/// 
+/// # Errors
+/// This function may error if:
+/// - The given `dir` is not a directory;
+/// - It has another number than 1 entries; or
+/// - That entry is not a directory.
+pub async fn recurse_in_only_child_async(dir: impl AsRef<Path>) -> Result<PathBuf, Error> {
+    let dir : &Path = dir.as_ref();
+    debug!("Recursing into only directory child of '{}'...", dir.display());
+
+    // Attempt to go thru the child's directories
+    match tfs::read_dir(dir).await {
+        Ok(mut entries) => if let (Some(entry), None) = (entries.next_entry().await.transpose(), entries.next_entry().await.transpose()) {
+            // Assert it's a directory
+            match entry {
+                Ok(entry) => {
+                    let path: PathBuf = entry.path();
+                    if path.is_dir() { Ok(path) }
+                    else { Err(Error::DirNonDirChild { what: "to-be-trivially-recursed", path: dir.into(), child: entry.file_name() }) }
+                },
+                Err(err) => { return Err(Error::DirEntryReadError { what: "to-be-trivially-recursed", path: dir.into(), entry: 0, err }); },
+            }
+        } else {
+            return Err(Error::DirNotOneEntry { what: "to-be-trivially-recursed", path: dir.into() });
+        },
+        Err(err) => { return Err(Error::DirReadError { what: "to-be-trivially-recursed", path: dir.into(), err }); },
+    }
+}
+
+
+
 /// Moves the given or directory from one location to another.
 /// 
 /// If possible, it will attempt to use the efficient `rename()`; otherwise, it will perform te extensive copy.
@@ -834,15 +878,27 @@ pub async fn download_file_async(source: impl AsRef<str>, target: impl AsRef<Pat
         // Assert the address starts with HTTPS first
         if Url::parse(source).ok().map(|u| u.scheme() != "https").unwrap_or(true) { return Err(Error::NotHttpsError{ address: source.into() }); }
 
-        // Do the thing
-        match reqwest::get(source).await {
+        // Send the request with a user-agent header (to make GitHub happy)
+        let client: Client = Client::new();
+        let req: Request = match client.get(source).header("User-Agent", "reqwest").build() {
+            Ok(req)  => req,
+            Err(err) => { return Err(Error::RequestError{ address: source.into(), err }); },
+        };
+        match client.execute(req).await {
             Ok(req)  => req,
             Err(err) => { return Err(Error::RequestError{ address: source.into(), err }); },
         }
 
     } else {
         debug!("Sending download request to '{}'...", source);
-        match reqwest::get(source).await {
+
+        // Send the request with a user-agent header (to make GitHub happy)
+        let client: Client = Client::new();
+        let req: Request = match client.get(source).header("User-Agent", "reqwest").build() {
+            Ok(req)  => req,
+            Err(err) => { return Err(Error::RequestError{ address: source.into(), err }); },
+        };
+        match client.execute(req).await {
             Ok(req)  => req,
             Err(err) => { return Err(Error::RequestError{ address: source.into(), err }); },
         }
