@@ -26,3 +26,8 @@ brane-cli = { path = "../brane-cli" }
 brane-exe = { path = "../brane-exe" }
 brane-tsk = { path = "../brane-tsk" }
 specifications = { path = "../specifications" }
+
+
+# Hacky indeed but necessary to dodge OpenSSL linking, which we need to make cross-compilation _so_ much easier
+[dependencies.openssl-sys]
+features = ["vendored"]
