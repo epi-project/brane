@@ -596,6 +596,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "brane-chk"
+version = "3.0.0"
+dependencies = [
+ "brane-ast",
+ "enum-debug",
+ "specifications",
+]
+
+[[package]]
 name = "brane-cli"
 version = "3.0.0"
 dependencies = [

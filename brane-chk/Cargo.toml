@@ -1,0 +1,15 @@
+[package]
+name = "brane-chk"
+version.workspace = true
+edition.workspace = true
+authors = [ "Tim Müller" ]
+description = "Implements the famous checker, which reasons about policies and restricts the system."
+repository.workspace = true
+documentation.workspace = true
+
+
+[dependencies]
+enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
+
+brane-ast = { path = "../brane-ast" }
+specifications = { path = "../specifications" }
