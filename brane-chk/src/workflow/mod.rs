@@ -4,7 +4,7 @@
 //  Created:
 //    27 Oct 2023, 15:56:38
 //  Last edited:
-//    27 Oct 2023, 15:56:47
+//    27 Oct 2023, 17:39:17
 //  Auto updated?
 //    Yes
 // 
@@ -13,4 +13,5 @@
 // 
 
 // Declare the subsubmodules
+pub mod compile;
 pub mod spec;
