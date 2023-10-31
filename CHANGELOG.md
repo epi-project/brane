@@ -6,8 +6,16 @@ All notable changes to the Brane framework will be documented in this file.
 ### Added
 - The `branectl wizard` subcommand, which interactively goes through the steps of setting up a node.
 - Commands for cross-compiling to macOS x86-64 _and_ ARM 64-bit from Linux :)
+- `branec --trace` flag to enable trace-level debugging.
+  - Accordingly, some `trace`-log prints have been added to the compiler in `brane-ast`.
+
+### Changed
+- `branec` now uses [humanlog](https://github.com/Lut99/humanlog-rs) as logging backend for nicer messages.
 
 ### Fixed
+- The BraneScript compiler hanging in an infinite loop in some cases.
+  - Specifically, it might fail if it is parsing a non-`[` unary operator.
+- The BraneScript compiler panicking on successive projections.
 - CI/CD in the repository by moving most of it to scripts which we _can_ test offline.
 
 ## [3.0.0] - 2023-10-22

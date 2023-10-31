@@ -1,33 +1,34 @@
 //  SYMBOLS.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    18 Aug 2022, 15:24:54
 //  Last edited:
-//    01 Mar 2023, 10:57:51
+//    31 Oct 2023, 11:10:42
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Implements a traversal that builds symbol tables for the `brane-dsl`
 //!   AST.
-// 
+//
 
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use brane_dsl::spec::MergeStrategy;
-use brane_dsl::{DataType, SymbolTable, TextRange};
-use brane_dsl::data_type::{ClassSignature, FunctionSignature};
-use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, SymbolTableEntry, VarEntry};
 use brane_dsl::ast::{Block, Expr, Identifier, Literal, Node, Program, Stmt};
+use brane_dsl::data_type::{ClassSignature, FunctionSignature};
+use brane_dsl::spec::MergeStrategy;
+use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, SymbolTableEntry, VarEntry};
+use brane_dsl::{DataType, SymbolTable, TextRange};
+use log::trace;
 use specifications::data::DataIndex;
 use specifications::package::{PackageIndex, PackageInfo};
 use specifications::version::Version;
 
-pub use crate::errors::ResolveError as Error;
 use crate::errors::AstError;
+pub use crate::errors::ResolveError as Error;
 use crate::spec::BuiltinClasses;
 use crate::state::CompileState;
 
@@ -38,8 +39,9 @@ pub mod tests {
     use brane_dsl::ParserOptions;
     use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files};
     use specifications::package::PackageIndex;
-    use super::*;
+
     use super::super::print::symbol_tables;
+    use super::*;
     use crate::{compile_program_to, CompileResult, CompileStage};
 
 
@@ -53,7 +55,7 @@ pub mod tests {
 
             // Load the package index
             let pindex: PackageIndex = create_package_index();
-            let dindex: DataIndex    = create_data_index();
+            let dindex: DataIndex = create_data_index();
 
             // Run up to this traversal
             let program: Program = match compile_program_to(code.as_bytes(), &pindex, &dindex, &ParserOptions::bscript(), CompileStage::Resolve) {
@@ -68,7 +70,7 @@ pub mod tests {
                     // Print the error
                     err.prettyprint(path.to_string_lossy(), &code);
                     panic!("Failed to resolve symbol tables (see output above)");
-                }
+                },
                 CompileResult::Err(errs) => {
                     // Print the errors
                     for e in errs {
@@ -77,7 +79,9 @@ pub mod tests {
                     panic!("Failed to resolve symbol tables (see output above)");
                 },
 
-                _ => { unreachable!(); },
+                _ => {
+                    unreachable!();
+                },
             };
 
             // Now print the symbol tables for prettyness
@@ -97,7 +101,7 @@ macro_rules! offset_range {
     ($range:expr, $offset:expr) => {
         if $range.is_some() {
             $range.start.line += $offset;
-            $range.end.line   += $offset;
+            $range.end.line += $offset;
         }
     };
 }
@@ -108,30 +112,38 @@ macro_rules! offset_range {
 
 /***** HELPER FUNCTIONS ******/
 /// Defines the arguments of the given FuncDef in the given symbol table.
-/// 
+///
 /// # Arguments
 /// - `entry`: The FunctionEntry that defines most of the desired FuncDef.
 /// - `params`: The Identifiers that define this function's parameters.
 /// - `table`: The SymbolTable to define the function's arguments in.
 /// - `errors`: A vector to collect any errors in that occur.
-/// 
+///
 /// # Returns
 /// Nothing, but does generate new entries in the given symbol table and updates the given entry accordingly.
-/// 
+///
 /// # Errors
 /// This function may error if the given symbol table already existed.
-/// 
+///
 /// If such an error occurred, then it is added to the given `errors` list. Some arguments may be undefined in that case.
-fn define_func(state: &CompileState, entry: &mut FunctionEntry, params: &mut [Identifier], symbol_table: &Rc<RefCell<SymbolTable>>, errors: &mut Vec<Error>) {
+fn define_func(
+    state: &CompileState,
+    entry: &mut FunctionEntry,
+    params: &mut [Identifier],
+    symbol_table: &Rc<RefCell<SymbolTable>>,
+    errors: &mut Vec<Error>,
+) {
     // Iterate to add them
     {
-        let mut st : RefMut<SymbolTable> = symbol_table.borrow_mut();
+        let mut st: RefMut<SymbolTable> = symbol_table.borrow_mut();
         for p in params.iter_mut() {
             offset_range!(p.range, state.offset);
             match st.add_var(VarEntry::from_param(&p.value, &entry.name, p.range().clone())) {
-                Ok(e)    => { entry.params.push(e); },
+                Ok(e) => {
+                    entry.params.push(e);
+                },
                 Err(err) => {
-                    errors.push(Error::ParameterDefineError{ func_name: entry.name.clone(), name: p.value.clone(), err, range: p.range().clone() });
+                    errors.push(Error::ParameterDefineError { func_name: entry.name.clone(), name: p.value.clone(), err, range: p.range().clone() });
                     continue;
                 },
             };
@@ -139,7 +151,7 @@ fn define_func(state: &CompileState, entry: &mut FunctionEntry, params: &mut [Id
     }
 
     // Update the argument count in the function's symbol table entry
-    entry.signature = FunctionSignature::new(vec![ DataType::Any; params.len() ], DataType::Any);
+    entry.signature = FunctionSignature::new(vec![DataType::Any; params.len()], DataType::Any);
 
     // Done
 }
@@ -150,7 +162,7 @@ fn define_func(state: &CompileState, entry: &mut FunctionEntry, params: &mut [Id
 
 /***** TRAVERSAL FUNCTIONS *****/
 /// Attempts to resolve the symbol table for a given block.
-/// 
+///
 /// # Arguments
 /// - `state`: The CompileState that contains the TextRange offset to apply to all errors and such.
 /// - `package_index`: The PackageIndex which we use to resolve external function calls.
@@ -158,15 +170,22 @@ fn define_func(state: &CompileState, entry: &mut FunctionEntry, params: &mut [Id
 /// - `block`: The Block to traverse.
 /// - `parent`: The parent symbol table of the parent scope.
 /// - `errors`: A list that we use to keep track of any errors that occur during this pass.
-/// 
+///
 /// # Errors
 /// This function may error if there were semantic problems while building the table for this statement (if any).
-/// 
+///
 /// # Returns
 /// Nothing, but does add entries to the symbol table and references them in nodes.
-/// 
+///
 /// If an error occurred, then it is appended to the `errors` list and the function returns early.
-fn pass_block(state: &CompileState, package_index: &PackageIndex, data_index: &DataIndex, block: &mut Block, parent: Option<Rc<RefCell<SymbolTable>>>, errors: &mut Vec<Error>) {
+fn pass_block(
+    state: &CompileState,
+    package_index: &PackageIndex,
+    data_index: &DataIndex,
+    block: &mut Block,
+    parent: Option<Rc<RefCell<SymbolTable>>>,
+    errors: &mut Vec<Error>,
+) {
     // Update the block's range
     offset_range!(block.range, state.offset);
 
@@ -185,9 +204,9 @@ fn pass_block(state: &CompileState, package_index: &PackageIndex, data_index: &D
 }
 
 /// Attempts to resolve this statement in the given symbol table if it is a function or variable reference.
-/// 
+///
 /// If this statement contains a block, that block will be resolved too.
-/// 
+///
 /// # Arguments
 /// - `state`: The CompileState that contains the TextRange offset to apply to all errors and such.
 /// - `package_index`: The PackageIndex which we use to resolve external function calls.
@@ -195,24 +214,31 @@ fn pass_block(state: &CompileState, package_index: &PackageIndex, data_index: &D
 /// - `stmt`: The Stmt to traverse.
 /// - `symbol_table`: The SymbolTable to populate.
 /// - `errors`: A list that we use to keep track of any errors that occur during this pass.
-/// 
+///
 /// # Returns
 /// Nothing, but does add entries to the symbol table and references them in nodes.
-/// 
+///
 /// # Errors
 /// This function may error if there were semantic problems while building the table for this statement (if any).
-/// 
+///
 /// If an error occurred, then it is appended to the `errors` list and the function returns early.
-fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &DataIndex, stmt: &mut Stmt, symbol_table: &Rc<RefCell<SymbolTable>>, errors: &mut Vec<Error>) {
+fn pass_stmt(
+    state: &CompileState,
+    package_index: &PackageIndex,
+    data_index: &DataIndex,
+    stmt: &mut Stmt,
+    symbol_table: &Rc<RefCell<SymbolTable>>,
+    errors: &mut Vec<Error>,
+) {
     // Match on the exact statement
     use Stmt::*;
     match stmt {
-        Block{ block, .. } => {
+        Block { block, .. } => {
             // Blocks require renewed evaluation
             pass_block(state, package_index, data_index, block, Some(symbol_table.clone()), errors);
         },
 
-        Import{ ref mut name, version, ref mut st_funcs, ref mut st_classes, ref mut range, .. } => {
+        Import { ref mut name, version, ref mut st_funcs, ref mut st_classes, ref mut range, .. } => {
             // Update the block's range
             offset_range!(name.range, state.offset);
             offset_range!(range, state.offset);
@@ -221,19 +247,19 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             // First: parse the version
             let semver: Version = match version.as_version() {
                 Ok(version) => version,
-                Err(err)    => {
-                    errors.push(Error::VersionParseError{ err, range: version.range().clone() });
+                Err(err) => {
+                    errors.push(Error::VersionParseError { err, range: version.range().clone() });
                     return;
-                }
+                },
             };
 
             // Attempt to resolve this (name, version) pair in the package index.
             let info: &PackageInfo = match package_index.get(&name.value, if !semver.is_latest() { Some(&semver) } else { None }) {
                 Some(info) => info,
-                None       => {
-                    errors.push(Error::UnknownPackageError{ name: name.value.clone(), version: semver, range: range.clone() });
+                None => {
+                    errors.push(Error::UnknownPackageError { name: name.value.clone(), version: semver, range: range.clone() });
                     return;
-                }
+                },
             };
 
             // If it did, then we can generate global symbol table entries in this scope for all its functions and types
@@ -241,15 +267,25 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             let mut funcs = vec![];
             for (name, f) in info.functions.iter() {
                 // Collect the types that make the signature for this function.
-                let arg_names: Vec<String>   = f.parameters.iter().map(|p| p.name.clone()).collect();
+                let arg_names: Vec<String> = f.parameters.iter().map(|p| p.name.clone()).collect();
                 let arg_types: Vec<DataType> = f.parameters.iter().map(|p| DataType::from(&p.data_type)).collect();
                 let ret_type: DataType = DataType::from(&f.return_type);
 
                 // Wrap it in a function entry and add it to the list
-                match st.add_func(FunctionEntry::from_import(name, FunctionSignature::new(arg_types, ret_type), &info.name, info.version, arg_names, f.requirements.clone().unwrap_or_default(), TextRange::none())) {
-                    Ok(entry) => { funcs.push(entry); },
-                    Err(err)  => {
-                        errors.push(Error::FunctionImportError{ package_name: info.name.clone(), name: name.into(), err, range: range.clone() });
+                match st.add_func(FunctionEntry::from_import(
+                    name,
+                    FunctionSignature::new(arg_types, ret_type),
+                    &info.name,
+                    info.version,
+                    arg_names,
+                    f.requirements.clone().unwrap_or_default(),
+                    TextRange::none(),
+                )) {
+                    Ok(entry) => {
+                        funcs.push(entry);
+                    },
+                    Err(err) => {
+                        errors.push(Error::FunctionImportError { package_name: info.name.clone(), name: name.into(), err, range: range.clone() });
                         return;
                     },
                 }
@@ -266,11 +302,11 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
                         let mut cst: RefMut<SymbolTable> = c_symbol_table.borrow_mut();
                         for p in properties.iter() {
                             match cst.add_var(VarEntry::from_prop(p.0, p.1, name, range.clone())) {
-                                Ok(_)    => {},
+                                Ok(_) => {},
                                 Err(err) => {
                                     errors.push(Error::VariableDefineError { name: p.0.clone(), err, range: range.clone() });
                                     return;
-                                }
+                                },
                             }
                         }
                     }
@@ -278,20 +314,28 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
                 };
 
                 // Insert it (plus an empty method map) as a ClassEntry
-                match st.add_class(ClassEntry::from_import(ClassSignature { name: name.clone() }, c_symbol_table, &info.name, info.version, TextRange::none())) {
-                    Ok(entry) => { classes.push(entry); },
-                    Err(err)  => {
-                        errors.push(Error::ClassImportError{ package_name: info.name.clone(), name: name.into(), err, range: range.clone() });
+                match st.add_class(ClassEntry::from_import(
+                    ClassSignature { name: name.clone() },
+                    c_symbol_table,
+                    &info.name,
+                    info.version,
+                    TextRange::none(),
+                )) {
+                    Ok(entry) => {
+                        classes.push(entry);
+                    },
+                    Err(err) => {
+                        errors.push(Error::ClassImportError { package_name: info.name.clone(), name: name.into(), err, range: range.clone() });
                         return;
                     },
                 }
             }
 
             // As a final thing, update the entry reference in the import itself
-            *st_funcs   = Some(funcs);
+            *st_funcs = Some(funcs);
             *st_classes = Some(classes);
         },
-        FuncDef{ ref mut ident, ref mut params, code, ref mut st_entry, ref mut range, .. } => {
+        FuncDef { ref mut ident, ref mut params, code, ref mut st_entry, ref mut range, .. } => {
             // Update the block's range
             offset_range!(ident.range, state.offset);
             offset_range!(range, state.offset);
@@ -304,9 +348,11 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             {
                 let mut st: RefMut<SymbolTable> = symbol_table.borrow_mut();
                 match st.add_func(entry) {
-                    Ok(entry) => { *st_entry = Some(entry); },
-                    Err(err)  => {
-                        errors.push(Error::FunctionDefineError{ name: ident.value.clone(), err, range: ident.range().clone() });
+                    Ok(entry) => {
+                        *st_entry = Some(entry);
+                    },
+                    Err(err) => {
+                        errors.push(Error::FunctionDefineError { name: ident.value.clone(), err, range: ident.range().clone() });
                         return;
                     },
                 }
@@ -315,7 +361,7 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             // Now go and populate the rest of its symbol table in the function body.
             pass_block(state, package_index, data_index, code, Some(symbol_table.clone()), errors);
         },
-        ClassDef{ ref mut ident, ref mut props, ref mut methods, ref mut st_entry, symbol_table: c_symbol_table, ref mut range, .. } => {
+        ClassDef { ref mut ident, ref mut props, ref mut methods, ref mut st_entry, symbol_table: c_symbol_table, ref mut range, .. } => {
             // Update the block's range
             offset_range!(ident.range, state.offset);
             offset_range!(range, state.offset);
@@ -337,39 +383,63 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
                     // Check if the data type exists if it references another class
                     if let DataType::Class(c_name) = &p.data_type {
                         if st.get_class(c_name).is_none() {
-                            errors.push(Error::UndefinedClass{ ident: c_name.clone(), range: p.range().clone() });
+                            errors.push(Error::UndefinedClass { ident: c_name.clone(), range: p.range().clone() });
                             return;
                         }
                     }
 
                     // Generate an entry for it
                     match cst.add_var(VarEntry::from_prop(&p.name.value, &p.data_type, &ident.value, p.range().clone())) {
-                        Ok(entry) => { p.st_entry = Some(entry); },
-                        Err(err)  => {
-                            errors.push(Error::VariableDefineError{ name: ident.value.clone(), err, range: range.clone() });
+                        Ok(entry) => {
+                            p.st_entry = Some(entry);
+                        },
+                        Err(err) => {
+                            errors.push(Error::VariableDefineError { name: ident.value.clone(), err, range: range.clone() });
                             return;
-                        }
+                        },
                     }
                 }
 
                 // Add definitions for each of its functions
                 for m in methods.iter_mut() {
-                    if let Stmt::FuncDef{ ident: m_ident, params: m_params, code: m_code, st_entry: ref mut m_st_entry, range: ref mut m_range, .. } = &mut **m {
+                    if let Stmt::FuncDef {
+                        ident: m_ident,
+                        params: m_params,
+                        code: m_code,
+                        st_entry: ref mut m_st_entry,
+                        range: ref mut m_range,
+                        ..
+                    } = &mut **m
+                    {
                         offset_range!(m_range, state.offset);
 
                         // First, check if its name does not overlap with a property (i.e., we want one namespace for a class)
                         if let Some(p) = cst.get_var(&m_ident.value) {
-                            errors.push(Error::DuplicateMethodAndProperty{ c_name: ident.value.clone(), name: m_ident.value.clone(), new_range: m_ident.range.clone(), existing_range: p.borrow().range.clone() });
+                            errors.push(Error::DuplicateMethodAndProperty {
+                                c_name: ident.value.clone(),
+                                name: m_ident.value.clone(),
+                                new_range: m_ident.range.clone(),
+                                existing_range: p.borrow().range.clone(),
+                            });
                             return;
                         }
 
                         // Then, check if it has a 'self' parameter
                         if let Some((i, _)) = m_params.iter().enumerate().find(|(_, p)| &p.value == "self") {
                             if i != 0 {
-                                errors.push(Error::IllegalSelf{ c_name: ident.value.clone(), name: m_ident.value.clone(), arg: i, range: m_ident.range.clone() });
+                                errors.push(Error::IllegalSelf {
+                                    c_name: ident.value.clone(),
+                                    name:   m_ident.value.clone(),
+                                    arg:    i,
+                                    range:  m_ident.range.clone(),
+                                });
                             }
                         } else {
-                            errors.push(Error::MissingSelf{ c_name: ident.value.clone(), name: m_ident.value.clone(), range: m_ident.range.clone() });
+                            errors.push(Error::MissingSelf {
+                                c_name: ident.value.clone(),
+                                name:   m_ident.value.clone(),
+                                range:  m_ident.range.clone(),
+                            });
                         }
 
                         // If it passes those checks, we create an entry for it
@@ -379,13 +449,14 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
 
                         // Add it to the class' table
                         match cst.add_func(entry) {
-                            Ok(entry) => { *m_st_entry = Some(entry); },
-                            Err(err)  => {
+                            Ok(entry) => {
+                                *m_st_entry = Some(entry);
+                            },
+                            Err(err) => {
                                 errors.push(Error::FunctionDefineError { name: m_ident.value.clone(), err, range: m_range.clone() });
                                 return;
-                            }
+                            },
                         }
-
                     } else {
                         panic!("Class method stmt is not a FuncDef");
                     }
@@ -396,17 +467,19 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             {
                 let mut st: RefMut<SymbolTable> = symbol_table.borrow_mut();
                 match st.add_class(ClassEntry::from_def(ClassSignature::new(&ident.value), c_symbol_table.clone(), range.clone())) {
-                    Ok(entry) => { *st_entry = Some(entry); },
-                    Err(err)  => {
+                    Ok(entry) => {
+                        *st_entry = Some(entry);
+                    },
+                    Err(err) => {
                         errors.push(Error::ClassDefineError { name: ident.value.clone(), err, range: range.clone() });
                         return;
-                    }
+                    },
                 }
             }
 
             // 3. Recurse into the function bodies to resolve there
             for m in methods.iter_mut() {
-                if let Stmt::FuncDef{ code: m_code, .. } = &mut **m {
+                if let Stmt::FuncDef { code: m_code, .. } = &mut **m {
                     for s in &mut m_code.stmts {
                         pass_stmt(state, package_index, data_index, s, &m_code.table, errors);
                     }
@@ -417,7 +490,7 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
 
             // Done; we added a full class entry and recursed
         },
-        Return{ expr, ref mut range, .. } => {
+        Return { expr, ref mut range, .. } => {
             // Update the block's range
             offset_range!(range, state.offset);
 
@@ -427,7 +500,7 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             }
         },
 
-        If{ cond, consequent, alternative, ref mut range, .. } => {
+        If { cond, consequent, alternative, ref mut range, .. } => {
             // Update the block's range
             offset_range!(range, state.offset);
 
@@ -440,7 +513,7 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
                 pass_block(state, package_index, data_index, alternative, Some(symbol_table.clone()), errors);
             }
         },
-        For{ initializer, condition, increment, consequent, ref mut range, .. } => {
+        For { initializer, condition, increment, consequent, ref mut range, .. } => {
             // Update the block's range
             offset_range!(range, state.offset);
 
@@ -460,7 +533,7 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
                 pass_stmt(state, package_index, data_index, s, &consequent.table, errors);
             }
         },
-        While{ condition, consequent, ref mut range, .. } => {
+        While { condition, consequent, ref mut range, .. } => {
             // Update the block's range
             offset_range!(range, state.offset);
 
@@ -469,7 +542,7 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             // Recurse into the block
             pass_block(state, package_index, data_index, consequent, Some(symbol_table.clone()), errors);
         },
-        On{ location, block, ref mut range, .. } => {
+        On { location, block, ref mut range, .. } => {
             // Update the block's range
             offset_range!(range, state.offset);
 
@@ -478,7 +551,7 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             // Recurse into the block
             pass_block(state, package_index, data_index, block, Some(symbol_table.clone()), errors);
         },
-        Parallel{ ref mut result, blocks, ref mut merge, ref mut st_entry, ref mut range, .. } => {
+        Parallel { ref mut result, blocks, ref mut merge, ref mut st_entry, ref mut range, .. } => {
             // Update the block's range
             offset_range!(range, state.offset);
 
@@ -486,7 +559,7 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             if let Some(merge) = merge {
                 offset_range!(merge.range, state.offset);
                 if let MergeStrategy::None = MergeStrategy::from(&merge.value) {
-                    errors.push(Error::UnknownMergeStrategy{ raw: merge.value.clone(), range: merge.range.clone() });
+                    errors.push(Error::UnknownMergeStrategy { raw: merge.value.clone(), range: merge.range.clone() });
                 }
             }
 
@@ -502,13 +575,17 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
                 // Attempt to declare the identifier
                 let mut st: RefMut<SymbolTable> = symbol_table.borrow_mut();
                 match st.add_var(VarEntry::from_def(&result.value, range.clone())) {
-                    Ok(entry) => { *st_entry = Some(entry); },
-                    Err(err)  => { errors.push(Error::VariableDefineError{ name: result.value.clone(), err, range: result.range().clone() }); },
+                    Ok(entry) => {
+                        *st_entry = Some(entry);
+                    },
+                    Err(err) => {
+                        errors.push(Error::VariableDefineError { name: result.value.clone(), err, range: result.range().clone() });
+                    },
                 }
             }
         },
 
-        LetAssign{ ref mut name, value, ref mut st_entry, ref mut range, .. } => {
+        LetAssign { ref mut name, value, ref mut st_entry, ref mut range, .. } => {
             // Update the block's range
             offset_range!(name.range, state.offset);
             offset_range!(range, state.offset);
@@ -519,11 +596,15 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             // Attempt to declare the identifier
             let mut st: RefMut<SymbolTable> = symbol_table.borrow_mut();
             match st.add_var(VarEntry::from_def(&name.value, range.clone())) {
-                Ok(entry) => { *st_entry = Some(entry); },
-                Err(err)  => { errors.push(Error::VariableDefineError{ name: name.value.clone(), err, range: name.range().clone() }); },
+                Ok(entry) => {
+                    *st_entry = Some(entry);
+                },
+                Err(err) => {
+                    errors.push(Error::VariableDefineError { name: name.value.clone(), err, range: name.range().clone() });
+                },
             }
         },
-        Assign{ ref mut name, value, ref mut st_entry, ref mut range, .. } => {
+        Assign { ref mut name, value, ref mut st_entry, ref mut range, .. } => {
             // Update the block's range
             offset_range!(name.range, state.offset);
             offset_range!(range, state.offset);
@@ -534,8 +615,12 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
             // Attempt to resolve the identifier
             let st: Ref<SymbolTable> = symbol_table.borrow();
             match st.get_var(&name.value) {
-                Some(entry) => { *st_entry = Some(entry); },
-                None        => { errors.push(Error::UndefinedVariable{ ident: name.value.clone(), range: name.range().clone() }); }
+                Some(entry) => {
+                    *st_entry = Some(entry);
+                },
+                None => {
+                    errors.push(Error::UndefinedVariable { ident: name.value.clone(), range: name.range().clone() });
+                },
             }
         },
         Expr { expr, ref mut range, .. } => {
@@ -554,33 +639,33 @@ fn pass_stmt(state: &CompileState, package_index: &PackageIndex, data_index: &Da
 }
 
 /// Attempts to resolve this expression by linking variable (or other) references to already defined values in the given symbol table and its parents.
-/// 
+///
 /// # Arguments
 /// - `state`: The CompileState that contains the TextRange offset to apply to all errors and such.
 /// - `data_index`: The DataIndex which we use to resolve external data assets.
 /// - `expr`: The Expr to traverse.
 /// - `symbol_table`: The SymbolTable to check reference in.
 /// - `errors`: A list that we use to keep track of any errors that occur during this pass.
-/// 
+///
 /// # Returns
 /// Nothing, but does reference symbol table entries in nodes.
-/// 
+///
 /// # Errors
 /// This function may error if there were semantic problems while checking the table for this statement (if any).
-/// 
+///
 /// If an error occurred, then it is appended to the `errors` list and the function returns early.
 fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symbol_table: &Rc<RefCell<SymbolTable>>, errors: &mut Vec<Error>) {
     // Match on the exact expression
     use Expr::*;
     match expr {
-        Cast{ expr, ref mut range, .. } => {
+        Cast { expr, ref mut range, .. } => {
             // Update the expr's range
             offset_range!(range, state.offset);
 
             pass_expr(state, data_index, expr, symbol_table, errors);
         },
 
-        Call{ expr, args, ref mut range, .. } => {
+        Call { expr, args, ref mut range, .. } => {
             // Update the expr's range
             offset_range!(range, state.offset);
 
@@ -591,11 +676,13 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
                 // Search the name
                 let st: Ref<SymbolTable> = symbol_table.borrow();
                 match st.get_func(&name.value) {
-                    Some(entry) => { *st_entry = Some(entry); },
-                    None        => {
+                    Some(entry) => {
+                        *st_entry = Some(entry);
+                    },
+                    None => {
                         errors.push(Error::UndefinedFunction { ident: name.value.clone(), range: name.range.clone() });
                         return;
-                    }
+                    },
                 }
             }
 
@@ -604,7 +691,7 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
                 pass_expr(state, data_index, a, symbol_table, errors);
             }
         },
-        Array{ values, ref mut range, .. } => {
+        Array { values, ref mut range, .. } => {
             // Update the expr's range
             offset_range!(range, state.offset);
 
@@ -613,7 +700,7 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
                 pass_expr(state, data_index, v, symbol_table, errors);
             }
         },
-        ArrayIndex{ array, index, ref mut range, .. } => {
+        ArrayIndex { array, index, ref mut range, .. } => {
             // Update the expr's range
             offset_range!(range, state.offset);
 
@@ -621,7 +708,7 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
             pass_expr(state, data_index, array, symbol_table, errors);
             pass_expr(state, data_index, index, symbol_table, errors);
         },
-        Pattern{ exprs, ref mut range, .. } => {
+        Pattern { exprs, ref mut range, .. } => {
             // Update the expr's range
             offset_range!(range, state.offset);
 
@@ -631,14 +718,14 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
             }
         },
 
-        UnaOp{ expr, ref mut range, .. } => {
+        UnaOp { expr, ref mut range, .. } => {
             // Update the expr's range
             offset_range!(range, state.offset);
 
             // Simply recurse
             pass_expr(state, data_index, expr, symbol_table, errors);
         },
-        BinOp{ lhs, rhs, ref mut range, .. } => {
+        BinOp { lhs, rhs, ref mut range, .. } => {
             // Update the expr's range
             offset_range!(range, state.offset);
 
@@ -646,7 +733,7 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
             pass_expr(state, data_index, lhs, symbol_table, errors);
             pass_expr(state, data_index, rhs, symbol_table, errors);
         },
-        Proj{ lhs, rhs, ref mut st_entry, ref mut range, .. } => {
+        Proj { lhs, rhs, ref mut st_entry, ref mut range, .. } => {
             // Update the expr's range
             offset_range!(range, state.offset);
 
@@ -659,38 +746,60 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
             pass_expr(state, data_index, rhs, symbol_table, errors);
 
             // Get the rhs identifier
-            let rhs_ident: &brane_dsl::ast::Identifier = if let Expr::Identifier{ name, .. } = &**rhs {
+            let rhs_ident: &brane_dsl::ast::Identifier = if let Expr::Identifier { name, .. } = &**rhs {
                 name
             } else {
-                panic!("Encountered non-Identifier expression on righthand-side of projection expression");  
+                panic!("Encountered non-Identifier expression on righthand-side of projection expression");
             };
 
             // With the type evaluated, get the symbol table that contains the class' fields referenced by the LHS
-            let c_entry: Rc<RefCell<ClassEntry>> = {
+            let (var_name, c_entry): (String, Rc<RefCell<ClassEntry>>) = {
                 // Get a borrow to the underlying variable entry first
                 let var_entry: Rc<RefCell<VarEntry>> = match &**lhs {
-                    Expr::Proj{ st_entry, .. } => {
+                    Expr::Proj { st_entry, .. } => {
                         // Get the class symbol table as simply the parent table of the variable entry
-                        let entry: &SymbolTableEntry = st_entry.as_ref().unwrap();
-                        match entry {
-                            SymbolTableEntry::VarEntry(v)      => v.clone(),
-                            SymbolTableEntry::FunctionEntry(f) => {
-                                let entry: Ref<FunctionEntry> = f.borrow();
-                                errors.push(Error::NonClassProjection{ name: rhs_ident.value.clone(), got: DataType::Function(Box::new(entry.signature.clone())), range: lhs.range().clone() });
-                                return;
-                            },
-                            _ => { panic!("Got non-Var, non-Method SymbolTableEntry in a projection"); }
+                        if let Some(entry) = st_entry.as_ref() {
+                            match entry {
+                                SymbolTableEntry::VarEntry(v) => v.clone(),
+                                SymbolTableEntry::FunctionEntry(f) => {
+                                    let entry: Ref<FunctionEntry> = f.borrow();
+                                    errors.push(Error::NonClassProjection {
+                                        name:  rhs_ident.value.clone(),
+                                        got:   DataType::Function(Box::new(entry.signature.clone())),
+                                        range: lhs.range().clone(),
+                                    });
+                                    return;
+                                },
+                                _ => {
+                                    panic!("Got non-Var, non-Method SymbolTableEntry in a projection");
+                                },
+                            }
+                        } else {
+                            // Otherwise, the LHS was not resolveable at this moment; try again later
+                            trace!("Projection LHS not yet resolvable");
+                            return;
                         }
                     },
-                    Expr::VarRef { st_entry, .. } => {
+                    Expr::VarRef { name, st_entry, .. } => {
                         // If the VarRef is not given, then something went wrong (e.g., unknown argument)
-                        if st_entry.is_none() { return; }
+                        if st_entry.is_none() {
+                            trace!("No entry set for '{}'", name.value);
+                            return;
+                        }
 
                         // Always a variable entry
+                        trace!(
+                            "Entry set for '{}' (pointing to '{}' ({}))",
+                            name.value,
+                            st_entry.as_ref().unwrap().borrow().name,
+                            st_entry.as_ref().unwrap().borrow().data_type
+                        );
                         st_entry.as_ref().unwrap().clone()
                     },
 
-                    _ => { panic!("Got non-Proj, non-VarRef expression on lefthand-side of projection expression"); }
+                    _ => {
+                        panic!("Got non-Proj, non-VarRef expression on lefthand-side of projection expression");
+                    },
                 };
 
                 // Get the type behind that entry as a ClassType
@@ -698,16 +807,22 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
                 let c_name: &str = match &entry.data_type {
                     DataType::Class(c_name) => c_name,
                     // For Any, we have no choice but to assume it's fine and leave it until runtime
-                    DataType::Any           => { return; }
-                    entry_type              => {
-                        errors.push(Error::NonClassProjection{ name: rhs_ident.value.clone(), got: entry_type.clone(), range: lhs.range().clone() });
+                    DataType::Any => {
+                        return;
+                    },
+                    entry_type => {
+                        errors.push(Error::NonClassProjection {
+                            name:  rhs_ident.value.clone(),
+                            got:   entry_type.clone(),
+                            range: lhs.range().clone(),
+                        });
                         return;
                     },
                 };
 
                 // Attempt to resolve that name in the symbol table
                 let st: Ref<SymbolTable> = symbol_table.borrow();
-                st.get_class(c_name).unwrap()
+                (entry.name.clone(), st.get_class(c_name).unwrap())
             };
 
             // After that whole ordeal, we can now see if the rhs identifier is actually a field in the class
@@ -715,11 +830,22 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
             let cst: Ref<SymbolTable> = ce.symbol_table.borrow();
             if let Some(f_entry) = cst.get(&rhs_ident.value) {
                 // It's a field! Link the projection operator to it.
+                trace!("Projection of {} onto {} points to class {}", rhs_ident.value, var_name, match &f_entry {
+                    SymbolTableEntry::FunctionEntry(f) => format!("method '{}'", f.borrow().name),
+                    SymbolTableEntry::ClassEntry(c) => format!("class '{}'", c.borrow().signature.name),
+                    SymbolTableEntry::VarEntry(v) => format!("property '{}' ({})", v.borrow().name, v.borrow().data_type),
+                });
                 *st_entry = Some(f_entry);
-            } else { errors.push(Error::UnknownField { class_name: ce.signature.name.clone(), name: rhs_ident.value.clone(), range: rhs_ident.range.clone() }); }
+            } else {
+                errors.push(Error::UnknownField {
+                    class_name: ce.signature.name.clone(),
+                    name: rhs_ident.value.clone(),
+                    range: rhs_ident.range.clone(),
+                });
+            }
         },
 
-        Instance{ ref mut name, ref mut properties, ref mut st_entry, ref mut range, .. } => {
+        Instance { ref mut name, ref mut properties, ref mut st_entry, ref mut range, .. } => {
             // Update the expr's range
             offset_range!(name.range, state.offset);
             offset_range!(range, state.offset);
@@ -728,11 +854,13 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
             {
                 let st: Ref<SymbolTable> = symbol_table.borrow();
                 match st.get_class(&name.value) {
-                    Some(entry) => { *st_entry = Some(entry); },
-                    None        => {
-                        errors.push(Error::UndefinedClass{ ident: name.value.clone(), range: name.range().clone() });
+                    Some(entry) => {
+                        *st_entry = Some(entry);
+                    },
+                    None => {
+                        errors.push(Error::UndefinedClass { ident: name.value.clone(), range: name.range().clone() });
                         return;
-                    }
+                    },
                 }
             }
 
@@ -744,7 +872,7 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
 
                 // But first, double-check this property is actually present in the type (since this type resolving does not require extra type checking)
                 if entry.symbol_table.borrow().get_var(&p.name.value).is_none() {
-                    errors.push(Error::UnknownField{ class_name: name.value.clone(), name: p.name.value.clone(), range: p.name.range().clone() });
+                    errors.push(Error::UnknownField { class_name: name.value.clone(), name: p.name.value.clone(), range: p.name.range().clone() });
                     return;
                 }
 
@@ -755,13 +883,16 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
             // Finally, check if this dataset exists
             if entry.signature.name == BuiltinClasses::Data.name() {
                 // Get the identifier stored within
-                let name: &Expr = properties.iter().find_map(|p| if &p.name.value == "name" { Some(&p.value) } else { None }).expect("Builtin class Data has no field 'name' (seems like that's not been properly updated)");
-                let sname: &str  = match name {
+                let name: &Expr = properties
+                    .iter()
+                    .find_map(|p| if &p.name.value == "name" { Some(&p.value) } else { None })
+                    .expect("Builtin class Data has no field 'name' (seems like that's not been properly updated)");
+                let sname: &str = match name {
                     Literal { literal: brane_dsl::ast::Literal::String { value, .. } } => value,
-                    name                                                               => {
-                        errors.push(Error::DataIncorrectExpr{ range: name.range().clone() });
+                    name => {
+                        errors.push(Error::DataIncorrectExpr { range: name.range().clone() });
                         return;
-                    }
+                    },
                 };
 
                 // Attempt to find it in the data index
@@ -772,29 +903,35 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
                 //         return;
                 //     }
                 // };
-                if data_index.get(sname).is_none() { errors.push(Error::UnknownDataError{ name: sname.into(), range: name.range().clone() }); }
+                if data_index.get(sname).is_none() {
+                    errors.push(Error::UnknownDataError { name: sname.into(), range: name.range().clone() });
+                }
 
                 // With the dataset resolved, we rest easy
             }
         },
-        Identifier{ ref mut name, .. } => {
+        Identifier { ref mut name, .. } => {
             // Update the expr's range
             name.range.start.line += state.offset;
-            name.range.end.line   += state.offset;
+            name.range.end.line += state.offset;
         },
-        VarRef{ ref mut name, ref mut st_entry, .. } => {
+        VarRef { ref mut name, ref mut st_entry, .. } => {
             // Update the expr's range
             name.range.start.line += state.offset;
-            name.range.end.line   += state.offset;
+            name.range.end.line += state.offset;
 
             // Resolve the variable reference as a classic, well, variable
             let st: Ref<SymbolTable> = symbol_table.borrow();
             match st.get_var(&name.value) {
-                Some(entry) => { *st_entry = Some(entry); },
-                None        => { errors.push(Error::UndefinedVariable { ident: name.value.clone(), range: name.range.clone() }); }
+                Some(entry) => {
+                    *st_entry = Some(entry);
+                },
+                None => {
+                    errors.push(Error::UndefinedVariable { ident: name.value.clone(), range: name.range.clone() });
+                },
             }
         },
-        Literal{ ref mut literal } => {
+        Literal { ref mut literal } => {
             pass_literal(state, literal);
         },
 
@@ -806,33 +943,33 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
 }
 
 /// Passes literals, but only to update their internal ranges.
-/// 
+///
 /// # Arguments
-/// - `state`: 
+/// - `state`:
 /// - `literal`: The Literal to pass.
 fn pass_literal(state: &CompileState, literal: &mut Literal) {
     use Literal::*;
     match literal {
-        Null{ ref mut range, .. } => {
+        Null { ref mut range, .. } => {
             offset_range!(range, state.offset);
         },
-        Boolean{ ref mut range, .. } => {
+        Boolean { ref mut range, .. } => {
             offset_range!(range, state.offset);
         },
-        Integer{ ref mut range, .. } => {
+        Integer { ref mut range, .. } => {
             offset_range!(range, state.offset);
         },
-        Real{ ref mut range, .. } => {
+        Real { ref mut range, .. } => {
             offset_range!(range, state.offset);
         },
-        String{ ref mut range, .. } => {
+        String { ref mut range, .. } => {
             offset_range!(range, state.offset);
         },
-        Semver{ ref mut range, .. } => {
+        Semver { ref mut range, .. } => {
             offset_range!(range, state.offset);
         },
 
-        Void{ ref mut range, .. } => {
+        Void { ref mut range, .. } => {
             offset_range!(range, state.offset);
         },
     }
@@ -844,18 +981,18 @@ fn pass_literal(state: &CompileState, literal: &mut Literal) {
 
 /***** LIBRARY *****/
 /// Builds symbol tables for the given `brane-dsl` AST.
-/// 
+///
 /// This effectively resolves variable references.
-/// 
+///
 /// # Arguments
 /// - `state`: The CompileState that we can use to remember definitions in between runs.
 /// - `package_index`: The PackageIndex which we use to resolve external function calls.
 /// - `data_index`: The DataIndex which we use to resolve external data assets.
 /// - `root`: The root node of the tree on which this compiler pass will be done.
-/// 
+///
 /// # Returns
 /// The same nodes as went in, but now with non-empty symbol tables.
-/// 
+///
 /// # Errors
 /// TThis pass may throw `AstError::ResolveError`s if the user made mistakes with their variable references.
 pub fn do_traversal(state: &mut CompileState, package_index: &PackageIndex, data_index: &DataIndex, root: Program) -> Result<Program, Vec<AstError>> {
@@ -872,9 +1009,5 @@ pub fn do_traversal(state: &mut CompileState, package_index: &PackageIndex, data
     pass_block(state, package_index, data_index, &mut root.block, None, &mut errors);
 
     // Done
-    if errors.is_empty() {
-        Ok(root)
-    } else {
-        Err(errors.into_iter().map(AstError::from).collect())
-    }
+    if errors.is_empty() { Ok(root) } else { Err(errors.into_iter().map(AstError::from).collect()) }
 }

@@ -567,9 +567,9 @@ dependencies = [
  "clap",
  "dotenvy",
  "enum-debug",
- "env_logger",
  "expanduser",
  "human-panic",
+ "humanlog",
  "log",
  "openssl-sys",
  "serde_json",
@@ -600,8 +600,15 @@ name = "brane-chk"
 version = "3.0.0"
 dependencies = [
  "brane-ast",
+ "brane-shr",
+ "clap",
  "enum-debug",
+ "error-trace",
+ "humanlog",
+ "log",
+ "serde_json",
  "specifications",
+ "transform",
 ]
 
 [[package]]
@@ -1759,6 +1766,11 @@ dependencies = [
  "libc",
  "str-buf",
 ]
+
+[[package]]
+name = "error-trace"
+version = "1.0.0"
+source = "git+https://github.com/Lut99/error-trace-rs#38f412039449f1f74c54c6656211cb7b9e8f8861"
 
 [[package]]
 name = "expanduser"
@@ -5094,6 +5106,11 @@ checksum = "c06d3da6113f116aaee68e4d601191614c9053067f9ab7f6edbcb161237daa54"
 dependencies = [
  "once_cell",
 ]
+
+[[package]]
+name = "transform"
+version = "0.1.1"
+source = "git+https://github.com/Lut99/transform-rs#17d06ab4cf1bc2f8f25f2a8276159c2722cdf301"
 
 [[package]]
 name = "treediff"
