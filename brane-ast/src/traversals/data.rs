@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 13:34:31
 //  Last edited:
-//    01 Nov 2023, 17:27:50
+//    01 Nov 2023, 17:40:10
 //  Auto updated?
 //    Yes
 //
@@ -349,7 +349,7 @@ fn pass_expr(expr: &mut Expr, table: &DataState) -> HashSet<Data> {
                         HashSet::new()
                     } else {
                         // It's not a builtin but a custom one; refer to the compile state
-                        // NOTE: Tough luck if the function was never defined before. But I _guess_ that would indeed be unlikely, this far in the compilation process.
+                        // NOTE: Tough luck if the function was never defined before (why does it just return nothing when it's not found instead of error?). But I _guess_ that would indeed be unlikely, this far in the compilation process.
                         table.get_func(&entry.name).clone()
                     }
                 }
