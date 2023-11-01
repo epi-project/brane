@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 14:58:16
 //  Last edited:
-//    01 Nov 2023, 13:29:19
+//    01 Nov 2023, 14:08:20
 //  Auto updated?
 //    Yes
 //
@@ -12,6 +12,7 @@
 //!   Defines common utilities across the Brane project.
 //
 
+use std::borrow::Cow;
 use std::fs::{self, DirEntry, ReadDir};
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -225,7 +226,27 @@ pub fn create_data_index_from(path: impl AsRef<Path>) -> DataIndex {
 ///
 /// # Panics
 /// This function panics if the test failed (i.e., if the files could not be found or the closure panics).
+#[inline]
 pub fn test_on_dsl_files<F>(mode: &'static str, exec: F)
+where
+    F: Fn(PathBuf, String),
+{
+    test_on_dsl_files_in(mode, PathBuf::from(TESTS_DIR), exec)
+}
+/// Runs a given closure on all files in the given folder.
+///
+/// # Generic arguments
+/// - `F`: The function signature of the closure. It simply accepts the path and source text of a single file, and returns nothing. Instead, it can panic if the test fails.
+///
+/// # Arguments
+/// - `mode`: The mode to run in. May either be 'BraneScript' or 'Bakery'.
+/// - `path`: The path to search for files in.
+/// - `exec`: The closure that runs code on every file in the appropriate language's text.
+///
+/// # Panics
+/// This function panics if the test failed (i.e., if the files could not be found or the closure panics).
+#[inline]
+pub fn test_on_dsl_files_in<F>(mode: &'static str, path: impl AsRef<Path>, exec: F)
 where
     F: Fn(PathBuf, String),
 {
@@ -233,10 +254,12 @@ where
     let runtime: Runtime = Builder::new_current_thread().build().unwrap_or_else(|err| panic!("Failed to launch Tokio runtime: {}", err));
 
     // Run the test_on_dsl_files_async
-    runtime.block_on(test_on_dsl_files_async(mode, |path, code| async { exec(path, code) }))
+    runtime.block_on(test_on_dsl_files_in_async(mode, path, |path, code| async { exec(path, code) }))
 }
 
 /// Runs a given closure on all files in the `tests` folder (see the constant defined in this function's source file).
+///
+/// This function runs the searching and loading of files asynchronously, for server contexts.
 ///
 /// # Generic arguments
 /// - `F`: The function signature of the closure. It simply accepts the path and source text of a single file, and returns a future that represents the test code. If it should cause the test to fail, that future should panic.
@@ -252,15 +275,36 @@ where
     F: Fn(PathBuf, String) -> R,
     R: Future<Output = ()>,
 {
+    test_on_dsl_files_in_async(mode, PathBuf::from(TESTS_DIR), exec).await
+}
+/// Runs a given closure on all files in the given folder.
+///
+/// This function runs the searching and loading of files asynchronously, for server contexts.
+///
+/// # Generic arguments
+/// - `F`: The function signature of the closure. It simply accepts the path and source text of a single file, and returns a future that represents the test code. If it should cause the test to fail, that future should panic.
+///
+/// # Arguments
+/// - `mode`: The mode to run in. May either be 'BraneScript' or 'Bakery'.
+/// - `path`: The path to search for files in.
+/// - `exec`: The closure that runs code on every file in the appropriate language's text.
+///
+/// # Panics
+/// This function panics if the test failed (i.e., if the files could not be found or the closure panics).
+pub async fn test_on_dsl_files_in_async<F, R>(mode: &'static str, path: impl AsRef<Path>, exec: F)
+where
+    F: Fn(PathBuf, String) -> R,
+    R: Future<Output = ()>,
+{
     // Setup some variables and checks
-    let mut tests_dir: PathBuf = PathBuf::from(TESTS_DIR);
+    let mut path: Cow<Path> = Cow::Borrowed(path.as_ref());
     let exts: Vec<&'static str> = match mode {
         "BraneScript" => {
-            tests_dir = tests_dir.join("branescript");
+            path = Cow::Owned(path.join("branescript"));
             vec!["bs", "bscript"]
         },
         "Bakery" => {
-            tests_dir = tests_dir.join("bakery");
+            path = Cow::Owned(path.join("bakery"));
             vec!["bakery"]
         },
         val => {
@@ -269,15 +313,15 @@ where
     };
 
     // Try to open the folder
-    let dir = match fs::read_dir(&tests_dir) {
+    let dir = match fs::read_dir(&path) {
         Ok(dir) => dir,
         Err(err) => {
-            panic!("Failed to list tests directory '{}': {}", tests_dir.display(), err);
+            panic!("Failed to list tests directory '{}': {}", path.display(), err);
         },
     };
 
     // Start a 'recursive' process where we run all '*.bscript' files.
-    let mut todo: Vec<(PathBuf, ReadDir)> = vec![(tests_dir, dir)];
+    let mut todo: Vec<(PathBuf, ReadDir)> = vec![(path.into(), dir)];
     let mut counter = 0;
     while let Some((path, dir)) = todo.pop() {
         // Iterate through it
