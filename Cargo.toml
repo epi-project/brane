@@ -27,7 +27,6 @@ members = [
     "brane-job",
     "brane-reg",
     "brane-let",
-    "brane-chk",
 
     # These crates implement services that occur on any type of node
     "brane-prx",
