@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 15:24:54
 //  Last edited:
-//    31 Oct 2023, 11:10:42
+//    01 Nov 2023, 16:42:51
 //  Auto updated?
 //    Yes
 //
@@ -29,7 +29,7 @@ use specifications::version::Version;
 
 use crate::errors::AstError;
 pub use crate::errors::ResolveError as Error;
-use crate::spec::BuiltinClasses;
+use crate::spec::{BuiltinClasses, BuiltinFunctions};
 use crate::state::CompileState;
 
 
@@ -683,6 +683,15 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
                         errors.push(Error::UndefinedFunction { ident: name.value.clone(), range: name.range.clone() });
                         return;
                     },
+                }
+
+                // Assertion that is at the incorrect place but jeeeeeez this sucks to place anywhere; if this is a commit, is the name a literal string?
+                if name.value == BuiltinFunctions::CommitResult.name() {
+                    if let Some(first_arg) = args.iter().next() {
+                        if !matches!(&**first_arg, Expr::Literal { literal: brane_dsl::ast::Literal::String { .. } }) {
+                            errors.push(Error::CommitResultIncorrectExpr { range: first_arg.range().clone() });
+                        }
+                    }
                 }
             }
 
