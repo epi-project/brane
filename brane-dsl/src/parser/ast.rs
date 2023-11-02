@@ -4,7 +4,7 @@
 //  Created:
 //    10 Aug 2022, 14:00:59
 //  Last edited:
-//    01 Nov 2023, 15:53:37
+//    02 Nov 2023, 14:10:19
 //  Auto updated?
 //    Yes
 //
@@ -13,6 +13,7 @@
 //
 
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::rc::Rc;
 use std::str::FromStr;
@@ -181,6 +182,8 @@ pub enum Stmt {
         expr:      Option<Expr>,
         /// The expected return datatype.
         data_type: DataType,
+        /// If this is a return on workflow level, also mentions a data that is returned (if any).
+        output:    HashSet<Data>,
 
         /// The range of the return statement in the source text.
         range: TextRange,
@@ -343,7 +346,7 @@ impl Stmt {
     /// # Returns
     /// A new `Stmt::Return` instance.
     #[inline]
-    pub fn new_return(expr: Option<Expr>, range: TextRange) -> Self { Self::Return { expr, data_type: DataType::Any, range } }
+    pub fn new_return(expr: Option<Expr>, range: TextRange) -> Self { Self::Return { expr, data_type: DataType::Any, output: HashSet::new(), range } }
 
     /// Creates a new Parallel node with some auxillary fields set to empty.
     ///
@@ -494,9 +497,9 @@ pub enum Expr {
         /// The locations where this Call is allowed to run based on the location of the datasets.
         locations: AllowedLocations,
         /// If this call takes in Data or IntermediateResult, then this field will list their names. Used to only ever be the case if this call is an external call, but no more, since we're also interested in tracking this for things like `commit_result`.
-        input:     Vec<Data>,
+        input:     HashSet<Data>,
         /// The intermediate result that this Call creates, if any. Used to only ever be the case if this call is an external call, but no more, since we're also interested in tracking this for things like `commit_result`.
-        result:    Option<Data>,
+        result:    HashSet<Data>,
 
         /// The range of the call-expression in the source text.
         range: TextRange,
@@ -637,7 +640,7 @@ impl Expr {
     /// A new `Expr::Call` instance.
     #[inline]
     pub fn new_call(expr: Box<Expr>, args: Vec<Box<Expr>>, range: TextRange, locations: AllowedLocations) -> Self {
-        Self::Call { expr, args, st_entry: None, locations, input: vec![], result: None, range }
+        Self::Call { expr, args, st_entry: None, locations, input: HashSet::new(), result: HashSet::new(), range }
     }
 
     /// Creates a new Array expression with some auxillary fields set to empty.

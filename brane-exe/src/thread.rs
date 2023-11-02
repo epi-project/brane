@@ -4,7 +4,7 @@
 //  Created:
 //    09 Sep 2022, 13:23:41
 //  Last edited:
-//    01 Nov 2023, 17:06:23
+//    02 Nov 2023, 14:25:28
 //  Auto updated?
 //    Yes
 //
@@ -1925,7 +1925,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                     (def, 0)
                 }
             },
-            Return {} => {
+            Return { result: _ } => {
                 // Attempt to pop the top frame off the frame stack
                 let (ret, ret_type): ((usize, usize), DataType) = match self.fstack.pop() {
                     Ok(res) => res,

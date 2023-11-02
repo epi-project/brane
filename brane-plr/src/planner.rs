@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    01 Nov 2023, 17:06:51
+//    02 Nov 2023, 14:25:44
 //  Auto updated?
 //    Yes
 //
@@ -376,7 +376,7 @@ async fn plan_edges(
                 // TODO: Check if this planning works across functions *screams*
                 pc = *next;
             },
-            Edge::Return {} => {
+            Edge::Return { result: _ } => {
                 // We will stop analysing here too, since we assume we have been called in recursion mode or something
                 break;
             },
@@ -539,7 +539,7 @@ fn plan_deferred(
                 // TODO: Check if this planning works across functions *screams*
                 pc = *next;
             },
-            Edge::Return {} => {
+            Edge::Return { result: _ } => {
                 // We will stop analysing here too, since we assume we have been called in recursion mode or something
                 break;
             },

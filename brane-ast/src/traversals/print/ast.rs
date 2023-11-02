@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 09:25:11
 //  Last edited:
-//    01 Nov 2023, 17:06:09
+//    02 Nov 2023, 14:24:01
 //  Auto updated?
 //    Yes
 //
@@ -367,15 +367,19 @@ fn pass_edges(
                     "{} {}Call{}",
                     line_number!(i),
                     indent!(indent),
-                    if !input.is_empty() || result.is_some() {
+                    if !input.is_empty() || !result.is_empty() {
                         format!(
                             " [{} -> {}]",
                             if !input.is_empty() {
-                                input.iter().map(|name| format!("'{name}'")).collect::<Vec<String>>().join(", ").to_string()
+                                input.iter().map(|name| format!("'{name}'")).collect::<Vec<String>>().join(" or ").to_string()
                             } else {
-                                "''".into()
+                                "<none>".into()
                             },
-                            if let Some(name) = result { format!("'{name}'") } else { "''".into() },
+                            if !result.is_empty() {
+                                result.iter().map(|name| format!("'{name}'")).collect::<Vec<String>>().join(" or ").to_string()
+                            } else {
+                                "<none>".into()
+                            },
                         )
                     } else {
                         String::new()
@@ -385,8 +389,25 @@ fn pass_edges(
                 // Move to the next node
                 i = *next;
             },
-            Return {} => {
-                writeln!(writer, "{} {}Return", line_number!(i), indent!(indent))?;
+            Return { result } => {
+                writeln!(
+                    writer,
+                    "{} {}Return{}",
+                    line_number!(i),
+                    indent!(indent),
+                    if !result.is_empty() {
+                        format!(
+                            " [returns {}]",
+                            if !result.is_empty() {
+                                result.iter().map(|name| format!("'{name}'")).collect::<Vec<String>>().join(" or ").to_string()
+                            } else {
+                                "<none>".into()
+                            },
+                        )
+                    } else {
+                        String::new()
+                    }
+                )?;
                 i += 1
             },
         }

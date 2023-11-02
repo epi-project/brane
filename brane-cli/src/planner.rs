@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 16:40:21
 //  Last edited:
-//    02 Nov 2023, 11:31:08
+//    02 Nov 2023, 14:26:02
 //  Auto updated?
 //    Yes
 //
@@ -158,7 +158,7 @@ fn plan_edges(
                 // TODO: Check if this planning works across functions *screams*
                 pc = *next;
             },
-            Edge::Return {} => {
+            Edge::Return { result: _ } => {
                 // We will stop analysing here too, since we assume we have been called in recursion mode or something
                 break;
             },
@@ -319,7 +319,7 @@ fn plan_deferred(table: &SymTable, edges: &mut [Edge], pc: usize, merge: Option<
                 // TODO: Check if this planning works across functions *screams*
                 pc = *next;
             },
-            Edge::Return {} => {
+            Edge::Return { result: _ } => {
                 // We will stop analysing here too, since we assume we have been called in recursion mode or something
                 break;
             },

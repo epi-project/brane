@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 17:36:21
 //  Last edited:
-//    01 Nov 2023, 17:36:29
+//    02 Nov 2023, 14:23:28
 //  Auto updated?
 //    Yes
 //
@@ -139,7 +139,7 @@ fn update_link(edge: &mut Edge, index: usize) {
             }
         },
 
-        Return {} => {},
+        Return { .. } => {},
         edge => {
             panic!("Attempted to update the linear link on edge '{edge:?}'");
         },
@@ -492,7 +492,7 @@ fn pass_edges(edges: EdgeBuffer, target: &mut Vec<Edge>, map: &mut HashMap<EdgeB
                         },
                     }
                 },
-                Return {} => {
+                Return { result } => {
                     // We expect an explicit no connection
                     if let EdgeBufferNodeLink::Stop = &e.next {
                     } else {
@@ -500,7 +500,7 @@ fn pass_edges(edges: EdgeBuffer, target: &mut Vec<Edge>, map: &mut HashMap<EdgeB
                     };
 
                     // Write the return
-                    let index = write_edge!(target, Edge::Return {});
+                    let index = write_edge!(target, Edge::Return { result: result.clone() });
                     map.insert(edges_start.clone(), index);
 
                     // No next index; just stop loopin'

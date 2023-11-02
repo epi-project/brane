@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 13:34:31
 //  Last edited:
-//    02 Nov 2023, 11:30:01
+//    02 Nov 2023, 14:12:11
 //  Auto updated?
 //    Yes
 //
@@ -154,10 +154,12 @@ fn pass_stmt(stmt: &mut Stmt, table: &mut DataState, is_branch: bool, scope: &Rc
             // The definition itself doesn't return, so it doesn't introduce new identifiers
             HashSet::new()
         },
-        Return { expr, .. } => {
+        Return { expr, output, .. } => {
             if let Some(expr) = expr {
                 // Return whether the expression returns any datasets
-                pass_expr(expr, table)
+                let res: HashSet<Data> = pass_expr(expr, table);
+                *output = res.clone();
+                res
             } else {
                 // Otherwise, it doesn't return any new identifiers
                 HashSet::new()
@@ -311,21 +313,21 @@ fn pass_expr(expr: &mut Expr, table: &DataState) -> HashSet<Data> {
                 let entry: Ref<FunctionEntry> = st_entry.borrow();
                 if entry.package_name.is_some() {
                     // It's external; as such, if it returns a result, either return an already generated result ID or generate a new one. Otherwise, this function doesn't return shit.
-                    if let Some(result) = result {
-                        HashSet::from([result.clone()])
+                    if !result.is_empty() {
+                        result.clone()
                     } else if entry.signature.ret == DataType::Class(BuiltinClasses::IntermediateResult.name().into()) {
                         // If this call is an external one _and_ it returns a result, we want to note it as such.
 
                         // Generate the identifier for this result
                         let uuid: String = Uuid::new_v4().to_string()[..6].into();
                         let id: String = format!("result_{}_{}", entry.name, uuid);
-                        let res: Data = Data::IntermediateResult(id);
+                        let res: HashSet<Data> = HashSet::from([Data::IntermediateResult(id)]);
 
                         // Note it in the function
-                        *result = Some(res.clone());
+                        *result = res.clone();
 
                         // Return the identifier to return from this call
-                        HashSet::from([res])
+                        res
                     } else {
                         // Nothing to return
                         HashSet::new()
@@ -337,9 +339,9 @@ fn pass_expr(expr: &mut Expr, table: &DataState) -> HashSet<Data> {
                         let arg: &Expr = args.get(0).unwrap();
                         if let Expr::Literal { literal: brane_dsl::ast::Literal::String { value, .. } } = arg {
                             // OK return that as a data
-                            let data: Data = Data::Data(value.clone());
-                            *result = Some(data.clone());
-                            HashSet::from([data])
+                            let res: HashSet<Data> = HashSet::from([Data::Data(value.clone())]);
+                            *result = res.clone();
+                            res
                         } else {
                             panic!("Got non-string-literal name argument for builtin `commit_result()`");
                         }

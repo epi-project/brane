@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 11:32:04
 //  Last edited:
-//    01 Nov 2023, 17:35:15
+//    02 Nov 2023, 14:30:28
 //  Auto updated?
 //    Yes
 //
@@ -15,7 +15,7 @@
 //
 
 use std::cell::{Ref, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use brane_dsl::ast as dsl;
@@ -409,14 +409,14 @@ fn pass_stmt(stmt: dsl::Stmt, edges: &mut EdgeBuffer, f_edges: &mut HashMap<usiz
                 }
             }
         },
-        Return { expr, .. } => {
+        Return { expr, output, .. } => {
             // Compile the expression first as separate edges
             if let Some(expr) = expr {
                 pass_expr(expr, edges, table);
             }
 
             // End the branch instead of writing a Return
-            edges.write_stop(ast::Edge::Return {});
+            edges.write_stop(ast::Edge::Return { result: output.iter().map(|data| ast::DataName::from(data.clone())).collect() });
         },
 
         If { cond, consequent, alternative, .. } => {
@@ -473,7 +473,7 @@ fn pass_stmt(stmt: dsl::Stmt, edges: &mut EdgeBuffer, f_edges: &mut HashMap<usiz
                 let mut b_edges: EdgeBuffer = EdgeBuffer::new();
                 pass_stmt(*b, &mut b_edges, f_edges, table, warnings);
                 if !b_edges.fully_returns() {
-                    b_edges.write_stop(ast::Edge::Return {});
+                    b_edges.write_stop(ast::Edge::Return { result: HashSet::new() });
                 }
                 branches.push(b_edges);
             }
@@ -579,7 +579,10 @@ fn pass_expr(expr: dsl::Expr, edges: &mut EdgeBuffer, _table: &TableState) {
             #[allow(clippy::unnecessary_unwrap)]
             if st_entry.is_some() && st_entry.as_ref().unwrap().borrow().package_name.is_some() {
                 // Assert that the result is an intermediate result
-                let result: Option<String> = result.as_ref().map(|result| {
+                if result.len() > 1 {
+                    panic!("Found external call with more than one results as output");
+                }
+                let result: Option<String> = result.iter().next().map(|result| {
                     if let dsl::Data::IntermediateResult(result) = result {
                         result.clone()
                     } else {
@@ -600,7 +603,7 @@ fn pass_expr(expr: dsl::Expr, edges: &mut EdgeBuffer, _table: &TableState) {
                 // It's a local call; replace with a Call edge
                 edges.write(ast::Edge::Call {
                     input:  input.into_iter().map(|d| d.into()).collect(),
-                    result: result.as_ref().map(|data| data.clone().into()),
+                    result: result.iter().map(|data| ast::DataName::from(data.clone())).collect(),
                     next:   usize::MAX,
                 });
             }

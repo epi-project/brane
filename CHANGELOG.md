@@ -9,6 +9,7 @@ All notable changes to the Brane framework will be documented in this file.
 - `branec --trace` flag to enable trace-level debugging.
   - Accordingly, some `trace`-log prints have been added to the compiler in `brane-ast`.
 - The data analysis performed in `brane-ast` to also annotate function calls with possible data inputs (relevant for `commit_result` builtin).
+  - Return-statements on workflow level are also annotated.
 
 ### Changed
 - `branec` now uses [humanlog](https://github.com/Lut99/humanlog-rs) as logging backend for nicer messages.

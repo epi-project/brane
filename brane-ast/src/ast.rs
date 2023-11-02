@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    01 Nov 2023, 16:50:22
+//    02 Nov 2023, 14:21:57
 //  Auto updated?
 //    Yes
 //
@@ -426,7 +426,7 @@ pub enum Edge {
         input:  HashSet<DataName>,
         /// Reference to the result (or dataset) if this call generates one.
         #[serde(rename = "r")]
-        result: Option<DataName>,
+        result: HashSet<DataName>,
         /// The next edge to execute (usually the next one)
         #[serde(rename = "n")]
         next:   usize,
@@ -436,7 +436,11 @@ pub enum Edge {
     /// # Stack layout
     /// - Optionally requires a value to be on the stack of the called function's return type. Whether or not this is need and which type that value has is determined by the top value on the frame stack.
     #[serde(rename = "ret")]
-    Return {},
+    Return {
+        /// If this return returns a value and that value is a Data, then this names which it is.
+        #[serde(rename = "r")]
+        result: HashSet<DataName>,
+    },
 }
 
 
