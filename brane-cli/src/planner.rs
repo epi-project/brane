@@ -1,35 +1,34 @@
 //  PLANNER.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    24 Oct 2022, 16:40:21
 //  Last edited:
-//    03 Jan 2023, 11:04:41
+//    02 Nov 2023, 11:31:08
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   A very trivial planner, that simple plans every dataset to run on
 //!   'localhost'.
-// 
+//
 
 use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use log::debug;
-
-use brane_ast::Workflow;
 use brane_ast::ast::{DataName, Edge, SymTable};
+use brane_ast::Workflow;
 use brane_tsk::errors::PlanError;
-use brane_tsk::spec::{LOCALHOST, Planner};
+use brane_tsk::spec::{Planner, LOCALHOST};
+use log::debug;
 use specifications::data::{AccessKind, AvailabilityKind, DataIndex};
 
 
 /***** HELPER FUNCTIONS *****/
 /// Helper function that plans the given list of edges.
-/// 
+///
 /// # Arguments
 /// - `table`: The SymbolTable these edges live in.
 /// - `edges`: The given list to plan.
@@ -38,23 +37,33 @@ use specifications::data::{AccessKind, AvailabilityKind, DataIndex};
 /// - `merge`: If given, then we will stop analysing once we reach that point.
 /// - `deferred`: Whether or not to show errors when an intermediate result is not generated yet (false) or not (true).
 /// - `done`: A list we use to keep track of edges we've already analyzed (to prevent endless loops).
-/// 
+///
 /// # Returns
 /// Nothing, but does change the given list.
-/// 
+///
 /// # Errors
 /// This function may error if the given list of edges was malformed (usually due to unknown or inaccessible datasets or results).
-fn plan_edges(table: &mut SymTable, edges: &mut [Edge], dindex: &Arc<DataIndex>, pc: usize, merge: Option<usize>, deferred: bool, done: &mut HashSet<usize>) -> Result<(), PlanError> {
+fn plan_edges(
+    table: &mut SymTable,
+    edges: &mut [Edge],
+    dindex: &Arc<DataIndex>,
+    pc: usize,
+    merge: Option<usize>,
+    deferred: bool,
+    done: &mut HashSet<usize>,
+) -> Result<(), PlanError> {
     // We cannot get away simply examining all edges in-order; we have to follow their execution structure
     let mut pc: usize = pc;
     while pc < edges.len() && (merge.is_none() || pc != merge.unwrap()) {
         // Match on the edge to progress
         let edge: &mut Edge = &mut edges[pc];
-        if done.contains(&pc) { break; }
+        if done.contains(&pc) {
+            break;
+        }
         done.insert(pc);
         match edge {
             // This is the node where it all revolves around, in the end
-            Edge::Node{ task, at, input, result, next, .. } => {
+            Edge::Node { task, at, input, result, next, .. } => {
                 // We simply assign all locations to localhost
                 *at = Some(LOCALHOST.into());
                 debug!("Task '{}' planned at '{}'", table.tasks[*task].name(), LOCALHOST);
@@ -74,20 +83,20 @@ fn plan_edges(table: &mut SymTable, edges: &mut [Edge], dindex: &Arc<DataIndex>,
                 // Finally, don't forget to move to the next one
                 pc = *next;
             },
-            Edge::Linear{ next, .. } => {
+            Edge::Linear { next, .. } => {
                 // Simply move to the next one
                 pc = *next;
             },
-            Edge::Stop{} => {
+            Edge::Stop {} => {
                 // We've reached the end of the program
                 break;
             },
 
-            Edge::Branch{ true_next, false_next, merge } => {
+            Edge::Branch { true_next, false_next, merge } => {
                 // Dereference the numbers to dodge the borrow checker
-                let true_next : usize         = *true_next;
+                let true_next: usize = *true_next;
                 let false_next: Option<usize> = *false_next;
-                let merge     : Option<usize> = *merge;
+                let merge: Option<usize> = *merge;
 
                 // First analyse the true_next branch, until it reaches the merge (or quits)
                 plan_edges(table, edges, dindex, true_next, merge, deferred, done)?;
@@ -103,9 +112,9 @@ fn plan_edges(table: &mut SymTable, edges: &mut [Edge], dindex: &Arc<DataIndex>,
                     break;
                 }
             },
-            Edge::Parallel{ branches, merge } => {
+            Edge::Parallel { branches, merge } => {
                 // Dereference the numbers to dodge the borrow checker
-                let branches : Vec<usize> = branches.clone();
+                let branches: Vec<usize> = branches.clone();
                 let merge: usize = *merge;
 
                 // Analyse any of the branches
@@ -117,16 +126,16 @@ fn plan_edges(table: &mut SymTable, edges: &mut [Edge], dindex: &Arc<DataIndex>,
                 // Continue at the merge
                 pc = merge;
             },
-            Edge::Join{ next, .. } => {
+            Edge::Join { next, .. } => {
                 // Move to the next instruction (joins are not relevant for planning)
                 pc = *next;
             },
 
-            Edge::Loop{ cond, body, next, .. } => {
+            Edge::Loop { cond, body, next, .. } => {
                 // Dereference the numbers to dodge the borrow checker
-                let cond : usize         = *cond;
-                let body : usize         = *body;
-                let next : Option<usize> = *next;
+                let cond: usize = *cond;
+                let body: usize = *body;
+                let next: Option<usize> = *next;
 
                 // Run the conditions and body in a first pass, with deferation enabled, to do as much as we can
                 plan_edges(table, edges, dindex, cond, Some(body), true, done)?;
@@ -144,12 +153,12 @@ fn plan_edges(table: &mut SymTable, edges: &mut [Edge], dindex: &Arc<DataIndex>,
                 }
             },
 
-            Edge::Call{ next } => {
+            Edge::Call { input: _, result: _, next } => {
                 // We can ignore calls for now, but...
                 // TODO: Check if this planning works across functions *screams*
                 pc = *next;
             },
-            Edge::Return{} => {
+            Edge::Return {} => {
                 // We will stop analysing here too, since we assume we have been called in recursion mode or something
                 break;
             },
@@ -184,16 +193,16 @@ fn plan_edges(table: &mut SymTable, edges: &mut [Edge], dindex: &Arc<DataIndex>,
 }
 
 /// Helper function that populates the availability of results right after a first planning round, to catch those that needed to be deferred (i.e., loop variables).
-/// 
+///
 /// # Arguments
 /// - `table`: The SymbolTable these edges live in.
 /// - `edges`: The given list to plan.
 /// - `pc`: The started index for the program counter. Should be '0' when called manually, the rest is handled during recursion.
 /// - `merge`: If given, then we will stop analysing once we reach that point.
-/// 
+///
 /// # Returns
 /// Nothing, but does change the given list.
-/// 
+///
 /// # Errors
 /// This function may error if there were still results that couldn't be populated even after we've seen all edges.
 fn plan_deferred(table: &SymTable, edges: &mut [Edge], pc: usize, merge: Option<usize>, done: &mut HashSet<usize>) -> Result<(), PlanError> {
@@ -202,15 +211,19 @@ fn plan_deferred(table: &SymTable, edges: &mut [Edge], pc: usize, merge: Option<
     while pc < edges.len() && (merge.is_none() || pc != merge.unwrap()) {
         // Match on the edge to progress
         let edge: &mut Edge = &mut edges[pc];
-        if done.contains(&pc) { break; }
+        if done.contains(&pc) {
+            break;
+        }
         done.insert(pc);
         match edge {
             // This is the node where it all revolves around, in the end
-            Edge::Node{ input, next, .. } => {
+            Edge::Node { input, next, .. } => {
                 // This next trick involves checking if the node has any unresolved results as input, then trying to resolve them
                 for (name, avail) in input {
                     // Continue if it already has a resolved availability
-                    if avail.is_some() { continue; }
+                    if avail.is_some() {
+                        continue;
+                    }
 
                     // Get the name of the result
                     if let DataName::IntermediateResult(name) = name {
@@ -219,15 +232,14 @@ fn plan_deferred(table: &SymTable, edges: &mut [Edge], pc: usize, merge: Option<
                             // Match on whether it is available locally or not
                             if LOCALHOST == loc {
                                 debug!("Input intermediate result '{}' is locally available", name);
-                                *avail = Some(AvailabilityKind::Available { how: AccessKind::File{ path: PathBuf::from(name) } });
+                                *avail = Some(AvailabilityKind::Available { how: AccessKind::File { path: PathBuf::from(name) } });
                             } else {
                                 // We don't download, so always unavailable
-                                return Err(PlanError::IntermediateResultUnavailable{ name: name.clone(), locs: vec![] });
+                                return Err(PlanError::IntermediateResultUnavailable { name: name.clone(), locs: vec![] });
                             }
                         } else {
-                            return Err(PlanError::UnknownIntermediateResult{ name: name.clone() });
+                            return Err(PlanError::UnknownIntermediateResult { name: name.clone() });
                         }
-
                     } else {
                         panic!("Should never see an unresolved Data in the workflow");
                     }
@@ -236,20 +248,20 @@ fn plan_deferred(table: &SymTable, edges: &mut [Edge], pc: usize, merge: Option<
                 // Finally, don't forget to move to the next one
                 pc = *next;
             },
-            Edge::Linear{ next, .. } => {
+            Edge::Linear { next, .. } => {
                 // Simply move to the next one
                 pc = *next;
             },
-            Edge::Stop{} => {
+            Edge::Stop {} => {
                 // We've reached the end of the program
                 break;
             },
 
-            Edge::Branch{ true_next, false_next, merge } => {
+            Edge::Branch { true_next, false_next, merge } => {
                 // Dereference the numbers to dodge the borrow checker
-                let true_next : usize         = *true_next;
+                let true_next: usize = *true_next;
                 let false_next: Option<usize> = *false_next;
-                let merge     : Option<usize> = *merge;
+                let merge: Option<usize> = *merge;
 
                 // First analyse the true_next branch, until it reaches the merge (or quits)
                 plan_deferred(table, edges, true_next, merge, done)?;
@@ -265,9 +277,9 @@ fn plan_deferred(table: &SymTable, edges: &mut [Edge], pc: usize, merge: Option<
                     break;
                 }
             },
-            Edge::Parallel{ branches, merge } => {
+            Edge::Parallel { branches, merge } => {
                 // Dereference the numbers to dodge the borrow checker
-                let branches : Vec<usize> = branches.clone();
+                let branches: Vec<usize> = branches.clone();
                 let merge: usize = *merge;
 
                 // Analyse any of the branches
@@ -279,16 +291,16 @@ fn plan_deferred(table: &SymTable, edges: &mut [Edge], pc: usize, merge: Option<
                 // Continue at the merge
                 pc = merge;
             },
-            Edge::Join{ next, .. } => {
+            Edge::Join { next, .. } => {
                 // Move to the next instruction (joins are not relevant for planning)
                 pc = *next;
             },
 
-            Edge::Loop{ cond, body, next, .. } => {
+            Edge::Loop { cond, body, next, .. } => {
                 // Dereference the numbers to dodge the borrow checker
-                let cond : usize         = *cond;
-                let body : usize         = *body;
-                let next : Option<usize> = *next;
+                let cond: usize = *cond;
+                let body: usize = *body;
+                let next: Option<usize> = *next;
 
                 // We only have to analyse further deferrence; the actual planning should have been done before `plan_deferred()` is called
                 plan_deferred(table, edges, cond, Some(body), done)?;
@@ -302,12 +314,12 @@ fn plan_deferred(table: &SymTable, edges: &mut [Edge], pc: usize, merge: Option<
                 }
             },
 
-            Edge::Call{ next } => {
+            Edge::Call { input: _, result: _, next } => {
                 // We can ignore calls for now, but...
                 // TODO: Check if this planning works across functions *screams*
                 pc = *next;
             },
-            Edge::Return{} => {
+            Edge::Return {} => {
                 // We will stop analysing here too, since we assume we have been called in recursion mode or something
                 break;
             },
@@ -327,38 +339,38 @@ fn plan_deferred(table: &SymTable, edges: &mut [Edge], pc: usize, merge: Option<
 #[derive(Debug)]
 pub struct OfflinePlanner {
     /// The local data index to resolve datasets with.
-    data_index : Arc<DataIndex>,
+    data_index: Arc<DataIndex>,
 }
 
 impl OfflinePlanner {
     /// Constructor for the OfflinePlanner.
-    /// 
+    ///
     /// # Arguments
     /// - `data_index`: The DataIndex that is used to resolve datasets at plantime.
-    /// 
+    ///
     /// # Returns
     /// A new OfflinePlanner instance.
     #[inline]
-    pub fn new(data_index: Arc<DataIndex>) -> Self {
-        Self {
-            data_index,
-        }
-    }
-
-
+    pub fn new(data_index: Arc<DataIndex>) -> Self { Self { data_index } }
 
     /// Plans the given task offline.
-    /// 
+    ///
     /// # Arguments
     /// - `name`: The name of the dataset or intermediate result, as a DataName (so we can distinguish between the two).
     /// - `avail`: The availability for this dataset that we will be updating.
     /// - `dindex`: The DataIndex we use to see what datasets are actually available where.
     /// - `results`: The map of results that are known in this workflow.
     /// - `deferred`: If `true`, then will not error if we failed to find a result yet (its declaration might come later, in that case).
-    /// 
+    ///
     /// # Returns
     /// Nothing, but does change the dataset's availability.
-    pub fn plan_data(name: &DataName, avail: &mut Option<AvailabilityKind>, dindex: &Arc<DataIndex>, results: &HashMap<String, String>, deferred: bool) -> Result<(), PlanError> {
+    pub fn plan_data(
+        name: &DataName,
+        avail: &mut Option<AvailabilityKind>,
+        dindex: &Arc<DataIndex>,
+        results: &HashMap<String, String>,
+        deferred: bool,
+    ) -> Result<(), PlanError> {
         match name {
             DataName::Data(name) => {
                 if let Some(info) = dindex.get(name) {
@@ -368,10 +380,10 @@ impl OfflinePlanner {
                         *avail = Some(AvailabilityKind::Available { how: access.clone() });
                     } else {
                         // We don't download, so always unavailable
-                        return Err(PlanError::DatasetUnavailable{ name: name.clone(), locs: vec![] });
+                        return Err(PlanError::DatasetUnavailable { name: name.clone(), locs: vec![] });
                     }
                 } else {
-                    return Err(PlanError::UnknownDataset{ name: name.clone() });
+                    return Err(PlanError::UnknownDataset { name: name.clone() });
                 }
             },
 
@@ -381,13 +393,13 @@ impl OfflinePlanner {
                     // Match on whether it is available locally or not
                     if LOCALHOST == loc {
                         debug!("Input intermediate result '{}' is locally available", name);
-                        *avail = Some(AvailabilityKind::Available { how: AccessKind::File{ path: PathBuf::from(name) } });
+                        *avail = Some(AvailabilityKind::Available { how: AccessKind::File { path: PathBuf::from(name) } });
                     } else {
-                         // We don't download, so always unavailable
-                         return Err(PlanError::IntermediateResultUnavailable{ name: name.clone(), locs: vec![] });
+                        // We don't download, so always unavailable
+                        return Err(PlanError::IntermediateResultUnavailable { name: name.clone(), locs: vec![] });
                     }
                 } else if !deferred {
-                    return Err(PlanError::UnknownIntermediateResult{ name: name.clone() });
+                    return Err(PlanError::UnknownIntermediateResult { name: name.clone() });
                 } else {
                     debug!("Input intermediate result '{}' is not yet available, but it might be later (deferred)", name);
                 }
@@ -407,14 +419,14 @@ impl Planner for OfflinePlanner {
         // Get the symbol table muteable, so we can... mutate... it
         let mut table: Arc<SymTable> = Arc::new(SymTable::new());
         mem::swap(&mut workflow.table, &mut table);
-        let mut table: SymTable      = Arc::try_unwrap(table).unwrap();
+        let mut table: SymTable = Arc::try_unwrap(table).unwrap();
 
         // Do the main edges first
         {
             // Start by getting a list of all the edges
             let mut edges: Arc<Vec<Edge>> = Arc::new(vec![]);
             mem::swap(&mut workflow.graph, &mut edges);
-            let mut edges: Vec<Edge>      = Arc::try_unwrap(edges).unwrap();
+            let mut edges: Vec<Edge> = Arc::try_unwrap(edges).unwrap();
 
             // Plan them
             debug!("Planning main edges...");
@@ -430,7 +442,7 @@ impl Planner for OfflinePlanner {
             // Start by getting the map
             let mut funcs: Arc<HashMap<usize, Vec<Edge>>> = Arc::new(HashMap::new());
             mem::swap(&mut workflow.funcs, &mut funcs);
-            let mut funcs: HashMap<usize, Vec<Edge>>      = Arc::try_unwrap(funcs).unwrap();
+            let mut funcs: HashMap<usize, Vec<Edge>> = Arc::try_unwrap(funcs).unwrap();
 
             // Iterate through all of the edges
             for (idx, edges) in &mut funcs {

@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 13:34:31
 //  Last edited:
-//    01 Nov 2023, 17:40:10
+//    02 Nov 2023, 11:30:01
 //  Auto updated?
 //    Yes
 //
@@ -337,7 +337,9 @@ fn pass_expr(expr: &mut Expr, table: &DataState) -> HashSet<Data> {
                         let arg: &Expr = args.get(0).unwrap();
                         if let Expr::Literal { literal: brane_dsl::ast::Literal::String { value, .. } } = arg {
                             // OK return that as a data
-                            HashSet::from([Data::Data(value.clone())])
+                            let data: Data = Data::Data(value.clone());
+                            *result = Some(data.clone());
+                            HashSet::from([data])
                         } else {
                             panic!("Got non-string-literal name argument for builtin `commit_result()`");
                         }

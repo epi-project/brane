@@ -8,6 +8,7 @@ All notable changes to the Brane framework will be documented in this file.
 - Commands for cross-compiling to macOS x86-64 _and_ ARM 64-bit from Linux :)
 - `branec --trace` flag to enable trace-level debugging.
   - Accordingly, some `trace`-log prints have been added to the compiler in `brane-ast`.
+- The data analysis performed in `brane-ast` to also annotate function calls with possible data inputs (relevant for `commit_result` builtin).
 
 ### Changed
 - `branec` now uses [humanlog](https://github.com/Lut99/humanlog-rs) as logging backend for nicer messages.
