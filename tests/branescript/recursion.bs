@@ -1,0 +1,22 @@
+// I'm like 99% this will break half of Brane but we'll see
+// :0 it works!! Whoa I'm literally the best programmer in the whole world, then :D
+
+
+func fibonacci(n, n_1, i) {
+    if (i == 0) {
+        return 0;
+    } else {
+        if (i == 1) {
+            return n_1;
+        } else {
+            return fibonacci(n_1, n + n_1, i - 1);
+        }
+    }
+}
+
+
+println(fibonacci(0, 1, 0));
+println(fibonacci(0, 1, 5));
+println(fibonacci(0, 1, 10));
+println(fibonacci(0, 1, 20));
+
