@@ -1,19 +1,19 @@
 //  SPEC.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    20 Oct 2022, 14:17:30
 //  Last edited:
-//    06 Nov 2022, 19:53:46
+//    03 Nov 2023, 16:08:52
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Defines (public) interfaces and structs for the `brane-ast` crate.
-// 
+//
 
-use brane_dsl::{DataType, TextRange};
 use brane_dsl::data_type::FunctionSignature;
+use brane_dsl::{DataType, TextRange};
 
 use crate::state::{ClassState, FunctionState, TableList, TableState, VarState};
 
@@ -40,7 +40,7 @@ impl BuiltinFunctions {
     pub fn name(&self) -> &'static str {
         use BuiltinFunctions::*;
         match self {
-            Print   => "print",
+            Print => "print",
             PrintLn => "println",
 
             Len => "len",
@@ -54,37 +54,51 @@ impl BuiltinFunctions {
     pub fn signature(&self) -> FunctionSignature {
         use BuiltinFunctions::*;
         match self {
-            Print   => FunctionSignature::new(vec![ DataType::String ], DataType::Void),
-            PrintLn => FunctionSignature::new(vec![ DataType::String ], DataType::Void),
+            Print => FunctionSignature::new(vec![DataType::String], DataType::Void),
+            PrintLn => FunctionSignature::new(vec![DataType::String], DataType::Void),
 
-            Len => FunctionSignature::new(vec![ DataType::Array(Box::new(DataType::Any)) ], DataType::Integer),
+            Len => FunctionSignature::new(vec![DataType::Array(Box::new(DataType::Any))], DataType::Integer),
 
-            CommitResult => FunctionSignature::new(vec![ DataType::String, DataType::Class(BuiltinClasses::IntermediateResult.name().into()) ], DataType::Class(BuiltinClasses::Data.name().into())),
+            CommitResult => FunctionSignature::new(
+                vec![DataType::String, DataType::Class(BuiltinClasses::IntermediateResult.name().into())],
+                DataType::Class(BuiltinClasses::Data.name().into()),
+            ),
         }
     }
 
-
-
     /// Returns an array with all the builtin functions in it.
     #[inline]
-    pub fn all() -> [ Self; 4 ] { [ Self::Print, Self::PrintLn, Self::Len, Self::CommitResult ] }
+    pub fn all() -> [Self; 4] { [Self::Print, Self::PrintLn, Self::Len, Self::CommitResult] }
 
     /// Returns an Array with all of the builtin functions but already casted to FunctionStates.
     #[inline]
-    pub fn all_into_state() -> [ FunctionState; 4 ] { [ Self::Print.into(), Self::PrintLn.into(), Self::Len.into(), Self::CommitResult.into() ] }
+    pub fn all_into_state() -> [FunctionState; 4] { [Self::Print.into(), Self::PrintLn.into(), Self::Len.into(), Self::CommitResult.into()] }
+
+    /// Checks if the given string is a builtin.
+    #[inline]
+    pub fn is_builtin(&self, name: impl AsRef<str>) -> bool {
+        // Note that the order in which we match (i.e., on self instead of name) is a little awkward but guarantees Rust will warns us if we change the set.
+        let name: &str = name.as_ref();
+        match self {
+            Self::CommitResult => name == "commit_result",
+            Self::Len => name == "len",
+            Self::Print => name == "print",
+            Self::PrintLn => name == "println",
+        }
+    }
 }
 
 impl From<BuiltinFunctions> for FunctionState {
     #[inline]
     fn from(value: BuiltinFunctions) -> Self {
         Self {
-            name      : value.name().into(),
-            signature : value.signature(),
+            name:      value.name().into(),
+            signature: value.signature(),
 
-            class_name : None,
+            class_name: None,
 
-            table : TableState::none(),
-            range : TextRange::none(),
+            table: TableState::none(),
+            range: TextRange::none(),
         }
     }
 }
@@ -106,7 +120,7 @@ impl BuiltinClasses {
     pub fn name(&self) -> &'static str {
         use BuiltinClasses::*;
         match self {
-            Data               => "Data",
+            Data => "Data",
             IntermediateResult => "IntermediateResult",
         }
     }
@@ -116,8 +130,20 @@ impl BuiltinClasses {
     pub fn props(&self) -> Vec<VarState> {
         use BuiltinClasses::*;
         match self {
-            Data               => vec![ VarState{ name: "name".into(), data_type: DataType::String, function_name: None, class_name: Some(self.name().into()), range: TextRange::none() } ],
-            IntermediateResult => vec![ VarState{ name: "path".into(), data_type: DataType::String, function_name: None, class_name: Some(self.name().into()), range: TextRange::none() } ],
+            Data => vec![VarState {
+                name: "name".into(),
+                data_type: DataType::String,
+                function_name: None,
+                class_name: Some(self.name().into()),
+                range: TextRange::none(),
+            }],
+            IntermediateResult => vec![VarState {
+                name: "path".into(),
+                data_type: DataType::String,
+                function_name: None,
+                class_name: Some(self.name().into()),
+                range: TextRange::none(),
+            }],
         }
     }
 
@@ -126,44 +152,42 @@ impl BuiltinClasses {
     pub fn methods(&self) -> Vec<FunctionState> {
         use BuiltinClasses::*;
         match self {
-            Data               => vec![],
+            Data => vec![],
             IntermediateResult => vec![],
         }
     }
 
-
-
     /// Returns an array with all the builtin classes in it.
     #[inline]
-    pub fn all() -> [ Self; 2 ] { [ Self::Data, Self::IntermediateResult ] }
+    pub fn all() -> [Self; 2] { [Self::Data, Self::IntermediateResult] }
 
     /// Returns an Array with all of the builtin functions but already casted to FunctionStates.
-    /// 
+    ///
     /// # Arguments
     /// - `funcs`: The list of function states to use for declaring new methods, if any.
     #[inline]
-    pub fn all_into_state(funcs: &mut TableList<FunctionState>) -> [ ClassState; 2 ] { [ Self::Data.into_state(funcs), Self::IntermediateResult.into_state(funcs) ] }
-
-
+    pub fn all_into_state(funcs: &mut TableList<FunctionState>) -> [ClassState; 2] {
+        [Self::Data.into_state(funcs), Self::IntermediateResult.into_state(funcs)]
+    }
 
     /// Creates a new ClassState for this BuiltinClasses, where we define the functions in the given TableList of functions.
-    /// 
+    ///
     /// # Arguments
     /// - `funcs`: The TableList of functions where to declare the new ones.
-    /// 
+    ///
     /// # Returns
     /// A new ClassState instance.
     #[inline]
     pub fn into_state(&self, funcs: &mut TableList<FunctionState>) -> ClassState {
         ClassState {
-            name    : self.name().into(),
-            props   : self.props(),
-            methods : self.methods().into_iter().map(|f| funcs.push(f)).collect(),
+            name:    self.name().into(),
+            props:   self.props(),
+            methods: self.methods().into_iter().map(|f| funcs.push(f)).collect(),
 
-            package_name    : None,
-            package_version : None,
+            package_name:    None,
+            package_version: None,
 
-            range : TextRange::none(),
+            range: TextRange::none(),
         }
     }
 }
