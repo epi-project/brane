@@ -4,7 +4,7 @@
 //  Created:
 //    20 Oct 2022, 14:17:30
 //  Last edited:
-//    03 Nov 2023, 16:08:52
+//    07 Nov 2023, 10:10:14
 //  Auto updated?
 //    Yes
 //
@@ -14,13 +14,14 @@
 
 use brane_dsl::data_type::FunctionSignature;
 use brane_dsl::{DataType, TextRange};
+use strum::{EnumIter, IntoEnumIterator as _};
 
 use crate::state::{ClassState, FunctionState, TableList, TableState, VarState};
 
 
 /***** LIBRARY *****/
 /// Defines the builtin functions that exist in BraneScript.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, EnumIter)]
 pub enum BuiltinFunctions {
     /// The print-function, which prints some text to stdout.
     Print,
@@ -76,15 +77,15 @@ impl BuiltinFunctions {
 
     /// Checks if the given string is a builtin.
     #[inline]
-    pub fn is_builtin(&self, name: impl AsRef<str>) -> bool {
+    pub fn is_builtin(name: impl AsRef<str>) -> bool {
         // Note that the order in which we match (i.e., on self instead of name) is a little awkward but guarantees Rust will warns us if we change the set.
         let name: &str = name.as_ref();
-        match self {
-            Self::CommitResult => name == "commit_result",
-            Self::Len => name == "len",
-            Self::Print => name == "print",
-            Self::PrintLn => name == "println",
+        for builtin in Self::iter() {
+            if name == builtin.name() {
+                return true;
+            }
         }
+        false
     }
 }
 
