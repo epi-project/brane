@@ -904,6 +904,7 @@ dependencies = [
  "env_logger",
  "futures-util",
  "log",
+ "parking_lot",
  "prost",
  "rand 0.8.5",
  "rdkafka",

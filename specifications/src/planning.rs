@@ -1,17 +1,17 @@
 //  NETWORK.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    28 Sep 2022, 10:33:37
 //  Last edited:
-//    15 Jan 2023, 16:10:40
+//    07 Nov 2023, 16:45:53
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Defines Kafka network messages used by `brane-drv` <-> `brane-job`
 //!   <-> `brane-plr` interaction.
-// 
+//
 
 use prost::{Enumeration, Message};
 
@@ -20,12 +20,15 @@ use prost::{Enumeration, Message};
 /// Defines a message that carries an _unplanned_ workflow. It is destined to be intercepted by the planner.
 #[derive(Clone, Message)]
 pub struct PlanningCommand {
-    /// Defines the correlation ID of the workflow to which this planning thing belongs.
+    /// Defines the app (=workflow) ID that matches this snippet to a global workflow.
     #[prost(tag = "1", string)]
-    pub id   : String,
-    /// The raw workflow, as JSON, that is sent around. It may be expected that there is usually at least one task that does not have a location annotated.
+    pub app_id:   String,
+    /// Defines the correlation ID of the task within the workflow.
     #[prost(tag = "2", string)]
-    pub workflow : String,
+    pub task_id:  String,
+    /// The raw workflow, as JSON, that is sent around. It may be expected that there is usually at least one task that does not have a location annotated.
+    #[prost(tag = "3", string)]
+    pub workflow: String,
 }
 
 
@@ -39,9 +42,9 @@ pub enum PlanningStatusKind {
     /// The plan has succeeded
     Success = 1,
     /// Planning has failed due to not being able to find a plan that brings everyone consent.
-    Failed  = 2,
+    Failed = 2,
     /// Planning has failed because some error has occurred.
-    Error   = 3,
+    Error = 3,
 }
 
 /// Defines whatever we need to know about the planning result.
@@ -49,10 +52,13 @@ pub enum PlanningStatusKind {
 pub struct PlanningUpdate {
     /// Defines the current state of the planning.
     #[prost(tag = "1", enumeration = "PlanningStatusKind")]
-    pub kind : i32,
-    /// Defines the correlation ID of the workflow to which this planning thing belongs.
+    pub kind:    i32,
+    /// Defines the app (=workflow) ID that matches this snippet to a global workflow.
     #[prost(tag = "2", string)]
-    pub id   : String,
+    pub app_id:  String,
+    /// Defines the correlation ID of the task within the workflow.
+    #[prost(tag = "3", string)]
+    pub task_id: String,
 
     /// Defines an additional string that provides additional information. Specifically, if the `kind` is:
     /// - `PlanningStatusKind::Started`, then this _may_ contains the address (or name, or some other identifier) of the planner that started planning the workflow.
@@ -60,8 +66,8 @@ pub struct PlanningUpdate {
     /// - `PlanningStatusKind::Failed`, then this _may_ contain some yet-to-be-specified information to help formulating new plans (or with some reason - idk yet).
     /// - `PlanningStatusKind::Error`, then this string describes what went wrong.
     /// For any other value, this field is ignored.
-    #[prost(tag = "3", optional, string)]
-    pub result : Option<String>,
+    #[prost(tag = "4", optional, string)]
+    pub result: Option<String>,
 }
 
 

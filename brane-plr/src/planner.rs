@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    02 Nov 2023, 14:25:44
+//    07 Nov 2023, 17:37:26
 //  Auto updated?
 //    Yes
 //
@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_recursion::async_recursion;
 use brane_ast::ast::{ComputeTaskDef, DataName, Edge, SymTable, TaskDef};
@@ -32,6 +32,7 @@ use brane_tsk::api::get_data_index;
 use brane_tsk::errors::PlanError;
 use futures_util::TryStreamExt;
 use log::{debug, error, info};
+use parking_lot::Mutex;
 use prost::Message as _;
 use rand::prelude::IteratorRandom;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
@@ -44,8 +45,16 @@ use reqwest::Response;
 use specifications::address::Address;
 use specifications::data::{AccessKind, AvailabilityKind, DataIndex, PreprocessKind};
 use specifications::package::Capability;
-use specifications::planning::{PlanningStatus, PlanningStatusKind, PlanningUpdate};
+use specifications::planning::{PlanningCommand, PlanningStatus, PlanningStatusKind, PlanningUpdate};
 use specifications::profiling::ProfileReport;
+
+
+/***** CONSTANTS *****/
+/// Time that a session has to be inactive before we deleted it (in seconds)
+const SESSION_TIMEOUT_S: u64 = 12 * 3600;
+
+
+
 
 
 /***** HELPER FUNCTIONS *****/
@@ -62,12 +71,14 @@ use specifications::profiling::ProfileReport;
 async fn send_update(
     producer: Arc<FutureProducer>,
     topic: impl AsRef<str>,
+    app_id: impl AsRef<str>,
     correlation_id: impl AsRef<str>,
     status: PlanningStatus,
 ) -> Result<(), PlanError> {
     let topic: &str = topic.as_ref();
+    let app_id: &str = app_id.as_ref();
     let correlation_id: &str = correlation_id.as_ref();
-    debug!("Sending update '{:?}' on topic '{}' for workflow '{}'", status, topic, correlation_id);
+    debug!("Sending update '{status:?}' on topic '{topic}' for workflow '{app_id}:{correlation_id}'");
 
     // Translate the status into a (kind, string) pair.
     let (kind, result): (PlanningStatusKind, Option<String>) = match status {
@@ -84,7 +95,7 @@ async fn send_update(
     let result_len: usize = result.as_ref().map(|r| r.len()).unwrap_or(0);
 
     // Create a planning update
-    let update: PlanningUpdate = PlanningUpdate { id: correlation_id.into(), kind: kind.into(), result };
+    let update: PlanningUpdate = PlanningUpdate { app_id: app_id.into(), task_id: correlation_id.into(), kind: kind.into(), result };
 
     // Encode it
     let mut payload: Vec<u8> = Vec::with_capacity(64 + result_len);
@@ -608,6 +619,9 @@ pub async fn planner_server(
         return Err(PlanError::KafkaOffsetsError { err });
     }
 
+    // The state of previously planned workflow snippets per-instance.
+    let results: Arc<Mutex<HashMap<String, (Instant, HashMap<String, String>)>>> = Arc::new(Mutex::new(HashMap::new()));
+
     // Next, we start processing the incoming stream of messages as soon as they arrive
     match consumer
         .stream()
@@ -618,13 +632,14 @@ pub async fn planner_server(
             let owned_message: OwnedMessage = borrowed_message.detach();
             let producer: Arc<FutureProducer> = producer.clone();
             let node_config_path: PathBuf = node_config_path.clone();
+            let results: Arc<Mutex<_>> = results.clone();
 
             // Do the rest in a future that takes ownership of the clones
             async move {
                 // Get the key
-                let id: String = String::from_utf8_lossy(owned_message.key().unwrap_or(&[])).to_string();
-                info!("Received new plan request with ID '{}'", id);
-                let report = ProfileReport::auto_reporting_file(format!("brane-plr workflow {id}"), format!("brane-plr_workflow-{id}"));
+                let task_id: String = String::from_utf8_lossy(owned_message.key().unwrap_or(&[])).to_string();
+                info!("Received new plan request with ID '{task_id}'");
+                let report = ProfileReport::auto_reporting_file(format!("brane-plr workflow {task_id}"), format!("brane-plr_workflow-{task_id}"));
                 let _total = report.time("Total");
 
                 // Fetch the most recent NodeConfig
@@ -647,12 +662,19 @@ pub async fn planner_server(
                 if let Some(payload) = owned_message.payload() {
                     // Parse as UTF-8
                     let parsing = report.time("Parsing");
-                    debug!("Message: \"\"\"{}\"\"\"", String::from_utf8_lossy(payload));
-                    let message: String = String::from_utf8_lossy(payload).to_string();
+                    // debug!("Message: \"\"\"{}\"\"\"", String::from_utf8_lossy(payload));
+                    // let message: String = String::from_utf8_lossy(payload).to_string();
+                    let cmd: PlanningCommand = match PlanningCommand::decode(payload) {
+                        Ok(cmd) => cmd,
+                        Err(err) => {
+                            error!("Failed to parse given PlanningCommand: {err}");
+                            return Ok(());
+                        },
+                    };
 
                     // Attempt to parse the workflow
-                    debug!("Parsing workflow of {} characters for session '{}'", message.len(), id);
-                    let mut workflow: Workflow = match serde_json::from_str(&message) {
+                    debug!("Parsing workflow of {} characters for session '{}:{}'", cmd.workflow.len(), cmd.app_id, cmd.task_id);
+                    let mut workflow: Workflow = match serde_json::from_str(&cmd.workflow) {
                         Ok(workflow) => workflow,
                         Err(err) => {
                             error!(
@@ -660,7 +682,7 @@ pub async fn planner_server(
                                 central.services.plr.cmd,
                                 err,
                                 (0..80).map(|_| '-').collect::<String>(),
-                                message,
+                                cmd.workflow,
                                 (0..80).map(|_| '-').collect::<String>()
                             );
                             return Ok(());
@@ -669,7 +691,9 @@ pub async fn planner_server(
                     parsing.stop();
 
                     // Send that we've started planning
-                    if let Err(err) = send_update(producer.clone(), &central.services.plr.res, &id, PlanningStatus::Started(None)).await {
+                    if let Err(err) =
+                        send_update(producer.clone(), &central.services.plr.res, &cmd.app_id, &cmd.task_id, PlanningStatus::Started(None)).await
+                    {
                         error!("Failed to update client that planning has started: {}", err);
                     };
 
@@ -704,6 +728,12 @@ pub async fn planner_server(
                         mem::swap(&mut workflow.table, &mut table);
                         let mut table: SymTable = Arc::try_unwrap(table).unwrap();
 
+                        // Fetch any previous state for this table
+                        if let Some(results) = results.lock().get_mut(&cmd.app_id) {
+                            results.0 = Instant::now();
+                            table.results.extend(results.1.iter().map(|(k, v)| (k.clone(), v.clone())));
+                        }
+
                         // Do the main edges first
                         {
                             // Start by getting a list of all the edges
@@ -730,9 +760,15 @@ pub async fn planner_server(
                                 )
                                 .await
                             {
-                                error!("Failed to plan main edges for workflow with correlation ID '{}': {}", id, err);
-                                if let Err(err) =
-                                    send_update(producer.clone(), &central.services.plr.res, &id, PlanningStatus::Error(format!("{err}"))).await
+                                error!("Failed to plan main edges for workflow with correlation ID '{}:{}': {}", cmd.app_id, cmd.task_id, err);
+                                if let Err(err) = send_update(
+                                    producer.clone(),
+                                    &central.services.plr.res,
+                                    &cmd.app_id,
+                                    &cmd.task_id,
+                                    PlanningStatus::Error(format!("{err}")),
+                                )
+                                .await
                                 {
                                     error!("Failed to update client that planning has failed: {}", err);
                                 }
@@ -772,11 +808,17 @@ pub async fn planner_server(
                                     .await
                                 {
                                     error!(
-                                        "Failed to plan function '{}' edges for workflow with correlation ID '{}': {}",
-                                        table.funcs[*idx].name, id, err
+                                        "Failed to plan function '{}' edges for workflow with correlation ID '{}:{}': {}",
+                                        table.funcs[*idx].name, cmd.app_id, cmd.task_id, err
                                     );
-                                    if let Err(err) =
-                                        send_update(producer.clone(), &central.services.plr.res, &id, PlanningStatus::Error(format!("{err}"))).await
+                                    if let Err(err) = send_update(
+                                        producer.clone(),
+                                        &central.services.plr.res,
+                                        &cmd.app_id,
+                                        &cmd.task_id,
+                                        PlanningStatus::Error(format!("{err}")),
+                                    )
+                                    .await
                                     {
                                         error!("Failed to update client that planning has failed: {}", err);
                                     }
@@ -788,6 +830,13 @@ pub async fn planner_server(
                             let mut funcs: Arc<HashMap<usize, Vec<Edge>>> = Arc::new(funcs);
                             mem::swap(&mut funcs, &mut workflow.funcs);
                         }
+
+                        // Write the results back for this session
+                        results
+                            .lock()
+                            .entry(cmd.app_id.clone())
+                            .and_modify(|results| *results = (Instant::now(), table.results.clone()))
+                            .or_insert_with(|| (Instant::now(), table.results.clone()));
 
                         // Then, put the table back
                         let mut table: Arc<SymTable> = Arc::new(table);
@@ -801,8 +850,14 @@ pub async fn planner_server(
                         Ok(splan) => splan,
                         Err(err) => {
                             error!("Failed to serialize plan: {}", err);
-                            if let Err(err) =
-                                send_update(producer.clone(), &central.services.plr.res, &id, PlanningStatus::Error(format!("{err}"))).await
+                            if let Err(err) = send_update(
+                                producer.clone(),
+                                &central.services.plr.res,
+                                &cmd.app_id,
+                                &cmd.task_id,
+                                PlanningStatus::Error(format!("{err}")),
+                            )
+                            .await
                             {
                                 error!("Failed to update client that planning has failed: {}", err);
                             }
@@ -812,10 +867,19 @@ pub async fn planner_server(
                     ser.stop();
 
                     // Send the result
-                    if let Err(err) = send_update(producer.clone(), &central.services.plr.res, &id, PlanningStatus::Success(splan)).await {
+                    if let Err(err) =
+                        send_update(producer.clone(), &central.services.plr.res, &cmd.app_id, &cmd.task_id, PlanningStatus::Success(splan)).await
+                    {
                         error!("Failed to update client that planning has succeeded: {}", err);
                     }
                     debug!("Planning OK");
+
+                    // Clean the list for old things and nobody else is using it
+                    if let Some(mut results) = results.try_lock() {
+                        info!("Running garbage collector on old {} planning sessions...", results.len());
+                        results.retain(|_, (last_used, _)| last_used.elapsed() < Duration::from_secs(SESSION_TIMEOUT_S));
+                        debug!("{} planning sessions left after GC run", results.len());
+                    }
                 }
 
                 // Done

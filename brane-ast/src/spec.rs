@@ -4,7 +4,7 @@
 //  Created:
 //    20 Oct 2022, 14:17:30
 //  Last edited:
-//    07 Nov 2023, 10:10:14
+//    07 Nov 2023, 17:15:25
 //  Auto updated?
 //    Yes
 //
@@ -16,7 +16,7 @@ use brane_dsl::data_type::FunctionSignature;
 use brane_dsl::{DataType, TextRange};
 use strum::{EnumIter, IntoEnumIterator as _};
 
-use crate::state::{ClassState, FunctionState, TableList, TableState, VarState};
+use crate::state::{ClassState, FunctionState, VarState};
 
 
 /***** LIBRARY *****/
@@ -98,7 +98,6 @@ impl From<BuiltinFunctions> for FunctionState {
 
             class_name: None,
 
-            table: TableState::none(),
             range: TextRange::none(),
         }
     }
@@ -167,7 +166,7 @@ impl BuiltinClasses {
     /// # Arguments
     /// - `funcs`: The list of function states to use for declaring new methods, if any.
     #[inline]
-    pub fn all_into_state(funcs: &mut TableList<FunctionState>) -> [ClassState; 2] {
+    pub fn all_into_state(funcs: &mut Vec<FunctionState>) -> [ClassState; 2] {
         [Self::Data.into_state(funcs), Self::IntermediateResult.into_state(funcs)]
     }
 
@@ -179,11 +178,19 @@ impl BuiltinClasses {
     /// # Returns
     /// A new ClassState instance.
     #[inline]
-    pub fn into_state(&self, funcs: &mut TableList<FunctionState>) -> ClassState {
+    pub fn into_state(&self, funcs: &mut Vec<FunctionState>) -> ClassState {
         ClassState {
             name:    self.name().into(),
             props:   self.props(),
-            methods: self.methods().into_iter().map(|f| funcs.push(f)).collect(),
+            methods: self
+                .methods()
+                .into_iter()
+                .enumerate()
+                .map(|(i, state)| {
+                    funcs.push(state);
+                    i
+                })
+                .collect(),
 
             package_name:    None,
             package_version: None,

@@ -12,7 +12,10 @@ All notable changes to the Brane framework will be documented in this file.
   - Return-statements on workflow level are also annotated.
 
 ### Changed
+- The WIR no longer has a dynamic definition table, but simply a large table spanning all scopes.
+  - To do this, the interface between the driver and planner have been updated (not a breaking change since inter-service communication with different service versions is not assumed).
 - `branec` now uses [humanlog](https://github.com/Lut99/humanlog-rs) as logging backend for nicer messages.
+- `brane-drv` and `brane-plr` are now using Rust 2021 instead of Rust 2018.
 
 ### Fixed
 - The BraneScript compiler hanging in an infinite loop in some cases.

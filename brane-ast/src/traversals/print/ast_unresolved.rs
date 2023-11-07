@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 11:08:57
 //  Last edited:
-//    02 Nov 2023, 14:24:47
+//    07 Nov 2023, 14:41:27
 //  Auto updated?
 //    Yes
 //
@@ -23,7 +23,7 @@ use crate::ast::{Edge, EdgeInstr};
 use crate::ast_unresolved::UnresolvedWorkflow;
 use crate::edgebuffer::{EdgeBuffer, EdgeBufferNode, EdgeBufferNodeLink, EdgeBufferNodePtr};
 pub use crate::errors::AstError as Error;
-use crate::state::{CompileState, FunctionState, TableState, TaskState, VirtualTableState};
+use crate::state::{CompileState, FunctionState, TableState, TaskState};
 
 
 /***** MACROS ******/
@@ -71,16 +71,12 @@ pub fn pass_table(writer: &mut impl Write, table: &TableState, indent: usize) ->
     for f in &table.funcs {
         writeln!(
             writer,
-            "{}Function {}({}){} [",
+            "{}Function {}({}){}",
             indent!(indent),
             &f.name,
             f.signature.args.iter().map(|a| format!("{a}")).collect::<Vec<String>>().join(", "),
             if f.signature.ret != DataType::Void { format!(" -> {}", f.signature.ret) } else { String::new() },
         )?;
-
-        // Write the nested table
-        pass_table(writer, &f.table, INDENT_SIZE + indent)?;
-        writeln!(writer, "{}]", indent!(indent))?;
     }
     // ...and all tasks
     for t in &table.tasks {
@@ -161,7 +157,7 @@ pub fn pass_table(writer: &mut impl Write, table: &TableState, indent: usize) ->
 ///
 /// # Returns
 /// Nothing, but does print the function buffers to stdout.
-pub fn pass_f_edges(writer: &mut impl Write, workflow: &UnresolvedWorkflow, table: &mut VirtualTableState, indent: usize) -> std::io::Result<()> {
+pub fn pass_f_edges(writer: &mut impl Write, workflow: &UnresolvedWorkflow, table: &TableState, indent: usize) -> std::io::Result<()> {
     for (i, edges) in &workflow.f_edges {
         // Print the header, resolving it
         let f: &FunctionState = table.func(*i);
@@ -175,9 +171,7 @@ pub fn pass_f_edges(writer: &mut impl Write, workflow: &UnresolvedWorkflow, tabl
         )?;
 
         // Print the edge body (use the correct table!)
-        table.push(&table.func(*i).table);
         pass_edges(writer, edges, table, INDENT_SIZE + indent, HashSet::new())?;
-        table.pop();
 
         // Print the closing brackets
         writeln!(writer, "{}}}", indent!(indent))?;
@@ -201,7 +195,7 @@ pub fn pass_f_edges(writer: &mut impl Write, workflow: &UnresolvedWorkflow, tabl
 pub fn pass_edges(
     writer: &mut impl Write,
     edges: &EdgeBuffer,
-    table: &mut VirtualTableState,
+    table: &TableState,
     indent: usize,
     stop: HashSet<EdgeBufferNodePtr>,
 ) -> std::io::Result<()> {
@@ -326,7 +320,7 @@ pub fn pass_edges(
 ///
 /// # Returns
 /// Nothing, but does print the edge to stdout.
-pub fn pass_edge(writer: &mut impl Write, edge: &Edge, table: &mut VirtualTableState, indent: usize) -> std::io::Result<()> {
+pub fn pass_edge(writer: &mut impl Write, edge: &Edge, table: &TableState, indent: usize) -> std::io::Result<()> {
     // Match the Edge
     use Edge::*;
     match edge {
@@ -385,7 +379,7 @@ pub fn pass_edge(writer: &mut impl Write, edge: &Edge, table: &mut VirtualTableS
 ///
 /// # Returns
 /// Nothing, but does print the instruction to stdout.
-pub fn pass_edge_instr(writer: &mut impl Write, instr: &EdgeInstr, table: &mut VirtualTableState) -> std::io::Result<()> {
+pub fn pass_edge_instr(writer: &mut impl Write, instr: &EdgeInstr, table: &TableState) -> std::io::Result<()> {
     // Match the instruction
     use EdgeInstr::*;
     match instr {
@@ -498,7 +492,7 @@ pub fn do_traversal(state: &CompileState, root: UnresolvedWorkflow, writer: impl
 
     // Print the function edges
     if !root.f_edges.is_empty() {
-        if let Err(err) = pass_f_edges(&mut writer, &root, &mut VirtualTableState::with(&state.table), INDENT_SIZE) {
+        if let Err(err) = pass_f_edges(&mut writer, &root, &state.table, INDENT_SIZE) {
             return Err(vec![Error::WriteError { err }]);
         }
         if let Err(err) = writeln!(&mut writer) {
@@ -513,7 +507,7 @@ pub fn do_traversal(state: &CompileState, root: UnresolvedWorkflow, writer: impl
     }
 
     // Print the main function body
-    if let Err(err) = pass_edges(&mut writer, &root.main_edges, &mut VirtualTableState::with(&state.table), INDENT_SIZE, HashSet::new()) {
+    if let Err(err) = pass_edges(&mut writer, &root.main_edges, &state.table, INDENT_SIZE, HashSet::new()) {
         return Err(vec![Error::WriteError { err }]);
     };
 
