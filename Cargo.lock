@@ -976,6 +976,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.2.10",
  "hex",
+ "humanlog",
  "indicatif",
  "log",
  "num-derive 0.3.3",
