@@ -4,7 +4,7 @@
 //  Created:
 //    16 Sep 2022, 08:22:47
 //  Last edited:
-//    02 Nov 2023, 14:29:54
+//    07 Nov 2023, 17:14:49
 //  Auto updated?
 //    Yes
 //
@@ -15,14 +15,12 @@
 
 use std::cell::{RefCell, RefMut};
 use std::collections::{HashMap, HashSet};
-use std::ops::{Index, IndexMut};
 use std::rc::Rc;
 
 use brane_dsl::ast::Data;
 use brane_dsl::data_type::{ClassSignature, FunctionSignature};
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, SymbolTable, VarEntry};
 use brane_dsl::{DataType, TextRange};
-use serde::{Deserialize, Serialize};
 use specifications::package::Capability;
 use specifications::version::Version;
 
@@ -40,441 +38,18 @@ lazy_static! {
 
 
 
-/***** AUXILLARY *****/
-/// A simple wrapper around a struct such that it allows a specific offset to be used when indexing.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct TableList<T> {
-    /// The internal struct we wrap
-    #[serde(rename = "d")]
-    pub data:   Vec<T>,
-    /// The offset that is applied to all of the indices.
-    #[serde(rename = "o")]
-    pub offset: usize,
-}
-
-impl<T> TableList<T> {
-    /// Constructor for the TableList that initializes it to empty.
-    ///
-    /// # Arguments
-    /// - `offset`: The offset to use when indexing this TableList.
-    ///
-    /// # Returns
-    /// A new TableList instance.
-    #[inline]
-    pub fn new(offset: usize) -> Self { Self { data: Vec::new(), offset } }
-
-    /// Constructor for the TableList that initializes it with a given capacity (but otherwise still empty).
-    ///
-    /// # Arguments
-    /// - `offset`: The offset to use when indexing this TableList.
-    /// - `capacity`: The initial capacity to initialize the internal vector to.
-    ///
-    /// # Returns
-    /// A new TableList instance.
-    #[inline]
-    pub fn with_capacity(offset: usize, capacity: usize) -> Self { Self { data: Vec::with_capacity(capacity), offset } }
-
-    /// Pushes the given item to the back of the list.
-    ///
-    /// # Arguments
-    /// - `elem`: The new element to push.
-    ///
-    /// # Returns
-    /// The index of the new element for convenience. This is also computable as the offset + the length of the list before this element was added.
-    pub fn push(&mut self, elem: T) -> usize {
-        let index: usize = self.offset + self.data.len();
-        self.data.push(elem);
-        index
-    }
-
-    /// Appends the elements in the given Vec(tor) to the end of this TableList.
-    ///
-    /// Note that the given list will give up ownership of them, i.e., they are transferred to this TableList (leaving the other empty).
-    ///
-    /// # Arguments
-    /// - `other`: The other vector to take the elements from.
-    ///
-    /// # Returns
-    /// Nothing, but does add the elements internally (in an optimal way).
-    #[inline]
-    pub fn append(&mut self, other: &mut Vec<T>) { self.data.append(other); }
-
-    /// Reserves enough space in the TableList for _at least_ the given number of _additional_ elements.
-    ///
-    /// # Arguments
-    /// - `extra_capacity`: The additional capacity to at least request space for.
-    ///
-    /// # Returns
-    /// Nothing, but does allocate the extra space internally.
-    #[inline]
-    pub fn reserve(&mut self, extra_capacity: usize) { self.data.reserve(extra_capacity); }
-
-    /// Returns an iterator over the elements in the TableList.
-    ///
-    /// Note, though, that if you tend to use `enumerate()` and want accurate indices (instead of those starting with 0), call `enumerate` on this struct directly instead.
-    ///
-    /// # Returns
-    /// An iterator over the internal vector.
-    #[inline]
-    pub fn iter(&self) -> std::slice::Iter<T> { self.data.iter() }
-
-    /// Returns a(n) (mutable) iterator over the elements in the TableList.
-    ///
-    /// Note, though, that if you tend to use `enumerate()` and want accurate indices (instead of those starting with 0), call `enumerate` on this struct directly instead.
-    ///
-    /// # Returns
-    /// An iterator over the internal vector.
-    #[inline]
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<T> { self.data.iter_mut() }
-
-    /// Returns an enumerating iterator over the elements in the TableList, but with indices that have a correct offset.
-    ///
-    /// # Returns
-    /// An iterator over the internal vector that enumerates with offset indices.
-    #[inline]
-    pub fn enumerate(&self) -> impl Iterator<Item = (usize, &T)> { self.data.iter().enumerate().map(|(i, d)| (self.offset + i, d)) }
-
-    /// Returns a(n) (mutable,) enumerating iterator over the elements in the TableList, but with indices that have a correct offset.
-    ///
-    /// # Returns
-    /// An iterator over the internal vector that enumerates with offset indices.
-    #[inline]
-    pub fn enumerate_mut(&mut self) -> impl Iterator<Item = (usize, &mut T)> { self.data.iter_mut().enumerate().map(|(i, d)| (self.offset + i, d)) }
-
-    /// Returns the internal offset in this TableList.
-    #[inline]
-    pub fn offset(&self) -> usize { self.offset }
-
-    /// Returns the number of elements stored in this TableList.
-    #[inline]
-    pub fn len(&self) -> usize { self.data.len() }
-
-    /// Returns true iff this TableList has no entries in it (equivalent to `TableList::len() == 0`).
-    #[inline]
-    pub fn is_empty(&self) -> bool { self.data.is_empty() }
-
-    /// Returns the capacity of the internal vector (i.e., for how many elements it has already reserved space). It is guaranteed that `TableList::capacity() >= TableList::len()`.
-    #[inline]
-    pub fn capacity(&self) -> usize { self.data.capacity() }
-}
-
-impl<T> Index<usize> for TableList<T> {
-    type Output = T;
-
-    #[inline]
-    fn index(&self, idx: usize) -> &Self::Output {
-        if idx < self.offset {
-            panic!("Cannot index a TableList with an index smaller than its offset (i.e., !({} >= {}))", idx, self.offset)
-        }
-        if self.data.is_empty() {
-            panic!("Attempted to index empty TableList (index: {} (got: {}))", idx - self.offset, idx);
-        }
-        if idx - self.offset >= self.data.len() {
-            panic!(
-                "Index {} is out-of-range for TableList with index range {}..{} (i.e., {} is out-of-range for a vector of size {})",
-                idx - self.offset,
-                self.offset,
-                self.offset + self.data.len(),
-                idx,
-                self.data.len()
-            );
-        }
-        &self.data[idx - self.offset]
-    }
-}
-impl<T> IndexMut<usize> for TableList<T> {
-    #[inline]
-    fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
-        if idx < self.offset {
-            panic!("Cannot index a TableList with an index smaller than its offset (i.e., !({} >= {}))", idx, self.offset)
-        }
-        if self.data.is_empty() {
-            panic!("Attempted to index empty TableList (index: {} (got: {}))", idx - self.offset, idx);
-        }
-        if idx - self.offset >= self.data.len() {
-            panic!(
-                "Index {} is out-of-range for TableList with index range {}..{} (i.e., {} is out-of-range for a vector of size {})",
-                idx - self.offset,
-                self.offset,
-                self.offset + self.data.len(),
-                idx,
-                self.data.len()
-            );
-        }
-        &mut self.data[idx - self.offset]
-    }
-}
-
-impl<T> IntoIterator for TableList<T> {
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-    type Item = T;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter { self.data.into_iter() }
-}
-impl<'a, T> IntoIterator for &'a TableList<T> {
-    type IntoIter = std::slice::Iter<'a, T>;
-    type Item = &'a T;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter { self.data.iter() }
-}
-impl<'a, T> IntoIterator for &'a mut TableList<T> {
-    type IntoIter = std::slice::IterMut<'a, T>;
-    type Item = &'a mut T;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter { self.data.iter_mut() }
-}
-
-impl<T> From<(Vec<T>, usize)> for TableList<T> {
-    #[inline]
-    fn from(value: (Vec<T>, usize)) -> Self { Self { data: value.0, offset: value.1 } }
-}
-impl<const N: usize, T> From<([T; N], usize)> for TableList<T>
-where
-    T: Clone,
-{
-    #[inline]
-    fn from(value: ([T; N], usize)) -> Self { Self { data: value.0.to_vec(), offset: value.1 } }
-}
-impl<const N: usize, T> From<(&[T; N], usize)> for TableList<T>
-where
-    T: Clone,
-{
-    #[inline]
-    fn from(value: (&[T; N], usize)) -> Self { Self { data: value.0.to_vec(), offset: value.1 } }
-}
-
-
-
-/// Defines a shortcut for a VirtualTable over TableStates.
-pub type VirtualTableState<'a> = VirtualTable<'a, FunctionState, TaskState, ClassState, VarState>;
-
-/// Defines a shortcut for a VirtualTable over SymTables.
-pub type VirtualSymTable<'a> = VirtualTable<'a, FunctionDef, TaskDef, ClassDef, VarDef>;
-
-/// A VirtualTable cleverly (if I say so myself) combines multiple TableLists into one, revealing the actual scope at this point in the AST. It should be used as a stack to keep track of scopes.
-#[derive(Clone, Debug)]
-pub struct VirtualTable<'a, F, T, C, V> {
-    /// The list of scopes that this table current uses. This specific field keeps track of the function namespace.
-    f_scopes: Vec<&'a TableList<F>>,
-    /// The list of scopes that this table current uses. This specific field keeps track of the task namespace.
-    t_scopes: Vec<&'a TableList<T>>,
-    /// The list of scopes that this table current uses. This specific field keeps track of the class namespace.
-    c_scopes: Vec<&'a TableList<C>>,
-    /// The list of scopes that this table current uses. This specific field keeps track of the variable namespace.
-    v_scopes: Vec<&'a TableList<V>>,
-}
-
-impl<'a> VirtualTable<'a, FunctionState, TaskState, ClassState, VarState> {
-    /// Constructor for the VirtualTable that initializes it with the given 'main' TableState.
-    ///
-    /// # Arguments
-    /// - `table`: The global TableState to start with.
-    ///
-    /// # Returns
-    /// A new VirtualTable instance with the given global (state) scope.
-    pub fn with(table: &'a TableState) -> Self {
-        Self { f_scopes: vec![&table.funcs], t_scopes: vec![&table.tasks], c_scopes: vec![&table.classes], v_scopes: vec![&table.vars] }
-    }
-
-    /// Pushes the given table's scope on top of the VirtualTable.
-    ///
-    /// # Arguments
-    /// - `table`: The nested TableState who's scope to add.
-    ///
-    /// # Returns
-    /// Nothing, but does change the VirtualTable to also contain this scope.
-    pub fn push(&mut self, table: &'a TableState) {
-        // Simply add references to all scopes
-        self.f_scopes.push(&table.funcs);
-        self.t_scopes.push(&table.tasks);
-        self.c_scopes.push(&table.classes);
-        self.v_scopes.push(&table.vars);
-    }
-
-    /// Pops the top TableState off the internal scopes.
-    ///
-    /// # Returns
-    /// Nothing, but does change the VirtualTable to not contain the most nested scope anymore.
-    ///
-    /// # Panics
-    /// This function may panic if there are no scopes anymore.
-    pub fn pop(&mut self) {
-        // Simply add references to all scopes
-        if self.f_scopes.pop().is_none() {
-            panic!("Attempted to pop function namespace, but no scopes left");
-        };
-        if self.t_scopes.pop().is_none() {
-            panic!("Attempted to pop task namespace, but no scopes left");
-        };
-        if self.c_scopes.pop().is_none() {
-            panic!("Attempted to pop classes namespace, but no scopes left");
-        };
-        if self.v_scopes.pop().is_none() {
-            panic!("Attempted to pop variable namespace, but no scopes left");
-        };
-    }
-}
-
-impl<'a> VirtualTable<'a, FunctionDef, TaskDef, ClassDef, VarDef> {
-    /// Constructor for the VirtualTable that initializes it with the given 'main' SymTable.
-    ///
-    /// # Arguments
-    /// - `table`: The global SymTable to start with.
-    ///
-    /// # Returns
-    /// A new VirtualTable instance with the given global (state) scope.
-    pub fn with(table: &'a SymTable) -> Self {
-        Self { f_scopes: vec![&table.funcs], t_scopes: vec![&table.tasks], c_scopes: vec![&table.classes], v_scopes: vec![&table.vars] }
-    }
-
-    /// Pushes the given table's scope on top of the VirtualTable.
-    ///
-    /// # Arguments
-    /// - `table`: The nested SymTable who's scope to add.
-    ///
-    /// # Returns
-    /// Nothing, but does change the VirtualTable to also contain this scope.
-    pub fn push(&mut self, table: &'a SymTable) {
-        // Simply add references to all scopes
-        self.f_scopes.push(&table.funcs);
-        self.t_scopes.push(&table.tasks);
-        self.c_scopes.push(&table.classes);
-        self.v_scopes.push(&table.vars);
-    }
-
-    /// Pops the top TableState off the internal scopes.
-    ///
-    /// # Returns
-    /// Nothing, but does change the VirtualTable to not contain the most nested scope anymore.
-    ///
-    /// # Panics
-    /// This function may panic if there are no scopes anymore.
-    pub fn pop(&mut self) {
-        // Simply add references to all scopes
-        if self.f_scopes.pop().is_none() {
-            panic!("Attempted to pop function namespace, but no scopes left");
-        };
-        if self.t_scopes.pop().is_none() {
-            panic!("Attempted to pop task namespace, but no scopes left");
-        };
-        if self.c_scopes.pop().is_none() {
-            panic!("Attempted to pop classes namespace, but no scopes left");
-        };
-        if self.v_scopes.pop().is_none() {
-            panic!("Attempted to pop variable namespace, but no scopes left");
-        };
-    }
-}
-
-impl<'a, F, T, C, V> VirtualTable<'a, F, T, C, V> {
-    /// Retrieves the function with the given index.
-    ///
-    /// # Arguments
-    /// - `index`: The index to resolve in the current scope.
-    ///
-    /// # Returns
-    /// A reference to the referenced function.
-    ///
-    /// # Panics
-    /// This function panics if not function with the given index could be found.
-    pub fn func(&self, index: usize) -> &'a F {
-        // Find the correct list
-        for l in self.f_scopes.iter().rev() {
-            if index >= l.offset() {
-                return &l[index];
-            }
-        }
-
-        // Failed to find it
-        panic!("Undeclared function '{index}'");
-    }
-
-    /// Retrieves the task with the given index.
-    ///
-    /// # Arguments
-    /// - `index`: The index to resolve in the current scope.
-    ///
-    /// # Returns
-    /// A reference to the referenced task.
-    ///
-    /// # Panics
-    /// This function panics if not task with the given index could be found.
-    pub fn task(&self, index: usize) -> &'a T {
-        // Find the correct list
-        for l in self.t_scopes.iter().rev() {
-            if index >= l.offset() {
-                return &l[index];
-            }
-        }
-
-        // Failed to find it
-        panic!("Undeclared task '{index}'");
-    }
-
-    /// Retrieves the class with the given index.
-    ///
-    /// # Arguments
-    /// - `index`: The index to resolve in the current scope.
-    ///
-    /// # Returns
-    /// A reference to the referenced class.
-    ///
-    /// # Panics
-    /// This function panics if not class with the given index could be found.
-    pub fn class(&self, index: usize) -> &'a C {
-        // Find the correct list
-        for l in self.c_scopes.iter().rev() {
-            if index >= l.offset() {
-                return &l[index];
-            }
-        }
-
-        // Failed to find it
-        panic!("Undeclared class '{index}'");
-    }
-
-    /// Retrieves the variable with the given index.
-    ///
-    /// # Arguments
-    /// - `index`: The index to resolve in the current scope.
-    ///
-    /// # Returns
-    /// A reference to the referenced variable.
-    ///
-    /// # Panics
-    /// This function panics if not variable with the given index could be found.
-    pub fn var(&self, index: usize) -> &'a V {
-        // Find the correct list
-        for l in self.v_scopes.iter().rev() {
-            if index >= l.offset() {
-                return &l[index];
-            }
-        }
-
-        // Failed to find it
-        panic!("Undeclared variable '{index}'");
-    }
-}
-
-
-
-
-
 /***** LIBRARY *****/
 /// Defines a 'TableState', which is the CompileState's notion of a symbol table.
 #[derive(Clone, Debug)]
 pub struct TableState {
     /// The functions that are kept for next compilation junks
-    pub funcs:   TableList<FunctionState>,
+    pub funcs:   Vec<FunctionState>,
     /// The tasks that are kept for next compilation junks
-    pub tasks:   TableList<TaskState>,
+    pub tasks:   Vec<TaskState>,
     /// The functions that are kept for next compilation junks
-    pub classes: TableList<ClassState>,
+    pub classes: Vec<ClassState>,
     /// The functions that are kept for next compilation junks
-    pub vars:    TableList<VarState>,
+    pub vars:    Vec<VarState>,
 
     /// The list of results introduced in this workflow.
     pub results: HashMap<String, String>,
@@ -489,10 +64,10 @@ impl TableState {
     /// A new instance of the TableState.
     pub fn new() -> Self {
         // Construct the TableLists separately.
-        let mut funcs: TableList<FunctionState> = TableList::from((BuiltinFunctions::all_into_state(), 0));
-        let tasks: TableList<TaskState> = TableList::from(([], 0));
-        let classes: TableList<ClassState> = TableList::from((BuiltinClasses::all_into_state(&mut funcs), 0));
-        let vars: TableList<VarState> = TableList::from(([], 0));
+        let mut funcs: Vec<FunctionState> = Vec::from(BuiltinFunctions::all_into_state());
+        let tasks: Vec<TaskState> = Vec::new();
+        let classes: Vec<ClassState> = Vec::from(BuiltinClasses::all_into_state(&mut funcs));
+        let vars: Vec<VarState> = Vec::new();
 
         // use that to construct the rest
         Self { funcs, tasks, classes, vars, results: HashMap::new() }
@@ -500,21 +75,15 @@ impl TableState {
 
     /// Constructor for the TableState that doesn't even initialize it to builtins.
     ///
-    /// # Arguments
-    /// - `n_funcs`: The number of functions already defined in the parent table(s) by the time this table rolls around.
-    /// - `n_tasks`: The number of tasks already defined in the parent table(s) by the time this table rolls around.
-    /// - `n_classes`: The number of classes already defined in the parent table(s) by the time this table rolls around.
-    /// - `n_vars`: The number of variables already defined in the parent table(s) by the time this table rolls around.
-    ///
     /// # Returns
     /// A new, completely empty instance of the TableState.
     #[inline]
-    pub fn empty(n_funcs: usize, n_tasks: usize, n_classes: usize, n_vars: usize) -> Self {
+    pub fn empty() -> Self {
         Self {
-            funcs:   TableList::new(n_funcs),
-            tasks:   TableList::new(n_tasks),
-            classes: TableList::new(n_classes),
-            vars:    TableList::new(n_vars),
+            funcs:   Vec::new(),
+            tasks:   Vec::new(),
+            classes: Vec::new(),
+            vars:    Vec::new(),
 
             results: HashMap::new(),
         }
@@ -529,10 +98,10 @@ impl TableState {
     #[inline]
     pub fn none() -> Self {
         Self {
-            funcs:   TableList::new(usize::MAX),
-            tasks:   TableList::new(usize::MAX),
-            classes: TableList::new(usize::MAX),
-            vars:    TableList::new(usize::MAX),
+            funcs:   Vec::new(),
+            tasks:   Vec::new(),
+            classes: Vec::new(),
+            vars:    Vec::new(),
 
             results: HashMap::new(),
         }
@@ -549,7 +118,7 @@ impl TableState {
     /// Nothing, but does alter the given symbol table to insert everything.
     pub fn inject(&self, st: &mut RefMut<SymbolTable>) {
         // First, inject the functions
-        for (i, f) in self.funcs.enumerate() {
+        for (i, f) in self.funcs.iter().enumerate() {
             // Create the thingamabob and set the index
             let mut entry: FunctionEntry = f.into();
             entry.index = i;
@@ -561,7 +130,7 @@ impl TableState {
         }
 
         // Do tasks...
-        for (i, t) in self.tasks.enumerate() {
+        for (i, t) in self.tasks.iter().enumerate() {
             // Create the thingamabob and set the index
             let mut entry: FunctionEntry = t.into();
             entry.index = i;
@@ -573,7 +142,7 @@ impl TableState {
         }
 
         // ...classes...
-        for (i, c) in self.classes.enumerate() {
+        for (i, c) in self.classes.iter().enumerate() {
             // Create the thingamabob and set the index
             let mut entry: ClassEntry = c.into_entry(&self.funcs);
             entry.index = i;
@@ -585,7 +154,7 @@ impl TableState {
         }
 
         // ...and, finally, variables
-        for (i, v) in self.vars.enumerate() {
+        for (i, v) in self.vars.iter().enumerate() {
             // Create the thingamabob and set the index
             let mut entry: VarEntry = v.into();
             entry.index = i;
@@ -597,21 +166,93 @@ impl TableState {
         }
     }
 
+    /// Returns the function with the given index, if any.
+    ///
+    /// # Arguments
+    /// - `id`: The ID/index of the function to get the compile state of.
+    ///
+    /// # Returns
+    /// A reference to the corresponding [`FunctionState`].
+    ///
+    /// # Panics
+    /// This function may panic if `id` is out-of-bounds.
+    #[inline]
+    pub fn func(&self, id: usize) -> &FunctionState {
+        if id >= self.funcs.len() {
+            panic!("Given function ID '{}' is out-of-bounds for TableState with {} functions", id, self.funcs.len());
+        }
+        &self.funcs[id]
+    }
+
+    /// Returns the task with the given index, if any.
+    ///
+    /// # Arguments
+    /// - `id`: The ID/index of the task to get the compile state of.
+    ///
+    /// # Returns
+    /// A reference to the corresponding [`TaskState`].
+    ///
+    /// # Panics
+    /// This function may panic if `id` is out-of-bounds.
+    #[inline]
+    pub fn task(&self, id: usize) -> &TaskState {
+        if id >= self.tasks.len() {
+            panic!("Given task ID '{}' is out-of-bounds for TableState with {} tasks", id, self.tasks.len());
+        }
+        &self.tasks[id]
+    }
+
+    /// Returns the class with the given index, if any.
+    ///
+    /// # Arguments
+    /// - `id`: The ID/index of the class to get the compile state of.
+    ///
+    /// # Returns
+    /// A reference to the corresponding [`ClassState`].
+    ///
+    /// # Panics
+    /// This function may panic if `id` is out-of-bounds.
+    #[inline]
+    pub fn class(&self, id: usize) -> &ClassState {
+        if id >= self.classes.len() {
+            panic!("Given class ID '{}' is out-of-bounds for TableState with {} classes", id, self.classes.len());
+        }
+        &self.classes[id]
+    }
+
+    /// Returns the variable with the given index, if any.
+    ///
+    /// # Arguments
+    /// - `id`: The ID/index of the variable to get the compile state of.
+    ///
+    /// # Returns
+    /// A reference to the corresponding [`VarState`].
+    ///
+    /// # Panics
+    /// This function may panic if `id` is out-of-bounds.
+    #[inline]
+    pub fn var(&self, id: usize) -> &VarState {
+        if id >= self.vars.len() {
+            panic!("Given variable ID '{}' is out-of-bounds for TableState with {} variables", id, self.vars.len());
+        }
+        &self.vars[id]
+    }
+
     /// Returns the offset for the functions.
     #[inline]
-    pub fn n_funcs(&self) -> usize { self.funcs.offset() + self.funcs.len() }
+    pub fn n_funcs(&self) -> usize { self.funcs.len() }
 
     /// Returns the offset for the tasks.
     #[inline]
-    pub fn n_tasks(&self) -> usize { self.tasks.offset() + self.tasks.len() }
+    pub fn n_tasks(&self) -> usize { self.tasks.len() }
 
     /// Returns the offset for the classes.
     #[inline]
-    pub fn n_classes(&self) -> usize { self.classes.offset() + self.classes.len() }
+    pub fn n_classes(&self) -> usize { self.classes.len() }
 
     /// Returns the offset for the variables.
     #[inline]
-    pub fn n_vars(&self) -> usize { self.vars.offset() + self.vars.len() }
+    pub fn n_vars(&self) -> usize { self.vars.len() }
 }
 
 impl Default for TableState {
@@ -622,29 +263,25 @@ impl Default for TableState {
 impl From<TableState> for SymTable {
     fn from(value: TableState) -> Self {
         // Functions
-        let funcs_offset: usize = value.funcs.offset();
-        let mut funcs: TableList<FunctionDef> = TableList::with_capacity(funcs_offset, value.funcs.len());
+        let mut funcs: Vec<FunctionDef> = Vec::with_capacity(value.funcs.len());
         for f in value.funcs {
             funcs.push(f.into());
         }
 
         // Tasks
-        let tasks_offset: usize = value.tasks.offset();
-        let mut tasks: TableList<TaskDef> = TableList::with_capacity(tasks_offset, value.tasks.len());
+        let mut tasks: Vec<TaskDef> = Vec::with_capacity(value.tasks.len());
         for t in value.tasks {
             tasks.push(t.into());
         }
 
         // Classes
-        let classes_offset: usize = value.classes.offset();
-        let mut classes: TableList<ClassDef> = TableList::with_capacity(classes_offset, value.classes.len());
+        let mut classes: Vec<ClassDef> = Vec::with_capacity(value.classes.len());
         for c in value.classes {
             classes.push(c.into());
         }
 
         // Finally, variables
-        let vars_offset: usize = value.vars.offset();
-        let mut vars: TableList<VarDef> = TableList::with_capacity(vars_offset, value.vars.len());
+        let mut vars: Vec<VarDef> = Vec::with_capacity(value.vars.len());
         for v in value.vars {
             vars.push(v.into());
         }
@@ -674,8 +311,6 @@ pub struct FunctionState {
     /// If this function is a method in a class, then the class' name is stored here.
     pub class_name: Option<String>,
 
-    /// The TableState that keeps track of the function's scope.
-    pub table: TableState,
     /// The range that links this function back to the source text.
     pub range: TextRange,
 }
@@ -705,13 +340,7 @@ impl From<&FunctionState> for FunctionEntry {
 impl From<FunctionState> for FunctionDef {
     #[inline]
     fn from(value: FunctionState) -> Self {
-        FunctionDef {
-            name: value.name,
-            args: value.signature.args.into_iter().map(|d| d.into()).collect(),
-            ret:  value.signature.ret.into(),
-
-            table: value.table.into(),
-        }
+        FunctionDef { name: value.name, args: value.signature.args.into_iter().map(|d| d.into()).collect(), ret: value.signature.ret.into() }
     }
 }
 
@@ -770,8 +399,6 @@ impl From<TaskState> for TaskDef {
                 name: value.name,
                 args: value.signature.args.into_iter().map(|d| d.into()).collect(),
                 ret:  value.signature.ret.into(),
-
-                table: SymTable::new(),
             }),
             args_names:   value.arg_names,
             requirements: value.requirements,
@@ -804,11 +431,11 @@ impl ClassState {
     /// Converts this ClassState into a ClassEntry, using the given list of functions to resolve the internal list.
     ///
     /// # Arguments
-    /// - `funcs`: The TableList of functions to resolve indices with.
+    /// - `funcs`: The Vec of functions to resolve indices with.
     ///
     /// # Returns
     /// A new ClassEntry instance.
-    pub fn into_entry(&self, funcs: &TableList<FunctionState>) -> ClassEntry {
+    pub fn into_entry(&self, funcs: &Vec<FunctionState>) -> ClassEntry {
         // Create the symbol table
         let c_table: Rc<RefCell<SymbolTable>> = SymbolTable::new();
         {

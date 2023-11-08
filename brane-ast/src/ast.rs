@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    02 Nov 2023, 14:21:57
+//    07 Nov 2023, 14:40:27
 //  Auto updated?
 //    Yes
 //
@@ -32,13 +32,12 @@ use specifications::version::Version;
 use crate::data_type::DataType;
 use crate::errors::DataNameDeserializeError;
 use crate::locations::{Location, Locations};
-use crate::state::TableList;
 
 
 /***** CONSTANTS *****/
 lazy_static!(
     /// A static FunctionDef for the Transfer.
-    pub static ref TRANSFER_FUNC: FunctionDef = FunctionDef{ name: "transfer".into(), args: vec![ DataType::Data, DataType::Data ], ret: DataType::Void, table: SymTable::new() };
+    pub static ref TRANSFER_FUNC: FunctionDef = FunctionDef{ name: "transfer".into(), args: vec![ DataType::Data, DataType::Data ], ret: DataType::Void };
 );
 
 
@@ -131,13 +130,13 @@ impl Default for Workflow {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SymTable {
     /// Lists all edge functions used in the Workflow.
-    pub funcs:   TableList<FunctionDef>,
+    pub funcs:   Vec<FunctionDef>,
     /// Lists all tasks used in the workflow.
-    pub tasks:   TableList<TaskDef>,
+    pub tasks:   Vec<TaskDef>,
     /// Lists all classes used in the Workflow.
-    pub classes: TableList<ClassDef>,
+    pub classes: Vec<ClassDef>,
     /// Lists _only_ toplevel / global variables used in the Workflow. Any in-function variables will be kept in the function itself.
-    pub vars:    TableList<VarDef>,
+    pub vars:    Vec<VarDef>,
 
     /// Lists intermediate results defined in this workflow and maps them to where to find them (the name of the location).
     pub results: HashMap<String, String>,
@@ -151,10 +150,10 @@ impl SymTable {
     #[inline]
     pub fn new() -> Self {
         Self {
-            funcs:   TableList::new(0),
-            tasks:   TableList::new(0),
-            classes: TableList::new(0),
-            vars:    TableList::new(0),
+            funcs:   Vec::new(),
+            tasks:   Vec::new(),
+            classes: Vec::new(),
+            vars:    Vec::new(),
 
             results: HashMap::new(),
         }
@@ -172,14 +171,80 @@ impl SymTable {
     /// # Returns
     /// A new SymTable instance with the given definitions already added.
     #[inline]
-    pub fn with(
-        funcs: TableList<FunctionDef>,
-        tasks: TableList<TaskDef>,
-        classes: TableList<ClassDef>,
-        vars: TableList<VarDef>,
-        results: HashMap<String, String>,
-    ) -> Self {
+    pub fn with(funcs: Vec<FunctionDef>, tasks: Vec<TaskDef>, classes: Vec<ClassDef>, vars: Vec<VarDef>, results: HashMap<String, String>) -> Self {
         Self { funcs, tasks, classes, vars, results }
+    }
+
+    /// Returns the function with the given index, if any.
+    ///
+    /// # Arguments
+    /// - `id`: The ID/index of the function to get the compile state of.
+    ///
+    /// # Returns
+    /// A reference to the corresponding [`FunctionDef`].
+    ///
+    /// # Panics
+    /// This function may panic if `id` is out-of-bounds.
+    #[inline]
+    pub fn func(&self, id: usize) -> &FunctionDef {
+        if id >= self.funcs.len() {
+            panic!("Given function ID '{}' is out-of-bounds for SymTable with {} functions", id, self.funcs.len());
+        }
+        &self.funcs[id]
+    }
+
+    /// Returns the task with the given index, if any.
+    ///
+    /// # Arguments
+    /// - `id`: The ID/index of the task to get the compile state of.
+    ///
+    /// # Returns
+    /// A reference to the corresponding [`TaskDef`].
+    ///
+    /// # Panics
+    /// This function may panic if `id` is out-of-bounds.
+    #[inline]
+    pub fn task(&self, id: usize) -> &TaskDef {
+        if id >= self.tasks.len() {
+            panic!("Given task ID '{}' is out-of-bounds for SymTable with {} tasks", id, self.tasks.len());
+        }
+        &self.tasks[id]
+    }
+
+    /// Returns the class with the given index, if any.
+    ///
+    /// # Arguments
+    /// - `id`: The ID/index of the class to get the compile state of.
+    ///
+    /// # Returns
+    /// A reference to the corresponding [`ClassDef`].
+    ///
+    /// # Panics
+    /// This function may panic if `id` is out-of-bounds.
+    #[inline]
+    pub fn class(&self, id: usize) -> &ClassDef {
+        if id >= self.classes.len() {
+            panic!("Given class ID '{}' is out-of-bounds for SymTable with {} classes", id, self.classes.len());
+        }
+        &self.classes[id]
+    }
+
+    /// Returns the variable with the given index, if any.
+    ///
+    /// # Arguments
+    /// - `id`: The ID/index of the variable to get the compile state of.
+    ///
+    /// # Returns
+    /// A reference to the corresponding [`VarDef`].
+    ///
+    /// # Panics
+    /// This function may panic if `id` is out-of-bounds.
+    #[inline]
+    pub fn var(&self, id: usize) -> &VarDef {
+        if id >= self.vars.len() {
+            panic!("Given variable ID '{}' is out-of-bounds for SymTable with {} variables", id, self.vars.len());
+        }
+        &self.vars[id]
     }
 }
 
@@ -203,10 +268,6 @@ pub struct FunctionDef {
     /// The return type of the function.
     #[serde(rename = "r")]
     pub ret:  DataType,
-
-    /// A table of definitions that occur within this function.
-    #[serde(rename = "t")]
-    pub table: SymTable,
 }
 
 

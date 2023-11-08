@@ -4,7 +4,7 @@
 //  Created:
 //    09 Sep 2022, 13:23:41
 //  Last edited:
-//    02 Nov 2023, 14:25:28
+//    07 Nov 2023, 16:16:23
 //  Auto updated?
 //    Yes
 //
@@ -105,7 +105,7 @@ mod tests {
                 };
 
                 // Run the dummy planner on the workflow
-                let workflow: Arc<Workflow> = Arc::new(DummyPlanner::plan(workflow));
+                let workflow: Arc<Workflow> = Arc::new(DummyPlanner::plan(&mut HashMap::new(), workflow));
 
                 // Now print the file for prettyness
                 ast::do_traversal(&workflow, std::io::stdout()).unwrap();
@@ -113,7 +113,11 @@ mod tests {
 
                 // Run the program
                 let text: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
-                let main: Thread<DummyState, ()> = Thread::new(&workflow, DummyState { workflow: Some(workflow.clone()), text: text.clone() });
+                let main: Thread<DummyState, ()> = Thread::new(&workflow, DummyState {
+                    workflow: Some(workflow.clone()),
+                    results:  Arc::new(Mutex::new(HashMap::new())),
+                    text:     text.clone(),
+                });
                 match main.run::<DummyPlugin>(ProfileScopeHandleOwned::dummy()).await {
                     Ok(value) => {
                         println!("Workflow stdout:");
@@ -1892,7 +1896,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                     let data_name: String = self.stack.pop().unwrap().try_as_string().unwrap();
 
                     // Try to find out where this res lives, currently
-                    let loc: &String = match self.fstack.table().results().get(&res_name) {
+                    let loc: &String = match self.fstack.table().results.get(&res_name) {
                         Some(loc) => loc,
                         None => {
                             return EdgeResult::Err(Error::UnknownResult { edge: pc.1, name: res_name });

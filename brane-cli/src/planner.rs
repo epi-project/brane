@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 16:40:21
 //  Last edited:
-//    02 Nov 2023, 14:26:02
+//    07 Nov 2023, 16:32:06
 //  Auto updated?
 //    Yes
 //
@@ -23,6 +23,7 @@ use brane_ast::Workflow;
 use brane_tsk::errors::PlanError;
 use brane_tsk::spec::{Planner, LOCALHOST};
 use log::debug;
+use parking_lot::Mutex;
 use specifications::data::{AccessKind, AvailabilityKind, DataIndex};
 
 
@@ -339,7 +340,9 @@ fn plan_deferred(table: &SymTable, edges: &mut [Edge], pc: usize, merge: Option<
 #[derive(Debug)]
 pub struct OfflinePlanner {
     /// The local data index to resolve datasets with.
-    data_index: Arc<DataIndex>,
+    data_index:  Arc<DataIndex>,
+    /// The results we planned last time (or whatever).
+    pub results: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl OfflinePlanner {
@@ -347,11 +350,12 @@ impl OfflinePlanner {
     ///
     /// # Arguments
     /// - `data_index`: The DataIndex that is used to resolve datasets at plantime.
+    /// - `results`: A map of results to where they are, which we planned last time around.
     ///
     /// # Returns
     /// A new OfflinePlanner instance.
     #[inline]
-    pub fn new(data_index: Arc<DataIndex>) -> Self { Self { data_index } }
+    pub fn new(data_index: Arc<DataIndex>, results: Arc<Mutex<HashMap<String, String>>>) -> Self { Self { data_index, results } }
 
     /// Plans the given task offline.
     ///
@@ -421,6 +425,9 @@ impl Planner for OfflinePlanner {
         mem::swap(&mut workflow.table, &mut table);
         let mut table: SymTable = Arc::try_unwrap(table).unwrap();
 
+        // Update the table with results from last time 'round
+        table.results.extend(self.results.lock().iter().map(|(k, v)| (k.clone(), v.clone())));
+
         // Do the main edges first
         {
             // Start by getting a list of all the edges
@@ -454,6 +461,9 @@ impl Planner for OfflinePlanner {
             let mut funcs: Arc<HashMap<usize, Vec<Edge>>> = Arc::new(funcs);
             mem::swap(&mut funcs, &mut workflow.funcs);
         }
+
+        // Flush the results back to the internal results table
+        *self.results.lock() = table.results.clone();
 
         // Then, put the table back
         let mut table: Arc<SymTable> = Arc::new(table);

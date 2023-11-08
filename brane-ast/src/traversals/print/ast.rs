@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 09:25:11
 //  Last edited:
-//    02 Nov 2023, 14:24:01
+//    07 Nov 2023, 14:41:50
 //  Auto updated?
 //    Yes
 //
@@ -18,7 +18,6 @@ use std::io::Write;
 use crate::ast::{Edge, EdgeInstr, FunctionDef, SymTable, TaskDef, Workflow};
 use crate::data_type::DataType;
 pub use crate::errors::AstError as Error;
-use crate::state::VirtualSymTable;
 
 
 /***** MACROS ******/
@@ -73,22 +72,14 @@ fn pass_table(writer: &mut impl Write, table: &SymTable, indent: usize) -> std::
 
     // Then, print all normal functions...
     for f in &table.funcs {
-        write!(
+        writeln!(
             writer,
-            "{}Function {}({}){}",
+            "{}Function {}({}){};",
             indent!(indent),
             &f.name,
             f.args.iter().map(|a| format!("{a}")).collect::<Vec<String>>().join(", "),
             if f.ret != DataType::Void { format!(" -> {}", f.ret) } else { String::new() },
         )?;
-
-        // If the function has a (meaningful) nested state, print that too
-        if !f.table.funcs.is_empty() || !f.table.tasks.is_empty() || !f.table.classes.is_empty() || !f.table.vars.is_empty() {
-            writeln!(writer, " [")?;
-            pass_table(writer, &f.table, INDENT_SIZE + indent)?;
-            write!(writer, "{}]", indent!(indent))?;
-        }
-        writeln!(writer, ";")?;
     }
     // ...and all tasks
     for t in &table.tasks {
@@ -161,7 +152,7 @@ fn pass_table(writer: &mut impl Write, table: &SymTable, indent: usize) -> std::
 /// - `writer`: The `Write`r to write to.
 /// - `index`: The starting index in the edges list to follow.
 /// - `edges`: The list of Edges to print.
-/// - `table`: The VirtualSymTable we use to resolve indices.
+/// - `table`: The SymTable we use to resolve indices.
 /// - `indent`: The indent with which to print the buffer.
 /// - `done`: A set of nodes we've already seen that we use to avoid getting stuck forever.
 ///
@@ -171,7 +162,7 @@ fn pass_edges(
     writer: &mut impl Write,
     index: usize,
     edges: &[Edge],
-    table: &VirtualSymTable,
+    table: &SymTable,
     indent: usize,
     done: &mut HashSet<usize>,
 ) -> std::io::Result<()> {
@@ -426,7 +417,7 @@ fn pass_edges(
 ///
 /// # Returns
 /// Nothing, but does print the instruction to stdout.
-fn pass_edge_instr(writer: &mut impl Write, instr: &EdgeInstr, table: &VirtualSymTable) -> std::io::Result<()> {
+fn pass_edge_instr(writer: &mut impl Write, instr: &EdgeInstr, table: &SymTable) -> std::io::Result<()> {
     // Match the instruction
     use EdgeInstr::*;
     match instr {
@@ -544,8 +535,7 @@ pub fn do_traversal(root: &Workflow, writer: impl Write) -> Result<(), Vec<Error
     if let Err(err) = writeln!(&mut writer, "{}<Main>", indent!(INDENT_SIZE)) {
         return Err(vec![Error::WriteError { err }]);
     };
-    let mut table: VirtualSymTable = VirtualSymTable::with(&root.table);
-    if let Err(err) = pass_edges(&mut writer, 0, &root.graph, &table, INDENT_SIZE, &mut HashSet::new()) {
+    if let Err(err) = pass_edges(&mut writer, 0, &root.graph, &root.table, INDENT_SIZE, &mut HashSet::new()) {
         return Err(vec![Error::WriteError { err }]);
     };
 
@@ -557,11 +547,9 @@ pub fn do_traversal(root: &Workflow, writer: impl Write) -> Result<(), Vec<Error
         if let Err(err) = writeln!(&mut writer, "{}<Function {} ({})>", indent!(INDENT_SIZE), *i, root.table.funcs[*i].name) {
             return Err(vec![Error::WriteError { err }]);
         };
-        table.push(&table.func(*i).table);
-        if let Err(err) = pass_edges(&mut writer, 0, f, &table, INDENT_SIZE, &mut HashSet::new()) {
+        if let Err(err) = pass_edges(&mut writer, 0, f, &root.table, INDENT_SIZE, &mut HashSet::new()) {
             return Err(vec![Error::WriteError { err }]);
         };
-        table.pop();
     }
 
     // Done
