@@ -4,7 +4,7 @@
 //  Created:
 //    18 Nov 2022, 14:36:55
 //  Last edited:
-//    31 Oct 2023, 10:23:50
+//    02 Nov 2023, 11:20:01
 //  Auto updated?
 //    Yes
 //
@@ -28,7 +28,7 @@ use dotenvy::dotenv;
 use expanduser::expanduser;
 use human_panic::setup_panic;
 use humanlog::{DebugMode, HumanLogger};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use specifications::data::DataIndex;
 use specifications::package::PackageIndex;
 
@@ -69,6 +69,14 @@ struct Arguments {
                 from the Brane instance instead. You can wrap your input in 'Local<...>' or 'Remote<...>' to disambiguate between the two."
     )]
     data:     IndexLocation,
+    /// If given, reads the packages and data in test mode, which simplifies how to interpret them since we won't be executing them.
+    #[clap(
+        short,
+        long,
+        help = "If given, reads packages and data simplified as found in the `tests` folder in the Brane repository. This can be done because the \
+                packages won't be executed."
+    )]
+    raw:      bool,
 
     /// If given, does the stream thing
     #[clap(
@@ -162,6 +170,7 @@ fn read_input(name: impl Into<String>, input: &mut impl BufRead) -> Result<Strin
 /// - `compact`: If given, serializes with as little whitespace as possible. Decreases the resulting size greatly, but also readability.
 /// - `packages_loc`: Where to get the package index from. Implemented as an IndexLocation so it may be both local or remote.
 /// - `data_loc`: Where to get the data index from. Implemented as an IndexLocation so it may be both local or remote.
+/// - `raw_assets`: If true, don't read the package and data "canonically" but instead read them for testing purposes.
 ///
 /// # Returns
 /// Nothing directly, but does write the result to `output` and appends the input snippet to `source`.
@@ -181,6 +190,7 @@ pub async fn compile_iter(
     compact: bool,
     packages_loc: &IndexLocation,
     data_loc: &IndexLocation,
+    raw_assets: bool,
 ) -> Result<(), CompileError> {
     let iname: &str = iname.as_ref();
     let oname: &str = oname.as_ref();
@@ -193,6 +203,9 @@ pub async fn compile_iter(
     let pindex: PackageIndex = match packages_loc {
         IndexLocation::Remote(remote) => {
             debug!("Fetching remote package index from '{}'...", remote);
+            if raw_assets {
+                warn!("Giving `--raw` has no effect when loading packages remotely");
+            }
             match brane_tsk::api::get_package_index(remote).await {
                 Ok(pindex) => pindex,
                 Err(err) => {
@@ -208,17 +221,24 @@ pub async fn compile_iter(
                 Err(_) => local.clone(),
             };
             debug!("Fetching local package index from '{}'...", local.display());
-            match brane_tsk::local::get_package_index(local) {
-                Ok(pindex) => pindex,
-                Err(err) => {
-                    return Err(CompileError::LocalPackageIndexError { err });
-                },
+            if !raw_assets {
+                match brane_tsk::local::get_package_index(local) {
+                    Ok(pindex) => pindex,
+                    Err(err) => {
+                        return Err(CompileError::LocalPackageIndexError { err });
+                    },
+                }
+            } else {
+                brane_shr::utilities::create_package_index_from(local)
             }
         },
     };
     let dindex: DataIndex = match data_loc {
         IndexLocation::Remote(remote) => {
             debug!("Fetching remote data index from '{}'...", remote);
+            if raw_assets {
+                warn!("Giving `--raw` has no effect when loading datasets remotely");
+            }
             match brane_tsk::api::get_data_index(remote).await {
                 Ok(pindex) => pindex,
                 Err(err) => {
@@ -234,11 +254,15 @@ pub async fn compile_iter(
                 Err(_) => local.clone(),
             };
             debug!("Fetching local data index from '{}'...", local.display());
-            match brane_tsk::local::get_data_index(local) {
-                Ok(pindex) => pindex,
-                Err(err) => {
-                    return Err(CompileError::LocalDataIndexError { err });
-                },
+            if !raw_assets {
+                match brane_tsk::local::get_data_index(local) {
+                    Ok(pindex) => pindex,
+                    Err(err) => {
+                        return Err(CompileError::LocalDataIndexError { err });
+                    },
+                }
+            } else {
+                brane_shr::utilities::create_data_index_from(local)
             }
         },
     };
@@ -404,6 +428,7 @@ async fn main() {
             args.compact,
             &args.packages,
             &args.data,
+            args.raw,
         )
         .await
         {
@@ -445,6 +470,7 @@ async fn main() {
                 args.compact,
                 &args.packages,
                 &args.data,
+                args.raw,
             )
             .await
             {

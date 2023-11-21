@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 14:58:16
 //  Last edited:
-//    01 Nov 2023, 14:08:20
+//    08 Nov 2023, 14:06:22
 //  Auto updated?
 //    Yes
 //
@@ -17,6 +17,7 @@ use std::fs::{self, DirEntry, ReadDir};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 
+use humanlog::{DebugMode, HumanLogger};
 use log::{debug, warn};
 use regex::Regex;
 use specifications::container::ContainerInfo;
@@ -296,6 +297,16 @@ where
     F: Fn(PathBuf, String) -> R,
     R: Future<Output = ()>,
 {
+    // Setup logger if told
+    if std::env::var("TEST_LOGGER").map(|value| value == "1" || value == "true").unwrap_or(false) {
+        if let Err(err) = HumanLogger::terminal(DebugMode::Full).init() {
+            eprintln!("WARNING: Failed to setup test logger: {err} (no logging for this session)");
+        }
+    }
+    // See if we need to limit ourselves to particular files
+    let test_files: Option<Vec<String>> =
+        std::env::var("TEST_FILES").ok().map(|test_file| test_file.split(',').map(|test_file| test_file.to_string()).collect());
+
     // Setup some variables and checks
     let mut path: Cow<Path> = Cow::Borrowed(path.as_ref());
     let exts: Vec<&'static str> = match mode {
@@ -335,50 +346,66 @@ where
             };
 
             // Check whether it's a directory or not
-            if entry.path().is_file() {
-                // Check if it ends with '.bscript'
-                if let Some(ext) = entry.path().extension() {
+            let entry_path: PathBuf = entry.path();
+            if entry_path.is_file() {
+                // Check if it ends with '.bscript';
+                if let Some(ext) = entry_path.extension() {
                     if exts.contains(&ext.to_str().unwrap_or("")) {
+                        // Skip the file if told
+                        if let Some(test_files) = &test_files {
+                            // Continue if not all filters match false
+                            let mut allowed: bool = false;
+                            for test_file in test_files {
+                                if entry_path.ends_with(test_file) {
+                                    allowed = true;
+                                    break;
+                                }
+                            }
+                            if !allowed {
+                                continue;
+                            }
+                        }
+
                         // Read the file to a buffer
-                        let code: String = match fs::read_to_string(entry.path()) {
+                        let code: String = match fs::read_to_string(&entry_path) {
                             Ok(code) => code,
                             Err(err) => {
-                                panic!("Failed to read {} file '{}': {}", mode, entry.path().display(), err);
+                                panic!("Failed to read {} file '{}': {}", mode, entry_path.display(), err);
                             },
                         };
 
                         // Run the closure on this file
-                        exec(entry.path(), code).await;
+                        exec(entry_path, code).await;
                         counter += 1;
-                    } else if entry.path().extension().is_some()
-                        && entry.path().extension().unwrap() != "yml"
-                        && entry.path().extension().unwrap() != "yaml"
+                    } else if entry_path.extension().is_some()
+                        && entry_path.extension().unwrap() != "yml"
+                        && entry_path.extension().unwrap() != "yaml"
                     {
                         println!(
                             "Ignoring entry '{}' in '{}' (does not have extensions {})",
-                            entry.path().display(),
+                            entry_path.display(),
                             path.display(),
                             exts.iter().map(|e| format!("'.{e}'")).collect::<Vec<String>>().join(", ")
                         );
                     }
                 } else {
-                    println!("Ignoring entry '{}' in '{}' (cannot extract extension)", entry.path().display(), path.display());
+                    println!("Ignoring entry '{}' in '{}' (cannot extract extension)", entry_path.display(), path.display());
                 }
-            } else if entry.path().is_dir() {
+            } else if entry_path.is_dir() {
                 // Recurse, i.e., list and add to the todo list
-                let new_dir = match fs::read_dir(entry.path()) {
+                let new_dir = match fs::read_dir(&entry_path) {
                     Ok(dir) => dir,
                     Err(err) => {
-                        panic!("Failed to list nested tests directory '{}': {}", entry.path().display(), err);
+                        panic!("Failed to list nested tests directory '{}': {}", entry_path.display(), err);
                     },
                 };
                 if todo.len() == todo.capacity() {
                     todo.reserve(todo.capacity());
                 }
-                todo.push((entry.path(), new_dir));
+                todo.push((entry_path, new_dir));
             } else {
                 // Dunno what to do with it
-                println!("Ignoring entry '{}' in '{}' (unknown entry type)", entry.path().display(), path.display());
+                println!("Ignoring entry '{}' in '{}' (unknown entry type)", entry_path.display(), path.display());
             }
         }
     }

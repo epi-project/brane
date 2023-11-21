@@ -8,9 +8,17 @@ All notable changes to the Brane framework will be documented in this file.
 - Commands for cross-compiling to macOS x86-64 _and_ ARM 64-bit from Linux :)
 - `branec --trace` flag to enable trace-level debugging.
   - Accordingly, some `trace`-log prints have been added to the compiler in `brane-ast`.
+- The data analysis performed in `brane-ast` to also annotate function calls with possible data inputs (relevant for `commit_result` builtin).
+  - Return-statements on workflow level are also annotated.
+- `TEST_LOGGER` and `TEST_FILES` environment variables to any unit tests using `brane_shr::utilities::test_on_dsl_files*`.
+  - If you give `TEST_LOGGER=1` or `TEST_LOGGER=true`, then it instantiates a `log`-capable logger ([humanlog](https://github.com/Lut99/humanlog-rs)).
+  - If you give `TEST_FILES=<file1>[,<file2>[...]]`, then only the given files are tested instead of all in the `tests` folder. The files are matched by name, and then specifically an `end_of()`-call.
 
 ### Changed
+- The WIR no longer has a dynamic definition table, but simply a large table spanning all scopes.
+  - To do this, the interface between the driver and planner have been updated (not a breaking change since inter-service communication with different service versions is not assumed).
 - `branec` now uses [humanlog](https://github.com/Lut99/humanlog-rs) as logging backend for nicer messages.
+- `brane-drv` and `brane-plr` are now using Rust 2021 instead of Rust 2018.
 
 ### Fixed
 - The BraneScript compiler hanging in an infinite loop in some cases.

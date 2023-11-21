@@ -22,7 +22,7 @@ actions:
       - "result: \"/home/test/result.csv\""
     input:
     - name: dataset
-      type: Data
+      type: IntermediateResult
     output:
     - name: result
       type: IntermediateResult

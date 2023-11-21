@@ -1,86 +1,85 @@
 //  HANDLER.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    12 Sep 2022, 16:18:11
 //  Last edited:
-//    12 Jul 2023, 16:53:22
+//    07 Nov 2023, 16:41:12
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Implements the command handler from the client.
-// 
+//
 
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Instant;
 
-use dashmap::DashMap;
-use log::{debug, error};
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
-use tonic::{Request, Response, Status};
-
 use brane_ast::Workflow;
 use brane_exe::FullValue;
 use brane_prx::client::ProxyClient;
 use brane_tsk::spec::AppId;
+use dashmap::DashMap;
+use log::{debug, error};
 use specifications::driving::{CreateSessionReply, CreateSessionRequest, DriverService, ExecuteReply, ExecuteRequest};
 use specifications::profiling::ProfileReport;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::{Request, Response, Status};
 
 use crate::errors::RemoteVmError;
+use crate::gc;
 use crate::planner::InstancePlanner;
 use crate::vm::InstanceVm;
-use crate::gc;
 
 
 /***** HELPER MACROS *****/
 /// Sends an error back to the client, also logging it here. Is like `err!` but returning the stream.
 macro_rules! fatal_err {
-    ($tx:ident, Status::$status:ident, $err:expr) => {
-        {
-            // Always log to stderr
-            log::error!("{}", $err);
-            // Attempt to log on tx
-            let serr: String = $err.to_string();
-            if let Err(err) = $tx.send(Err(Status::$status(serr))).await { log::error!("Failed to notify client of error: {}", err); }
-            // Return
-            return;
+    ($tx:ident,Status:: $status:ident, $err:expr) => {{
+        // Always log to stderr
+        log::error!("{}", $err);
+        // Attempt to log on tx
+        let serr: String = $err.to_string();
+        if let Err(err) = $tx.send(Err(Status::$status(serr))).await {
+            log::error!("Failed to notify client of error: {}", err);
         }
-    };
-    ($tx:ident, $status:expr) => {
-        {
-            // Always log to stderr
-            log::error!("Aborting incoming request: {}", $status);
-            // Attempt to log on tx
-            if let Err(err) = $tx.send(Err($status)).await { log::error!("Failed to notify client of error: {}", err); }
-            // Return
-            return;
+        // Return
+        return;
+    }};
+    ($tx:ident, $status:expr) => {{
+        // Always log to stderr
+        log::error!("Aborting incoming request: {}", $status);
+        // Attempt to log on tx
+        if let Err(err) = $tx.send(Err($status)).await {
+            log::error!("Failed to notify client of error: {}", err);
         }
-    };
+        // Return
+        return;
+    }};
 
-    ($tx:ident, $rx:ident, Status::$status:ident, $err:expr) => {
-        {
-            // Always log to stderr
-            log::error!("{}", $err);
-            // Attempt to log on tx
-            if let Err(err) = $tx.send(Err(Status::$status($err.to_string()))).await { log::error!("Failed to notify client of error: {}", err); }
-            // Return
-            return Ok(Response::new(ReceiverStream::new($rx)));
+    ($tx:ident, $rx:ident,Status:: $status:ident, $err:expr) => {{
+        // Always log to stderr
+        log::error!("{}", $err);
+        // Attempt to log on tx
+        if let Err(err) = $tx.send(Err(Status::$status($err.to_string()))).await {
+            log::error!("Failed to notify client of error: {}", err);
         }
-    };
-    ($tx:ident, $rx:ident, $status:expr) => {
-        {
-            // Always log to stderr
-            log::error!("Aborting incoming request: {}", $status);
-            // Attempt to log on tx
-            if let Err(err) = $tx.send(Err($status)).await { log::error!("Failed to notify client of error: {}", err); }
-            // Return
-            return Ok(Response::new(ReceiverStream::new($rx)));
+        // Return
+        return Ok(Response::new(ReceiverStream::new($rx)));
+    }};
+    ($tx:ident, $rx:ident, $status:expr) => {{
+        // Always log to stderr
+        log::error!("Aborting incoming request: {}", $status);
+        // Attempt to log on tx
+        if let Err(err) = $tx.send(Err($status)).await {
+            log::error!("Failed to notify client of error: {}", err);
         }
-    };
+        // Return
+        return Ok(Response::new(ReceiverStream::new($rx)));
+    }};
 }
 
 
@@ -92,24 +91,24 @@ macro_rules! fatal_err {
 #[derive(Clone)]
 pub struct DriverHandler {
     /// The path to the `node.yml` file that describes this node's environment. For the handler, this is the path to the `infra.yml` file (and an optional `secrets.yml`) and the topic to send commands to the planner on.
-    node_config_path : PathBuf,
+    node_config_path: PathBuf,
     /// The ProxyClient that we use to connect to/through `brane-prx`.
-    proxy            : Arc<ProxyClient>,
+    proxy: Arc<ProxyClient>,
     /// The planner we use to plan stuff.
-    planner          : Arc<InstancePlanner>,
+    planner: Arc<InstancePlanner>,
 
     /// Current sessions and active VMs. Note that this only concerns states if connected via a REPL-session; any in-statement state (i.e., calling nodes) is handled by virtue of the VM being implemented as `async`.
-    sessions : Arc<DashMap<AppId, (InstanceVm, Instant)>>,
+    sessions: Arc<DashMap<AppId, (InstanceVm, Instant)>>,
 }
 
 impl DriverHandler {
     /// Constructor for the DriverHandler.
-    /// 
+    ///
     /// # Arguments
     /// - `node_config_path`: The path to the `node.yml` file that describes this node's environment. For the handler, this is the path to the `infra.yml` file (and an optional `secrets.yml`) and the topic to send commands to the planner on.
     /// - `proxy`: The (shared) ProxyClient that we use to connect to/through `brane-prx`.
     /// - `planner`: The InstancePlanner that handles our side of planning.
-    /// 
+    ///
     /// # Returns
     /// A new DriverHandler instance.
     #[inline]
@@ -119,13 +118,7 @@ impl DriverHandler {
         tokio::spawn(gc::sessions(Arc::downgrade(&sessions)));
 
         // Now use that as this handler's sessions
-        Self {
-            node_config_path : node_config_path.into(),
-            proxy,
-            planner,
-
-            sessions,
-        }
+        Self { node_config_path: node_config_path.into(), proxy, planner, sessions }
     }
 }
 
@@ -134,13 +127,13 @@ impl DriverService for DriverHandler {
     type ExecuteStream = ReceiverStream<Result<ExecuteReply, Status>>;
 
     /// Creates a new BraneScript session.
-    /// 
+    ///
     /// # Arguments
     /// - `request`: The request to create a response to.
-    /// 
+    ///
     /// # Returns
     /// The response to the request, which only contains a new AppId.
-    /// 
+    ///
     /// # Errors
     /// This function doesn't typically error.
     async fn create_session(&self, _request: Request<CreateSessionRequest>) -> Result<Response<CreateSessionReply>, Status> {
@@ -149,7 +142,10 @@ impl DriverService for DriverHandler {
 
         // Create a new VM for this session
         let app_id: AppId = AppId::generate();
-        self.sessions.insert(app_id.clone(), (InstanceVm::new(&self.node_config_path, app_id.clone(), self.proxy.clone(), self.planner.clone()), Instant::now()));
+        self.sessions.insert(
+            app_id.clone(),
+            (InstanceVm::new(&self.node_config_path, app_id.clone(), self.proxy.clone(), self.planner.clone()), Instant::now()),
+        );
 
         // Now return the ID to the user for future reference
         debug!("Created new session '{}'", app_id);
@@ -157,20 +153,18 @@ impl DriverService for DriverHandler {
         Ok(Response::new(reply))
     }
 
-
-
     /// Executes a new job in an existing BraneScript session.
-    /// 
+    ///
     /// # Arguments
     /// - `request`: The request with the new (already compiled) snippet to execute.
-    /// 
+    ///
     /// # Returns
     /// The response to the request, which contains the result of this workflow (if any).
-    /// 
+    ///
     /// # Errors
     /// This function may error for any reason a job might fail.
     async fn execute(&self, request: Request<ExecuteRequest>) -> Result<Response<Self::ExecuteStream>, Status> {
-        let report   = ProfileReport::auto_reporting_file("brane-drv DriverHandler::execute", "brane-drv_execute");
+        let report = ProfileReport::auto_reporting_file("brane-drv DriverHandler::execute", "brane-drv_execute");
         let overhead = report.time("Handle overhead");
 
         let request = request.into_inner();
@@ -182,21 +176,25 @@ impl DriverService for DriverHandler {
         // Parse the given ID
         let app_id: AppId = match AppId::from_str(&request.uuid) {
             Ok(app_id) => app_id,
-            Err(err)   => { fatal_err!(tx, rx, Status::invalid_argument, err); },
+            Err(err) => {
+                fatal_err!(tx, rx, Status::invalid_argument, err);
+            },
         };
 
         // Fetch the VM
         let sessions: Arc<DashMap<AppId, (InstanceVm, Instant)>> = self.sessions.clone();
         let vm: InstanceVm = match sessions.get(&app_id) {
             Some(vm) => vm.0.clone(),
-            None     => { fatal_err!(tx, rx, Status::internal(format!("No session with ID '{app_id}' found"))); }
+            None => {
+                fatal_err!(tx, rx, Status::internal(format!("No session with ID '{app_id}' found")));
+            },
         };
 
         // We're gonna run the rest asynchronous, to allow the client to earlier receive callbacks
         overhead.stop();
         tokio::spawn(async move {
             debug!("Executing workflow for session '{}'", app_id);
-    
+
             // We assume that the input is an already compiled workflow; so no need to fire up any parsers/compilers
 
             // We only have to use JSON magic
@@ -204,8 +202,13 @@ impl DriverService for DriverHandler {
             debug!("Parsing workflow of {} characters", request.input.len());
             let workflow: Workflow = match serde_json::from_str(&request.input) {
                 Ok(workflow) => workflow,
-                Err(err)     => {
-                    debug!("Workflow:\n{}\n{}\n{}\n\n", (0..80).map(|_| '-').collect::<String>(), request.input, (0..80).map(|_| '-').collect::<String>());
+                Err(err) => {
+                    debug!(
+                        "Workflow:\n{}\n{}\n{}\n\n",
+                        (0..80).map(|_| '-').collect::<String>(),
+                        request.input,
+                        (0..80).map(|_| '-').collect::<String>()
+                    );
                     fatal_err!(tx, Status::invalid_argument, err);
                 },
             };
@@ -213,7 +216,8 @@ impl DriverService for DriverHandler {
 
             // We now have a runnable plan ( ͡° ͜ʖ ͡°), so run it
             debug!("Executing workflow of {} edges", workflow.graph.len());
-            let (vm, res): (InstanceVm, Result<FullValue, RemoteVmError>) = report.nest_fut("VM execution", |scope| vm.exec(tx.clone(), workflow, scope)).await;
+            let (vm, res): (InstanceVm, Result<FullValue, RemoteVmError>) =
+                report.nest_fut("VM execution", |scope| vm.exec(tx.clone(), app_id.clone(), workflow, scope)).await;
 
             // Insert the VM again
             debug!("Saving state session state");
@@ -221,25 +225,21 @@ impl DriverService for DriverHandler {
 
             // Switch on the actual result and send that back to the user
             match res {
-                Ok(res)  => {
+                Ok(res) => {
                     debug!("Completed execution.");
                     let _ret = report.time("Returning value");
 
                     // Serialize the value
                     let sres: String = match serde_json::to_string(&res) {
                         Ok(sres) => sres,
-                        Err(err) => { fatal_err!(tx, Status::internal, err); }  
+                        Err(err) => {
+                            fatal_err!(tx, Status::internal, err);
+                        },
                     };
 
                     // Create the reply text
                     let msg = String::from("Driver completed execution.");
-                    let reply = ExecuteReply {
-                        close  : true,
-                        debug  : Some(msg.clone()),
-                        stderr : None,
-                        stdout : None,
-                        value  : Some(sres),
-                    };
+                    let reply = ExecuteReply { close: true, debug: Some(msg.clone()), stderr: None, stdout: None, value: Some(sres) };
 
                     // Send it
                     if let Err(err) = tx.send(Ok(reply)).await {
