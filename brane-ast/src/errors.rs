@@ -4,7 +4,7 @@
 //  Created:
 //    10 Aug 2022, 13:52:37
 //  Last edited:
-//    01 Nov 2023, 16:35:43
+//    08 Dec 2023, 16:33:22
 //  Auto updated?
 //    Yes
 //
@@ -971,7 +971,7 @@ impl Display for LocationError {
         use LocationError::*;
         match self {
             IllegalLocation { .. } => write!(f, "On-structures can only accept string literals as location specifiers."),
-            OnNoLocation { .. } => write!(f, "Combination of On-structures already over-restrict locations (no location left to run any calls)."),
+            OnNoLocation { .. } => write!(f, "Combination of attributes already over-restrict locations (no location left to run any calls)."),
 
             NoLocation { .. } => write!(f, "External function call is over-restricted and has no locations left to run."),
         }

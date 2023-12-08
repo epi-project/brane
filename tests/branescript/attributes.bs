@@ -1,0 +1,56 @@
+// File that showcases some attribute usage
+
+import hello_world;   // hello_world()
+
+// Attributes can be used to provide additional context to the compiler
+// Typically, one is attached to a statement by prefixing it; for example, this tags this call to `hello_world()` with `foo`
+#[tag("foo")]
+println(hello_world());
+
+// One can also attach an attribute to an entire scope, applying it to all statements in it;
+// This...
+{
+    #[tag("bar")]
+    println(hello_world());
+    #[tag("bar")]
+    println(hello_world());
+}
+// ...is equivalent to...
+#[tag("bar")]
+{
+    println(hello_world());
+    println(hello_world());
+}
+
+// One can also use the `#![...]` syntax to attach an attribute to a whole scope from _within_ that scope
+// This equals the previous example:
+{
+    #![tag("bar")]
+    println(hello_world());
+    println(hello_world());
+}
+
+// We can use this latter fact to annotate an entire workflow
+// (Note that attributes are ordered, so this is only applied to statements from now onwards)
+#![tag("baz")]
+println(hello_world());
+println(hello_world());
+
+
+
+// Finally, there are some subteties to if-, for-, while- and parallel-statements
+// When applied to the whole statement, it applies to *all* its blocks and *all* its expressions; i.e., in
+#[tag("qaz")]
+if (hello_world() == "Hello, world!") {
+    println(hello_world());
+} else {
+    println(hello_world());
+}
+// all `hello_world()`-calls are executed with a `qaz`-tag. However, in this case;
+if (hello_world() == "Hello, world!") {
+    #![tag("qaz")]
+    println(hello_world());
+} else {
+    println(hello_world());
+}
+// only the call in the true-branch is.

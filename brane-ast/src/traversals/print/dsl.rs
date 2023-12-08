@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 13:46:22
 //  Last edited:
-//    08 Dec 2023, 15:46:53
+//    08 Dec 2023, 16:30:38
 //  Auto updated?
 //    Yes
 //
@@ -125,11 +125,6 @@ pub fn pass_stmt(writer: &mut impl Write, stmt: &Stmt, indent: usize) -> std::io
         },
 
         Block { block } => {
-            // Print the attributes
-            for attr in &block.attrs {
-                pass_attr(writer, attr, false, indent)?;
-            }
-
             // Pass over the block instead, but do print the indentation first.
             write!(writer, "{}", indent!(indent))?;
             pass_block(writer, block, indent)?;
@@ -372,6 +367,7 @@ pub fn pass_attr(writer: &mut impl Write, attr: &Attribute, is_inner: bool, inde
         },
         Attribute::List { key, values, range: _ } => {
             pass_identifier(writer, key)?;
+            write!(writer, "(")?;
             let mut first: bool = true;
             for value in values {
                 if first {
@@ -381,6 +377,7 @@ pub fn pass_attr(writer: &mut impl Write, attr: &Attribute, is_inner: bool, inde
                 }
                 pass_literal(writer, value)?;
             }
+            write!(writer, ")")?;
         },
     }
     // Print the suffixing tokens
@@ -807,8 +804,14 @@ pub fn pass_literal(writer: &mut impl Write, literal: &Literal) -> std::io::Resu
 pub fn do_traversal(root: Program, writer: impl Write) -> Result<Program, Vec<Error>> {
     let mut writer = writer;
 
+    // Write the attributes
+    for a in &root.block.attrs {
+        if let Err(err) = pass_attr(&mut writer, a, true, 0) {
+            return Err(vec![Error::WriteError { err }]);
+        }
+    }
     // Iterate over all statements and run the appropriate match
-    for s in root.block.stmts.iter() {
+    for s in &root.block.stmts {
         if let Err(err) = pass_stmt(&mut writer, s, 0) {
             return Err(vec![Error::WriteError { err }]);
         }

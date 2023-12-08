@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 16:27:08
 //  Last edited:
-//    08 Dec 2023, 15:50:21
+//    08 Dec 2023, 16:34:17
 //  Auto updated?
 //    Yes
 //
@@ -103,6 +103,9 @@ fn process_attrs_loc_location(attrs: &[Attribute], locations: &mut AllowedLocati
         match attr {
             Attribute::List { key, values, range } => {
                 if key.value == "on" || key.value == "loc" || key.value == "location" {
+                    // Keep track of where this lives for errors
+                    reasons.push(range.clone());
+
                     // Assert the values a literals
                     let locs: HashSet<Location> = values
                         .iter()
@@ -122,8 +125,6 @@ fn process_attrs_loc_location(attrs: &[Attribute], locations: &mut AllowedLocati
                         errors.push(Error::OnNoLocation { range: range.clone(), reasons: reasons.clone() });
                         return;
                     }
-                    // Keep track of where this lives for errors
-                    reasons.push(range.clone());
                 }
             },
 
@@ -358,9 +359,7 @@ pub fn do_traversal(root: Program) -> Result<Program, Vec<AstError>> {
 
     // Iterate over all statements to build their symbol tables (if relevant)
     let mut errors: Vec<Error> = vec![];
-    for s in root.block.stmts.iter_mut() {
-        pass_stmt(s, AllowedLocations::All, vec![], &mut errors);
-    }
+    pass_block(&mut root.block, AllowedLocations::All, vec![], &mut errors);
 
     // Done
     if errors.is_empty() { Ok(root) } else { Err(errors.into_iter().map(|e| e.into()).collect()) }
