@@ -1,25 +1,24 @@
 //  SCANNING.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    25 Aug 2022, 11:01:54
 //  Last edited:
-//    17 Jan 2023, 14:58:05
+//    08 Dec 2023, 09:19:20
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Defines the main scanner functions, including its entrypoint.
-// 
+//
 
+use nom::bytes::complete as bc;
+use nom::character::complete as cc;
 use nom::error::{ContextError, ParseError, VerboseError};
-use nom::{branch, combinator as comb, multi, sequence as seq};
-use nom::{bytes::complete as bc, character::complete as cc, IResult, Parser};
+use nom::{branch, combinator as comb, multi, sequence as seq, IResult, Parser};
 
-use super::Span;
 use super::tokens::Token;
-use super::comments;
-use super::literal;
+use super::{comments, literal, Span};
 
 
 /***** CONSTANTS *****/
@@ -32,18 +31,14 @@ const SEPARATORS: &str = " \n\t\r{}[]()-=+;:'\"\\|/?>.<,`~*&^%$#@!";
 
 /***** HELPER FUNCTIONS *****/
 /// Wraps the given parser such that it may be prefixed or postfixed with whitespace, which will be ignored.
-/// 
+///
 /// # Arguments
 /// - `f`: The parser function to wrap.
-/// 
+///
 /// # Returns
 /// A new function that implements the parser plus the wrapping whitespaces.
 fn ws0<'a, O, E: ParseError<Span<'a>>, F: Parser<Span<'a>, O, E>>(f: F) -> impl Parser<Span<'a>, O, E> {
-    seq::delimited(
-        cc::multispace0,
-        f,
-        cc::multispace0,
-    )
+    seq::delimited(cc::multispace0, f, cc::multispace0)
 }
 
 
@@ -52,35 +47,28 @@ fn ws0<'a, O, E: ParseError<Span<'a>>, F: Parser<Span<'a>, O, E>>(f: F) -> impl 
 
 /***** SCANNING FUNCTIONS *****/
 /// Scans a single token from the start of the given text.
-/// 
+///
 /// # Arguments
 /// - `input`: The String input (wrapped in a Span for token localization later on) to parse.
-/// 
+///
 /// # Returns
 /// A list of the remaining text that we couldn't parse and the parsed token.
-/// 
+///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
 fn scan_token<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
     // Keep trying until: eof or non-comment
-    branch::alt((
-        ws0(comments::parse),
-        keyword,
-        operator,
-        punctuation,
-        ws0(literal::parse),
-        identifier,
-    )).parse(input)
+    branch::alt((ws0(comments::parse), keyword, operator, punctuation, ws0(literal::parse), identifier)).parse(input)
 }
 
 /// Scans a keyword token from the start of the given text.
-/// 
+///
 /// # Arguments
 /// - `input`: The String input (wrapped in a Span for token localization later on) to parse.
-/// 
+///
 /// # Returns
 /// A list of the remaining text that we couldn't parse and the parsed token.
-/// 
+///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
 fn keyword<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
@@ -105,13 +93,13 @@ fn keyword<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>
 }
 
 /// Scans an operator token from the start of the given text.
-/// 
+///
 /// # Arguments
 /// - `input`: The String input (wrapped in a Span for token localization later on) to parse.
-/// 
+///
 /// # Returns
 /// A list of the remaining text that we couldn't parse and the parsed token.
-/// 
+///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
 fn operator<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
@@ -139,13 +127,13 @@ fn operator<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a
 }
 
 /// Scans an punctuation token from the start of the given text.
-/// 
+///
 /// # Arguments
 /// - `input`: The String input (wrapped in a Span for token localization later on) to parse.
-/// 
+///
 /// # Returns
 /// A list of the remaining text that we couldn't parse and the parsed token.
-/// 
+///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
 fn punctuation<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
@@ -160,46 +148,41 @@ fn punctuation<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span
         comb::map(bc::tag("]"), Token::RightBracket),
         comb::map(bc::tag("{"), Token::LeftBrace),
         comb::map(bc::tag("}"), Token::RightBrace),
+        comb::map(bc::tag("#"), Token::Pound),
     )))
     .parse(input)
 }
 
 /// Scans an identifier token from the start of the given text.
-/// 
+///
 /// # Arguments
 /// - `input`: The String input (wrapped in a Span for token localization later on) to parse.
-/// 
+///
 /// # Returns
 /// A list of the remaining text that we couldn't parse and the parsed token.
-/// 
+///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
 fn identifier<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
     ws0(comb::map(
-        comb::recognize(seq::pair(
-            branch::alt((cc::alpha1, bc::tag("_"))),
-            multi::many0(branch::alt((cc::alphanumeric1, bc::tag("_")))),
-        )),
+        comb::recognize(seq::pair(branch::alt((cc::alpha1, bc::tag("_"))), multi::many0(branch::alt((cc::alphanumeric1, bc::tag("_")))))),
         Token::Ident,
     ))
     .parse(input)
 }
 
 /// Parses a separator token from the input. This is either a punctuation token or an EOF.
-/// 
+///
 /// # Arguments
 /// - `input`: The input span that this function will attempt to parse a separator off.
-/// 
+///
 /// # Returns
 /// An `IResult` with the remainder and the parsed Token.
-/// 
+///
 /// # Errors
 /// This function may error if it failed to parse a separator.
 fn separator<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, char, E> {
-    branch::alt((
-        cc::one_of(SEPARATORS),
-        comb::map(comb::eof, |_| '\0'),
-    ))(input)
+    branch::alt((cc::one_of(SEPARATORS), comb::map(comb::eof, |_| '\0')))(input)
 }
 
 
@@ -208,22 +191,20 @@ fn separator<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'
 
 /***** LIBRARY *****/
 /// Parses the given text to a list of tokens, abstracting away over the most nitpicky syntax.
-/// 
+///
 /// # Arguments
 /// - `input`: The String input (wrapped in a Span for token localization later on) to parse.
-/// 
+///
 /// # Returns
 /// A list of the remaining text that we couldn't parse and the list of parsed tokens.
-/// 
+///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
 pub fn scan_tokens(input: Span) -> IResult<Span, Vec<Token>, VerboseError<Span>> {
-    multi::many0(scan_token)
-        .parse(input)
-        .map(|(s, t)| {
-            let mut t = t;
-            t.retain(|t| !t.is_none());
+    multi::many0(scan_token).parse(input).map(|(s, t)| {
+        let mut t = t;
+        t.retain(|t| !t.is_none());
 
-            (s, t)
-        })
+        (s, t)
+    })
 }
