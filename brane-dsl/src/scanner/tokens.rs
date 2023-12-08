@@ -44,9 +44,6 @@ pub enum Token<'a> {
     /// `new`
     New(Span<'a>),
 
-    /// `on`
-    On(Span<'a>),
-
     /// `|`
     Or(Span<'a>),
 
@@ -189,7 +186,7 @@ impl<'a> Token<'a> {
 
         match self {
             At(span) | And(span) | Break(span) | Class(span) | Continue(span) | Else(span) | For(span) | Function(span) | If(span) | Import(span)
-            | Let(span) | On(span) | Or(span) | Return(span) | Unit(span) | While(span) | Dot(span) | Colon(span) | Comma(span) | LeftBrace(span)
+            | Let(span) | Or(span) | Return(span) | Unit(span) | While(span) | Dot(span) | Colon(span) | Comma(span) | LeftBrace(span)
             | LeftBracket(span) | LeftParen(span) | Parallel(span) | Pound(span) | RightBrace(span) | RightBracket(span) | RightParen(span)
             | Semicolon(span) | Assign(span) | Equal(span) | Greater(span) | GreaterOrEqual(span) | Less(span) | LessOrEqual(span) | Minus(span)
             | Not(span) | NotEqual(span) | Plus(span) | Slash(span) | Star(span) | Percentage(span) | Null(span) | Boolean(span) | Integer(span)

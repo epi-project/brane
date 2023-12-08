@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 13:34:31
 //  Last edited:
-//    02 Nov 2023, 14:12:11
+//    08 Dec 2023, 10:41:31
 //  Auto updated?
 //    Yes
 //
@@ -20,6 +20,7 @@ use std::rc::Rc;
 use brane_dsl::ast::{Block, Data, Expr, Program, Stmt};
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, SymbolTableEntry, VarEntry};
 use brane_dsl::{DataType, SymbolTable};
+use enum_debug::EnumDebug as _;
 use log::debug;
 use uuid::Uuid;
 
@@ -218,17 +219,11 @@ fn pass_stmt(stmt: &mut Stmt, table: &mut DataState, is_branch: bool, scope: &Rc
             // Don't forget to run again to update the loop itself
             pass_block(consequent, table, true)
         },
-        On { block, .. } => {
-            // The location is guaranteed to be a literal, so we skip
-
-            // Do the block
-            pass_block(block, table, is_branch)
-        },
         Parallel { blocks, st_entry, .. } => {
             // The parallel _does_ return, Tim - or at least, we have to put it in the variable if there is one
             let mut ids: HashSet<Data> = HashSet::new();
             for b in blocks {
-                ids.extend(pass_stmt(b, table, is_branch, scope));
+                ids.extend(pass_block(b, table, is_branch));
             }
 
             // Put it in the variable if this Parallel is returning
@@ -268,7 +263,8 @@ fn pass_stmt(stmt: &mut Stmt, table: &mut DataState, is_branch: bool, scope: &Rc
         },
 
         // The rest no matter
-        _ => HashSet::new(),
+        Import { .. } | Empty { .. } => HashSet::new(),
+        Attribute(_) | AttributeInner(_) => panic!("Encountered {:?} in data traversal", stmt.variant()),
     }
 }
 

@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 18:00:09
 //  Last edited:
-//    02 Nov 2023, 14:12:25
+//    08 Dec 2023, 15:01:02
 //  Auto updated?
 //    Yes
 //
@@ -19,9 +19,10 @@ use std::cell::Ref;
 use std::collections::HashSet;
 use std::mem;
 
-use brane_dsl::ast::{Block, Node, Program, Stmt};
+use brane_dsl::ast::{Attribute, Block, Node, Program, Stmt};
 use brane_dsl::symbol_table::FunctionEntry;
 use brane_dsl::{DataType, TextPos, TextRange};
+use enum_debug::EnumDebug as _;
 
 use crate::errors::AstError;
 pub use crate::errors::PruneError as Error;
@@ -95,6 +96,8 @@ mod tests {
 ///
 /// # Arguments
 /// - `block`: The Block to prune.
+/// - `attr_stack`: A mutable stack that keeps track of the attributes active by parent blocks.
+/// - `errors`: The list that can keep track of multiple errors.
 ///
 /// # Returns
 /// Whether or not the block completely returns or not. Also alters, adds or removes statements to or from the block.
@@ -103,14 +106,17 @@ mod tests {
 /// This function may error if a given statement in the block is a function that does not correctly return on all paths.
 ///
 /// If an error occurred, it is written to the given `errors` list. The function then still returns whether this block itself fully returns or not.
-fn pass_block(block: &mut Block, errors: &mut Vec<Error>) -> bool {
+fn pass_block(block: &mut Block, attr_stack: &mut Vec<Vec<Attribute>>, errors: &mut Vec<Error>) -> bool {
+    // Push the block's attributes
+    attr_stack.push(block.attrs.clone());
+
     // Iterate over the statements in the block.
     let old_stmts: Vec<Stmt> = mem::take(&mut block.stmts);
     let mut new_stmts: Vec<Stmt> = Vec::with_capacity(old_stmts.len());
     let mut fully_returns: bool = false;
     for s in old_stmts {
         // Run 'em through the statements (to replace for's into while's and such)
-        let (mut new_stmt, returns): (Vec<Stmt>, bool) = pass_stmt(s, errors);
+        let (mut new_stmt, returns): (Vec<Stmt>, bool) = pass_stmt(s, attr_stack, errors);
         new_stmts.append(&mut new_stmt);
 
         // If this statement returns completely (we already know it does of the correct type), then ignore the rest of the statements
@@ -119,6 +125,9 @@ fn pass_block(block: &mut Block, errors: &mut Vec<Error>) -> bool {
             break;
         }
     }
+
+    // Pop the attributes again
+    attr_stack.pop();
 
     // // Done
     // decs.append(&mut new_stmts);
@@ -131,6 +140,7 @@ fn pass_block(block: &mut Block, errors: &mut Vec<Error>) -> bool {
 ///
 /// # Arguments
 /// - `stmt`: The statement to prune.
+/// - `attr_stack`: A mutable stack that keeps track of the attributes active by parent blocks.
 /// - `errors`: The list that can keep track of multiple errors.
 ///
 /// # Returns
@@ -140,7 +150,7 @@ fn pass_block(block: &mut Block, errors: &mut Vec<Error>) -> bool {
 /// This function may error if the given statement is a function that does not correctly return on all paths.
 ///
 /// If an error occurred, it is written to the given `errors` list. The function then still returns whether this statement fully returns or not.
-fn pass_stmt(stmt: Stmt, errors: &mut Vec<Error>) -> (Vec<Stmt>, bool) {
+fn pass_stmt(stmt: Stmt, attr_stack: &mut Vec<Vec<Attribute>>, errors: &mut Vec<Error>) -> (Vec<Stmt>, bool) {
     let mut stmt: Stmt = stmt;
 
     // Match the statement
@@ -148,7 +158,7 @@ fn pass_stmt(stmt: Stmt, errors: &mut Vec<Error>) -> (Vec<Stmt>, bool) {
     match &mut stmt {
         Block { ref mut block, .. } => {
             // Simply pass into the block
-            let returns: bool = pass_block(block, errors);
+            let returns: bool = pass_block(block, attr_stack, errors);
 
             // Return the statement as-is
             (vec![stmt], returns)
@@ -156,7 +166,7 @@ fn pass_stmt(stmt: Stmt, errors: &mut Vec<Error>) -> (Vec<Stmt>, bool) {
 
         FuncDef { code, st_entry, .. } => {
             // Go into the block so see if it fully returns
-            let returns: bool = pass_block(code, errors);
+            let returns: bool = pass_block(code, attr_stack, errors);
 
             // We know all returns are of a valid type; so if there is one and returns are missing, error
             if !returns {
@@ -174,7 +184,13 @@ fn pass_stmt(stmt: Stmt, errors: &mut Vec<Error>) -> (Vec<Stmt>, bool) {
                 }
 
                 // Otherwise, insert a void return
-                code.stmts.push(Stmt::Return { expr: None, data_type: ret_type, output: HashSet::new(), range: TextRange::none() });
+                code.stmts.push(Stmt::Return {
+                    expr:      None,
+                    data_type: ret_type,
+                    output:    HashSet::new(),
+                    range:     TextRange::none(),
+                    attrs:     attr_stack.iter().cloned().flatten().collect(),
+                });
             }
 
             // Done (the function definition itself never returns)
@@ -184,7 +200,7 @@ fn pass_stmt(stmt: Stmt, errors: &mut Vec<Error>) -> (Vec<Stmt>, bool) {
             // Recurse into all of the methods
             for m in methods {
                 let old_m: Stmt = mem::take(m);
-                let (mut new_m, _) = pass_stmt(old_m, errors);
+                let (mut new_m, _) = pass_stmt(old_m, attr_stack, errors);
                 if new_m.len() != 1 {
                     panic!("Method statement was pruned to something else than 1 statement; this should never happen!");
                 }
@@ -200,9 +216,9 @@ fn pass_stmt(stmt: Stmt, errors: &mut Vec<Error>) -> (Vec<Stmt>, bool) {
 
         If { consequent, alternative, .. } => {
             // Inspect if the consequent fully returns
-            let true_returns: bool = pass_block(consequent, errors);
+            let true_returns: bool = pass_block(consequent, attr_stack, errors);
             // Inspect if the alternative returns
-            let false_returns: bool = if let Some(alternative) = alternative { pass_block(alternative, errors) } else { false };
+            let false_returns: bool = if let Some(alternative) = alternative { pass_block(alternative, attr_stack, errors) } else { false };
 
             // This if-statement returns if both blocks return
             (vec![stmt], true_returns && false_returns)
@@ -224,10 +240,10 @@ fn pass_stmt(stmt: Stmt, errors: &mut Vec<Error>) -> (Vec<Stmt>, bool) {
             consequent.stmts.push(increment);
 
             // Step 3: Write the condition + updated consequent as a new While loop
-            let while_stmt: Stmt = Stmt::While { condition, consequent: Box::new(consequent), range };
+            let while_stmt: Stmt = Stmt::While { condition, consequent: Box::new(consequent), attrs: vec![], range };
 
             // Step 4: Analyse as a normal while-loop (increment is not (yet) needed here)
-            let (mut while_stmt, returns): (Vec<Stmt>, bool) = pass_stmt(while_stmt, errors);
+            let (mut while_stmt, returns): (Vec<Stmt>, bool) = pass_stmt(while_stmt, attr_stack, errors);
             stmts.append(&mut while_stmt);
 
             // Step 5: Done
@@ -235,31 +251,22 @@ fn pass_stmt(stmt: Stmt, errors: &mut Vec<Error>) -> (Vec<Stmt>, bool) {
         },
         While { consequent, .. } => {
             // Check if the block returns
-            let returns: bool = pass_block(consequent, errors);
-            (vec![stmt], returns)
-        },
-        On { block, .. } => {
-            // Check if the block returns
-            let returns: bool = pass_block(block, errors);
+            let returns: bool = pass_block(consequent, attr_stack, errors);
             (vec![stmt], returns)
         },
         Parallel { blocks, .. } => {
             // A Parallel statement cannot return, but technically might define functions to still recurse
             for b in blocks {
-                let old_b: Stmt = mem::take(b);
-                let (mut new_b, _) = pass_stmt(old_b, errors);
-                if new_b.len() != 1 {
-                    panic!("Parallel block statement was pruned to something else than 1 statement; this should never happen!");
-                }
-                *b = Box::new(new_b.pop().unwrap());
+                pass_block(b, attr_stack, errors);
             }
 
             // Done
             (vec![stmt], false)
         },
 
-        // The rest we don't care about in this traversal
-        _ => (vec![stmt], false),
+        // The rest neither recurses nor defines
+        Import { .. } | LetAssign { .. } | Assign { .. } | Expr { .. } | Empty {} => (vec![stmt], false),
+        Attribute(_) | AttributeInner(_) => panic!("Encountered {:?} in prune traversal", stmt.variant()),
     }
 }
 
@@ -285,7 +292,7 @@ pub fn do_traversal(root: Program) -> Result<Program, Vec<AstError>> {
 
     // Iterate over all statements to prune the tree
     let mut errors: Vec<Error> = vec![];
-    pass_block(&mut root.block, &mut errors);
+    pass_block(&mut root.block, &mut vec![], &mut errors);
 
     // Done
     if errors.is_empty() { Ok(root) } else { Err(errors.into_iter().map(|e| e.into()).collect()) }

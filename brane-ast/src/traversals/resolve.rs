@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 15:24:54
 //  Last edited:
-//    01 Nov 2023, 16:42:51
+//    08 Dec 2023, 10:39:44
 //  Auto updated?
 //    Yes
 //
@@ -22,6 +22,7 @@ use brane_dsl::data_type::{ClassSignature, FunctionSignature};
 use brane_dsl::spec::MergeStrategy;
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, SymbolTableEntry, VarEntry};
 use brane_dsl::{DataType, SymbolTable, TextRange};
+use enum_debug::EnumDebug as _;
 use log::trace;
 use specifications::data::DataIndex;
 use specifications::package::{PackageIndex, PackageInfo};
@@ -542,15 +543,6 @@ fn pass_stmt(
             // Recurse into the block
             pass_block(state, package_index, data_index, consequent, Some(symbol_table.clone()), errors);
         },
-        On { location, block, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(range, state.offset);
-
-            // Recurse into the location first
-            pass_expr(state, data_index, location, symbol_table, errors);
-            // Recurse into the block
-            pass_block(state, package_index, data_index, block, Some(symbol_table.clone()), errors);
-        },
         Parallel { ref mut result, blocks, ref mut merge, ref mut st_entry, ref mut range, .. } => {
             // Update the block's range
             offset_range!(range, state.offset);
@@ -565,7 +557,7 @@ fn pass_stmt(
 
             // Now recurse into the codeblocks to resolve their references too
             for b in blocks {
-                pass_stmt(state, package_index, data_index, b, symbol_table, errors);
+                pass_block(state, package_index, data_index, b, Some(symbol_table.clone()), errors);
             }
 
             // If present, declare the result as last
@@ -632,7 +624,8 @@ fn pass_stmt(
         },
 
         // We ignore the rest
-        _ => {},
+        Empty {} => {},
+        Attribute(_) | AttributeInner(_) => panic!("Encountered {:?} in resolve traversal", stmt.variant()),
     }
 
     // We're done here

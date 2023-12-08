@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 13:46:22
 //  Last edited:
-//    08 Dec 2023, 09:40:08
+//    08 Dec 2023, 15:46:53
 //  Auto updated?
 //    Yes
 //
@@ -115,10 +115,18 @@ pub fn pass_stmt(writer: &mut impl Write, stmt: &Stmt, indent: usize) -> std::io
     // Match on the statement itself
     use Stmt::*;
     match stmt {
-        /* TODO */
-        Block { block, attrs } => {
+        Attribute(attr) => {
+            // Print the attribute
+            pass_attr(writer, attr, false, indent)?;
+        },
+        AttributeInner(attr) => {
+            // Print the attribute
+            pass_attr(writer, attr, true, indent)?;
+        },
+
+        Block { block } => {
             // Print the attributes
-            for attr in attrs {
+            for attr in &block.attrs {
                 pass_attr(writer, attr, false, indent)?;
             }
 
@@ -227,7 +235,6 @@ pub fn pass_stmt(writer: &mut impl Write, stmt: &Stmt, indent: usize) -> std::io
             for attr in attrs {
                 pass_attr(writer, attr, false, indent)?;
             }
-
             // Print the if first + its condition
             write!(writer, "{}if (", indent!(indent))?;
             pass_expr(writer, cond, indent)?;
@@ -246,7 +253,6 @@ pub fn pass_stmt(writer: &mut impl Write, stmt: &Stmt, indent: usize) -> std::io
             for attr in attrs {
                 pass_attr(writer, attr, false, indent)?;
             }
-
             // Print the three for parts
             write!(writer, "{}for (", indent!(indent))?;
             pass_stmt(writer, initializer, indent)?;
@@ -264,7 +270,6 @@ pub fn pass_stmt(writer: &mut impl Write, stmt: &Stmt, indent: usize) -> std::io
             for attr in attrs {
                 pass_attr(writer, attr, false, indent)?;
             }
-
             // Print the while + its condition
             write!(writer, "{}while (", indent!(indent))?;
             pass_expr(writer, condition, indent)?;
@@ -274,7 +279,7 @@ pub fn pass_stmt(writer: &mut impl Write, stmt: &Stmt, indent: usize) -> std::io
             writeln!(writer)?;
         },
         Parallel { result, blocks, merge: _, st_entry: _, attrs, range: _ } => {
-            // Print the attributes
+            // Print the statement's attributes
             for attr in attrs {
                 pass_attr(writer, attr, false, indent)?;
             }
@@ -365,6 +370,18 @@ pub fn pass_attr(writer: &mut impl Write, attr: &Attribute, is_inner: bool, inde
             write!(writer, " = ")?;
             pass_literal(writer, value)?;
         },
+        Attribute::List { key, values, range: _ } => {
+            pass_identifier(writer, key)?;
+            let mut first: bool = true;
+            for value in values {
+                if first {
+                    first = false;
+                } else {
+                    write!(writer, ", ")?;
+                }
+                pass_literal(writer, value)?;
+            }
+        },
     }
     // Print the suffixing tokens
     writeln!(writer, "]")?;
@@ -385,10 +402,17 @@ pub fn pass_attr(writer: &mut impl Write, attr: &Attribute, is_inner: bool, inde
 pub fn pass_block(writer: &mut impl Write, block: &Block, indent: usize) -> std::io::Result<()> {
     // Print the curly bracket (no indent used, since it's expression position)
     writeln!(writer, "{{")?;
+
+    // Write the block's attributes as inner ones
+    for attr in &block.attrs {
+        pass_attr(writer, attr, true, indent + INDENT_SIZE)?;
+    }
+
     // Print all statements with extra indent
     for s in block.stmts.iter() {
         pass_stmt(writer, s, indent + INDENT_SIZE)?;
     }
+
     // Print the closing curly bracket
     write!(writer, "{}}}", indent!(indent))?;
 

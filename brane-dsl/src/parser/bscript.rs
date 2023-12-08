@@ -4,7 +4,7 @@
 //  Created:
 //    17 Aug 2022, 16:01:41
 //  Last edited:
-//    08 Dec 2023, 09:31:57
+//    08 Dec 2023, 15:46:41
 //  Auto updated?
 //    Yes
 //
@@ -199,7 +199,53 @@ pub fn parse_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inpu
 
 
 
-/// Parses an attribute-statement.
+/// Parses the contents of an attribute.
+///
+/// For example:
+/// ```branescript
+/// foo = "bar"
+/// ```
+/// or
+/// ```branescript
+/// foo("bar", "baz")
+/// ```
+///
+/// # Arguments
+/// - `input`: The token stream that will be parsed.
+///
+/// # Returns
+/// A pair of remaining tokens and a parsed [`Attribute`].
+///
+/// # Errors
+/// This function may error if the tokens do not comprise a valid statement.
+pub fn attribute<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Attribute, E> {
+    trace!("Attempting to parse Attribute");
+
+    // Parse the possible attribute variants
+    comb::cut(branch::alt((
+        comb::map(
+            seq::separated_pair(identifier::parse, tag_token!(Token::Equal), comb::cut(literal::parse)),
+            |(key, value): (Identifier, Literal)| {
+                let range: TextRange = TextRange::new(value.start().clone(), value.end().clone());
+                Attribute::KeyPair { key, value, range }
+            },
+        ),
+        comb::map(
+            seq::tuple((
+                identifier::parse,
+                tag_token!(Token::LeftParen),
+                comb::cut(seq::pair(multi::separated_list1(tag_token!(Token::Comma), literal::parse), tag_token!(Token::RightParen))),
+            )),
+            |(key, lparen, (values, rparen)): (Identifier, Tokens, (Vec<Literal>, Tokens))| {
+                let range: TextRange = TextRange::new(TextPos::from(lparen.tok[0].inner()), TextPos::end_of(rparen.tok[0].inner()));
+                Attribute::List { key, values, range }
+            },
+        ),
+    )))
+    .parse(input)
+}
+
+/// Parses an attribute-statement that annotates something from outside.
 ///
 /// For example:
 /// ```branescript
@@ -210,26 +256,23 @@ pub fn parse_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inpu
 /// - `input`: The token stream that will be parsed.
 ///
 /// # Returns
-/// A pair of remaining tokens and a parsed `Stmt::Attribute`.
+/// A pair of remaining tokens and a parsed [`Stmt::Attribute`].
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
 pub fn attribute_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
     trace!("Attempting to parse Attribute-statement");
 
-    // Parse the hashtag and opening square bracket
+    // Parse the hashtag and opening square bracket, the attribute and the closing bracket
     let (r, p) = tag_token!(Token::Pound).parse(input)?;
     let (r, _) = tag_token!(Token::LeftBracket).parse(r)?;
+    let (r, (mut attr, b)): (Tokens, (Attribute, Tokens)) = comb::cut(seq::pair(attribute, tag_token!(Token::RightBracket))).parse(r)?;
 
-    // Parse the possible attribute variants
-    let (r, attr): (Tokens, Attribute) = comb::cut(branch::alt((comb::map(
-        seq::pair(seq::separated_pair(identifier::parse, tag_token!(Token::Equal), literal::parse), tag_token!(Token::RightBracket)),
-        |((key, value), rbrack): ((Identifier, Literal), Tokens)| {
-            let range: TextRange = TextRange::new(TextPos::from(p.tok[0].inner()), TextPos::end_of(rbrack.tok[0].inner()));
-            Attribute::KeyPair { key, value, range }
-        },
-    ),)))
-    .parse(r)?;
+    // Update the ranges
+    match &mut attr {
+        Attribute::KeyPair { range, .. } => *range = TextRange::new(TextPos::from(p.tok[0].inner()), TextPos::end_of(b.tok[0].inner())),
+        Attribute::List { range, .. } => *range = TextRange::new(TextPos::from(p.tok[0].inner()), TextPos::end_of(b.tok[0].inner())),
+    }
 
     // Return the parsed attribute
     Ok((r, Stmt::Attribute(attr)))
@@ -251,22 +294,19 @@ pub fn attribute_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
 pub fn attribute_inner_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
-    trace!("Attempting to parse Attribute-statement");
+    trace!("Attempting to parse AttributeInner-statement");
 
-    // Parse the hashtag and opening square bracket
+    // Parse the hashtag and opening square bracket, the attribute and the closing bracket
     let (r, p) = tag_token!(Token::Pound).parse(input)?;
     let (r, _) = tag_token!(Token::Not).parse(r)?;
     let (r, _) = tag_token!(Token::LeftBracket).parse(r)?;
+    let (r, (mut attr, b)): (Tokens, (Attribute, Tokens)) = comb::cut(seq::pair(attribute, tag_token!(Token::RightBracket))).parse(r)?;
 
-    // Parse the possible attribute variants
-    let (r, attr): (Tokens, Attribute) = comb::cut(branch::alt((comb::map(
-        seq::pair(seq::separated_pair(identifier::parse, tag_token!(Token::Equal), literal::parse), tag_token!(Token::RightBracket)),
-        |((key, value), rbrack): ((Identifier, Literal), Tokens)| {
-            let range: TextRange = TextRange::new(TextPos::from(p.tok[0].inner()), TextPos::end_of(rbrack.tok[0].inner()));
-            Attribute::KeyPair { key, value, range }
-        },
-    ),)))
-    .parse(r)?;
+    // Update the ranges
+    match &mut attr {
+        Attribute::KeyPair { range, .. } => *range = TextRange::new(TextPos::from(p.tok[0].inner()), TextPos::end_of(b.tok[0].inner())),
+        Attribute::List { range, .. } => *range = TextRange::new(TextPos::from(p.tok[0].inner()), TextPos::end_of(b.tok[0].inner())),
+    }
 
     // Return the parsed attribute
     Ok((r, Stmt::AttributeInner(attr)))
@@ -353,7 +393,7 @@ pub fn block_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inpu
     trace!("Attempting to parse Block-statement");
 
     // Simply map the block helper function
-    block(input).map(|(r, b)| (r, Stmt::Block { block: Box::new(b), attrs: vec![] }))
+    block(input).map(|(r, b)| (r, Stmt::Block { block: Box::new(b) }))
 }
 
 /// Parses a Parallel-statement.

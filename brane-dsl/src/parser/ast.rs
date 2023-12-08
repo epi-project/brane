@@ -4,7 +4,7 @@
 //  Created:
 //    10 Aug 2022, 14:00:59
 //  Last edited:
-//    08 Dec 2023, 09:28:52
+//    08 Dec 2023, 15:45:49
 //  Auto updated?
 //    Yes
 //
@@ -83,6 +83,15 @@ pub enum Attribute {
         /// The range of the attribute in the source text.
         range: TextRange,
     },
+    /// It's a list of stuff
+    List {
+        /// The given key.
+        key:    Identifier,
+        /// The values we parsed
+        values: Vec<Literal>,
+        /// The range of the attribute in the source text.
+        range:  TextRange,
+    },
 }
 impl Attribute {
     /// Constructor for the attribute that initializes it as a key/pair value.
@@ -95,7 +104,7 @@ impl Attribute {
     /// # Returns
     /// A new Attribute.
     #[inline]
-    pub fn new(key: impl Into<Identifier>, value: impl Into<Literal>, range: impl Into<TextRange>) -> Self {
+    pub fn keypair(key: impl Into<Identifier>, value: impl Into<Literal>, range: impl Into<TextRange>) -> Self {
         Self::KeyPair {
             key:   key.into(),
             value: value.into(),
@@ -103,12 +112,27 @@ impl Attribute {
             range: range.into(),
         }
     }
+
+    /// Constructor for the attribute that initializes it as a list of values.
+    ///
+    /// # Arguments
+    /// - `key`: The given key, as a BraneScript [`Identifier`].
+    /// - `values`: The given values, as a list of BraneScript [`Literal`]s.
+    /// - `range`: The [`TextRange`] linking this attribute to the source text.
+    ///
+    /// # Returns
+    /// A new Attribute.
+    #[inline]
+    pub fn list(key: impl Into<Identifier>, values: impl Into<Vec<Literal>>, range: impl Into<TextRange>) -> Self {
+        Self::List { key: key.into(), values: values.into(), range: range.into() }
+    }
 }
 impl Node for Attribute {
     #[inline]
     fn range(&self) -> &TextRange {
         match self {
             Self::KeyPair { range, .. } => range,
+            Self::List { range, .. } => range,
         }
     }
 }
@@ -126,6 +150,8 @@ pub struct Block {
     /// The return type as found in this block.
     pub ret_type: Option<DataType>,
 
+    /// A list of attributes attached to this block.
+    pub attrs: Vec<Attribute>,
     /// The range of the block in the source text.
     pub range: TextRange,
 }
@@ -140,7 +166,7 @@ impl Block {
     /// # Returns
     /// A new Block instance.
     #[inline]
-    pub fn new(stmts: Vec<Stmt>, range: TextRange) -> Self { Self { stmts, table: SymbolTable::new(), ret_type: None, range } }
+    pub fn new(stmts: Vec<Stmt>, range: TextRange) -> Self { Self { stmts, table: SymbolTable::new(), ret_type: None, attrs: vec![], range } }
 }
 
 impl Default for Block {
@@ -152,6 +178,7 @@ impl Default for Block {
             table:    SymbolTable::new(),
             ret_type: None,
 
+            attrs: vec![],
             range: TextRange::none(),
         }
     }
@@ -177,8 +204,6 @@ pub enum Stmt {
     Block {
         /// The actual block it references
         block: Box<Block>,
-        /// A list of attributes attached to this statement.
-        attrs: Vec<Attribute>,
     },
 
     /// Defines a package import.
@@ -193,10 +218,10 @@ pub enum Stmt {
         /// Reference to the class symbol table entries that this import generates.
         st_classes: Option<Vec<Rc<RefCell<ClassEntry>>>>,
 
-        /// The range of the import statement in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the import statement in the source text.
+        range: TextRange,
     },
     /// Defines a function definition.
     FuncDef {
@@ -210,10 +235,10 @@ pub enum Stmt {
         /// Reference to the symbol table entry this function generates.
         st_entry: Option<Rc<RefCell<FunctionEntry>>>,
 
-        /// The range of the function definition in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the function definition in the source text.
+        range: TextRange,
     },
     /// Defines a class definition.
     ClassDef {
@@ -229,10 +254,10 @@ pub enum Stmt {
         /// The SymbolTable that hosts the nested declarations. Is also found in the ClassEntry itself to resolve children.
         symbol_table: Rc<RefCell<SymbolTable>>,
 
-        /// The range of the class definition in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the class definition in the source text.
+        range: TextRange,
     },
     /// Defines a return statement.
     Return {
@@ -243,10 +268,10 @@ pub enum Stmt {
         /// If this is a return on workflow level, also mentions a data that is returned (if any).
         output:    HashSet<Data>,
 
-        /// The range of the return statement in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the return statement in the source text.
+        range: TextRange,
     },
 
     /// Defines an if-statement.
@@ -258,10 +283,10 @@ pub enum Stmt {
         /// The (optional) block for if the condition was false.
         alternative: Option<Box<Block>>,
 
-        /// The range of the if-statement in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the if-statement in the source text.
+        range: TextRange,
     },
     /// Defines a for-loop.
     For {
@@ -274,10 +299,10 @@ pub enum Stmt {
         /// The block to run every iteration.
         consequent:  Box<Block>,
 
-        /// The range of the for-loop in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the for-loop in the source text.
+        range: TextRange,
     },
     /// Defines a while-loop.
     While {
@@ -286,10 +311,10 @@ pub enum Stmt {
         /// The block to run every iteration.
         consequent: Box<Block>,
 
-        /// The range of the while-loop in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the while-loop in the source text.
+        range: TextRange,
     },
     /// Defines a parallel block (i.e., multiple branches run in parallel).
     Parallel {
@@ -303,10 +328,10 @@ pub enum Stmt {
         /// Reference to the variable to which the Parallel writes.
         st_entry: Option<Rc<RefCell<VarEntry>>>,
 
-        /// The range of the parallel-statement in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the parallel-statement in the source text.
+        range: TextRange,
     },
 
     /// Defines a variable definition (i.e., `let <name> := <expr>`).
@@ -319,10 +344,10 @@ pub enum Stmt {
         /// Reference to the variable to which the let-assign writes.
         st_entry: Option<Rc<RefCell<VarEntry>>>,
 
-        /// The range of the let-assign statement in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the let-assign statement in the source text.
+        range: TextRange,
     },
     /// Defines an assignment (i.e., `<name> := <expr>`).
     Assign {
@@ -334,10 +359,10 @@ pub enum Stmt {
         /// Reference to the variable to which the assign writes.
         st_entry: Option<Rc<RefCell<VarEntry>>>,
 
-        /// The range of the assignment in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the assignment in the source text.
+        range: TextRange,
     },
     /// Defines a loose expression.
     Expr {
@@ -346,10 +371,10 @@ pub enum Stmt {
         /// The data type of this expression. Relevant for popping or not.
         data_type: DataType,
 
-        /// The range of the expression statement in the source text.
-        range: TextRange,
         /// A list of attributes attached to this statement.
         attrs: Vec<Attribute>,
+        /// The range of the expression statement in the source text.
+        range: TextRange,
     },
 
     /// A special, compile-time only statement that may be used to `mem::take` statements.
