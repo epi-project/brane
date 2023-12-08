@@ -8,27 +8,26 @@
 //     Needed,
 // };
 // use nom::{IResult, Parser};
+use std::collections::HashSet;
+
+use nom::error::VerboseError;
+use nom::IResult;
+use specifications::package::PackageIndex;
+
+use super::ast::{Block, Expr, Literal, Program, Stmt};
 use crate::scanner::Tokens;
 use crate::spec::TextRange;
-use nom::IResult;
-use nom::error::VerboseError;
-use specifications::package::PackageIndex;
-use super::ast::{Block, Expr, Literal, Program, Stmt};
 // use std::num::NonZeroUsize;
 
 ///
-///
-///
-pub fn parse_ast(
-    _input: Tokens,
-    _package_index: PackageIndex,
-) -> IResult<Tokens, Program, VerboseError<Tokens>> {
+pub fn parse_ast(_input: Tokens, _package_index: PackageIndex) -> IResult<Tokens, Program, VerboseError<Tokens>> {
     // For now, let's be really naive
     Ok((Tokens::new(&[]), Program {
-        block : Block::new(
-            vec![ Stmt::new_expr(Expr::Literal{ literal: Literal::String{ value: "<TODO>".into(), range : TextRange::none() } }, TextRange::none()) ],
+        block:    Block::new(
+            vec![Stmt::new_expr(Expr::Literal { literal: Literal::String { value: "<TODO>".into(), range: TextRange::none() } }, TextRange::none())],
             TextRange::none(),
         ),
+        metadata: HashSet::new(),
     }))
     // comb::all_consuming(multi::many0(parse_stmt))
     //     .parse(input)

@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 18:12:44
 //  Last edited:
-//    08 Dec 2023, 10:29:51
+//    08 Dec 2023, 16:39:03
 //  Auto updated?
 //    Yes
 //
@@ -36,7 +36,7 @@ pub enum CompileStage {
     /// References nb compile stage.
     None  = 0,
     /// References the last compile stage, i.e., all stages.
-    All   = 13,
+    All   = 14,
 
     // Individual stages
     /// The initial stage where we process attribute statements.
@@ -51,18 +51,20 @@ pub enum CompileStage {
     Data  = 5,
     /// The sixth stage where we resolve on-structs.
     Location = 6,
-    /// The seventh stage where we apply various optimizations, e.g., constant unfolding, constant casting, function inlining, etc.
-    Optimization = 7,
-    /// The eighth stage where we prune the resulting tree to make compilation easier (without affecting functionality).
-    Prune = 8,
-    /// The ninth stage is the really final pre-compile stage, where we already collect definitions into a flattened symbol table tree structure.
-    Flatten = 9,
-    /// The tenth stage where we compile the Program to a Workflow.
-    Compile = 10,
-    /// The eventh stage where we optimize the resulting workflow some more.
-    WorkflowOptimization = 11,
-    /// The twelth and final stage where we resolve the 'next' fields in the UnresolvedWorkflow so it becomes a Workflow.
-    WorkflowResolve = 12,
+    /// The seventh stage where we add user-supplied metadata to a workflow.
+    Metadata = 7,
+    /// The eighth stage where we apply various optimizations, e.g., constant unfolding, constant casting, function inlining, etc.
+    Optimization = 8,
+    /// The ninth stage where we prune the resulting tree to make compilation easier (without affecting functionality).
+    Prune = 9,
+    /// The tenth stage is the really final pre-compile stage, where we already collect definitions into a flattened symbol table tree structure.
+    Flatten = 10,
+    /// The eleventh stage where we compile the Program to a Workflow.
+    Compile = 11,
+    /// The twelth stage where we optimize the resulting workflow some more.
+    WorkflowOptimization = 12,
+    /// The thirtheenth and final stage where we resolve the 'next' fields in the UnresolvedWorkflow so it becomes a Workflow.
+    WorkflowResolve = 13,
 }
 
 
@@ -363,6 +365,15 @@ pub fn compile_snippet_to<R: std::io::Read>(
     if stage >= CompileStage::Location {
         trace!("Running traversal: location");
         program = match traversals::location::do_traversal(program) {
+            Ok(program) => program,
+            Err(errs) => {
+                return CompileResult::Err(errs);
+            },
+        };
+    }
+    if stage >= CompileStage::Metadata {
+        trace!("Running traversal: metadata");
+        program = match traversals::metadata::do_traversal(program, &mut warnings) {
             Ok(program) => program,
             Err(errs) => {
                 return CompileResult::Err(errs);

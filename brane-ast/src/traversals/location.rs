@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 16:27:08
 //  Last edited:
-//    08 Dec 2023, 16:34:17
+//    08 Dec 2023, 17:16:27
 //  Auto updated?
 //    Yes
 //
@@ -19,6 +19,7 @@ use std::collections::HashSet;
 use brane_dsl::ast::{Attribute, Block, Expr, Literal, Node, Program, Stmt};
 use brane_dsl::location::{AllowedLocations, Location};
 use brane_dsl::TextRange;
+use enum_debug::EnumDebug as _;
 
 use crate::errors::AstError;
 pub use crate::errors::LocationError as Error;
@@ -234,7 +235,7 @@ fn pass_stmt(stmt: &mut Stmt, mut locations: AllowedLocations, mut reasons: Vec<
 
         // The rest no matter
         Import { .. } | Empty { .. } => {},
-        Attribute(_) | AttributeInner(_) => {},
+        Attribute(_) | AttributeInner(_) => panic!("Encountered {:?} in location traversal", stmt.variant()),
     };
 }
 

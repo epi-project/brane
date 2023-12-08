@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 13:46:22
 //  Last edited:
-//    08 Dec 2023, 16:30:38
+//    08 Dec 2023, 17:59:31
 //  Auto updated?
 //    Yes
 //
@@ -475,7 +475,7 @@ pub fn pass_expr(writer: &mut impl Write, expr: &Expr, indent: usize) -> std::io
             write!(writer, ")")?;
         },
 
-        Call { expr, args, locations, .. } => {
+        Call { expr, args, st_entry: _, locations, input: _, result: _, metadata, range: _ } => {
             // Print the identifying expression
             pass_expr(writer, expr, indent)?;
             // Print the arguments
@@ -495,6 +495,18 @@ pub fn pass_expr(writer: &mut impl Write, expr: &Expr, indent: usize) -> std::io
             // Print locations
             if let AllowedLocations::Exclusive(locs) = locations {
                 write!(writer, " @[{}]", locs.iter().map(|l| l.into()).collect::<Vec<String>>().join(","))?;
+            }
+            // Print metadata
+            if !metadata.is_empty() {
+                write!(
+                    writer,
+                    " <{}>",
+                    metadata
+                        .iter()
+                        .map(|tag| if tag.contains(' ') { format!("#\"{tag}\"") } else { format!("#{tag}") })
+                        .collect::<Vec<String>>()
+                        .join(" ")
+                )?;
             }
         },
         Array { values, .. } => {
@@ -801,14 +813,23 @@ pub fn pass_literal(writer: &mut impl Write, literal: &Literal) -> std::io::Resu
 ///
 /// # Errors
 /// This pass doesn't really error, but is here for convention purposes.
-pub fn do_traversal(root: Program, writer: impl Write) -> Result<Program, Vec<Error>> {
-    let mut writer = writer;
-
+pub fn do_traversal(root: Program, mut writer: impl Write) -> Result<Program, Vec<Error>> {
+    // Write the metadata
+    if let Err(err) = writeln!(
+        &mut writer,
+        "{}\n",
+        root.metadata.iter().map(|tag| if tag.contains(' ') { format!("#\"{tag}\"") } else { format!("#{tag}") }).collect::<Vec<String>>().join(" ")
+    ) {
+        return Err(vec![Error::WriteError { err }]);
+    }
     // Write the attributes
     for a in &root.block.attrs {
         if let Err(err) = pass_attr(&mut writer, a, true, 0) {
             return Err(vec![Error::WriteError { err }]);
         }
+    }
+    if let Err(err) = writeln!(&mut writer) {
+        return Err(vec![Error::WriteError { err }]);
     }
     // Iterate over all statements and run the appropriate match
     for s in &root.block.stmts {

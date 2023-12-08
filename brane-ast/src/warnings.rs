@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 16:08:42
 //  Last edited:
-//    08 Dec 2023, 15:30:10
+//    08 Dec 2023, 16:55:05
 //  Auto updated?
 //    Yes
 //
@@ -59,6 +59,47 @@ pub(crate) fn prettywrite_warn(
     Ok(())
 }
 
+/// Prettyprints an warning with only one 'existing' value or type and one 'new' value or type.
+///
+/// # Arguments
+/// - `writer`: The [`Write`]-enabled stream to write to.
+/// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+/// - `source`: The source text to extract the line from.
+/// - `warn`: The Warning to print.
+/// - `existing`: The range that indicates the existing value or type.
+/// - `new`: The range that indicates the new value or type.
+///
+/// # Errors
+/// This function may error if we failed to write to the given writer.
+fn prettywrite_warn_exist_new(
+    mut writer: impl Write,
+    file: impl AsRef<str>,
+    source: impl AsRef<str>,
+    err: &dyn Warning,
+    existing: &TextRange,
+    new: &TextRange,
+) -> Result<(), std::io::Error> {
+    // Print the top line
+    writeln!(
+        &mut writer,
+        "{}: {}: {}",
+        style(format!("{}:{}:{}", file.as_ref(), n!(new.start.line), n!(new.start.col))).bold(),
+        style("warning").yellow().bold(),
+        err
+    )?;
+
+    // Print the normal range
+    ewrite_range(&mut writer, &source, new, Style::new().yellow().bold())?;
+
+    // Print the expected range
+    writeln!(&mut writer, "{}: Previous occurrence:", style("note").cyan().bold())?;
+    ewrite_range(&mut writer, source, existing, Style::new().cyan().bold())?;
+    writeln!(&mut writer)?;
+
+    // Done
+    Ok(())
+}
+
 
 
 
@@ -79,6 +120,8 @@ pub enum AstWarning {
     AttributesWarning(AttributesWarning),
     /// An warning has occurred while analysing types.
     TypeWarning(TypeWarning),
+    /// An warning has occurred while processing tags/metadata.
+    MetadataWarning(MetadataWarning),
     /// An warning has occurred while doing the actual compiling.
     CompileWarning(CompileWarning),
 }
@@ -107,6 +150,7 @@ impl AstWarning {
         match self {
             AttributesWarning(warn) => warn.prettywrite(writer, file, source),
             TypeWarning(warn) => warn.prettywrite(writer, file, source),
+            MetadataWarning(warn) => warn.prettywrite(writer, file, source),
             CompileWarning(warn) => warn.prettywrite(writer, file, source),
         }
     }
@@ -122,6 +166,11 @@ impl From<TypeWarning> for AstWarning {
     fn from(warn: TypeWarning) -> Self { Self::TypeWarning(warn) }
 }
 
+impl From<MetadataWarning> for AstWarning {
+    #[inline]
+    fn from(warn: MetadataWarning) -> Self { Self::MetadataWarning(warn) }
+}
+
 impl From<CompileWarning> for AstWarning {
     #[inline]
     fn from(warn: CompileWarning) -> Self { Self::CompileWarning(warn) }
@@ -134,6 +183,7 @@ impl Display for AstWarning {
         match self {
             AttributesWarning(warn) => write!(f, "{warn}"),
             TypeWarning(warn) => write!(f, "{warn}"),
+            MetadataWarning(warn) => write!(f, "{warn}"),
             CompileWarning(warn) => write!(f, "{warn}"),
         }
     }
@@ -251,6 +301,61 @@ impl Display for TypeWarning {
 }
 
 impl Warning for TypeWarning {}
+
+
+
+/// Defines warnings that may occur when processing metadata.
+#[derive(Debug)]
+pub enum MetadataWarning {
+    /// A tag was applied more than once.
+    DuplicateTag { prev: TextRange, range: TextRange },
+    /// A tag was not a string.
+    NonStringTag { range: TextRange },
+    /// A piece of metadata was applied (directly) to a statement that did not take it.
+    UselessTag { range: TextRange },
+}
+impl MetadataWarning {
+    /// Prints the warning in a pretty way to stderr.
+    ///
+    /// # Arguments
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    ///
+    /// # Returns
+    /// Nothing, but does print the warning to stderr.
+    #[inline]
+    pub fn prettyprint(&self, file: impl AsRef<str>, source: impl AsRef<str>) { self.prettywrite(std::io::stderr(), file, source).unwrap() }
+
+    /// Prints the warning in a pretty way to the given [`Write`]r.
+    ///
+    /// # Arguments:
+    /// - `writer`: The [`Write`]-enabled object to write to.
+    /// - `file`: The 'path' of the file (or some other identifier) where the source text originates from.
+    /// - `source`: The source text to read the debug range from.
+    ///
+    /// # Errors
+    /// This function may error if we failed to write to the given writer.
+    #[inline]
+    pub fn prettywrite(&self, writer: impl Write, file: impl AsRef<str>, source: impl AsRef<str>) -> Result<(), std::io::Error> {
+        use MetadataWarning::*;
+        match self {
+            DuplicateTag { prev, range } => prettywrite_warn_exist_new(writer, file, source, self, prev, range),
+            NonStringTag { range } => prettywrite_warn(writer, file, source, self, range),
+            UselessTag { range } => prettywrite_warn(writer, file, source, self, range),
+        }
+    }
+}
+impl Display for MetadataWarning {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use MetadataWarning::*;
+        match self {
+            DuplicateTag { .. } => write!(f, "Duplicate application of the same tag"),
+            NonStringTag { .. } => write!(f, "Tags must be string literals"),
+            UselessTag { .. } => write!(f, "Applying tag here has no effect (only has effect on entire workflow or external function calls)"),
+        }
+    }
+}
+impl Warning for MetadataWarning {}
 
 
 

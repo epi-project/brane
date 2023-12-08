@@ -4,7 +4,7 @@
 //  Created:
 //    10 Aug 2022, 14:00:59
 //  Last edited:
-//    08 Dec 2023, 15:45:49
+//    08 Dec 2023, 17:30:10
 //  Auto updated?
 //    Yes
 //
@@ -59,7 +59,9 @@ pub trait Node: Clone + Debug {
 #[derive(Clone, Debug)]
 pub struct Program {
     /// The toplevel program is simply a code block with global variables.
-    pub block: Block,
+    pub block:    Block,
+    /// Metadata for the entire program.
+    pub metadata: HashSet<String>,
 }
 
 impl Node for Program {
@@ -597,6 +599,8 @@ pub enum Expr {
         input:     HashSet<Data>,
         /// The intermediate result that this Call creates, if any. Used to only ever be the case if this call is an external call, but no more, since we're also interested in tracking this for things like `commit_result`.
         result:    HashSet<Data>,
+        /// Metadata for this call. Only used for external calls.
+        metadata:  HashSet<String>,
 
         /// The range of the call-expression in the source text.
         range: TextRange,
@@ -737,7 +741,7 @@ impl Expr {
     /// A new `Expr::Call` instance.
     #[inline]
     pub fn new_call(expr: Box<Expr>, args: Vec<Box<Expr>>, range: TextRange, locations: AllowedLocations) -> Self {
-        Self::Call { expr, args, st_entry: None, locations, input: HashSet::new(), result: HashSet::new(), range }
+        Self::Call { expr, args, st_entry: None, locations, input: HashSet::new(), result: HashSet::new(), metadata: HashSet::new(), range }
     }
 
     /// Creates a new Array expression with some auxillary fields set to empty.

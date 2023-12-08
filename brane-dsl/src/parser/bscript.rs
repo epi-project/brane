@@ -4,7 +4,7 @@
 //  Created:
 //    17 Aug 2022, 16:01:41
 //  Last edited:
-//    08 Dec 2023, 15:46:41
+//    08 Dec 2023, 17:30:47
 //  Auto updated?
 //    Yes
 //
@@ -13,6 +13,7 @@
 //!   BraneScript-specific parsing functions.
 //
 
+use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
 use log::trace;
@@ -151,7 +152,7 @@ pub fn parse_ast(input: Tokens) -> IResult<Tokens, Program, VerboseError<Tokens>
     // Wrap it in a program and done
     let start_pos: TextPos = stmts.first().map(|s| s.start().clone()).unwrap_or(TextPos::none());
     let end_pos: TextPos = stmts.iter().last().map(|s| s.end().clone()).unwrap_or(TextPos::none());
-    Ok((r, Program { block: Block::new(stmts, TextRange::new(start_pos, end_pos)) }))
+    Ok((r, Program { block: Block::new(stmts, TextRange::new(start_pos, end_pos)), metadata: HashSet::new() }))
 }
 
 

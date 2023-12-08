@@ -4,7 +4,7 @@
 //  Created:
 //    08 Dec 2023, 11:35:48
 //  Last edited:
-//    08 Dec 2023, 16:30:58
+//    08 Dec 2023, 17:07:47
 //  Auto updated?
 //    Yes
 //
@@ -126,28 +126,28 @@ fn pass_stmt(stmt: &mut Stmt, parent_attrs: &mut Vec<Attribute>, mut prev_attrs:
     // Match on the statement
     use Stmt::*;
     match stmt {
-        Stmt::Attribute(attr) => {
+        Attribute(attr) => {
             // Add the attributes as next one
             prev_attrs.push(attr.clone());
             prev_attrs
         },
-        Stmt::AttributeInner(attr) => {
+        AttributeInner(attr) => {
             // Add the attributes to the parent
             parent_attrs.push(attr.clone());
             vec![]
         },
 
-        Stmt::Block { block } => {
+        Block { block } => {
             pass_block(block, prev_attrs, warns);
             vec![]
         },
 
-        Stmt::Import { name: _, version: _, st_funcs: _, st_classes: _, attrs, range: _ } => {
+        Import { name: _, version: _, st_funcs: _, st_classes: _, attrs, range: _ } => {
             // Set the previous attributes
             attrs.extend(prev_attrs);
             vec![]
         },
-        Stmt::FuncDef { ident: _, params: _, code, st_entry: _, attrs, range: _ } => {
+        FuncDef { ident: _, params: _, code, st_entry: _, attrs, range: _ } => {
             // Set the previous attributes
             attrs.extend(prev_attrs.clone());
 
@@ -155,7 +155,7 @@ fn pass_stmt(stmt: &mut Stmt, parent_attrs: &mut Vec<Attribute>, mut prev_attrs:
             pass_block(code, prev_attrs, warns);
             vec![]
         },
-        Stmt::ClassDef { ident: _, props: _, methods, st_entry: _, symbol_table: _, attrs, range: _ } => {
+        ClassDef { ident: _, props: _, methods, st_entry: _, symbol_table: _, attrs, range: _ } => {
             // Set the previous attributes
             attrs.extend(prev_attrs.clone());
 
@@ -231,7 +231,7 @@ fn pass_stmt(stmt: &mut Stmt, parent_attrs: &mut Vec<Attribute>, mut prev_attrs:
 /// The same nodes as went in, but now with annotation statements translated to annotations on structs.
 ///
 /// # Errors
-/// This pass may throw multiple `AstError::NullError`s if the user made mistakes with their variable references.
+/// This pass may throw multiple `AstError::AttributesError`s if the user made mistakes with their variable references.
 pub fn do_traversal(mut root: Program, warnings: &mut Vec<AstWarning>) -> Result<Program, Vec<AstError>> {
     // Traverse the tree, doin' all the work
     let mut warns: Vec<Warning> = vec![];

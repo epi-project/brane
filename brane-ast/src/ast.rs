@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    07 Nov 2023, 14:40:27
+//    08 Dec 2023, 18:07:40
 //  Auto updated?
 //    Yes
 //
@@ -49,7 +49,9 @@ lazy_static!(
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Workflow {
     /// The global symbol / definition table. This specific table is also affectionally referred to as the "Workflow table".
-    pub table: Arc<SymTable>,
+    pub table:    Arc<SymTable>,
+    /// Toplevel metadata
+    pub metadata: Arc<HashSet<Metadata>>,
 
     /// Implements the graph. Note that the ordering of this graph is important, but it will not be executed linearly.
     pub graph: Arc<Vec<Edge>>,
@@ -70,7 +72,8 @@ impl Workflow {
     #[inline]
     pub fn new(table: SymTable, graph: Vec<Edge>, funcs: HashMap<usize, Vec<Edge>>) -> Self {
         Self {
-            table: Arc::new(table),
+            table:    Arc::new(table),
+            metadata: Arc::new(HashSet::new()),
 
             graph: Arc::new(graph),
             funcs: Arc::new(funcs),
@@ -116,12 +119,28 @@ impl Default for Workflow {
     #[inline]
     fn default() -> Self {
         Self {
-            table: Arc::new(SymTable::new()),
+            table:    Arc::new(SymTable::new()),
+            metadata: Arc::new(HashSet::new()),
 
             graph: Arc::new(vec![]),
             funcs: Arc::new(HashMap::new()),
         }
     }
+}
+
+
+
+/// Defines a piece of metadata.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Metadata {
+    /// The tag that is attached.
+    pub tag: String,
+    /// Some signature verifying this metadata.
+    pub signature: String,
+}
+impl PartialEq for Metadata {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool { self.tag == other.tag }
 }
 
 
