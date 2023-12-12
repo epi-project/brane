@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    07 Nov 2023, 17:37:26
+//    12 Dec 2023, 16:10:38
 //  Auto updated?
 //    Yes
 //
@@ -160,7 +160,7 @@ async fn plan_edges(
         }
         done.insert(pc);
         match edge {
-            Edge::Node { task, locs, at, input, result, next } => {
+            Edge::Node { task, locs, at, input, result, metadata: _, next } => {
                 // This is the node where it all revolves around, in the end
                 debug!("Planning task '{}' (edge {})...", table.tasks[*task].name(), pc);
 

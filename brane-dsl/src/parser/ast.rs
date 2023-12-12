@@ -4,7 +4,7 @@
 //  Created:
 //    10 Aug 2022, 14:00:59
 //  Last edited:
-//    02 Nov 2023, 14:10:19
+//    12 Dec 2023, 16:39:52
 //  Auto updated?
 //    Yes
 //
@@ -16,7 +16,7 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::rc::Rc;
-use std::str::FromStr;
+use std::str::FromStr as _;
 
 use enum_debug::EnumDebug;
 use specifications::version::{ParseError, Version};
@@ -59,13 +59,95 @@ pub trait Node: Clone + Debug {
 #[derive(Clone, Debug)]
 pub struct Program {
     /// The toplevel program is simply a code block with global variables.
-    pub block: Block,
+    pub block:    Block,
+    /// Metadata for the entire program.
+    pub metadata: HashSet<Metadata>,
 }
 
 impl Node for Program {
     /// Returns the node's source range.
     #[inline]
     fn range(&self) -> &TextRange { self.block.range() }
+}
+
+
+
+/// Defines a pair of metadata.
+///
+/// In particular, it's a "namespaced tag".
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Metadata {
+    /// The owning user.
+    pub owner: String,
+    /// The tag itself.
+    pub tag:   String,
+}
+
+/// Defines an attribute (i.e., compiler directive).
+#[derive(Clone, Debug, EnumDebug)]
+pub enum Attribute {
+    /// It's a simple key/pair value
+    KeyPair {
+        /// The given key.
+        key:   Identifier,
+        /// The given value, as a BraneScript literal.
+        value: Literal,
+
+        /// The range of the attribute in the source text.
+        range: TextRange,
+    },
+    /// It's a list of stuff
+    List {
+        /// The given key.
+        key:    Identifier,
+        /// The values we parsed
+        values: Vec<Literal>,
+        /// The range of the attribute in the source text.
+        range:  TextRange,
+    },
+}
+impl Attribute {
+    /// Constructor for the attribute that initializes it as a key/pair value.
+    ///
+    /// # Arguments
+    /// - `key`: The given key, as a BraneScript [`Identifier`].
+    /// - `value`: The given value, as a BraneScript [`Literal`].
+    /// - `range`: The [`TextRange`] linking this attribute to the source text.
+    ///
+    /// # Returns
+    /// A new Attribute.
+    #[inline]
+    pub fn keypair(key: impl Into<Identifier>, value: impl Into<Literal>, range: impl Into<TextRange>) -> Self {
+        Self::KeyPair {
+            key:   key.into(),
+            value: value.into(),
+
+            range: range.into(),
+        }
+    }
+
+    /// Constructor for the attribute that initializes it as a list of values.
+    ///
+    /// # Arguments
+    /// - `key`: The given key, as a BraneScript [`Identifier`].
+    /// - `values`: The given values, as a list of BraneScript [`Literal`]s.
+    /// - `range`: The [`TextRange`] linking this attribute to the source text.
+    ///
+    /// # Returns
+    /// A new Attribute.
+    #[inline]
+    pub fn list(key: impl Into<Identifier>, values: impl Into<Vec<Literal>>, range: impl Into<TextRange>) -> Self {
+        Self::List { key: key.into(), values: values.into(), range: range.into() }
+    }
+}
+impl Node for Attribute {
+    #[inline]
+    fn range(&self) -> &TextRange {
+        match self {
+            Self::KeyPair { range, .. } => range,
+            Self::List { range, .. } => range,
+        }
+    }
 }
 
 
@@ -81,6 +163,8 @@ pub struct Block {
     /// The return type as found in this block.
     pub ret_type: Option<DataType>,
 
+    /// A list of attributes attached to this block.
+    pub attrs: Vec<Attribute>,
     /// The range of the block in the source text.
     pub range: TextRange,
 }
@@ -95,7 +179,7 @@ impl Block {
     /// # Returns
     /// A new Block instance.
     #[inline]
-    pub fn new(stmts: Vec<Stmt>, range: TextRange) -> Self { Self { stmts, table: SymbolTable::new(), ret_type: None, range } }
+    pub fn new(stmts: Vec<Stmt>, range: TextRange) -> Self { Self { stmts, table: SymbolTable::new(), ret_type: None, attrs: vec![], range } }
 }
 
 impl Default for Block {
@@ -107,6 +191,7 @@ impl Default for Block {
             table:    SymbolTable::new(),
             ret_type: None,
 
+            attrs: vec![],
             range: TextRange::none(),
         }
     }
@@ -123,6 +208,11 @@ impl Node for Block {
 /// Defines a single statement.
 #[derive(Clone, Debug, EnumDebug)]
 pub enum Stmt {
+    /// Defines an unprocessed `#[...]` attirbute.
+    Attribute(Attribute),
+    /// Defines an unprocessed `#![...]` attriute.
+    AttributeInner(Attribute),
+
     /// Defines a block statement (i.e., `{ ... }`).
     Block {
         /// The actual block it references
@@ -141,6 +231,8 @@ pub enum Stmt {
         /// Reference to the class symbol table entries that this import generates.
         st_classes: Option<Vec<Rc<RefCell<ClassEntry>>>>,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the import statement in the source text.
         range: TextRange,
     },
@@ -156,6 +248,8 @@ pub enum Stmt {
         /// Reference to the symbol table entry this function generates.
         st_entry: Option<Rc<RefCell<FunctionEntry>>>,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the function definition in the source text.
         range: TextRange,
     },
@@ -173,6 +267,8 @@ pub enum Stmt {
         /// The SymbolTable that hosts the nested declarations. Is also found in the ClassEntry itself to resolve children.
         symbol_table: Rc<RefCell<SymbolTable>>,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the class definition in the source text.
         range: TextRange,
     },
@@ -185,6 +281,8 @@ pub enum Stmt {
         /// If this is a return on workflow level, also mentions a data that is returned (if any).
         output:    HashSet<Data>,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the return statement in the source text.
         range: TextRange,
     },
@@ -198,6 +296,8 @@ pub enum Stmt {
         /// The (optional) block for if the condition was false.
         alternative: Option<Box<Block>>,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the if-statement in the source text.
         range: TextRange,
     },
@@ -212,6 +312,8 @@ pub enum Stmt {
         /// The block to run every iteration.
         consequent:  Box<Block>,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the for-loop in the source text.
         range: TextRange,
     },
@@ -222,17 +324,9 @@ pub enum Stmt {
         /// The block to run every iteration.
         consequent: Box<Block>,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the while-loop in the source text.
-        range: TextRange,
-    },
-    /// Defines an on-block (i.e., code run on a specific location).
-    On {
-        /// An expression that resolves to the (string) location where to run the code.
-        location: Expr,
-        /// The block of code that is run on the target location.
-        block:    Box<Block>,
-
-        /// The range of the on-statement in the source text.
         range: TextRange,
     },
     /// Defines a parallel block (i.e., multiple branches run in parallel).
@@ -240,13 +334,15 @@ pub enum Stmt {
         /// The (optional) identifier to which to write the result of the parallel statement.
         result: Option<Identifier>,
         /// The code blocks to run in parallel. This may either be a Block or an On-statement.
-        blocks: Vec<Box<Stmt>>,
+        blocks: Vec<Block>,
         /// The merge-strategy used in the parallel statement.
         merge:  Option<Identifier>,
 
         /// Reference to the variable to which the Parallel writes.
         st_entry: Option<Rc<RefCell<VarEntry>>>,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the parallel-statement in the source text.
         range: TextRange,
     },
@@ -261,6 +357,8 @@ pub enum Stmt {
         /// Reference to the variable to which the let-assign writes.
         st_entry: Option<Rc<RefCell<VarEntry>>>,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the let-assign statement in the source text.
         range: TextRange,
     },
@@ -274,6 +372,8 @@ pub enum Stmt {
         /// Reference to the variable to which the assign writes.
         st_entry: Option<Rc<RefCell<VarEntry>>>,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the assignment in the source text.
         range: TextRange,
     },
@@ -284,6 +384,8 @@ pub enum Stmt {
         /// The data type of this expression. Relevant for popping or not.
         data_type: DataType,
 
+        /// A list of attributes attached to this statement.
+        attrs: Vec<Attribute>,
         /// The range of the expression statement in the source text.
         range: TextRange,
     },
@@ -304,7 +406,7 @@ impl Stmt {
     /// A new `Stmt::Import` instance.
     #[inline]
     pub fn new_import(name: Identifier, version: Literal, range: TextRange) -> Self {
-        Self::Import { name, version, st_funcs: None, st_classes: None, range }
+        Self::Import { name, version, st_funcs: None, st_classes: None, range, attrs: Vec::new() }
     }
 
     /// Creates a new FuncDef node with some auxillary fields set to empty.
@@ -319,7 +421,7 @@ impl Stmt {
     /// A new `Stmt::FuncDef` instance.
     #[inline]
     pub fn new_funcdef(ident: Identifier, params: Vec<Identifier>, code: Box<Block>, range: TextRange) -> Self {
-        Self::FuncDef { ident, params, code, st_entry: None, range }
+        Self::FuncDef { ident, params, code, st_entry: None, range, attrs: Vec::new() }
     }
 
     /// Creates a new ClassDef node with some auxillary fields set to empty.
@@ -334,7 +436,7 @@ impl Stmt {
     /// A new `Stmt::ClassDef` instance.
     #[inline]
     pub fn new_classdef(ident: Identifier, props: Vec<Property>, methods: Vec<Box<Stmt>>, range: TextRange) -> Self {
-        Self::ClassDef { ident, props, methods, st_entry: None, symbol_table: SymbolTable::new(), range }
+        Self::ClassDef { ident, props, methods, st_entry: None, symbol_table: SymbolTable::new(), range, attrs: Vec::new() }
     }
 
     /// Creates a new Return node with some auxillary fields set to empty.
@@ -346,7 +448,9 @@ impl Stmt {
     /// # Returns
     /// A new `Stmt::Return` instance.
     #[inline]
-    pub fn new_return(expr: Option<Expr>, range: TextRange) -> Self { Self::Return { expr, data_type: DataType::Any, output: HashSet::new(), range } }
+    pub fn new_return(expr: Option<Expr>, range: TextRange) -> Self {
+        Self::Return { expr, data_type: DataType::Any, output: HashSet::new(), range, attrs: Vec::new() }
+    }
 
     /// Creates a new Parallel node with some auxillary fields set to empty.
     ///
@@ -359,8 +463,8 @@ impl Stmt {
     /// # Returns
     /// A new `Stmt::Parallel` instance.
     #[inline]
-    pub fn new_parallel(result: Option<Identifier>, blocks: Vec<Box<Stmt>>, merge: Option<Identifier>, range: TextRange) -> Self {
-        Self::Parallel { result, blocks, merge, st_entry: None, range }
+    pub fn new_parallel(result: Option<Identifier>, blocks: Vec<Block>, merge: Option<Identifier>, range: TextRange) -> Self {
+        Self::Parallel { result, blocks, merge, st_entry: None, range, attrs: Vec::new() }
     }
 
     /// Creates a new LetAssign node with some auxillary fields set to empty.
@@ -373,7 +477,9 @@ impl Stmt {
     /// # Returns
     /// A new `Stmt::LetAssign` instance.
     #[inline]
-    pub fn new_letassign(name: Identifier, value: Expr, range: TextRange) -> Self { Self::LetAssign { name, value, st_entry: None, range } }
+    pub fn new_letassign(name: Identifier, value: Expr, range: TextRange) -> Self {
+        Self::LetAssign { name, value, st_entry: None, range, attrs: Vec::new() }
+    }
 
     /// Creates a new Assign node with some auxillary fields set to empty.
     ///
@@ -385,7 +491,9 @@ impl Stmt {
     /// # Returns
     /// A new `Stmt::LetAssign` instance.
     #[inline]
-    pub fn new_assign(name: Identifier, value: Expr, range: TextRange) -> Self { Self::Assign { name, value, st_entry: None, range } }
+    pub fn new_assign(name: Identifier, value: Expr, range: TextRange) -> Self {
+        Self::Assign { name, value, st_entry: None, range, attrs: Vec::new() }
+    }
 
     /// Creates a new Expr node with some auxillary fields set to empty.
     ///
@@ -396,7 +504,7 @@ impl Stmt {
     /// # Returns
     /// A new `Stmt::Expr` instance.
     #[inline]
-    pub fn new_expr(expr: Expr, range: TextRange) -> Self { Self::Expr { expr, data_type: DataType::Any, range } }
+    pub fn new_expr(expr: Expr, range: TextRange) -> Self { Self::Expr { expr, data_type: DataType::Any, range, attrs: Vec::new() } }
 }
 
 impl Default for Stmt {
@@ -410,7 +518,10 @@ impl Node for Stmt {
     fn range(&self) -> &TextRange {
         use Stmt::*;
         match self {
-            Block { block } => block.range(),
+            Attribute(attr) => attr.range(),
+            AttributeInner(attr) => attr.range(),
+
+            Block { block, .. } => block.range(),
 
             Import { range, .. } => range,
             FuncDef { range, .. } => range,
@@ -420,7 +531,6 @@ impl Node for Stmt {
             If { range, .. } => range,
             For { range, .. } => range,
             While { range, .. } => range,
-            On { range, .. } => range,
             Parallel { range, .. } => range,
 
             LetAssign { range, .. } => range,
@@ -500,6 +610,8 @@ pub enum Expr {
         input:     HashSet<Data>,
         /// The intermediate result that this Call creates, if any. Used to only ever be the case if this call is an external call, but no more, since we're also interested in tracking this for things like `commit_result`.
         result:    HashSet<Data>,
+        /// Metadata for this call. Only used for external calls.
+        metadata:  HashSet<Metadata>,
 
         /// The range of the call-expression in the source text.
         range: TextRange,
@@ -640,7 +752,7 @@ impl Expr {
     /// A new `Expr::Call` instance.
     #[inline]
     pub fn new_call(expr: Box<Expr>, args: Vec<Box<Expr>>, range: TextRange, locations: AllowedLocations) -> Self {
-        Self::Call { expr, args, st_entry: None, locations, input: HashSet::new(), result: HashSet::new(), range }
+        Self::Call { expr, args, st_entry: None, locations, input: HashSet::new(), result: HashSet::new(), metadata: HashSet::new(), range }
     }
 
     /// Creates a new Array expression with some auxillary fields set to empty.

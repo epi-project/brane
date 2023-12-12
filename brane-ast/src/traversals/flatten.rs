@@ -4,7 +4,7 @@
 //  Created:
 //    15 Sep 2022, 08:26:20
 //  Last edited:
-//    07 Nov 2023, 17:13:49
+//    12 Dec 2023, 15:57:21
 //  Auto updated?
 //    Yes
 //
@@ -20,6 +20,7 @@ use std::rc::Rc;
 use brane_dsl::ast::{Block, Expr, Program, Stmt};
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, VarEntry};
 use brane_dsl::SymbolTable;
+use enum_debug::EnumDebug as _;
 
 use crate::errors::AstError;
 pub use crate::errors::FlattenError as Error;
@@ -486,14 +487,10 @@ pub fn pass_stmt(stmt: &mut Stmt, table: &mut TableState, errors: &mut Vec<Error
             pass_expr(condition, table);
             pass_block(consequent, table, errors);
         },
-        On { block, .. } => {
-            // No need to recurse into the location, since that cannot be anything else than a literal at this point
-            pass_block(block, table, errors);
-        },
         Parallel { blocks, st_entry, .. } => {
             // Continue traversal first (the entry is not in scope for that bit)
             for b in blocks {
-                pass_stmt(b, table, errors);
+                pass_block(b, table, errors);
             }
 
             // Define the variable if it exists
@@ -518,7 +515,8 @@ pub fn pass_stmt(stmt: &mut Stmt, table: &mut TableState, errors: &mut Vec<Error
         },
 
         // The rest neither recurses nor defines
-        _ => {},
+        Empty {} => {},
+        Attribute(_) | AttributeInner(_) => panic!("Encountered {:?} in flatten traversal", stmt.variant()),
     }
 }
 

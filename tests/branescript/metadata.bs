@@ -1,0 +1,7 @@
+import hello_world;
+
+#![wf_tag("foo", "bar", "baz")]
+
+#[tag("foo2", "bar2", "baz2")]
+#[on("test")]
+println(hello_world());

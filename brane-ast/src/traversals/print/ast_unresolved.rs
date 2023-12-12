@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 11:08:57
 //  Last edited:
-//    07 Nov 2023, 14:41:27
+//    12 Dec 2023, 15:22:44
 //  Auto updated?
 //    Yes
 //
@@ -14,7 +14,7 @@
 //
 
 use std::cell::Ref;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 
 use brane_dsl::DataType;
@@ -157,8 +157,8 @@ pub fn pass_table(writer: &mut impl Write, table: &TableState, indent: usize) ->
 ///
 /// # Returns
 /// Nothing, but does print the function buffers to stdout.
-pub fn pass_f_edges(writer: &mut impl Write, workflow: &UnresolvedWorkflow, table: &TableState, indent: usize) -> std::io::Result<()> {
-    for (i, edges) in &workflow.f_edges {
+pub fn pass_f_edges(writer: &mut impl Write, f_edges: &HashMap<usize, EdgeBuffer>, table: &TableState, indent: usize) -> std::io::Result<()> {
+    for (i, edges) in f_edges {
         // Print the header, resolving it
         let f: &FunctionState = table.func(*i);
         writeln!(
@@ -469,12 +469,37 @@ pub fn pass_edge_instr(writer: &mut impl Write, instr: &EdgeInstr, table: &Table
 ///
 /// # Errors
 /// This pass doesn't really error, but is here for convention purposes.
-pub fn do_traversal(state: &CompileState, root: UnresolvedWorkflow, writer: impl Write) -> Result<UnresolvedWorkflow, Vec<Error>> {
-    let mut writer = writer;
+pub fn do_traversal(state: &CompileState, root: UnresolvedWorkflow, mut writer: impl Write) -> Result<UnresolvedWorkflow, Vec<Error>> {
+    let UnresolvedWorkflow { main_edges, f_edges, metadata } = &root;
 
     if let Err(err) = writeln!(&mut writer, "UnresolvedWorkflow {{") {
         return Err(vec![Error::WriteError { err }]);
     };
+
+    // Print parsed metadata
+    if !metadata.is_empty() {
+        for md in metadata.iter() {
+            if let Err(err) = writeln!(
+                &mut writer,
+                "{}#{}.{}{}",
+                indent!(INDENT_SIZE),
+                if md.owner.contains(' ') { format!("\"{}\"", md.owner) } else { md.owner.clone() },
+                if md.tag.contains(' ') { format!("\"{}\"", md.tag) } else { md.tag.clone() },
+                if let Some(signature) = &md.signature { format!(" <{signature}>") } else { String::new() }
+            ) {
+                return Err(vec![Error::WriteError { err }]);
+            };
+        }
+        if let Err(err) = writeln!(&mut writer) {
+            return Err(vec![Error::WriteError { err }]);
+        };
+        if let Err(err) = writeln!(&mut writer) {
+            return Err(vec![Error::WriteError { err }]);
+        };
+        if let Err(err) = writeln!(&mut writer) {
+            return Err(vec![Error::WriteError { err }]);
+        };
+    }
 
     // First up: print the workflow's table
     if let Err(err) = pass_table(&mut writer, &state.table, INDENT_SIZE) {
@@ -490,9 +515,14 @@ pub fn do_traversal(state: &CompileState, root: UnresolvedWorkflow, writer: impl
         return Err(vec![Error::WriteError { err }]);
     };
 
+    // Print the main function body
+    if let Err(err) = pass_edges(&mut writer, main_edges, &state.table, INDENT_SIZE, HashSet::new()) {
+        return Err(vec![Error::WriteError { err }]);
+    };
+
     // Print the function edges
-    if !root.f_edges.is_empty() {
-        if let Err(err) = pass_f_edges(&mut writer, &root, &state.table, INDENT_SIZE) {
+    if !f_edges.is_empty() {
+        if let Err(err) = pass_f_edges(&mut writer, f_edges, &state.table, INDENT_SIZE) {
             return Err(vec![Error::WriteError { err }]);
         }
         if let Err(err) = writeln!(&mut writer) {
@@ -505,11 +535,6 @@ pub fn do_traversal(state: &CompileState, root: UnresolvedWorkflow, writer: impl
             return Err(vec![Error::WriteError { err }]);
         };
     }
-
-    // Print the main function body
-    if let Err(err) = pass_edges(&mut writer, &root.main_edges, &state.table, INDENT_SIZE, HashSet::new()) {
-        return Err(vec![Error::WriteError { err }]);
-    };
 
     // Done
     if let Err(err) = writeln!(&mut writer, "}}") {

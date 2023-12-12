@@ -1,20 +1,22 @@
 //  AST UNRESOLVED.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    03 Sep 2022, 12:31:20
 //  Last edited:
-//    15 Sep 2022, 13:45:21
+//    12 Dec 2023, 15:10:22
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Contains special patches / overwrites for the normal `brane-ast` AST
 //!   that make compilation life a super-duper amount easier.
-// 
+//
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
+use crate::ast::Metadata;
 use crate::edgebuffer::EdgeBuffer;
 
 
@@ -24,25 +26,24 @@ use crate::edgebuffer::EdgeBuffer;
 pub struct UnresolvedWorkflow {
     // Note that the workflow table is actually represented in the state itself.
     /// The main buffer to start executing, which references all other buffers.
-    pub main_edges : EdgeBuffer,
+    pub main_edges: EdgeBuffer,
     /// The list of EdgeBuffers that implement functions. Every buffer is mapped by the function's ID in the workflow table.
-    pub f_edges    : HashMap<usize, EdgeBuffer>,
+    pub f_edges:    HashMap<usize, EdgeBuffer>,
+    /// Toplevel metadata
+    pub metadata:   Arc<HashSet<Metadata>>,
 }
 
 impl UnresolvedWorkflow {
     /// Constructor for the Workflow that initializes it to values that have already been computed.
-    /// 
+    ///
     /// # Arguments
     /// - `main_edges`: The main buffer containing toplevel code.
     /// - `f_edges`: The buffers that detail the code per-function.
-    /// 
+    ///
     /// # Returns
     /// A new Workflow instance.
     #[inline]
     pub fn new(main_edges: EdgeBuffer, f_edges: HashMap<usize, EdgeBuffer>) -> Self {
-        Self {
-            main_edges,
-            f_edges,
-        }
+        Self { main_edges, f_edges, metadata: Arc::new(HashSet::new()) }
     }
 }

@@ -1,41 +1,41 @@
 //  VM.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    12 Sep 2022, 17:41:33
 //  Last edited:
-//    03 Jul 2023, 16:12:36
+//    12 Dec 2023, 17:20:22
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Implements the VM trait, which is a simple trait for defining VMs
 //!   that use threads.
-// 
+//
 
 use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
-
 use brane_ast::{SymTable, Workflow};
 use specifications::profiling::ProfileScopeHandle;
 
 use crate::errors::VmError;
 use crate::spec::{CustomGlobalState, CustomLocalState, RunState, VmPlugin};
-use crate::value::FullValue;
 use crate::thread::Thread;
+use crate::value::FullValue;
 
 
 /***** TESTS *****/
 #[cfg(test)]
 pub mod tests {
-    use brane_ast::{compile_snippet, CompileResult, ParserOptions};
+    use brane_ast::fetcher::SnippetFetcher;
     use brane_ast::state::CompileState;
     use brane_ast::traversals::print::ast;
-    use brane_ast::fetcher::SnippetFetcher;
+    use brane_ast::{compile_snippet, CompileResult, ParserOptions};
     use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files_async};
     use specifications::data::DataIndex;
     use specifications::package::PackageIndex;
+
     use super::*;
     use crate::dummy::DummyVm;
 
@@ -43,31 +43,23 @@ pub mod tests {
     /// Tests the traversal by generating symbol tables for every file.
     #[tokio::test]
     async fn test_snippets() {
-        // Setup the simple logger
-        #[cfg(feature = "test_logging")]
-        if let Err(err) = simplelog::TermLogger::init(log::LevelFilter::Debug, Default::default(), simplelog::TerminalMode::Mixed, simplelog::ColorChoice::Auto) {
-            eprintln!("WARNING: Failed to setup logger: {err} (no logging for this session)");
-        }
-
         // Run the tests on all the files
         test_on_dsl_files_async("BraneScript", |path, code| {
             async move {
-                // if !path.to_string_lossy().contains("class.bs") { return; }
-
                 // Start by the name to always know which file this is
                 println!("{}", (0..80).map(|_| '-').collect::<String>());
                 println!("File '{}' gave us:", path.display());
 
                 // Load the package index
                 let pindex: PackageIndex = create_package_index();
-                let dindex: DataIndex    = create_data_index();
+                let dindex: DataIndex = create_data_index();
 
                 // Run the program but now line-by-line (to test the snippet function)
-                let mut source : String       = String::new();
-                let mut state  : CompileState = CompileState::new();
-                let mut vm     : DummyVm      = DummyVm::new();
+                let mut source: String = String::new();
+                let mut state: CompileState = CompileState::new();
+                let mut vm: DummyVm = DummyVm::new();
                 let mut iter = code.split('\n');
-                for (offset, l) in SnippetFetcher::new(|| { Ok(iter.next().map(|l| l.into())) }) {
+                for (offset, l) in SnippetFetcher::new(|| Ok(iter.next().map(|l| l.into()))) {
                     // Append the source (for errors only)
                     source.push_str(&l);
 
@@ -92,8 +84,10 @@ pub mod tests {
                             }
                             panic!("Failed to compile to workflow (see output above)");
                         },
-        
-                        _ => { unreachable!(); },
+
+                        _ => {
+                            unreachable!();
+                        },
                     };
 
                     // Print the file itself
@@ -120,7 +114,8 @@ pub mod tests {
                 }
                 println!("{}\n\n", (0..80).map(|_| '-').collect::<String>());
             }
-        }).await;
+        })
+        .await;
     }
 }
 
@@ -133,34 +128,34 @@ pub mod tests {
 #[async_trait]
 pub trait Vm {
     /// The type of the thread-global extension to the runtime state.
-    type GlobalState : CustomGlobalState;
+    type GlobalState: CustomGlobalState;
     /// The type of the thread-local extension to the runtime state.
-    type LocalState  : CustomLocalState;
+    type LocalState: CustomLocalState;
 
 
 
     // Child-specific
     /// A function that stores the given runtime state information in the parent struct.
-    /// 
+    ///
     /// This is important and will be used later.
-    /// 
+    ///
     /// # Arguments
     /// - `state`: The current state of the workflow we have executed.
-    /// 
+    ///
     /// # Returns
     /// Nothing, but should change the internals to return this state later upon request.
-    /// 
+    ///
     /// # Errors
     /// This function may error for its own reasons.
     fn store_state(this: &Arc<RwLock<Self>>, state: RunState<Self::GlobalState>) -> Result<(), VmError>;
 
     /// A function that returns the VM's runtime state in the parent struct.
-    /// 
+    ///
     /// This is important and will be used later.
-    /// 
+    ///
     /// # Returns
     /// The RunState of this application if it exists, or else None.
-    /// 
+    ///
     /// # Errors
     /// This function may error for its own reasons.
     fn load_state(this: &Arc<RwLock<Self>>) -> Result<RunState<Self::GlobalState>, VmError>;
@@ -169,31 +164,33 @@ pub trait Vm {
 
     // Global
     /// Initializes a new global state based on the given custom part.
-    /// 
+    ///
     /// # Arguments
     /// - `pindex`: The package index which we can use for resolving packages.
     /// - `dindex`: The data index which we can use for resolving datasets.
     /// - `custom`: The custom part of the global state with which we will initialize it.
-    /// 
+    ///
     /// # Returns
     /// A new RunState instance.
     #[inline]
-    fn new_state(custom: Self::GlobalState) -> RunState<Self::GlobalState> {
-        RunState::new(Arc::new(SymTable::new()), Arc::new(RwLock::new(custom)))
-    }
+    fn new_state(custom: Self::GlobalState) -> RunState<Self::GlobalState> { RunState::new(Arc::new(SymTable::new()), Arc::new(RwLock::new(custom))) }
 
     /// Runs the given workflow, possibly asynchronously (if a parallel is encountered / there are external functions calls and the given closure runs this asynchronously.)
-    /// 
+    ///
     /// # Generic arguments
     /// - `P`: The "VM plugin" that will fill in the blanks with respect to interacting with the outside world.
-    /// 
+    ///
     /// # Arguments
     /// - `snippet`: The snippet to compile. This is either the entire workflow, or a snippet of it. In the case of the latter, the internal state will be used (and updated).
     /// - `prof`: The ProfileScope that can be used to provide additional information about the timings of the VM (framework-wise, not user-wise).
-    /// 
+    ///
     /// # Returns
     /// The result if the Workflow returned any.
-    async fn run<P: VmPlugin<GlobalState = Self::GlobalState, LocalState = Self::LocalState>>(this: Arc<RwLock<Self>>, snippet: Workflow, prof: ProfileScopeHandle<'_>) -> Result<FullValue, VmError>
+    async fn run<P: VmPlugin<GlobalState = Self::GlobalState, LocalState = Self::LocalState>>(
+        this: Arc<RwLock<Self>>,
+        snippet: Workflow,
+        prof: ProfileScopeHandle<'_>,
+    ) -> Result<FullValue, VmError>
     where
         Self: Sync,
     {
