@@ -4,7 +4,7 @@
 //  Created:
 //    08 Dec 2023, 11:35:48
 //  Last edited:
-//    08 Dec 2023, 17:07:47
+//    12 Dec 2023, 16:35:31
 //  Auto updated?
 //    Yes
 //
@@ -149,19 +149,21 @@ fn pass_stmt(stmt: &mut Stmt, parent_attrs: &mut Vec<Attribute>, mut prev_attrs:
         },
         FuncDef { ident: _, params: _, code, st_entry: _, attrs, range: _ } => {
             // Set the previous attributes
-            attrs.extend(prev_attrs.clone());
+            attrs.extend(prev_attrs);
 
             // Traverse the body
-            pass_block(code, prev_attrs, warns);
+            // Note: we pass empty because the attributes to the class have already been given
+            pass_block(code, vec![], warns);
             vec![]
         },
         ClassDef { ident: _, props: _, methods, st_entry: _, symbol_table: _, attrs, range: _ } => {
             // Set the previous attributes
-            attrs.extend(prev_attrs.clone());
+            attrs.extend(prev_attrs);
 
             // Traverse the methods
             for method in methods {
-                pass_stmt(method, parent_attrs, prev_attrs.clone(), warns);
+                // Note: we pass empty because the attributes to the class have already been given
+                pass_stmt(method, parent_attrs, vec![], warns);
             }
             vec![]
         },
@@ -171,43 +173,47 @@ fn pass_stmt(stmt: &mut Stmt, parent_attrs: &mut Vec<Attribute>, mut prev_attrs:
         },
 
         If { cond: _, consequent, alternative, attrs, range: _ } => {
-            attrs.extend(prev_attrs.clone());
+            attrs.extend(prev_attrs);
 
             // Pass the blocks
-            pass_block(consequent, prev_attrs.clone(), warns);
+            pass_block(consequent, vec![], warns);
             if let Some(alternative) = alternative {
-                pass_block(alternative, prev_attrs, warns);
+                // Note: we pass empty because the attributes to the class have already been given
+                pass_block(alternative, vec![], warns);
             }
             vec![]
         },
         For { initializer: _, condition: _, increment: _, consequent, attrs, range: _ } => {
-            attrs.extend(prev_attrs.clone());
-            pass_block(consequent, prev_attrs, warns);
+            attrs.extend(prev_attrs);
+            // Note: we pass empty because the attributes to the class have already been given
+            pass_block(consequent, vec![], warns);
             vec![]
         },
         While { condition: _, consequent, attrs, range: _ } => {
-            attrs.extend(prev_attrs.clone());
-            pass_block(consequent, prev_attrs, warns);
+            attrs.extend(prev_attrs);
+            // Note: we pass empty because the attributes to the class have already been given
+            pass_block(consequent, vec![], warns);
             vec![]
         },
         Parallel { result: _, blocks, merge: _, st_entry: _, attrs, range: _ } => {
-            attrs.extend(prev_attrs.clone());
+            attrs.extend(prev_attrs);
             for block in blocks {
-                pass_block(block, prev_attrs.clone(), warns);
+                // Note: we pass empty because the attributes to the class have already been given
+                pass_block(block, vec![], warns);
             }
             vec![]
         },
 
         LetAssign { name: _, value: _, st_entry: _, attrs, range: _ } => {
-            attrs.extend(prev_attrs.clone());
+            attrs.extend(prev_attrs);
             vec![]
         },
         Assign { name: _, value: _, st_entry: _, attrs, range: _ } => {
-            attrs.extend(prev_attrs.clone());
+            attrs.extend(prev_attrs);
             vec![]
         },
         Expr { expr: _, data_type: _, attrs, range: _ } => {
-            attrs.extend(prev_attrs.clone());
+            attrs.extend(prev_attrs);
             vec![]
         },
 

@@ -4,7 +4,7 @@
 //  Created:
 //    08 Dec 2023, 16:34:54
 //  Last edited:
-//    08 Dec 2023, 18:03:16
+//    12 Dec 2023, 14:59:17
 //  Auto updated?
 //    Yes
 //
@@ -14,7 +14,7 @@
 
 use std::collections::HashMap;
 
-use brane_dsl::ast::{Attribute, Block, Expr, Literal, Node as _, Program, Stmt};
+use brane_dsl::ast::{Attribute, Block, Expr, Literal, Metadata, Node as _, Program, Stmt};
 use brane_dsl::TextRange;
 use enum_debug::EnumDebug as _;
 
@@ -86,6 +86,28 @@ mod tests {
 
 
 /***** HELPER FUNCTIONS *****/
+/// Parses a [`Metadata`] from a given `str`.
+///
+/// # Arguments
+/// - `raw`: The raw [`str`] to parse.
+/// - `range`: A [`TextRange`] that denotes where the being-parsed string lives. This is used for debugging.
+///
+/// # Returns
+/// A parsed [`Metadata`] struct.
+///
+/// # Errors
+/// This function may error if we failed to parse the Metadata correctly.
+fn parse_metadata(raw: &str, range: &TextRange) -> Result<Metadata, Warning> {
+    // Attempt to find the separating dot
+    let dot_pos: usize = match raw.find('.') {
+        Some(pos) => pos,
+        None => return Err(Warning::TagWithoutDot { raw: raw.into(), range: range.clone() }),
+    };
+
+    // Store it as two then
+    Ok(Metadata { owner: raw[..dot_pos].into(), tag: raw[dot_pos + 1..].into() })
+}
+
 /// Searches the given attributes for `tag`/`metadata`-attributes and use that to apply metadata-tags.
 ///
 /// # Arguments
@@ -96,7 +118,7 @@ mod tests {
 ///
 /// # Errors
 /// This function may error if the current combination of attributes leads to zero possible locations.
-fn process_attrs_loc_location(attrs: &[Attribute], metadata: &mut HashMap<String, TextRange>, is_workflow: bool, warns: &mut Vec<Warning>) {
+fn process_attrs_loc_location(attrs: &[Attribute], metadata: &mut HashMap<Metadata, TextRange>, is_workflow: bool, warns: &mut Vec<Warning>) {
     for attr in attrs {
         match attr {
             Attribute::List { key, values, range } => {
@@ -107,18 +129,29 @@ fn process_attrs_loc_location(attrs: &[Attribute], metadata: &mut HashMap<String
                     // Add the tag's tags to the current list
                     for value in values {
                         // Get the string value
-                        let (value, range) = if let Literal::String { value, range: _ } = value {
-                            (value.clone(), range.clone())
+                        let value_range: &TextRange = value.range();
+                        let (value, range): (&str, TextRange) = if let Literal::String { value, range: _ } = value {
+                            (value.as_str(), range.clone())
                         } else {
                             warns.push(Warning::NonStringTag { range: value.range().clone() });
                             continue;
                         };
 
+                        // Attempt to parse into a Metadata with the dot
+                        let md: Metadata = match parse_metadata(value, value_range) {
+                            Ok(metadata) => metadata,
+                            Err(warn) => {
+                                warns.push(warn);
+                                continue;
+                            },
+                        };
+
                         // Move the metadata to the thing
-                        if let Some(prev) = metadata.get(&value) {
+                        if let Some(prev) = metadata.get(&md) {
                             warns.push(Warning::DuplicateTag { prev: prev.clone(), range });
+                            continue;
                         } else {
-                            metadata.insert(value, range);
+                            metadata.insert(md, range);
                         }
                     }
                 }
@@ -137,7 +170,7 @@ fn process_attrs_loc_location(attrs: &[Attribute], metadata: &mut HashMap<String
 /// - `warns`: A list used to keep track of occurred warns.
 fn warn_useless_attrs(attrs: &[Attribute], warns: &mut Vec<Warning>) {
     // Collect the attributes
-    let mut metadata: HashMap<String, TextRange> = HashMap::new();
+    let mut metadata: HashMap<Metadata, TextRange> = HashMap::new();
     process_attrs_loc_location(attrs, &mut metadata, false, warns);
 
     // Warn
@@ -157,7 +190,7 @@ fn warn_useless_attrs(attrs: &[Attribute], warns: &mut Vec<Warning>) {
 /// - `block`: The [`Block`] to traverse.
 /// - `metadata`: The current metadata in scope to apply to applicable things (and where they are defined).
 /// - `warns`: A list that keeps track of warnings that occurred.
-fn pass_block(block: &mut Block, mut metadata: HashMap<String, TextRange>, warns: &mut Vec<Warning>) {
+fn pass_block(block: &mut Block, mut metadata: HashMap<Metadata, TextRange>, warns: &mut Vec<Warning>) {
     // Process block attributes
     process_attrs_loc_location(&block.attrs, &mut metadata, false, warns);
 
@@ -173,7 +206,7 @@ fn pass_block(block: &mut Block, mut metadata: HashMap<String, TextRange>, warns
 /// - `stmt`: The [`Stmt`] to traverse.
 /// - `metadata`: The current metadata in scope to apply to applicable things (and where they are defined).
 /// - `warns`: A list that keeps track of warnings that occurred.
-fn pass_stmt(stmt: &mut Stmt, mut metadata: HashMap<String, TextRange>, warns: &mut Vec<Warning>) {
+fn pass_stmt(stmt: &mut Stmt, mut metadata: HashMap<Metadata, TextRange>, warns: &mut Vec<Warning>) {
     // Match on the statement
     use Stmt::*;
     match stmt {
@@ -277,7 +310,7 @@ fn pass_stmt(stmt: &mut Stmt, mut metadata: HashMap<String, TextRange>, warns: &
 /// - `expr`: The [`Expr`] to traverse.
 /// - `metadata`: The current metadata in scope to apply to applicable things (and where they are defined).
 /// - `warns`: A list that keeps track of warnings that occurred.
-fn pass_expr(expr: &mut Expr, metadata: &HashMap<String, TextRange>, warns: &mut Vec<Warning>) {
+fn pass_expr(expr: &mut Expr, metadata: &HashMap<Metadata, TextRange>, warns: &mut Vec<Warning>) {
     // Match on the expression
     use Expr::*;
     match expr {
@@ -347,7 +380,7 @@ pub fn do_traversal(mut root: Program, warnings: &mut Vec<AstWarning>) -> Result
     let mut warns: Vec<Warning> = vec![];
 
     // Apply the program attributes to the program metadata
-    let mut root_metadata: HashMap<String, TextRange> = HashMap::new();
+    let mut root_metadata: HashMap<Metadata, TextRange> = HashMap::new();
     process_attrs_loc_location(&root.block.attrs, &mut root_metadata, true, &mut warns);
     root.metadata = root_metadata.into_iter().map(|(tag, _)| tag).collect();
 

@@ -4,7 +4,7 @@
 //  Created:
 //    10 Aug 2022, 14:00:59
 //  Last edited:
-//    08 Dec 2023, 17:30:10
+//    12 Dec 2023, 16:39:52
 //  Auto updated?
 //    Yes
 //
@@ -16,7 +16,7 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::rc::Rc;
-use std::str::FromStr;
+use std::str::FromStr as _;
 
 use enum_debug::EnumDebug;
 use specifications::version::{ParseError, Version};
@@ -61,7 +61,7 @@ pub struct Program {
     /// The toplevel program is simply a code block with global variables.
     pub block:    Block,
     /// Metadata for the entire program.
-    pub metadata: HashSet<String>,
+    pub metadata: HashSet<Metadata>,
 }
 
 impl Node for Program {
@@ -71,6 +71,17 @@ impl Node for Program {
 }
 
 
+
+/// Defines a pair of metadata.
+///
+/// In particular, it's a "namespaced tag".
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Metadata {
+    /// The owning user.
+    pub owner: String,
+    /// The tag itself.
+    pub tag:   String,
+}
 
 /// Defines an attribute (i.e., compiler directive).
 #[derive(Clone, Debug, EnumDebug)]
@@ -600,7 +611,7 @@ pub enum Expr {
         /// The intermediate result that this Call creates, if any. Used to only ever be the case if this call is an external call, but no more, since we're also interested in tracking this for things like `commit_result`.
         result:    HashSet<Data>,
         /// Metadata for this call. Only used for external calls.
-        metadata:  HashSet<String>,
+        metadata:  HashSet<Metadata>,
 
         /// The range of the call-expression in the source text.
         range: TextRange,

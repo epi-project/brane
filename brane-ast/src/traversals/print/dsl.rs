@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 13:46:22
 //  Last edited:
-//    08 Dec 2023, 17:59:31
+//    12 Dec 2023, 14:57:30
 //  Auto updated?
 //    Yes
 //
@@ -503,7 +503,11 @@ pub fn pass_expr(writer: &mut impl Write, expr: &Expr, indent: usize) -> std::io
                     " <{}>",
                     metadata
                         .iter()
-                        .map(|tag| if tag.contains(' ') { format!("#\"{tag}\"") } else { format!("#{tag}") })
+                        .map(|md| format!(
+                            "#{}.{}",
+                            if md.owner.contains(' ') { format!("\"{}\"", md.owner) } else { md.owner.clone() },
+                            if md.tag.contains(' ') { format!("\"{}\"", md.tag) } else { md.tag.clone() }
+                        ))
                         .collect::<Vec<String>>()
                         .join(" ")
                 )?;
@@ -818,7 +822,15 @@ pub fn do_traversal(root: Program, mut writer: impl Write) -> Result<Program, Ve
     if let Err(err) = writeln!(
         &mut writer,
         "{}\n",
-        root.metadata.iter().map(|tag| if tag.contains(' ') { format!("#\"{tag}\"") } else { format!("#{tag}") }).collect::<Vec<String>>().join(" ")
+        root.metadata
+            .iter()
+            .map(|md| format!(
+                "#{}.{}",
+                if md.owner.contains(' ') { format!("\"{}\"", md.owner) } else { md.owner.clone() },
+                if md.tag.contains(' ') { format!("\"{}\"", md.tag) } else { md.tag.clone() }
+            ))
+            .collect::<Vec<String>>()
+            .join(" ")
     ) {
         return Err(vec![Error::WriteError { err }]);
     }

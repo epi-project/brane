@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 17:36:21
 //  Last edited:
-//    02 Nov 2023, 14:23:28
+//    12 Dec 2023, 16:01:52
 //  Auto updated?
 //    Yes
 //
@@ -183,7 +183,7 @@ fn pass_edges(edges: EdgeBuffer, target: &mut Vec<Edge>, map: &mut HashMap<EdgeB
 
             use Edge::*;
             match &e.edge {
-                Node { task, locs, input, result, .. } => {
+                Node { task, locs, at: _, input, result, metadata, next: _ } => {
                     // The connection must be linear
                     let next: Option<EdgeBufferNodePtr> = match &e.next {
                         EdgeBufferNodeLink::Linear(next) => Some(next.clone()),
@@ -204,12 +204,13 @@ fn pass_edges(edges: EdgeBuffer, target: &mut Vec<Edge>, map: &mut HashMap<EdgeB
 
                     // The task ID should already be valid, so write that to the new buffer
                     let index: usize = write_edge!(target, Edge::Node {
-                        task:   *task,
-                        locs:   locs.clone(),
-                        at:     None,
-                        input:  input.clone(),
+                        task: *task,
+                        locs: locs.clone(),
+                        at: None,
+                        input: input.clone(),
                         result: result.clone(),
-                        next:   next_idx,
+                        metadata: metadata.clone(),
+                        next: next_idx,
                     });
                     map.insert(edges_start.clone(), index);
 
@@ -535,9 +536,7 @@ fn pass_edges(edges: EdgeBuffer, target: &mut Vec<Edge>, map: &mut HashMap<EdgeB
 ///
 /// # Panics
 /// This function may panic if any of the previous passes did not do its job, and the given UnresolvedWorkflow is ill-formed.
-pub fn do_traversal(state: &mut CompileState, root: UnresolvedWorkflow) -> Result<Workflow, Vec<AstError>> {
-    let mut root: UnresolvedWorkflow = root;
-
+pub fn do_traversal(state: &mut CompileState, mut root: UnresolvedWorkflow) -> Result<Workflow, Vec<AstError>> {
     // Convert the CompileState into a symbol table
     let table: SymTable = (&state.table).into();
 
@@ -569,5 +568,8 @@ pub fn do_traversal(state: &mut CompileState, root: UnresolvedWorkflow) -> Resul
     }
 
     // Done; create the workflow and return it
-    Ok(Workflow::new(table, graph, funcs))
+    // Note: don't forget to transfer metadata before doing so
+    let mut wf: Workflow = Workflow::new(table, graph, funcs);
+    wf.metadata = root.metadata;
+    Ok(wf)
 }

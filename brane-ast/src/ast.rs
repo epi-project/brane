@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    08 Dec 2023, 18:07:40
+//    12 Dec 2023, 16:10:00
 //  Auto updated?
 //    Yes
 //
@@ -19,10 +19,13 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Result as FResult};
+use std::hash::Hash;
 use std::sync::Arc;
 
 use brane_dsl::spec::MergeStrategy;
 use enum_debug::EnumDebug;
+use serde::de::{self, Deserializer, Visitor};
+use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 use serde_json_any_key::any_key_map;
 use specifications::data::AvailabilityKind;
@@ -131,16 +134,83 @@ impl Default for Workflow {
 
 
 /// Defines a piece of metadata.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Eq)]
 pub struct Metadata {
+    /// The owner of the tag, effectively namespacing it.
+    pub owner: String,
     /// The tag that is attached.
     pub tag: String,
     /// Some signature verifying this metadata.
-    pub signature: String,
+    pub signature: Option<String>,
+}
+impl Hash for Metadata {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // We're only counting the owner and the tag in the signature
+        self.owner.hash(state);
+        self.owner.hash(state);
+    }
 }
 impl PartialEq for Metadata {
     #[inline]
-    fn eq(&self, other: &Self) -> bool { self.tag == other.tag }
+    fn eq(&self, other: &Self) -> bool { self.owner == other.owner && self.tag == other.tag }
+}
+impl<'de> Deserialize<'de> for Metadata {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        /// The visitor for the Metadata
+        struct MetadataVisitor;
+        impl<'de> Visitor<'de> for MetadataVisitor {
+            type Value = Metadata;
+
+            #[inline]
+            fn expecting(&self, f: &mut Formatter) -> FResult { write!(f, "an `owner.tag` pair") }
+
+            #[inline]
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                // Find the position
+                let dot_pos: usize = match v.find('.') {
+                    Some(pos) => pos,
+                    None => return Err(E::custom(format!("no dot ('.') found in tag/owner pair '{v}'"))),
+                };
+                let owner: String = v[..dot_pos].into();
+                let mut tag: String = v[dot_pos + 1..].into();
+
+                // Find the optional signature, shortening the tag if necessary
+                let signature: Option<String> = tag.rfind('#').map(|hpos| {
+                    let sig: String = tag[hpos + 1..].into();
+                    tag = tag[..hpos].into();
+                    sig
+                });
+
+                // OK, construct ourselves
+                Ok(Metadata { owner, tag, signature })
+            }
+        }
+
+        // Visit the visitor
+        deserializer.deserialize_str(MetadataVisitor)
+    }
+}
+impl Serialize for Metadata {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!(
+            "{}.{}{}",
+            self.owner,
+            self.tag,
+            if let Some(signature) = &self.signature { format!("#{signature}") } else { String::new() }
+        ))
+    }
 }
 
 
@@ -404,22 +474,25 @@ pub enum Edge {
     Node {
         /// The task to call
         #[serde(rename = "t")]
-        task:   usize,
+        task: usize,
         /// An additional list that may or may not restrict locations.
         #[serde(rename = "l")]
-        locs:   Locations,
+        locs: Locations,
         /// Annotation about where the task will be run. This is not meant to be populated by anyone except the planner.
         #[serde(rename = "s")]
-        at:     Option<Location>,
+        at: Option<Location>,
         /// Reference to any input datasets/results that *might* be input to this node together with how they might be accessed. This latter part is populated during planning.
         #[serde(rename = "i", with = "any_key_map")]
-        input:  HashMap<DataName, Option<AvailabilityKind>>,
+        input: HashMap<DataName, Option<AvailabilityKind>>,
         /// Reference to the result if this call generates one.
         #[serde(rename = "r")]
         result: Option<String>,
+        /// Metadata for this call
+        #[serde(rename = "m")]
+        metadata: HashSet<Metadata>,
         /// The next edge to execute (usually the next one)
         #[serde(rename = "n")]
-        next:   usize,
+        next: usize,
     },
     /// A Linear edge is simple a series of instructions that are run, after which is goes to one new edge.
     #[serde(rename = "lin")]

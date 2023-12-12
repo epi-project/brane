@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 16:08:42
 //  Last edited:
-//    08 Dec 2023, 16:55:05
+//    12 Dec 2023, 14:56:22
 //  Auto updated?
 //    Yes
 //
@@ -311,6 +311,8 @@ pub enum MetadataWarning {
     DuplicateTag { prev: TextRange, range: TextRange },
     /// A tag was not a string.
     NonStringTag { range: TextRange },
+    /// A metadata was found without separating dot (`.`)
+    TagWithoutDot { raw: String, range: TextRange },
     /// A piece of metadata was applied (directly) to a statement that did not take it.
     UselessTag { range: TextRange },
 }
@@ -341,6 +343,7 @@ impl MetadataWarning {
         match self {
             DuplicateTag { prev, range } => prettywrite_warn_exist_new(writer, file, source, self, prev, range),
             NonStringTag { range } => prettywrite_warn(writer, file, source, self, range),
+            TagWithoutDot { range, .. } => prettywrite_warn(writer, file, source, self, range),
             UselessTag { range } => prettywrite_warn(writer, file, source, self, range),
         }
     }
@@ -351,6 +354,7 @@ impl Display for MetadataWarning {
         match self {
             DuplicateTag { .. } => write!(f, "Duplicate application of the same tag"),
             NonStringTag { .. } => write!(f, "Tags must be string literals"),
+            TagWithoutDot { raw, .. } => write!(f, "Missing dot in metadata '{raw}' to separate owner and tag"),
             UselessTag { .. } => write!(f, "Applying tag here has no effect (only has effect on entire workflow or external function calls)"),
         }
     }

@@ -5,7 +5,7 @@
 # Created:
 #   09 Jun 2022, 12:20:28
 # Last edited:
-#   22 Oct 2023, 17:52:48
+#   12 Dec 2023, 16:13:00
 # Auto updated?
 #   Yes
 #
@@ -3276,7 +3276,7 @@ for svc in instance_srcs:
 # A list of all targets in the make file.
 targets = {
     "test-units"  : ShellTarget("test-units",
-        [ ShellCommand("cargo", "test", "--all-targets", "--all-features") ],
+        [ ShellCommand("cargo", "test", "--all", "--all-targets", "--all-features") ],
         description="Runs tests on the project by running the unit tests.",
     ),
     "test-clippy" : ShellTarget("test-clippy",
