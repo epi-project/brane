@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 09:25:11
 //  Last edited:
-//    12 Dec 2023, 16:00:13
+//    12 Dec 2023, 19:04:08
 //  Auto updated?
 //    Yes
 //
@@ -229,7 +229,11 @@ fn pass_edges(
                                     "#{}.{}{}",
                                     if md.owner.contains(' ') { format!("\"{}\"", md.owner) } else { md.owner.clone() },
                                     if md.tag.contains(' ') { format!("\"{}\"", md.tag) } else { md.tag.clone() },
-                                    if let Some(signature) = &md.signature { format!(" <{signature}>") } else { String::new() }
+                                    if let Some((assigner, signature)) = &md.signature {
+                                        format!(" <{assigner}.{signature}>")
+                                    } else {
+                                        String::new()
+                                    }
                                 ))
                                 .collect::<Vec<String>>()
                                 .join(",")
@@ -536,7 +540,7 @@ pub fn do_traversal(root: &Workflow, mut writer: impl Write) -> Result<(), Vec<E
                 indent!(INDENT_SIZE),
                 if md.owner.contains(' ') { format!("\"{}\"", md.owner) } else { md.owner.clone() },
                 if md.tag.contains(' ') { format!("\"{}\"", md.tag) } else { md.tag.clone() },
-                if let Some(signature) = &md.signature { format!(" <{signature}>") } else { String::new() }
+                if let Some((assigner, signature)) = &md.signature { format!(" <{assigner}.{signature}>") } else { String::new() }
             ) {
                 return Err(vec![Error::WriteError { err }]);
             };

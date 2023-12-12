@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    12 Dec 2023, 16:10:00
+//    12 Dec 2023, 19:03:16
 //  Auto updated?
 //    Yes
 //
@@ -140,8 +140,8 @@ pub struct Metadata {
     pub owner: String,
     /// The tag that is attached.
     pub tag: String,
-    /// Some signature verifying this metadata.
-    pub signature: Option<String>,
+    /// Some signature verifying this metadata. Given as a pair of the person signing it and the signature itself.
+    pub signature: Option<(String, String)>,
 }
 impl Hash for Metadata {
     #[inline]
@@ -170,24 +170,33 @@ impl<'de> Deserialize<'de> for Metadata {
             fn expecting(&self, f: &mut Formatter) -> FResult { write!(f, "an `owner.tag` pair") }
 
             #[inline]
-            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            fn visit_str<E>(self, mut v: &str) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                // Find the position
+                // Check if there is a signature or not
+                let signature: Option<(String, String)> = if let Some(hash_pos) = v.find('#') {
+                    // Split on the hash_pos
+                    let sign: &str = &v[hash_pos + 1..];
+                    v = &v[..hash_pos];
+
+                    // Attempt to find the dot
+                    let dot_pos: usize = match v.find('.') {
+                        Some(pos) => pos,
+                        None => return Err(E::custom(format!("no dot ('.') found in tag/owner pair '{v}'"))),
+                    };
+                    Some((sign[..dot_pos].into(), sign[dot_pos + 1..].into()))
+                } else {
+                    None
+                };
+
+                // Find the position of the owner/tag
                 let dot_pos: usize = match v.find('.') {
                     Some(pos) => pos,
                     None => return Err(E::custom(format!("no dot ('.') found in tag/owner pair '{v}'"))),
                 };
                 let owner: String = v[..dot_pos].into();
-                let mut tag: String = v[dot_pos + 1..].into();
-
-                // Find the optional signature, shortening the tag if necessary
-                let signature: Option<String> = tag.rfind('#').map(|hpos| {
-                    let sig: String = tag[hpos + 1..].into();
-                    tag = tag[..hpos].into();
-                    sig
-                });
+                let tag: String = v[dot_pos + 1..].into();
 
                 // OK, construct ourselves
                 Ok(Metadata { owner, tag, signature })
@@ -208,7 +217,7 @@ impl Serialize for Metadata {
             "{}.{}{}",
             self.owner,
             self.tag,
-            if let Some(signature) = &self.signature { format!("#{signature}") } else { String::new() }
+            if let Some((assigner, signature)) = &self.signature { format!("#{assigner}.{signature}") } else { String::new() }
         ))
     }
 }

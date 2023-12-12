@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 11:08:57
 //  Last edited:
-//    12 Dec 2023, 15:22:44
+//    12 Dec 2023, 19:03:43
 //  Auto updated?
 //    Yes
 //
@@ -485,7 +485,7 @@ pub fn do_traversal(state: &CompileState, root: UnresolvedWorkflow, mut writer: 
                 indent!(INDENT_SIZE),
                 if md.owner.contains(' ') { format!("\"{}\"", md.owner) } else { md.owner.clone() },
                 if md.tag.contains(' ') { format!("\"{}\"", md.tag) } else { md.tag.clone() },
-                if let Some(signature) = &md.signature { format!(" <{signature}>") } else { String::new() }
+                if let Some((assigner, signature)) = &md.signature { format!(" <{assigner}.{signature}>") } else { String::new() }
             ) {
                 return Err(vec![Error::WriteError { err }]);
             };
