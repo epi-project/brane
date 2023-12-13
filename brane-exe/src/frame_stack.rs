@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 10:45:50
 //  Last edited:
-//    07 Nov 2023, 14:53:31
+//    13 Dec 2023, 08:24:55
 //  Auto updated?
 //    Yes
 //
@@ -227,13 +227,10 @@ impl FrameStack {
         }
 
         // Search the frames (in reverse order)
-        for f in self.data.iter_mut().rev() {
-            if let Some(old_val) = f.vars.get_mut(&def) {
-                *old_val = Some(value);
-                break;
-            } else {
-                return Err(Error::UndeclaredVariable { name: var.name.clone() });
-            }
+        if let Some(old_val) = self.data.first_mut().and_then(|f| f.vars.get_mut(&def)) {
+            *old_val = Some(value);
+        } else {
+            return Err(Error::UndeclaredVariable { name: var.name.clone() });
         }
 
         // Done

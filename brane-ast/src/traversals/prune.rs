@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 18:00:09
 //  Last edited:
-//    08 Dec 2023, 15:01:02
+//    13 Dec 2023, 08:21:57
 //  Auto updated?
 //    Yes
 //
@@ -189,7 +189,7 @@ fn pass_stmt(stmt: Stmt, attr_stack: &mut Vec<Vec<Attribute>>, errors: &mut Vec<
                     data_type: ret_type,
                     output:    HashSet::new(),
                     range:     TextRange::none(),
-                    attrs:     attr_stack.iter().cloned().flatten().collect(),
+                    attrs:     attr_stack.iter().flatten().cloned().collect(),
                 });
             }
 

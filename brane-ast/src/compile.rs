@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 18:12:44
 //  Last edited:
-//    12 Dec 2023, 17:21:15
+//    13 Dec 2023, 08:22:16
 //  Auto updated?
 //    Yes
 //
@@ -321,7 +321,7 @@ pub fn compile_snippet_to<R: std::io::Read>(
     // First up: preprocessing (offset updating)
     if stage >= CompileStage::Offset {
         trace!("Running traversal: offset");
-        program = match traversals::offset::do_traversal(program, &state) {
+        program = match traversals::offset::do_traversal(program, state) {
             Ok(program) => program,
             Err(errs) => {
                 return CompileResult::Err(errs);

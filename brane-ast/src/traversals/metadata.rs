@@ -4,7 +4,7 @@
 //  Created:
 //    08 Dec 2023, 16:34:54
 //  Last edited:
-//    12 Dec 2023, 14:59:17
+//    13 Dec 2023, 08:21:29
 //  Auto updated?
 //    Yes
 //
@@ -310,11 +310,11 @@ fn pass_stmt(stmt: &mut Stmt, mut metadata: HashMap<Metadata, TextRange>, warns:
 /// - `expr`: The [`Expr`] to traverse.
 /// - `metadata`: The current metadata in scope to apply to applicable things (and where they are defined).
 /// - `warns`: A list that keeps track of warnings that occurred.
-fn pass_expr(expr: &mut Expr, metadata: &HashMap<Metadata, TextRange>, warns: &mut Vec<Warning>) {
+fn pass_expr(expr: &mut Expr, metadata: &HashMap<Metadata, TextRange>, _warns: &mut Vec<Warning>) {
     // Match on the expression
     use Expr::*;
     match expr {
-        Cast { expr, target: _, range: _ } => pass_expr(expr, metadata, warns),
+        Cast { expr, target: _, range: _ } => pass_expr(expr, metadata, _warns),
 
         Call { expr, args, st_entry, locations: _, input: _, result: _, metadata: call_metadata, range: _ } => {
             // Examine if it's an external call
@@ -323,34 +323,34 @@ fn pass_expr(expr: &mut Expr, metadata: &HashMap<Metadata, TextRange>, warns: &m
             }
 
             // Otherwise, recurse into the expressions
-            pass_expr(expr, metadata, warns);
+            pass_expr(expr, metadata, _warns);
             for arg in args {
-                pass_expr(arg, metadata, warns);
+                pass_expr(arg, metadata, _warns);
             }
         },
         Array { values, data_type: _, range: _ } => {
             for value in values {
-                pass_expr(value, metadata, warns);
+                pass_expr(value, metadata, _warns);
             }
         },
         ArrayIndex { array, index, data_type: _, range: _ } => {
-            pass_expr(array, metadata, warns);
-            pass_expr(index, metadata, warns);
+            pass_expr(array, metadata, _warns);
+            pass_expr(index, metadata, _warns);
         },
 
-        UnaOp { op: _, expr, range: _ } => pass_expr(expr, metadata, warns),
+        UnaOp { op: _, expr, range: _ } => pass_expr(expr, metadata, _warns),
         BinOp { op: _, lhs, rhs, range: _ } => {
-            pass_expr(lhs, metadata, warns);
-            pass_expr(rhs, metadata, warns);
+            pass_expr(lhs, metadata, _warns);
+            pass_expr(rhs, metadata, _warns);
         },
         Proj { lhs, rhs, st_entry: _, range: _ } => {
-            pass_expr(lhs, metadata, warns);
-            pass_expr(rhs, metadata, warns);
+            pass_expr(lhs, metadata, _warns);
+            pass_expr(rhs, metadata, _warns);
         },
 
         Instance { name: _, properties, st_entry: _, range: _ } => {
             for prop in properties {
-                pass_expr(&mut prop.value, metadata, warns);
+                pass_expr(&mut prop.value, metadata, _warns);
             }
         },
 
@@ -382,7 +382,7 @@ pub fn do_traversal(mut root: Program, warnings: &mut Vec<AstWarning>) -> Result
     // Apply the program attributes to the program metadata
     let mut root_metadata: HashMap<Metadata, TextRange> = HashMap::new();
     process_attrs_loc_location(&root.block.attrs, &mut root_metadata, true, &mut warns);
-    root.metadata = root_metadata.into_iter().map(|(tag, _)| tag).collect();
+    root.metadata = root_metadata.into_keys().collect();
 
     // Traverse the tree, doin' all the work
     pass_block(&mut root.block, HashMap::new(), &mut warns);

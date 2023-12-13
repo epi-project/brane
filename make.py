@@ -5,7 +5,7 @@
 # Created:
 #   09 Jun 2022, 12:20:28
 # Last edited:
-#   12 Dec 2023, 16:13:00
+#   13 Dec 2023, 08:16:07
 # Auto updated?
 #   Yes
 #
@@ -3280,7 +3280,7 @@ targets = {
         description="Runs tests on the project by running the unit tests.",
     ),
     "test-clippy" : ShellTarget("test-clippy",
-        [ ShellCommand("cargo", "clippy", "--all-targets", "--all-features", "--", "--allow", "clippy::manual_range_contains") ],
+        [ ShellCommand("cargo", "clippy", "--all", "--all-targets", "--all-features", "--", "--allow", "clippy::manual_range_contains") ],
         description="Runs tests on the project by running the clippy linter.",
     ),
     "test-security" : ShellTarget("test-security",
@@ -3288,7 +3288,7 @@ targets = {
         description="Runs tests on the project by running the clippy linter.",
     ),
     "test" : VoidTarget("test",
-        deps=[ "test-units", "test-clippy" ],
+        deps=[ "test-units", "test-clippy", "test-security" ],
         description="Runs tests on the project by running both the unit tests and the clippy linter.",
     ),
 

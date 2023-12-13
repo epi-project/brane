@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    12 Dec 2023, 16:10:38
+//    13 Dec 2023, 08:25:58
 //  Auto updated?
 //    Yes
 //
@@ -620,6 +620,7 @@ pub async fn planner_server(
     }
 
     // The state of previously planned workflow snippets per-instance.
+    #[allow(clippy::type_complexity)]
     let results: Arc<Mutex<HashMap<String, (Instant, HashMap<String, String>)>>> = Arc::new(Mutex::new(HashMap::new()));
 
     // Next, we start processing the incoming stream of messages as soon as they arrive

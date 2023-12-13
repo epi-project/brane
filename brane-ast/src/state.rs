@@ -4,7 +4,7 @@
 //  Created:
 //    16 Sep 2022, 08:22:47
 //  Last edited:
-//    12 Dec 2023, 15:57:52
+//    13 Dec 2023, 08:20:26
 //  Auto updated?
 //    Yes
 //
@@ -435,7 +435,7 @@ impl ClassState {
     ///
     /// # Returns
     /// A new ClassEntry instance.
-    pub fn into_entry(&self, funcs: &Vec<FunctionState>) -> ClassEntry {
+    pub fn into_entry(&self, funcs: &[FunctionState]) -> ClassEntry {
         // Create the symbol table
         let c_table: Rc<RefCell<SymbolTable>> = SymbolTable::new();
         {

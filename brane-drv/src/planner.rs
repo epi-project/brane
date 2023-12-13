@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    07 Nov 2023, 17:13:24
+//    13 Dec 2023, 08:26:45
 //  Auto updated?
 //    Yes
 //
@@ -165,7 +165,7 @@ async fn wait_planned(
     let res: PlanningStatus = match res {
         Some(res) => res,
         None => {
-            return Err(PlanError::PlanningTimeout { correlation_id: id.into(), timeout: DEFAULT_PLANNING_STARTED_TIMEOUT });
+            return Err(PlanError::PlanningTimeout { correlation_id: id, timeout: DEFAULT_PLANNING_STARTED_TIMEOUT });
         },
     };
 
@@ -177,7 +177,7 @@ async fn wait_planned(
             let workflow: Workflow = match serde_json::from_str(&wf) {
                 Ok(workflow) => workflow,
                 Err(err) => {
-                    return Err(PlanError::PlanParseError { correlation_id: id.into(), raw: wf, err });
+                    return Err(PlanError::PlanParseError { correlation_id: id, raw: wf, err });
                 },
             };
 
@@ -186,8 +186,8 @@ async fn wait_planned(
         },
 
         // Otherwise, no plan available
-        PlanningStatus::Failed(reason) => Err(PlanError::PlanningFailed { correlation_id: id.into(), reason }),
-        PlanningStatus::Error(err) => Err(PlanError::PlanningError { correlation_id: id.into(), err }),
+        PlanningStatus::Failed(reason) => Err(PlanError::PlanningFailed { correlation_id: id, reason }),
+        PlanningStatus::Error(err) => Err(PlanError::PlanningError { correlation_id: id, err }),
 
         // Other things should not occur; the wait covered those
         _ => {

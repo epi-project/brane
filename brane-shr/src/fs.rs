@@ -4,7 +4,7 @@
 //  Created:
 //    09 Nov 2022, 11:12:06
 //  Last edited:
-//    01 Nov 2023, 12:17:26
+//    13 Dec 2023, 08:19:48
 //  Auto updated?
 //    Yes
 //
@@ -1136,17 +1136,13 @@ pub async fn recurse_in_only_child_async(dir: impl AsRef<Path>) -> Result<PathBu
                             Err(Error::DirNonDirChild { what: "to-be-trivially-recursed", path: dir.into(), child: entry.file_name() })
                         }
                     },
-                    Err(err) => {
-                        return Err(Error::DirEntryReadError { what: "to-be-trivially-recursed", path: dir.into(), entry: 0, err });
-                    },
+                    Err(err) => Err(Error::DirEntryReadError { what: "to-be-trivially-recursed", path: dir.into(), entry: 0, err }),
                 }
             } else {
-                return Err(Error::DirNotOneEntry { what: "to-be-trivially-recursed", path: dir.into() });
+                Err(Error::DirNotOneEntry { what: "to-be-trivially-recursed", path: dir.into() })
             }
         },
-        Err(err) => {
-            return Err(Error::DirReadError { what: "to-be-trivially-recursed", path: dir.into(), err });
-        },
+        Err(err) => Err(Error::DirReadError { what: "to-be-trivially-recursed", path: dir.into(), err }),
     }
 }
 
@@ -1309,9 +1305,10 @@ pub async fn download_file_async(
     }
 
     // Assert the download directory exists
-    let dir: Option<&Path> = target.parent();
-    if dir.is_some() && !dir.unwrap().exists() {
-        return Err(Error::DirNotFound { path: dir.unwrap().into() });
+    if let Some(parent) = target.parent() {
+        if !parent.exists() {
+            return Err(Error::DirNotFound { path: parent.into() });
+        }
     }
 
     // Open the target file for writing
