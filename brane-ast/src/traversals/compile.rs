@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 11:32:04
 //  Last edited:
-//    02 Nov 2023, 14:30:28
+//    12 Dec 2023, 16:02:03
 //  Auto updated?
 //    Yes
 //
@@ -17,10 +17,12 @@
 use std::cell::{Ref, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use brane_dsl::ast as dsl;
 use brane_dsl::spec::MergeStrategy;
 use brane_dsl::symbol_table::{FunctionEntry, VarEntry};
+use enum_debug::EnumDebug as _;
 use log::warn;
 
 use crate::ast;
@@ -459,19 +461,12 @@ fn pass_stmt(stmt: dsl::Stmt, edges: &mut EdgeBuffer, f_edges: &mut HashMap<usiz
             // Write them both a loop in the edges list
             edges.write_loop(cond_edges, cons_edges);
         },
-        On { block, range, .. } => {
-            // Push the deprecation warning
-            warnings.push(Warning::OnDeprecated { range });
-
-            // Run the block as normal
-            pass_block(*block, edges, f_edges, table, warnings);
-        },
         Parallel { blocks, merge, st_entry, .. } => {
             // Write the branches to separate buffers
             let mut branches: Vec<EdgeBuffer> = Vec::with_capacity(blocks.len());
             for b in blocks {
                 let mut b_edges: EdgeBuffer = EdgeBuffer::new();
-                pass_stmt(*b, &mut b_edges, f_edges, table, warnings);
+                pass_block(b, &mut b_edges, f_edges, table, warnings);
                 if !b_edges.fully_returns() {
                     b_edges.write_stop(ast::Edge::Return { result: HashSet::new() });
                 }
@@ -540,7 +535,8 @@ fn pass_stmt(stmt: dsl::Stmt, edges: &mut EdgeBuffer, f_edges: &mut HashMap<usiz
         },
 
         // We don't care about the rest (or it does not occur anymore)
-        _ => {},
+        Import { .. } | Empty {} => {},
+        Attribute(_) | AttributeInner(_) | For { .. } => panic!("Encountered {:?} in compile traversal", stmt.variant()),
     }
 }
 
@@ -568,7 +564,7 @@ fn pass_expr(expr: dsl::Expr, edges: &mut EdgeBuffer, _table: &TableState) {
             edges.write(ast::Edge::Linear { instrs: vec![ast::EdgeInstr::Cast { res_type: (&target).into() }], next: usize::MAX });
         },
 
-        Call { expr, args, locations, input, result, st_entry, .. } => {
+        Call { expr, args, st_entry, locations, input, result, metadata, range: _ } => {
             // First, write the arguments followed by the call expression
             for a in args {
                 pass_expr(*a, edges, _table);
@@ -597,6 +593,7 @@ fn pass_expr(expr: dsl::Expr, edges: &mut EdgeBuffer, _table: &TableState) {
                     at: None,
                     input: input.into_iter().map(|d| (d.into(), None)).collect(),
                     result,
+                    metadata: metadata.into_iter().map(|md| ast::Metadata { owner: md.owner, tag: md.tag, signature: None }).collect(),
                     next: usize::MAX,
                 });
             } else {
@@ -782,7 +779,9 @@ pub fn do_traversal(state: &CompileState, root: dsl::Program, warnings: &mut Vec
     // [TODO]: Add optimization pass that groups as many edges together as possible, possibly even calling upong well-defined meta-edges that are easier to reason about.
     // -> see also `workflow_optimize.rs`??
 
-    // Done
+    // Now build a new workflow and done
+    let mut wf: UnresolvedWorkflow = UnresolvedWorkflow::new(edges, f_edges);
+    wf.metadata = Arc::new(root.metadata.into_iter().map(|md| ast::Metadata { owner: md.owner, tag: md.tag, signature: None }).collect());
     warnings.append(&mut warns.into_iter().map(|w| w.into()).collect::<Vec<AstWarning>>());
-    Ok(UnresolvedWorkflow::new(edges, f_edges))
+    Ok(wf)
 }

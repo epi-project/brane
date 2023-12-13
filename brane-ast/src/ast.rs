@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    07 Nov 2023, 14:40:27
+//    12 Dec 2023, 19:03:16
 //  Auto updated?
 //    Yes
 //
@@ -19,10 +19,13 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Result as FResult};
+use std::hash::Hash;
 use std::sync::Arc;
 
 use brane_dsl::spec::MergeStrategy;
 use enum_debug::EnumDebug;
+use serde::de::{self, Deserializer, Visitor};
+use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 use serde_json_any_key::any_key_map;
 use specifications::data::AvailabilityKind;
@@ -49,7 +52,9 @@ lazy_static!(
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Workflow {
     /// The global symbol / definition table. This specific table is also affectionally referred to as the "Workflow table".
-    pub table: Arc<SymTable>,
+    pub table:    Arc<SymTable>,
+    /// Toplevel metadata
+    pub metadata: Arc<HashSet<Metadata>>,
 
     /// Implements the graph. Note that the ordering of this graph is important, but it will not be executed linearly.
     pub graph: Arc<Vec<Edge>>,
@@ -70,7 +75,8 @@ impl Workflow {
     #[inline]
     pub fn new(table: SymTable, graph: Vec<Edge>, funcs: HashMap<usize, Vec<Edge>>) -> Self {
         Self {
-            table: Arc::new(table),
+            table:    Arc::new(table),
+            metadata: Arc::new(HashSet::new()),
 
             graph: Arc::new(graph),
             funcs: Arc::new(funcs),
@@ -116,11 +122,103 @@ impl Default for Workflow {
     #[inline]
     fn default() -> Self {
         Self {
-            table: Arc::new(SymTable::new()),
+            table:    Arc::new(SymTable::new()),
+            metadata: Arc::new(HashSet::new()),
 
             graph: Arc::new(vec![]),
             funcs: Arc::new(HashMap::new()),
         }
+    }
+}
+
+
+
+/// Defines a piece of metadata.
+#[derive(Clone, Debug, Eq)]
+pub struct Metadata {
+    /// The owner of the tag, effectively namespacing it.
+    pub owner: String,
+    /// The tag that is attached.
+    pub tag: String,
+    /// Some signature verifying this metadata. Given as a pair of the person signing it and the signature itself.
+    pub signature: Option<(String, String)>,
+}
+impl Hash for Metadata {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // We're only counting the owner and the tag in the signature
+        self.owner.hash(state);
+        self.owner.hash(state);
+    }
+}
+impl PartialEq for Metadata {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool { self.owner == other.owner && self.tag == other.tag }
+}
+impl<'de> Deserialize<'de> for Metadata {
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        /// The visitor for the Metadata
+        struct MetadataVisitor;
+        impl<'de> Visitor<'de> for MetadataVisitor {
+            type Value = Metadata;
+
+            #[inline]
+            fn expecting(&self, f: &mut Formatter) -> FResult { write!(f, "an `owner.tag` pair") }
+
+            #[inline]
+            fn visit_str<E>(self, mut v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                // Check if there is a signature or not
+                let signature: Option<(String, String)> = if let Some(hash_pos) = v.find('#') {
+                    // Split on the hash_pos
+                    let sign: &str = &v[hash_pos + 1..];
+                    v = &v[..hash_pos];
+
+                    // Attempt to find the dot
+                    let dot_pos: usize = match v.find('.') {
+                        Some(pos) => pos,
+                        None => return Err(E::custom(format!("no dot ('.') found in tag/owner pair '{v}'"))),
+                    };
+                    Some((sign[..dot_pos].into(), sign[dot_pos + 1..].into()))
+                } else {
+                    None
+                };
+
+                // Find the position of the owner/tag
+                let dot_pos: usize = match v.find('.') {
+                    Some(pos) => pos,
+                    None => return Err(E::custom(format!("no dot ('.') found in tag/owner pair '{v}'"))),
+                };
+                let owner: String = v[..dot_pos].into();
+                let tag: String = v[dot_pos + 1..].into();
+
+                // OK, construct ourselves
+                Ok(Metadata { owner, tag, signature })
+            }
+        }
+
+        // Visit the visitor
+        deserializer.deserialize_str(MetadataVisitor)
+    }
+}
+impl Serialize for Metadata {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!(
+            "{}.{}{}",
+            self.owner,
+            self.tag,
+            if let Some((assigner, signature)) = &self.signature { format!("#{assigner}.{signature}") } else { String::new() }
+        ))
     }
 }
 
@@ -385,22 +483,25 @@ pub enum Edge {
     Node {
         /// The task to call
         #[serde(rename = "t")]
-        task:   usize,
+        task: usize,
         /// An additional list that may or may not restrict locations.
         #[serde(rename = "l")]
-        locs:   Locations,
+        locs: Locations,
         /// Annotation about where the task will be run. This is not meant to be populated by anyone except the planner.
         #[serde(rename = "s")]
-        at:     Option<Location>,
+        at: Option<Location>,
         /// Reference to any input datasets/results that *might* be input to this node together with how they might be accessed. This latter part is populated during planning.
         #[serde(rename = "i", with = "any_key_map")]
-        input:  HashMap<DataName, Option<AvailabilityKind>>,
+        input: HashMap<DataName, Option<AvailabilityKind>>,
         /// Reference to the result if this call generates one.
         #[serde(rename = "r")]
         result: Option<String>,
+        /// Metadata for this call
+        #[serde(rename = "m")]
+        metadata: HashSet<Metadata>,
         /// The next edge to execute (usually the next one)
         #[serde(rename = "n")]
-        next:   usize,
+        next: usize,
     },
     /// A Linear edge is simple a series of instructions that are run, after which is goes to one new edge.
     #[serde(rename = "lin")]

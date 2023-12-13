@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 09:25:11
 //  Last edited:
-//    07 Nov 2023, 14:41:50
+//    12 Dec 2023, 19:04:08
 //  Auto updated?
 //    Yes
 //
@@ -182,11 +182,11 @@ fn pass_edges(
         // Match on it
         use Edge::*;
         match node {
-            Node { task, locs, at, input, result, next } => {
+            Node { task, locs, at, input, result, metadata, next } => {
                 // Write the Node as a task call
                 writeln!(
                     writer,
-                    "{} {}Node({}){}{}{}",
+                    "{} {}Node({}){}{}{}{}",
                     line_number!(i),
                     indent!(indent),
                     match &table.task(*task) {
@@ -216,6 +216,27 @@ fn pass_edges(
                                 "''".into()
                             },
                             if let Some(name) = result { format!("'{name}'") } else { "''".into() },
+                        )
+                    } else {
+                        String::new()
+                    },
+                    if !metadata.is_empty() {
+                        format!(
+                            " <{}>",
+                            metadata
+                                .iter()
+                                .map(|md| format!(
+                                    "#{}.{}{}",
+                                    if md.owner.contains(' ') { format!("\"{}\"", md.owner) } else { md.owner.clone() },
+                                    if md.tag.contains(' ') { format!("\"{}\"", md.tag) } else { md.tag.clone() },
+                                    if let Some((assigner, signature)) = &md.signature {
+                                        format!(" <{assigner}.{signature}>")
+                                    } else {
+                                        String::new()
+                                    }
+                                ))
+                                .collect::<Vec<String>>()
+                                .join(",")
                         )
                     } else {
                         String::new()
@@ -503,15 +524,40 @@ fn pass_edge_instr(writer: &mut impl Write, instr: &EdgeInstr, table: &SymTable)
 ///
 /// # Errors
 /// This pass may error if we failed to write to the given writer.
-pub fn do_traversal(root: &Workflow, writer: impl Write) -> Result<(), Vec<Error>> {
-    let mut writer = writer;
+pub fn do_traversal(root: &Workflow, mut writer: impl Write) -> Result<(), Vec<Error>> {
+    let Workflow { table, metadata, graph, funcs } = root;
 
     if let Err(err) = writeln!(&mut writer, "Workflow {{") {
         return Err(vec![Error::WriteError { err }]);
     };
 
+    // Print parsed metadata
+    if !metadata.is_empty() {
+        for md in metadata.iter() {
+            if let Err(err) = writeln!(
+                &mut writer,
+                "{}#{}.{}{}",
+                indent!(INDENT_SIZE),
+                if md.owner.contains(' ') { format!("\"{}\"", md.owner) } else { md.owner.clone() },
+                if md.tag.contains(' ') { format!("\"{}\"", md.tag) } else { md.tag.clone() },
+                if let Some((assigner, signature)) = &md.signature { format!(" <{assigner}.{signature}>") } else { String::new() }
+            ) {
+                return Err(vec![Error::WriteError { err }]);
+            };
+        }
+        if let Err(err) = writeln!(&mut writer) {
+            return Err(vec![Error::WriteError { err }]);
+        };
+        if let Err(err) = writeln!(&mut writer) {
+            return Err(vec![Error::WriteError { err }]);
+        };
+        if let Err(err) = writeln!(&mut writer) {
+            return Err(vec![Error::WriteError { err }]);
+        };
+    }
+
     // First up: print the workflow table
-    if let Err(err) = pass_table(&mut writer, &root.table, INDENT_SIZE) {
+    if let Err(err) = pass_table(&mut writer, table, INDENT_SIZE) {
         return Err(vec![Error::WriteError { err }]);
     };
     if !root.table.vars.is_empty()
@@ -535,19 +581,19 @@ pub fn do_traversal(root: &Workflow, writer: impl Write) -> Result<(), Vec<Error
     if let Err(err) = writeln!(&mut writer, "{}<Main>", indent!(INDENT_SIZE)) {
         return Err(vec![Error::WriteError { err }]);
     };
-    if let Err(err) = pass_edges(&mut writer, 0, &root.graph, &root.table, INDENT_SIZE, &mut HashSet::new()) {
+    if let Err(err) = pass_edges(&mut writer, 0, graph, table, INDENT_SIZE, &mut HashSet::new()) {
         return Err(vec![Error::WriteError { err }]);
     };
 
     // Print the functions
-    for (i, f) in root.funcs.iter() {
+    for (i, f) in funcs.iter() {
         if let Err(err) = writeln!(&mut writer) {
             return Err(vec![Error::WriteError { err }]);
         };
-        if let Err(err) = writeln!(&mut writer, "{}<Function {} ({})>", indent!(INDENT_SIZE), *i, root.table.funcs[*i].name) {
+        if let Err(err) = writeln!(&mut writer, "{}<Function {} ({})>", indent!(INDENT_SIZE), *i, table.funcs[*i].name) {
             return Err(vec![Error::WriteError { err }]);
         };
-        if let Err(err) = pass_edges(&mut writer, 0, f, &root.table, INDENT_SIZE, &mut HashSet::new()) {
+        if let Err(err) = pass_edges(&mut writer, 0, f, table, INDENT_SIZE, &mut HashSet::new()) {
             return Err(vec![Error::WriteError { err }]);
         };
     }

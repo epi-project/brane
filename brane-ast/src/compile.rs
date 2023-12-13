@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 18:12:44
 //  Last edited:
-//    31 Oct 2023, 10:27:44
+//    13 Dec 2023, 08:22:16
 //  Auto updated?
 //    Yes
 //
@@ -36,31 +36,37 @@ pub enum CompileStage {
     /// References nb compile stage.
     None  = 0,
     /// References the last compile stage, i.e., all stages.
-    All   = 12,
+    All   = 15,
 
     // Individual stages
-    /// The initial stage where we resolve the symbol tables.
-    Resolve = 1,
-    /// The second stage where we resolve types (as much as possible).
-    Typing = 2,
-    /// The second stage where we null-types.
-    Null  = 3,
-    /// The fourth stage where we analyse data dependencies.
-    Data  = 4,
-    /// The fifth stage where we resolve on-structs.
-    Location = 5,
-    /// The sixth stage where we apply various optimizations, e.g., constant unfolding, constant casting, function inlining, etc.
-    Optimization = 6,
-    /// The seventh stage where we prune the resulting tree to make compilation easier (without affecting functionality).
-    Prune = 7,
-    /// The eigth stage is the really final pre-compile stage, where we already collect definitions into a flattened symbol table tree structure.
-    Flatten = 8,
-    /// The ninth stage where we compile the Program to a Workflow.
-    Compile = 9,
-    /// The tenth stage where we optimize the resulting workflow some more.
-    WorkflowOptimization = 10,
-    /// The eleventh and final stage where we resolve the 'next' fields in the UnresolvedWorkflow so it becomes a Workflow.
-    WorkflowResolve = 11,
+    /// The initial stage where we update AST TextRanges.
+    Offset = 1,
+    /// The second stage where we process attribute statements.
+    Attributes = 2,
+    /// The third stage where we resolve the symbol tables.
+    Resolve = 3,
+    /// The fourth stage where we resolve types (as much as possible).
+    Typing = 4,
+    /// The fifth stage where we null-types.
+    Null  = 5,
+    /// The sixth stage where we analyse data dependencies.
+    Data  = 6,
+    /// The seventh stage where we resolve on-structs.
+    Location = 7,
+    /// The eighth stage where we add user-supplied metadata to a workflow.
+    Metadata = 8,
+    /// The ninth stage where we apply various optimizations, e.g., constant unfolding, constant casting, function inlining, etc.
+    Optimization = 9,
+    /// The tenth stage where we prune the resulting tree to make compilation easier (without affecting functionality).
+    Prune = 10,
+    /// The eleventh stage is the really final pre-compile stage, where we already collect definitions into a flattened symbol table tree structure.
+    Flatten = 11,
+    /// The twelth stage where we compile the Program to a Workflow.
+    Compile = 12,
+    /// The thirtheenth stage where we optimize the resulting workflow some more.
+    WorkflowOptimization = 13,
+    /// The fourteenth and final stage where we resolve the 'next' fields in the UnresolvedWorkflow so it becomes a Workflow.
+    WorkflowResolve = 14,
 }
 
 
@@ -312,7 +318,27 @@ pub fn compile_snippet_to<R: std::io::Read>(
     };
 
     // Run the various traversals
-    // First up: program analysis (resolving symbol tables, type analysis, location analysis)
+    // First up: preprocessing (offset updating)
+    if stage >= CompileStage::Offset {
+        trace!("Running traversal: offset");
+        program = match traversals::offset::do_traversal(program, state) {
+            Ok(program) => program,
+            Err(errs) => {
+                return CompileResult::Err(errs);
+            },
+        };
+    }
+
+    // Program analysis (attribute processing, resolving symbol tables, type analysis, location analysis)
+    if stage >= CompileStage::Attributes {
+        trace!("Running traversal: attributes");
+        program = match traversals::attributes::do_traversal(program, &mut warnings) {
+            Ok(program) => program,
+            Err(errs) => {
+                return CompileResult::Err(errs);
+            },
+        };
+    }
     if stage >= CompileStage::Resolve {
         trace!("Running traversal: resolve");
         program = match traversals::resolve::do_traversal(state, package_index, data_index, program) {
@@ -352,6 +378,15 @@ pub fn compile_snippet_to<R: std::io::Read>(
     if stage >= CompileStage::Location {
         trace!("Running traversal: location");
         program = match traversals::location::do_traversal(program) {
+            Ok(program) => program,
+            Err(errs) => {
+                return CompileResult::Err(errs);
+            },
+        };
+    }
+    if stage >= CompileStage::Metadata {
+        trace!("Running traversal: metadata");
+        program = match traversals::metadata::do_traversal(program, &mut warnings) {
             Ok(program) => program,
             Err(errs) => {
                 return CompileResult::Err(errs);

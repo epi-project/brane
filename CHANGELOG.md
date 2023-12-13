@@ -2,8 +2,9 @@
 
 All notable changes to the Brane framework will be documented in this file.
 
-## [3.1.0] - TODO
+## [4.0.0] - TODO
 ### Added
+- Attributes to BraneScript (e.g., `#[tag("amy.foo")]` or `#![on("foo")]`).
 - The `branectl wizard` subcommand, which interactively goes through the steps of setting up a node.
 - Commands for cross-compiling to macOS x86-64 _and_ ARM 64-bit from Linux :)
 - `branec --trace` flag to enable trace-level debugging.
@@ -19,6 +20,7 @@ All notable changes to the Brane framework will be documented in this file.
   - To do this, the interface between the driver and planner have been updated (not a breaking change since inter-service communication with different service versions is not assumed).
 - `branec` now uses [humanlog](https://github.com/Lut99/humanlog-rs) as logging backend for nicer messages.
 - `brane-drv` and `brane-plr` are now using Rust 2021 instead of Rust 2018.
+- BraneScript syntax to remove the `on`-structs, and instead using `on`-, `loc`- or `location`-attributes \[**breaking change**\].
 
 ### Fixed
 - The BraneScript compiler hanging in an infinite loop in some cases.

@@ -4,7 +4,7 @@
 //  Created:
 //    17 Aug 2022, 16:01:41
 //  Last edited:
-//    31 Oct 2023, 10:44:26
+//    08 Dec 2023, 17:30:47
 //  Auto updated?
 //    Yes
 //
@@ -13,6 +13,7 @@
 //!   BraneScript-specific parsing functions.
 //
 
+use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
 use log::trace;
@@ -20,8 +21,9 @@ use nom::error::{ContextError, ErrorKind, ParseError, VerboseError};
 use nom::{branch, combinator as comb, multi, sequence as seq, IResult, Parser};
 
 use super::ast::{Block, Identifier, Literal, Node, Program, Property, Stmt};
+use crate::ast::Attribute;
 use crate::data_type::DataType;
-use crate::parser::{expression, identifier};
+use crate::parser::{expression, identifier, literal};
 use crate::scanner::{Token, Tokens};
 use crate::spec::{TextPos, TextRange};
 use crate::tag_token;
@@ -150,7 +152,7 @@ pub fn parse_ast(input: Tokens) -> IResult<Tokens, Program, VerboseError<Tokens>
     // Wrap it in a program and done
     let start_pos: TextPos = stmts.first().map(|s| s.start().clone()).unwrap_or(TextPos::none());
     let end_pos: TextPos = stmts.iter().last().map(|s| s.end().clone()).unwrap_or(TextPos::none());
-    Ok((r, Program { block: Block::new(stmts, TextRange::new(start_pos, end_pos)) }))
+    Ok((r, Program { block: Block::new(stmts, TextRange::new(start_pos, end_pos)), metadata: HashSet::new() }))
 }
 
 
@@ -178,9 +180,10 @@ pub fn parse_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inpu
 
     // Otherwise, parse one of the following statements
     branch::alt((
+        attribute_stmt,
+        attribute_inner_stmt,
         for_stmt,
         assign_stmt,
-        on_stmt,
         block_stmt,
         parallel_stmt,
         declare_class_stmt,
@@ -193,6 +196,121 @@ pub fn parse_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inpu
         while_stmt,
     ))
     .parse(input)
+}
+
+
+
+/// Parses the contents of an attribute.
+///
+/// For example:
+/// ```branescript
+/// foo = "bar"
+/// ```
+/// or
+/// ```branescript
+/// foo("bar", "baz")
+/// ```
+///
+/// # Arguments
+/// - `input`: The token stream that will be parsed.
+///
+/// # Returns
+/// A pair of remaining tokens and a parsed [`Attribute`].
+///
+/// # Errors
+/// This function may error if the tokens do not comprise a valid statement.
+pub fn attribute<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Attribute, E> {
+    trace!("Attempting to parse Attribute");
+
+    // Parse the possible attribute variants
+    comb::cut(branch::alt((
+        comb::map(
+            seq::separated_pair(identifier::parse, tag_token!(Token::Equal), comb::cut(literal::parse)),
+            |(key, value): (Identifier, Literal)| {
+                let range: TextRange = TextRange::new(value.start().clone(), value.end().clone());
+                Attribute::KeyPair { key, value, range }
+            },
+        ),
+        comb::map(
+            seq::tuple((
+                identifier::parse,
+                tag_token!(Token::LeftParen),
+                comb::cut(seq::pair(multi::separated_list1(tag_token!(Token::Comma), literal::parse), tag_token!(Token::RightParen))),
+            )),
+            |(key, lparen, (values, rparen)): (Identifier, Tokens, (Vec<Literal>, Tokens))| {
+                let range: TextRange = TextRange::new(TextPos::from(lparen.tok[0].inner()), TextPos::end_of(rparen.tok[0].inner()));
+                Attribute::List { key, values, range }
+            },
+        ),
+    )))
+    .parse(input)
+}
+
+/// Parses an attribute-statement that annotates something from outside.
+///
+/// For example:
+/// ```branescript
+/// #[foo = "bar"]
+/// ```
+///
+/// # Arguments
+/// - `input`: The token stream that will be parsed.
+///
+/// # Returns
+/// A pair of remaining tokens and a parsed [`Stmt::Attribute`].
+///
+/// # Errors
+/// This function may error if the tokens do not comprise a valid statement.
+pub fn attribute_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+    trace!("Attempting to parse Attribute-statement");
+
+    // Parse the hashtag and opening square bracket, the attribute and the closing bracket
+    let (r, p) = tag_token!(Token::Pound).parse(input)?;
+    let (r, _) = tag_token!(Token::LeftBracket).parse(r)?;
+    let (r, (mut attr, b)): (Tokens, (Attribute, Tokens)) = comb::cut(seq::pair(attribute, tag_token!(Token::RightBracket))).parse(r)?;
+
+    // Update the ranges
+    match &mut attr {
+        Attribute::KeyPair { range, .. } => *range = TextRange::new(TextPos::from(p.tok[0].inner()), TextPos::end_of(b.tok[0].inner())),
+        Attribute::List { range, .. } => *range = TextRange::new(TextPos::from(p.tok[0].inner()), TextPos::end_of(b.tok[0].inner())),
+    }
+
+    // Return the parsed attribute
+    Ok((r, Stmt::Attribute(attr)))
+}
+
+/// Parses an attribute-statement that annotates something from within.
+///
+/// For example:
+/// ```branescript
+/// #![foo = "bar"]
+/// ```
+///
+/// # Arguments
+/// - `input`: The token stream that will be parsed.
+///
+/// # Returns
+/// A pair of remaining tokens and a parsed `Stmt::AttributeInner`.
+///
+/// # Errors
+/// This function may error if the tokens do not comprise a valid statement.
+pub fn attribute_inner_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+    trace!("Attempting to parse AttributeInner-statement");
+
+    // Parse the hashtag and opening square bracket, the attribute and the closing bracket
+    let (r, p) = tag_token!(Token::Pound).parse(input)?;
+    let (r, _) = tag_token!(Token::Not).parse(r)?;
+    let (r, _) = tag_token!(Token::LeftBracket).parse(r)?;
+    let (r, (mut attr, b)): (Tokens, (Attribute, Tokens)) = comb::cut(seq::pair(attribute, tag_token!(Token::RightBracket))).parse(r)?;
+
+    // Update the ranges
+    match &mut attr {
+        Attribute::KeyPair { range, .. } => *range = TextRange::new(TextPos::from(p.tok[0].inner()), TextPos::end_of(b.tok[0].inner())),
+        Attribute::List { range, .. } => *range = TextRange::new(TextPos::from(p.tok[0].inner()), TextPos::end_of(b.tok[0].inner())),
+    }
+
+    // Return the parsed attribute
+    Ok((r, Stmt::AttributeInner(attr)))
 }
 
 
@@ -254,38 +372,6 @@ pub fn assign_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inp
     Ok((r, Stmt::new_assign(name, value, range)))
 }
 
-/// Parses an on-statement.
-///
-/// For example:
-/// ```branescript
-/// on "SURF" {
-///     print("Hello there!");
-/// }
-/// ```
-///
-/// # Arguments
-/// - `input`: The token stream that will be parsed.
-///
-/// # Returns
-/// A pair of remaining tokens and a parsed `Stmt::On`.
-///
-/// # Errors
-/// This function may error if the tokens do not comprise a valid statement.
-pub fn on_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
-    trace!("Attempting to parse On-statement");
-
-    // Parse the 'on' first
-    let (r, o) = tag_token!(Token::On).parse(input)?;
-    // Parse the location
-    let (r, location) = comb::cut(expression::parse).parse(r)?;
-    // Then, parse the body of the statement
-    let (r, block) = block(r)?;
-
-    // Put it in an on and done
-    let range: TextRange = TextRange::new(o.tok[0].inner().into(), block.end().clone());
-    Ok((r, Stmt::On { location, block: Box::new(block), range }))
-}
-
 /// Parses a Block-statement.
 ///
 /// For example:
@@ -333,9 +419,6 @@ pub fn block_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inpu
 pub fn parallel_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
     trace!("Attempting to parse Parallel-statement");
 
-    // Quick helper function that parses either an on- or a block statement
-    let block_or_on = |input| branch::alt((on_stmt, block_stmt)).parse(input);
-
     // Plausibly, parse a preceded part
     let (r, l) = comb::opt(tag_token!(Token::Let)).parse(input)?;
     let (r, identifier) = comb::opt(seq::terminated(identifier::parse, tag_token!(Token::Assign))).parse(r)?;
@@ -345,9 +428,9 @@ pub fn parallel_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(i
     // Parse the optional merge strategy
     let (r, m) = comb::opt(seq::delimited(tag_token!(Token::LeftBracket), identifier::parse, comb::cut(tag_token!(Token::RightBracket)))).parse(r)?;
     // Do the body then
-    let (r, blocks): (Tokens<'a>, Option<(Stmt, Vec<Stmt>)>) = comb::cut(seq::delimited(
+    let (r, blocks): (Tokens<'a>, Option<(Block, Vec<Block>)>) = comb::cut(seq::delimited(
         tag_token!(Token::LeftBracket),
-        comb::opt(seq::pair(block_or_on, multi::many0(seq::preceded(tag_token!(Token::Comma), block_or_on)))),
+        comb::opt(seq::pair(block, multi::many0(seq::preceded(tag_token!(Token::Comma), block)))),
         tag_token!(Token::RightBracket),
     ))
     .parse(r)?;
@@ -357,9 +440,9 @@ pub fn parallel_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(i
     // Flatten the blocks
     let blocks = blocks
         .map(|(h, e)| {
-            let mut res: Vec<Box<Stmt>> = Vec::with_capacity(1 + e.len());
-            res.push(Box::new(h));
-            res.append(&mut e.into_iter().map(Box::new).collect());
+            let mut res: Vec<Block> = Vec::with_capacity(1 + e.len());
+            res.push(h);
+            res.extend(e);
             res
         })
         .unwrap_or_default();
@@ -511,7 +594,7 @@ pub fn if_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: 
     // Put it in a Stmt::If and done
     let range: TextRange =
         TextRange::new(f.tok[0].inner().into(), alternative.as_ref().map(|b| b.end().clone()).unwrap_or_else(|| consequent.end().clone()));
-    Ok((r, Stmt::If { cond, consequent: Box::new(consequent), alternative: alternative.map(Box::new), range }))
+    Ok((r, Stmt::If { cond, consequent: Box::new(consequent), alternative: alternative.map(Box::new), attrs: vec![], range }))
 }
 
 /// Parses an import-statement.
@@ -607,7 +690,14 @@ pub fn for_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input:
 
     // Hey-ho, let's go put it in a struct
     let range: TextRange = TextRange::new(f.tok[0].inner().into(), consequent.end().clone());
-    Ok((r, Stmt::For { initializer: Box::new(initializer), condition, increment: Box::new(increment), consequent: Box::new(consequent), range }))
+    Ok((r, Stmt::For {
+        initializer: Box::new(initializer),
+        condition,
+        increment: Box::new(increment),
+        consequent: Box::new(consequent),
+        attrs: vec![],
+        range,
+    }))
 }
 
 /// Parses a while-loop.
@@ -638,7 +728,7 @@ pub fn while_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inpu
 
     // Return it as a result
     let range: TextRange = TextRange::new(w.tok[0].inner().into(), consequent.end().clone());
-    Ok((r, Stmt::While { condition, consequent: Box::new(consequent), range }))
+    Ok((r, Stmt::While { condition, consequent: Box::new(consequent), attrs: vec![], range }))
 }
 
 /// Parses a return-statement.

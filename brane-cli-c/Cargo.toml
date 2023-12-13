@@ -8,7 +8,7 @@ description = "Wrapper around `brane-cli` that provides C-bindings for interacti
 
 [lib]
 name       = "brane_cli"
-crate-type = ["rlib", "cdylib"]
+crate-type = ["cdylib"]
 doc        = false
 
 

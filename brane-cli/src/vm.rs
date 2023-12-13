@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:34:05
 //  Last edited:
-//    07 Nov 2023, 16:34:53
+//    13 Dec 2023, 08:29:14
 //  Auto updated?
 //    Yes
 //
@@ -376,10 +376,12 @@ impl OfflineVm {
     pub async fn exec(self, workflow: Workflow) -> (Self, Result<FullValue, Error>) {
         // Step 1: Plan
         let plan: Result<Workflow, Error> = {
-            let state: RwLockReadGuard<GlobalState> = self.state.global.read().unwrap();
+            let planner: OfflinePlanner = {
+                let state: RwLockReadGuard<GlobalState> = self.state.global.read().unwrap();
 
-            // Plan with the previous results
-            let planner: OfflinePlanner = OfflinePlanner::new(state.dindex.clone(), state.results.clone());
+                // Plan with the previous results
+                OfflinePlanner::new(state.dindex.clone(), state.results.clone())
+            };
             match planner.plan(workflow).await {
                 Ok(plan) => Ok(plan),
                 Err(err) => Err(Error::PlanError { err }),

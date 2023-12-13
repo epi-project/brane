@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 15:24:54
 //  Last edited:
-//    01 Nov 2023, 16:42:51
+//    12 Dec 2023, 17:13:11
 //  Auto updated?
 //    Yes
 //
@@ -17,11 +17,12 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use brane_dsl::ast::{Block, Expr, Identifier, Literal, Node, Program, Stmt};
+use brane_dsl::ast::{Block, Expr, Identifier, Node, Program, Stmt};
 use brane_dsl::data_type::{ClassSignature, FunctionSignature};
 use brane_dsl::spec::MergeStrategy;
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, SymbolTableEntry, VarEntry};
 use brane_dsl::{DataType, SymbolTable, TextRange};
+use enum_debug::EnumDebug as _;
 use log::trace;
 use specifications::data::DataIndex;
 use specifications::package::{PackageIndex, PackageInfo};
@@ -95,21 +96,6 @@ pub mod tests {
 
 
 
-/***** HELPER MACROS *****/
-/// Applies an offset to the given TextRange if it is not none.
-macro_rules! offset_range {
-    ($range:expr, $offset:expr) => {
-        if $range.is_some() {
-            $range.start.line += $offset;
-            $range.end.line += $offset;
-        }
-    };
-}
-
-
-
-
-
 /***** HELPER FUNCTIONS ******/
 /// Defines the arguments of the given FuncDef in the given symbol table.
 ///
@@ -126,18 +112,11 @@ macro_rules! offset_range {
 /// This function may error if the given symbol table already existed.
 ///
 /// If such an error occurred, then it is added to the given `errors` list. Some arguments may be undefined in that case.
-fn define_func(
-    state: &CompileState,
-    entry: &mut FunctionEntry,
-    params: &mut [Identifier],
-    symbol_table: &Rc<RefCell<SymbolTable>>,
-    errors: &mut Vec<Error>,
-) {
+fn define_func(entry: &mut FunctionEntry, params: &mut [Identifier], symbol_table: &Rc<RefCell<SymbolTable>>, errors: &mut Vec<Error>) {
     // Iterate to add them
     {
         let mut st: RefMut<SymbolTable> = symbol_table.borrow_mut();
         for p in params.iter_mut() {
-            offset_range!(p.range, state.offset);
             match st.add_var(VarEntry::from_param(&p.value, &entry.name, p.range().clone())) {
                 Ok(e) => {
                     entry.params.push(e);
@@ -186,9 +165,6 @@ fn pass_block(
     parent: Option<Rc<RefCell<SymbolTable>>>,
     errors: &mut Vec<Error>,
 ) {
-    // Update the block's range
-    offset_range!(block.range, state.offset);
-
     // Set the parent for this block's symbol table
     {
         let mut st: RefMut<SymbolTable> = block.table.borrow_mut();
@@ -233,17 +209,12 @@ fn pass_stmt(
     // Match on the exact statement
     use Stmt::*;
     match stmt {
-        Block { block, .. } => {
+        Block { block } => {
             // Blocks require renewed evaluation
             pass_block(state, package_index, data_index, block, Some(symbol_table.clone()), errors);
         },
 
-        Import { ref mut name, version, ref mut st_funcs, ref mut st_classes, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(name.range, state.offset);
-            offset_range!(range, state.offset);
-            pass_literal(state, version);
-
+        Import { name, version, st_funcs, st_classes, attrs: _, range } => {
             // First: parse the version
             let semver: Version = match version.as_version() {
                 Ok(version) => version,
@@ -335,14 +306,10 @@ fn pass_stmt(
             *st_funcs = Some(funcs);
             *st_classes = Some(classes);
         },
-        FuncDef { ref mut ident, ref mut params, code, ref mut st_entry, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(ident.range, state.offset);
-            offset_range!(range, state.offset);
-
+        FuncDef { ident, params, code, st_entry, attrs: _, range } => {
             // Prepare the entry
             let mut entry: FunctionEntry = FunctionEntry::from_def(&ident.value, range.clone());
-            define_func(state, &mut entry, params, &code.table, errors);
+            define_func(&mut entry, params, &code.table, errors);
 
             // We can then add the function definition to the given symbol table
             {
@@ -361,11 +328,7 @@ fn pass_stmt(
             // Now go and populate the rest of its symbol table in the function body.
             pass_block(state, package_index, data_index, code, Some(symbol_table.clone()), errors);
         },
-        ClassDef { ref mut ident, ref mut props, ref mut methods, ref mut st_entry, symbol_table: c_symbol_table, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(ident.range, state.offset);
-            offset_range!(range, state.offset);
-
+        ClassDef { ident, props, methods, st_entry, symbol_table: c_symbol_table, attrs: _, range } => {
             // First, we generate the class entry as complete as we can
             // 1. Prepare the class' symbol table
             {
@@ -377,9 +340,6 @@ fn pass_stmt(
                 // Add each of the properties in this class
                 let st: Ref<SymbolTable> = symbol_table.borrow();
                 for p in props.iter_mut() {
-                    offset_range!(p.range, state.offset);
-                    offset_range!(p.name.range, state.offset);
-
                     // Check if the data type exists if it references another class
                     if let DataType::Class(c_name) = &p.data_type {
                         if st.get_class(c_name).is_none() {
@@ -402,17 +362,7 @@ fn pass_stmt(
 
                 // Add definitions for each of its functions
                 for m in methods.iter_mut() {
-                    if let Stmt::FuncDef {
-                        ident: m_ident,
-                        params: m_params,
-                        code: m_code,
-                        st_entry: ref mut m_st_entry,
-                        range: ref mut m_range,
-                        ..
-                    } = &mut **m
-                    {
-                        offset_range!(m_range, state.offset);
-
+                    if let Stmt::FuncDef { ident: m_ident, params: m_params, code: m_code, st_entry: m_st_entry, range: m_range, .. } = &mut **m {
                         // First, check if its name does not overlap with a property (i.e., we want one namespace for a class)
                         if let Some(p) = cst.get_var(&m_ident.value) {
                             errors.push(Error::DuplicateMethodAndProperty {
@@ -444,7 +394,7 @@ fn pass_stmt(
 
                         // If it passes those checks, we create an entry for it
                         let mut entry: FunctionEntry = FunctionEntry::from_method(m_ident.value.clone(), &ident.value, m_range.clone());
-                        define_func(state, &mut entry, m_params, &m_code.table, errors);
+                        define_func(&mut entry, m_params, &m_code.table, errors);
                         m_code.table.borrow_mut().parent = Some(symbol_table.clone());
 
                         // Add it to the class' table
@@ -490,20 +440,14 @@ fn pass_stmt(
 
             // Done; we added a full class entry and recursed
         },
-        Return { expr, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(range, state.offset);
-
+        Return { expr, data_type: _, output: _, attrs: _, range: _ } => {
             // Traverse the expression to resolve any references (by the time we reach it, the symbol table should already be sufficiently populated)
             if let Some(expr) = expr {
                 pass_expr(state, data_index, expr, symbol_table, errors);
             }
         },
 
-        If { cond, consequent, alternative, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(range, state.offset);
-
+        If { cond, consequent, alternative, attrs: _, range: _ } => {
             // Recurse into the condition
             pass_expr(state, data_index, cond, symbol_table, errors);
 
@@ -513,10 +457,7 @@ fn pass_stmt(
                 pass_block(state, package_index, data_index, alternative, Some(symbol_table.clone()), errors);
             }
         },
-        For { initializer, condition, increment, consequent, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(range, state.offset);
-
+        For { initializer, condition, increment, consequent, attrs: _, range: _ } => {
             // Set the parent for the nested block's symbol table
             {
                 let mut st: RefMut<SymbolTable> = consequent.table.borrow_mut();
@@ -533,31 +474,15 @@ fn pass_stmt(
                 pass_stmt(state, package_index, data_index, s, &consequent.table, errors);
             }
         },
-        While { condition, consequent, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(range, state.offset);
-
+        While { condition, consequent, attrs: _, range: _ } => {
             // Recurse into the while-part first
             pass_expr(state, data_index, condition, symbol_table, errors);
             // Recurse into the block
             pass_block(state, package_index, data_index, consequent, Some(symbol_table.clone()), errors);
         },
-        On { location, block, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(range, state.offset);
-
-            // Recurse into the location first
-            pass_expr(state, data_index, location, symbol_table, errors);
-            // Recurse into the block
-            pass_block(state, package_index, data_index, block, Some(symbol_table.clone()), errors);
-        },
-        Parallel { ref mut result, blocks, ref mut merge, ref mut st_entry, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(range, state.offset);
-
+        Parallel { result, blocks, merge, st_entry, attrs: _, range } => {
             // First, very silly, but double-check the merge is parseable
             if let Some(merge) = merge {
-                offset_range!(merge.range, state.offset);
                 if let MergeStrategy::None = MergeStrategy::from(&merge.value) {
                     errors.push(Error::UnknownMergeStrategy { raw: merge.value.clone(), range: merge.range.clone() });
                 }
@@ -565,13 +490,11 @@ fn pass_stmt(
 
             // Now recurse into the codeblocks to resolve their references too
             for b in blocks {
-                pass_stmt(state, package_index, data_index, b, symbol_table, errors);
+                pass_block(state, package_index, data_index, b, Some(symbol_table.clone()), errors);
             }
 
             // If present, declare the result as last
             if let Some(result) = result {
-                offset_range!(result.range, state.offset);
-
                 // Attempt to declare the identifier
                 let mut st: RefMut<SymbolTable> = symbol_table.borrow_mut();
                 match st.add_var(VarEntry::from_def(&result.value, range.clone())) {
@@ -585,11 +508,7 @@ fn pass_stmt(
             }
         },
 
-        LetAssign { ref mut name, value, ref mut st_entry, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(name.range, state.offset);
-            offset_range!(range, state.offset);
-
+        LetAssign { name, value, st_entry, attrs: _, range } => {
             // Recursestate,  into the expression to resolve any reference there
             pass_expr(state, data_index, value, symbol_table, errors);
 
@@ -604,11 +523,7 @@ fn pass_stmt(
                 },
             }
         },
-        Assign { ref mut name, value, ref mut st_entry, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(name.range, state.offset);
-            offset_range!(range, state.offset);
-
+        Assign { name, value, st_entry, attrs: _, range: _ } => {
             // Recurse into the expression to resolve any reference there
             pass_expr(state, data_index, value, symbol_table, errors);
 
@@ -623,16 +538,14 @@ fn pass_stmt(
                 },
             }
         },
-        Expr { expr, ref mut range, .. } => {
-            // Update the block's range
-            offset_range!(range, state.offset);
-
+        Expr { expr, data_type: _, attrs: _, range: _ } => {
             // Simply recurse
             pass_expr(state, data_index, expr, symbol_table, errors);
         },
 
         // We ignore the rest
-        _ => {},
+        Empty {} => {},
+        Attribute(_) | AttributeInner(_) => panic!("Encountered {:?} in resolve traversal", stmt.variant()),
     }
 
     // We're done here
@@ -658,21 +571,15 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
     // Match on the exact expression
     use Expr::*;
     match expr {
-        Cast { expr, ref mut range, .. } => {
-            // Update the expr's range
-            offset_range!(range, state.offset);
-
+        Cast { expr, target: _, range: _ } => {
             pass_expr(state, data_index, expr, symbol_table, errors);
         },
 
-        Call { expr, args, ref mut range, .. } => {
-            // Update the expr's range
-            offset_range!(range, state.offset);
-
+        Call { expr, args, st_entry: _, locations: _, input: _, result: _, metadata: _, range: _ } => {
             // Simply recurse the called expression
             pass_expr(state, data_index, expr, symbol_table, errors);
             // If it's an identifier, set its entry to which function it is referring
-            if let brane_dsl::ast::Expr::Identifier { name, ref mut st_entry, .. } = &mut **expr {
+            if let brane_dsl::ast::Expr::Identifier { name, st_entry, .. } = &mut **expr {
                 // Search the name
                 let st: Ref<SymbolTable> = symbol_table.borrow();
                 match st.get_func(&name.value) {
@@ -700,52 +607,34 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
                 pass_expr(state, data_index, a, symbol_table, errors);
             }
         },
-        Array { values, ref mut range, .. } => {
-            // Update the expr's range
-            offset_range!(range, state.offset);
-
+        Array { values, data_type: _, range: _ } => {
             // Simply recurse
             for v in values {
                 pass_expr(state, data_index, v, symbol_table, errors);
             }
         },
-        ArrayIndex { array, index, ref mut range, .. } => {
-            // Update the expr's range
-            offset_range!(range, state.offset);
-
+        ArrayIndex { array, index, data_type: _, range: _ } => {
             // Simply recurse
             pass_expr(state, data_index, array, symbol_table, errors);
             pass_expr(state, data_index, index, symbol_table, errors);
         },
-        Pattern { exprs, ref mut range, .. } => {
-            // Update the expr's range
-            offset_range!(range, state.offset);
-
+        Pattern { exprs, range: _ } => {
             // Simply recurse
             for e in exprs {
                 pass_expr(state, data_index, e, symbol_table, errors);
             }
         },
 
-        UnaOp { expr, ref mut range, .. } => {
-            // Update the expr's range
-            offset_range!(range, state.offset);
-
+        UnaOp { op: _, expr, range: _ } => {
             // Simply recurse
             pass_expr(state, data_index, expr, symbol_table, errors);
         },
-        BinOp { lhs, rhs, ref mut range, .. } => {
-            // Update the expr's range
-            offset_range!(range, state.offset);
-
+        BinOp { op: _, lhs, rhs, range: _ } => {
             // Simply recurse
             pass_expr(state, data_index, lhs, symbol_table, errors);
             pass_expr(state, data_index, rhs, symbol_table, errors);
         },
-        Proj { lhs, rhs, ref mut st_entry, ref mut range, .. } => {
-            // Update the expr's range
-            offset_range!(range, state.offset);
-
+        Proj { lhs, rhs, st_entry, range: _ } => {
             // By design, the lhs is only Expr::VarRef or Expr::Proj
             // The rhs is only Expr::Identifier
 
@@ -854,11 +743,7 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
             }
         },
 
-        Instance { ref mut name, ref mut properties, ref mut st_entry, ref mut range, .. } => {
-            // Update the expr's range
-            offset_range!(name.range, state.offset);
-            offset_range!(range, state.offset);
-
+        Instance { name, properties, st_entry, range: _ } => {
             // First, attempt to resolve the class name
             {
                 let st: Ref<SymbolTable> = symbol_table.borrow();
@@ -876,9 +761,6 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
             // Next, iterate over the properties to resolve those expressions
             let entry: Ref<ClassEntry> = st_entry.as_ref().unwrap().borrow();
             for p in properties.iter_mut() {
-                offset_range!(p.range, state.offset);
-                offset_range!(p.name.range, state.offset);
-
                 // But first, double-check this property is actually present in the type (since this type resolving does not require extra type checking)
                 if entry.symbol_table.borrow().get_var(&p.name.value).is_none() {
                     errors.push(Error::UnknownField { class_name: name.value.clone(), name: p.name.value.clone(), range: p.name.range().clone() });
@@ -919,12 +801,12 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
                 // With the dataset resolved, we rest easy
             }
         },
-        Identifier { ref mut name, .. } => {
+        Identifier { name, st_entry: _ } => {
             // Update the expr's range
             name.range.start.line += state.offset;
             name.range.end.line += state.offset;
         },
-        VarRef { ref mut name, ref mut st_entry, .. } => {
+        VarRef { name, st_entry } => {
             // Update the expr's range
             name.range.start.line += state.offset;
             name.range.end.line += state.offset;
@@ -940,48 +822,12 @@ fn pass_expr(state: &CompileState, data_index: &DataIndex, expr: &mut Expr, symb
                 },
             }
         },
-        Literal { ref mut literal } => {
-            pass_literal(state, literal);
-        },
 
         // The rest is irrelevant for resolving the symbol tables
-        _ => {},
+        Literal { literal: _ } | Empty {} => {},
     }
 
     // We're done here
-}
-
-/// Passes literals, but only to update their internal ranges.
-///
-/// # Arguments
-/// - `state`:
-/// - `literal`: The Literal to pass.
-fn pass_literal(state: &CompileState, literal: &mut Literal) {
-    use Literal::*;
-    match literal {
-        Null { ref mut range, .. } => {
-            offset_range!(range, state.offset);
-        },
-        Boolean { ref mut range, .. } => {
-            offset_range!(range, state.offset);
-        },
-        Integer { ref mut range, .. } => {
-            offset_range!(range, state.offset);
-        },
-        Real { ref mut range, .. } => {
-            offset_range!(range, state.offset);
-        },
-        String { ref mut range, .. } => {
-            offset_range!(range, state.offset);
-        },
-        Semver { ref mut range, .. } => {
-            offset_range!(range, state.offset);
-        },
-
-        Void { ref mut range, .. } => {
-            offset_range!(range, state.offset);
-        },
-    }
 }
 
 
