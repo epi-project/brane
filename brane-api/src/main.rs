@@ -1,40 +1,36 @@
 //  MAIN.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    17 Oct 2022, 15:15:36
 //  Last edited:
-//    16 Mar 2023, 16:56:25
+//    03 Jan 2024, 14:37:08
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Entrypoint to the `brane-job` service.
-// 
+//
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use clap::Parser;
-use dotenvy::dotenv;
-use juniper::EmptySubscription;
-use log::{debug, error, info, LevelFilter};
-use scylla::{Session, SessionBuilder};
-use warp::Filter;
-
+use brane_api::errors::ApiError;
+use brane_api::schema::{Mutations, Query, Schema};
+use brane_api::spec::Context;
+use brane_api::{data, health, infra, packages, version};
 use brane_cfg::info::Info as _;
 use brane_cfg::node::{CentralConfig, NodeConfig};
 use brane_prx::client::ProxyClient;
-
-use brane_api::errors::ApiError;
-use brane_api::spec::Context;
-use brane_api::schema::{Mutations, Query, Schema};
-use brane_api::health;
-use brane_api::version;
-use brane_api::infra;
-use brane_api::data;
-use brane_api::packages;
+use clap::Parser;
+use dotenvy::dotenv;
+use error_trace::trace;
+use juniper::EmptySubscription;
+use log::{debug, error, info, warn, LevelFilter};
+use scylla::{Session, SessionBuilder};
+use tokio::signal::unix::{signal, Signal, SignalKind};
+use warp::Filter;
 
 
 /***** ARGUMENTS *****/
@@ -43,11 +39,18 @@ use brane_api::packages;
 struct Opts {
     /// Print debug info
     #[clap(short, long, env = "DEBUG")]
-    debug : bool,
+    debug: bool,
 
     /// Load everything from the node.yml file
-    #[clap(short, long, default_value = "/node.yml", help = "The path to the node environment configuration. This defines things such as where local services may be found or where to store files, as wel as this service's service address.", env = "NODE_CONFIG_PATH")]
-    node_config_path : PathBuf,
+    #[clap(
+        short,
+        long,
+        default_value = "/node.yml",
+        help = "The path to the node environment configuration. This defines things such as where local services may be found or where to store \
+                files, as wel as this service's service address.",
+        env = "NODE_CONFIG_PATH"
+    )]
+    node_config_path: PathBuf,
 }
 
 
@@ -75,14 +78,17 @@ async fn main() {
     debug!("Loading node.yml file '{}'...", opts.node_config_path.display());
     let node_config: NodeConfig = match NodeConfig::from_path(&opts.node_config_path) {
         Ok(config) => config,
-        Err(err)   => {
+        Err(err) => {
             error!("Failed to load NodeConfig file: {}", err);
             std::process::exit(1);
         },
     };
     let central: CentralConfig = match node_config.node.try_into_central() {
         Some(central) => central,
-        None          => { error!("Given NodeConfig file '{}' does not have properties for a worker node.", opts.node_config_path.display()); std::process::exit(1); },
+        None => {
+            error!("Given NodeConfig file '{}' does not have properties for a worker node.", opts.node_config_path.display());
+            std::process::exit(1);
+        },
     };
 
     // Configure Scylla.
@@ -93,24 +99,27 @@ async fn main() {
         .build()
         .await
     {
-        Ok(scylla)  => scylla,
-        Err(reason) => { error!("{}", ApiError::ScyllaConnectError{ host: central.services.aux_scylla.address, err: reason }); std::process::exit(-1); }
+        Ok(scylla) => scylla,
+        Err(reason) => {
+            error!("{}", ApiError::ScyllaConnectError { host: central.services.aux_scylla.address, err: reason });
+            std::process::exit(-1);
+        },
     };
     debug!("Connected successfully.");
 
     debug!("Ensuring keyspace & database...");
-    if let Err(err) = ensure_db_keyspace(&scylla).await { error!("Failed to ensure database keyspace: {}", err) };
-    if let Err(err) = packages::ensure_db_table(&scylla).await { error!("Failed to ensure database table: {}", err) };
+    if let Err(err) = ensure_db_keyspace(&scylla).await {
+        error!("Failed to ensure database keyspace: {}", err)
+    };
+    if let Err(err) = packages::ensure_db_table(&scylla).await {
+        error!("Failed to ensure database table: {}", err)
+    };
 
     // Configure Juniper.
-    let node_config_path : PathBuf          = opts.node_config_path;
-    let scylla                              = Arc::new(scylla);
-    let proxy            : Arc<ProxyClient> = Arc::new(ProxyClient::new(central.services.prx.address()));
-    let context = warp::any().map(move || Context {
-        node_config_path : node_config_path.clone(),
-        scylla           : scylla.clone(),
-        proxy            : proxy.clone(),
-    });
+    let node_config_path: PathBuf = opts.node_config_path;
+    let scylla = Arc::new(scylla);
+    let proxy: Arc<ProxyClient> = Arc::new(ProxyClient::new(central.services.prx.address()));
+    let context = warp::any().map(move || Context { node_config_path: node_config_path.clone(), scylla: scylla.clone(), proxy: proxy.clone() });
 
     let schema = Schema::new(Query {}, Mutations {}, EmptySubscription::new());
     let graphql_filter = juniper_warp::make_graphql_filter(schema, context.clone().boxed());
@@ -118,12 +127,7 @@ async fn main() {
 
     // Configure Warp.
     // Configure the data one
-    let list_datasets = warp::path("data")
-        .and(warp::path("info"))
-        .and(warp::path::end())
-        .and(warp::get())
-        .and(context.clone())
-        .and_then(data::list);
+    let list_datasets = warp::path("data").and(warp::path("info")).and(warp::path::end()).and(warp::get()).and(context.clone()).and_then(data::list);
     let get_dataset = warp::path("data")
         .and(warp::path("info"))
         .and(warp::path::param())
@@ -150,12 +154,8 @@ async fn main() {
     let packages = download_package.or(upload_package);
 
     // Configure infra
-    let list_registries = warp::get()
-        .and(warp::path("infra"))
-        .and(warp::path("registries"))
-        .and(warp::path::end())
-        .and(context.clone())
-        .and_then(infra::registries);
+    let list_registries =
+        warp::get().and(warp::path("infra")).and(warp::path("registries")).and(warp::path::end()).and(context.clone()).and_then(infra::registries);
     let get_registry = warp::get()
         .and(warp::path("infra"))
         .and(warp::path("registries"))
@@ -171,24 +171,43 @@ async fn main() {
         .and(context.clone())
         .and_then(infra::get_capabilities);
     let infra = get_registry.or(list_registries.or(get_capabilities));
-    
+
     // Configure the health & version
-    let health = warp::path("health")
-        .and(warp::path::end())
-        .and_then(health::handle);
-    let version = warp::path("version")
-        .and(warp::path::end())
-        .and_then(version::handle);
+    let health = warp::path("health").and(warp::path::end()).and_then(health::handle);
+    let version = warp::path("version").and(warp::path::end()).and_then(version::handle);
 
     // Construct the final routes
     let routes = data.or(packages.or(infra.or(health.or(version.or(graphql))))).with(warp::log("brane-api"));
 
     // Run the server
-    warp::serve(routes).run(central.services.api.bind).await;
+    match warp::serve(routes).try_bind_with_graceful_shutdown(central.services.api.bind, async {
+        // Register a SIGTERM handler to be Docker-friendly
+        let mut handler: Signal = match signal(SignalKind::terminate()) {
+            Ok(handler) => handler,
+            Err(err) => {
+                error!("{}", trace!(("Failed to register SIGTERM signal handler"), err));
+                warn!("Service will NOT shutdown gracefully on SIGTERM");
+                loop {
+                    tokio::time::sleep(Duration::from_secs(24 * 3600)).await;
+                }
+            },
+        };
+
+        // Wait until we receive such a signal after which we terminate the server
+        handler.recv().await;
+        info!("Received SIGTERM, shutting down gracefully...");
+    }) {
+        Ok((addr, srv)) => {
+            info!("Now serving @ '{addr}'");
+            srv.await
+        },
+        Err(err) => {
+            error!("{}", trace!(("Failed to serve at '{}'", central.services.api.bind), err));
+            std::process::exit(1);
+        },
+    }
 }
 
-///
-///
 ///
 pub async fn ensure_db_keyspace(scylla: &Session) -> Result<scylla::QueryResult, scylla::transport::errors::QueryError> {
     let query = r#"

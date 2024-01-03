@@ -17,23 +17,37 @@ services:
   brane-prx:
     image: brane-prx:${BRANE_VERSION:-latest}
     container_name: ${PRX_NAME:-brane-prx}
+    command: --debug
     restart: always
     volumes:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${PROXY:-}:${PROXY:-}
     - ${CERTS}:${CERTS}
 
+  # The service in charge of policy
+  brane-chk:
+    image: brane-chk:${BRANE_VERSION:-latest}
+    container_name: ${CHK_NAME:-brane-chk}
+    command: --debug
+    ports:
+    - "0.0.0.0:${CHK_PORT}:${CHK_PORT}"
+    restart: always
+    volumes:
+    - ${NODE_CONFIG_PATH}:/node.yml
+    - ${POLICY_DB}:/lib/policy/data/policy.db
+    # - ${POLICY_EXPERT_SECRET}:/examples/config/jwk_set.json
+
   # The service in charge of the local container- and data registry
   brane-reg:
     image: brane-reg:${BRANE_VERSION:-latest}
     container_name: ${REG_NAME:-brane-reg}
+    command: --debug
     ports:
     - "0.0.0.0:${REG_PORT}:${REG_PORT}"
     restart: always
     volumes:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${BACKEND}:${BACKEND}
-    - ${POLICIES}:${POLICIES}
     - ${CERTS}:${CERTS}
     - ${DATA}:${DATA}
     - ${RESULTS}:${RESULTS}
@@ -42,13 +56,13 @@ services:
   brane-job:
     image: brane-job:${BRANE_VERSION:-latest}
     container_name: ${JOB_NAME:-brane-job}
+    command: --debug
     ports:
     - "0.0.0.0:${JOB_PORT}:${JOB_PORT}"
     restart: always
     volumes:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${BACKEND}:${BACKEND}
-    - ${POLICIES}:${POLICIES}
     - ${CERTS}:${CERTS}
     - ${PACKAGES}:${PACKAGES}
     - ${DATA}:${DATA}

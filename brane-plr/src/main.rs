@@ -1,41 +1,39 @@
 //  MAIN.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    17 Oct 2022, 17:27:16
 //  Last edited:
-//    07 Jun 2023, 16:29:28
+//    03 Jan 2024, 14:25:26
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Entrypoint to the `brane-plr` service.
-// 
+//
 
 //  MAIN.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    30 Sep 2022, 16:10:59
 //  Last edited:
 //    17 Oct 2022, 17:27:08
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Entrypoint to the `brane-plr` service.
-// 
+//
 
 use std::path::PathBuf;
 
+use brane_cfg::info::Info as _;
+use brane_cfg::node::{CentralConfig, NodeConfig};
+use brane_plr::planner::planner_server;
 use clap::Parser;
 use dotenvy::dotenv;
 use log::{debug, error, info, LevelFilter};
-
-use brane_cfg::info::Info as _;
-use brane_cfg::node::{CentralConfig, NodeConfig};
-
-use brane_plr::planner::planner_server;
 
 
 /***** ARGUMENTS *****/
@@ -44,13 +42,20 @@ use brane_plr::planner::planner_server;
 struct Opts {
     /// Print debug info
     #[clap(short, long, action, help = "If given, prints additional logging information.", env = "DEBUG")]
-    debug    : bool,
+    debug:    bool,
     #[clap(short, long, default_value = "brane-drv", help = "The group ID of this service's consumer")]
-    group_id : String,
+    group_id: String,
 
     /// Node environment metadata store.
-    #[clap(short, long, default_value = "/node.yml", help = "The path to the node environment configuration. This defines things such as where local services may be found or where to store files, as wel as this service's service address.", env = "NODE_CONFIG_PATH")]
-    node_config_path : PathBuf,
+    #[clap(
+        short,
+        long,
+        default_value = "/node.yml",
+        help = "The path to the node environment configuration. This defines things such as where local services may be found or where to store \
+                files, as wel as this service's service address.",
+        env = "NODE_CONFIG_PATH"
+    )]
+    node_config_path: PathBuf,
 }
 
 
@@ -78,14 +83,17 @@ async fn main() {
     debug!("Loading node.yml file '{}'...", opts.node_config_path.display());
     let node_config: NodeConfig = match NodeConfig::from_path(&opts.node_config_path) {
         Ok(config) => config,
-        Err(err)   => {
+        Err(err) => {
             error!("Failed to load NodeConfig file: {}", err);
             std::process::exit(1);
         },
     };
     let config: CentralConfig = match node_config.node.try_into_central() {
         Some(config) => config,
-        None         => { error!("Presented with a non-central `node.yml` file (please adapt it to provide properties for a central node)"); std::process::exit(1); },
+        None => {
+            error!("Presented with a non-central `node.yml` file (please adapt it to provide properties for a central node)");
+            std::process::exit(1);
+        },
     };
 
     // We simply start a new planner, which takes over this function

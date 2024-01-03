@@ -17,6 +17,7 @@ LABEL org.opencontainers.image.source https://github.com/epi-project/brane
 RUN apt-get update && apt-get install -y \
     cmake \
     curl \
+    unzip \
  && rm -rf /var/lib/apt/lists/*
 
 # Copy over relevant crates & other files
@@ -26,7 +27,7 @@ COPY . /build
 # Build optimized binaries
 WORKDIR /build
 RUN --mount=type=cache,id=cargoidx,target=/usr/local/cargo/registry \
-    --mount=type=cache,id=cargocache,target=/build/target \
+    --mount=type=cache,id=branecache,target=/build/target \
     cargo build \
         --release \
         --package brane-api \
@@ -43,6 +44,19 @@ RUN --mount=type=cache,id=cargoidx,target=/usr/local/cargo/registry \
     && cp ./target/release/brane-prx /brane-prx \
     && cp ./target/release/brane-plr /brane-plr \
     && cp ./target/release/brane-reg /brane-reg
+
+# Fetch the reasoner code next
+WORKDIR /
+ARG REASONER_BRANCH=main
+ADD "http://github.com/epi-project/policy-reasoner/zipball/${REASONER_BRANCH}/" /policy-reasoner.zip
+RUN unzip /policy-reasoner.zip && mv /epi-project-policy-reasoner* /policy-reasoner
+
+# Compile it!
+WORKDIR /policy-reasoner
+RUN --mount=type=cache,id=cargoidx,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=reasonercache,target=/policy-reasoner/target \
+    cargo build --release \
+ && cp ./target/release/policy-reasoner /brane-chk
 
 # If ever run, run a shell
 WORKDIR /
@@ -161,3 +175,26 @@ COPY --from=build /brane-reg /brane-reg
 
 # Run the compiled executable as base
 ENTRYPOINT [ "./brane-reg" ]
+
+
+
+
+
+##### BRANE-CHK #####
+# This image contains the policy reasoner / checker!
+FROM ubuntu:22.04 AS brane-chk
+
+# Install deps
+RUN apt-get update && apt-get install -y \
+    sqlite3 \
+ && rm -rf /var/lib/apt/lists/*
+
+# Copy some config from the build stage
+COPY --from=build /policy-reasoner/examples/config/jwt_resolver.yaml /examples/config/jwt_resolver.yaml
+
+# Copy `policy-reasoner` from build stage
+COPY --from=build /brane-chk /brane-chk
+RUN chmod +x /brane-chk
+
+# Run the compiler executable as base
+ENTRYPOINT [ "/brane-chk" ]

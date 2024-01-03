@@ -19,6 +19,7 @@
 # This image defines the base image for all Brane service images.
 # Note: we don't do 20.04 because the skopeo alternative link has died
 # Note: we'd like to go to 22.04, but for now this is in conflict with OpenSSL
+# Note: actually we're doing 22.04 but using 21.10 repos
 FROM ubuntu:22.04 AS brane-base
 LABEL org.opencontainers.image.source https://github.com/epi-project/Brane
 
@@ -77,24 +78,6 @@ RUN chmod +x /brane-api
 
 # Run the compiled executable as base
 ENTRYPOINT [ "/brane-api", "--debug" ]
-
-
-
-
-
-##### BRANE-CLB #####
-# This image contains the Brane callback service.
-FROM brane-base AS brane-clb
-
-# Define the architecture argument
-ARG ARCH
- 
-# Copy `brane-clb` from build stage
-COPY ./.container-bins/$ARCH/brane-clb /brane-clb
-RUN chmod +x /brane-clb
-
-# Run the compiled executable as base
-ENTRYPOINT [ "/brane-clb", "--debug" ]
 
 
 

@@ -12,6 +12,8 @@ path = "src/main.rs"
 bollard = "0.14"
 clap = { version = "4.0.24", features = ["derive","env"] }
 console = "0.15"
+diesel = { version = "2.1", features = ["sqlite"] }
+diesel_migrations = "2.1"
 dirs-2 = "3.0"
 dotenvy = "0.15"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }

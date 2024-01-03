@@ -5,7 +5,7 @@
 # Created:
 #   09 Jun 2022, 12:20:28
 # Last edited:
-#   13 Dec 2023, 08:16:07
+#   03 Jan 2024, 13:34:59
 # Auto updated?
 #   Yes
 #
@@ -36,7 +36,7 @@ CENTRAL_SERVICES = [ "prx", "api", "drv", "plr" ]
 # At least, the ones we have to build.
 AUX_CENTRAL_SERVICES = [ "xenon" ]
 # List of services that live in a worker node in an instance
-WORKER_SERVICES = [ "prx", "job", "reg" ]
+WORKER_SERVICES = [ "prx", "job", "reg", "chk" ]
 # List of auxillary services in a worker node in an instance
 AUX_WORKER_SERVICES = []
 
@@ -3269,6 +3269,8 @@ debug: bool = False
 instance_srcs = {
     f"{svc}" : deduce_toml_src_dirs(f"./brane-{svc}/Cargo.toml")
     for svc in CENTRAL_SERVICES + WORKER_SERVICES
+    # Ignore services which we do not build from our source code
+    if svc != "chk"
 }
 for svc in instance_srcs:
     if instance_srcs[svc] is None: cancel(f"Could not auto-deduce '{svc}-image' dependencies")
@@ -3368,7 +3370,7 @@ targets = {
         description = "Build the Brane in-package executable, for use with the `build --init` command in the CLI. You may use '--containerized' to build it in a container."
     ),
     "instance" : VoidTarget("instance",
-        deps=[ f"{svc}-image" for svc in CENTRAL_SERVICES ] + [ f"{svc}-image" for svc in AUX_CENTRAL_SERVICES ],
+        deps=[ f"{svc}-image" for svc in CENTRAL_SERVICES ] + [ f"{svc}-image" for svc in AUX_CENTRAL_SERVICES if svc != "xenon" ],
         description="Builds the container images that comprise a central node in a Brane instance."
     ),
     "worker-instance" : VoidTarget("worker-instance",
@@ -3429,29 +3431,30 @@ targets = {
 
 # Generate some really repetitive entries
 for svc in CENTRAL_SERVICES + WORKER_SERVICES:
-    # Generate the service binary targets
-    targets[f"{svc}-binary-dev"] = CrateTarget(f"{svc}-binary-dev",
-        f"brane-{svc}", target="$RUST_ARCH-unknown-linux-musl", give_target_on_unspecified=True, force_dev=True, env={
-            "OPENSSL_DIR": "$CWD/" + OPENSSL_DIR, "OPENSSL_LIB_DIR": "$CWD/" + OPENSSL_DIR + "/lib", "RUSTFLAGS": "-C link-arg=-lgcc"
-        },
-        srcs_deps={ "openssl": OPENSSL_FILES },
-        dsts=[ f"./target/$RUST_ARCH-unknown-linux-musl/debug/brane-{svc}" ],
-        deps=[ "openssl" ],
-        description=f"Builds the brane-{svc} binary in development mode. Useful if you want to run it locally or build to a development image."
-    )
-    # Generate the matching install target
-    targets[f"install-{svc}-binary-dev"] = InstallTarget(f"install-{svc}-binary-dev",
-        f"./target/$RUST_ARCH-unknown-linux-musl/debug/brane-{svc}", f"./.container-bins/$ARCH/brane-{svc}",
-        dep=f"{svc}-binary-dev",
-        description=f"Installs the brane-{svc} debug binary to a separate location in the repo where Docker may access it."
-    )
+    # Generate the service binary targets for those that support it
+    if svc != "chk":
+        targets[f"{svc}-binary-dev"] = CrateTarget(f"{svc}-binary-dev",
+            f"brane-{svc}", target="$RUST_ARCH-unknown-linux-musl", give_target_on_unspecified=True, force_dev=True, env={
+                "OPENSSL_DIR": "$CWD/" + OPENSSL_DIR, "OPENSSL_LIB_DIR": "$CWD/" + OPENSSL_DIR + "/lib", "RUSTFLAGS": "-C link-arg=-lgcc"
+            },
+            srcs_deps={ "openssl": OPENSSL_FILES },
+            dsts=[ f"./target/$RUST_ARCH-unknown-linux-musl/debug/brane-{svc}" ],
+            deps=[ "openssl" ],
+            description=f"Builds the brane-{svc} binary in development mode. Useful if you want to run it locally or build to a development image."
+        )
+        # Generate the matching install target
+        targets[f"install-{svc}-binary-dev"] = InstallTarget(f"install-{svc}-binary-dev",
+            f"./target/$RUST_ARCH-unknown-linux-musl/debug/brane-{svc}", f"./.container-bins/$ARCH/brane-{svc}",
+            dep=f"{svc}-binary-dev",
+            description=f"Installs the brane-{svc} debug binary to a separate location in the repo where Docker may access it."
+        )
 
     # Generate the service image build target
     targets[f"{svc}-image"] = EitherTarget(f"{svc}-image-build",
         "dev", {
             False : ImageTarget(f"{svc}-image-release",
                 "./Dockerfile.rls", f"./target/release/brane-{svc}.tar", target=f"brane-{svc}",
-                srcs=typing.cast(typing.List[str], instance_srcs[svc]),
+                srcs=typing.cast(typing.List[str], instance_srcs[svc]) if svc != "chk" else [],
             ),
             True  : ImageTarget(f"{svc}-image-debug",
                 "./Dockerfile.dev", f"./target/debug/brane-{svc}.tar", target=f"brane-{svc}", build_args={ "ARCH": "$ARCH" },

@@ -11,13 +11,14 @@ dashmap = "5.4"
 dotenvy = "0.15"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
 env_logger = "0.10"
+error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
 futures-util = "0.3"
 log = "0.4"
 prost = "0.11"
 rdkafka = { version = "0.31", features = ["cmake-build"] }
 serde_json = "1"
 serde_json_any_key = "2.0.0"
-tokio = { version = "1", features = [] }
+tokio = { version = "1", default-features = false, features = ["macros", "rt", "signal"] }
 tokio-stream = "0.1"
 tonic = "0.9"
 

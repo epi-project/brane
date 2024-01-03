@@ -14,6 +14,12 @@ All notable changes to the Brane framework will be documented in this file.
 - `TEST_LOGGER` and `TEST_FILES` environment variables to any unit tests using `brane_shr::utilities::test_on_dsl_files*`.
   - If you give `TEST_LOGGER=1` or `TEST_LOGGER=true`, then it instantiates a `log`-capable logger ([humanlog](https://github.com/Lut99/humanlog-rs)).
   - If you give `TEST_FILES=<file1>[,<file2>[...]]`, then only the given files are tested instead of all in the `tests` folder. The files are matched by name, and then specifically an `end_of()`-call.
+- Integration with the [policy reasoner effort](https://github.com/epi-project/policy-reasoner) (see issue #60).
+  - Part of this is:
+    - Adding `branectl generate policy_db` to initialize the policy database file.
+    - Changing `policies` path in `node.yml` to `policy_database` file \[**breaking change**\].
+    - Removing `branectl generate policies` as the old file is no longer used \[**breaking change**\].
+- Graceful shutdown for instance services (`brane-api`, `brane-drv`, `brane-job`, `brane-plr`, `brane-reg`).
 
 ### Changed
 - The WIR no longer has a dynamic definition table, but simply a large table spanning all scopes.
@@ -21,6 +27,7 @@ All notable changes to the Brane framework will be documented in this file.
 - `branec` now uses [humanlog](https://github.com/Lut99/humanlog-rs) as logging backend for nicer messages.
 - `brane-drv` and `brane-plr` are now using Rust 2021 instead of Rust 2018.
 - BraneScript syntax to remove the `on`-structs, and instead using `on`-, `loc`- or `location`-attributes \[**breaking change**\].
+- The `checker` service entry in `node.yml` is now a private service instead of a public service \[**breaking change**\].
 
 ### Fixed
 - The BraneScript compiler hanging in an infinite loop in some cases.

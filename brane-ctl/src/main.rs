@@ -1,35 +1,36 @@
 //  MAIN.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    22 Oct 2023, 14:15:43
+//    03 Jan 2024, 15:41:43
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Entrypoint to the `branectl` executable.
-// 
+//
 
 use std::net::IpAddr;
 use std::path::PathBuf;
 
+use brane_cfg::proxy::{ForwardConfig, ProxyProtocol};
+use brane_ctl::spec::{
+    DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair, ResolvableNodeKind,
+    StartOpts, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
+};
+use brane_ctl::{download, generate, lifetime, packages, unpack, upgrade, wizard};
+use brane_shr::errors::ErrorTrace as _;
+use brane_tsk::docker::{ClientVersion, DockerOptions};
 use clap::{Parser, Subcommand};
 use dotenvy::dotenv;
 use humanlog::{DebugMode, HumanLogger};
 use log::error;
-
-use brane_cfg::proxy::{ForwardConfig, ProxyProtocol};
-use brane_shr::errors::ErrorTrace as _;
-use brane_tsk::docker::{ClientVersion, DockerOptions};
 use specifications::address::Address;
 use specifications::arch::Arch;
 use specifications::package::Capability;
 use specifications::version::Version;
-
-use brane_ctl::spec::{API_DEFAULT_VERSION, DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair, ResolvableNodeKind, StartOpts, StartSubcommand, VersionFix};
-use brane_ctl::{download, generate, lifetime, packages, unpack, upgrade, wizard};
 
 
 /***** ARGUMENTS *****/
@@ -38,18 +39,25 @@ use brane_ctl::{download, generate, lifetime, packages, unpack, upgrade, wizard}
 #[clap(name = "branectl", about = "The server-side Brane command-line interface.")]
 struct Arguments {
     /// If given, prints `info` and `debug` prints.
-    #[clap(long, global=true, help = "If given, prints additional information during execution.")]
-    debug       : bool,
+    #[clap(long, global = true, help = "If given, prints additional information during execution.")]
+    debug: bool,
     /// If given, prints `info`, `debug` and `trace` prints.
-    #[clap(long, global=true, conflicts_with = "debug", help = "If given, prints the largest amount of debug information as possible.")]
-    trace       : bool,
+    #[clap(long, global = true, conflicts_with = "debug", help = "If given, prints the largest amount of debug information as possible.")]
+    trace: bool,
     /// The path to the node config file to use.
-    #[clap(short, long, global=true, default_value = "./node.yml", help = "The 'node.yml' file that describes properties about the node itself (i.e., the location identifier, where to find directories, which ports to use, ...)")]
-    node_config : PathBuf,
+    #[clap(
+        short,
+        long,
+        global = true,
+        default_value = "./node.yml",
+        help = "The 'node.yml' file that describes properties about the node itself (i.e., the location identifier, where to find directories, \
+                which ports to use, ...)"
+    )]
+    node_config: PathBuf,
 
     /// The subcommand that can be run.
     #[clap(subcommand)]
-    subcommand : CtlSubcommand,
+    subcommand: CtlSubcommand,
 }
 
 /// Defines subcommands for the `branectl` tool.
@@ -72,59 +80,92 @@ enum CtlSubcommand {
     Data(Box<DataSubcommand>),
 
     #[clap(name = "start", about = "Starts the local node by loading and then launching (already compiled) image files.")]
-    Start{
+    Start {
         #[clap(short = 'S', long, default_value = "/var/run/docker.sock", help = "The path of the Docker socket to connect to.")]
-        docker_socket  : PathBuf,
+        docker_socket: PathBuf,
         #[clap(short = 'V', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The version of the Docker client API that we use to connect to the engine.")]
-        docker_version : ClientVersion,
+        docker_version: ClientVersion,
         /// The docker-compose command we run.
-        #[clap(short, global=true, long, default_value = "docker compose", help = "The command to use to run Docker Compose.")]
-        exe            : String,
+        #[clap(short, global = true, long, default_value = "docker compose", help = "The command to use to run Docker Compose.")]
+        exe: String,
         /// The docker-compose file that we start.
         #[clap(short, global=true, long, help = concat!("The docker-compose.yml file that defines the services to start. You can use '$NODE' to match either 'central' or 'worker', depending how we started. If omitted, will use the baked-in counterpart (although that only works for the default version, v", env!("CARGO_PKG_VERSION") , ")."))]
-        file           : Option<PathBuf>,
+        file: Option<PathBuf>,
 
         /// The specific Brane version to start.
         #[clap(short, long, default_value = env!("CARGO_PKG_VERSION"), help = "The Brane version to import.")]
-        version : Version,
+        version: Version,
 
         /// Sets the '$IMG_DIR' variable, which can easily switch the location of compiled binaries.
-        #[clap(long, global=true, default_value = "./target/release", conflicts_with = "skip_import", help = "Sets the image directory ($IMG_DIR) to use in the image flags of the `start` command.")]
-        image_dir   : PathBuf,
+        #[clap(
+            long,
+            global = true,
+            default_value = "./target/release",
+            conflicts_with = "skip_import",
+            help = "Sets the image directory ($IMG_DIR) to use in the image flags of the `start` command."
+        )]
+        image_dir:   PathBuf,
         /// If given, will use locally downloaded versions of the auxillary images.
-        #[clap(long, global=true, help="If given, will use downloaded .tar files of the auxillary images instead of pulling them from DockerHub. Essentially, this will change the default value of all auxillary image paths to 'Path<$IMG_DIR/aux-SVC.tar>', where 'SVC' is the specific service (e.g., 'scylla'). For more information, see the '--aux-scylla', '--aux-kafka' and '--aux-zookeeper' flags.")]
-        local_aux   : bool,
+        #[clap(
+            long,
+            global = true,
+            help = "If given, will use downloaded .tar files of the auxillary images instead of pulling them from DockerHub. Essentially, this will \
+                    change the default value of all auxillary image paths to 'Path<$IMG_DIR/aux-SVC.tar>', where 'SVC' is the specific service \
+                    (e.g., 'scylla'). For more information, see the '--aux-scylla', '--aux-kafka' and '--aux-zookeeper' flags."
+        )]
+        local_aux:   bool,
         /// Whether to skip importing images or not.
-        #[clap(long, global=true, help = "If given, skips the import of the images. This is useful if you have already loaded the images in your Docker daemon manually.")]
-        skip_import : bool,
+        #[clap(
+            long,
+            global = true,
+            help = "If given, skips the import of the images. This is useful if you have already loaded the images in your Docker daemon manually."
+        )]
+        skip_import: bool,
         /// The profile directory to mount, if any.
-        #[clap(short, long, help = "If given, mounts the '/logs/profile' directories in the instance container(s) to the same (given) directory on the host. Use this to effectively reach the profile files.")]
-        profile_dir : Option<PathBuf>,
+        #[clap(
+            short,
+            long,
+            help = "If given, mounts the '/logs/profile' directories in the instance container(s) to the same (given) directory on the host. Use \
+                    this to effectively reach the profile files."
+        )]
+        profile_dir: Option<PathBuf>,
 
         /// Defines the possible nodes and associated flags to start.
         #[clap(subcommand)]
-        kind : Box<StartSubcommand>,
+        kind: Box<StartSubcommand>,
     },
     #[clap(name = "stop", about = "Stops the local node if it is running.")]
     Stop {
         /// The docker-compose command we run.
         #[clap(short, long, default_value = "docker compose", help = "The command to use to run Docker Compose.")]
-        exe  : String,
+        exe:  String,
         /// The docker-compose file that we start.
         #[clap(short, long, help = concat!("The docker-compose.yml file that defines the services to stop. You can use '$NODE' to match either 'central' or 'worker', depending how we started. If omitted, will use the baked-in counterpart (although that only works for the default version, v", env!("CARGO_PKG_VERSION"), ")."))]
-        file : Option<PathBuf>,
+        file: Option<PathBuf>,
     },
 
     #[clap(name = "version", about = "Returns the version of this CTL tool and/or the local node.")]
     Version {
         #[clap(short, long, help = "If given, shows the architecture instead of the version when using '--ctl' or '--node'.")]
-        arch : bool,
-        #[clap(short, long, help = "Shows the kind of node (i.e., 'central' or 'worker') instead of the version. Only relevant when using '--node'.")]
-        kind : bool,
-        #[clap(long, help = "If given, shows the version of the CTL tool in an easy-to-be-parsed format. Note that, if given in combination with '--node', this one is always reported first.")]
-        ctl  : bool,
-        #[clap(long, help = "If given, shows the local node version in an easy-to-be-parsed format. Note that, if given in combination with '--ctl', this one is always reported second.")]
-        node : bool,
+        arch: bool,
+        #[clap(
+            short,
+            long,
+            help = "Shows the kind of node (i.e., 'central' or 'worker') instead of the version. Only relevant when using '--node'."
+        )]
+        kind: bool,
+        #[clap(
+            long,
+            help = "If given, shows the version of the CTL tool in an easy-to-be-parsed format. Note that, if given in combination with '--node', \
+                    this one is always reported first."
+        )]
+        ctl:  bool,
+        #[clap(
+            long,
+            help = "If given, shows the local node version in an easy-to-be-parsed format. Note that, if given in combination with '--ctl', this \
+                    one is always reported second."
+        )]
+        node: bool,
     },
 }
 
@@ -135,26 +176,45 @@ enum DownloadSubcommand {
     #[clap(name = "services", about = "Downloads all of the Brane service images from the GitHub repository to the local machine.")]
     Services {
         /// Whether to create any missing directories or not.
-        #[clap(short, long, global=true, help="If given, will automatically create missing directories.")]
-        fix_dirs : bool,
+        #[clap(short, long, global = true, help = "If given, will automatically create missing directories.")]
+        fix_dirs: bool,
         /// The directory to download them to.
-        #[clap(short, long, default_value="./target/release", global=true, help="The directory to download the images to. Note: if you leave it at the default, then you won't have to manually specify anything when running 'branectl start'.")]
-        path     : PathBuf,
+        #[clap(
+            short,
+            long,
+            default_value = "./target/release",
+            global = true,
+            help = "The directory to download the images to. Note: if you leave it at the default, then you won't have to manually specify anything \
+                    when running 'branectl start'."
+        )]
+        path:     PathBuf,
 
         /// The architecture for which to download the services.
-        #[clap(short, long, default_value="$LOCAL", global=true, help="The processor architecture for which to download the images. Specify '$LOCAL' to use the architecture of the current machine.")]
-        arch    : Arch,
+        #[clap(
+            short,
+            long,
+            default_value = "$LOCAL",
+            global = true,
+            help = "The processor architecture for which to download the images. Specify '$LOCAL' to use the architecture of the current machine."
+        )]
+        arch:    Arch,
         /// The version of the services to download.
         #[clap(short, long, default_value=env!("CARGO_PKG_VERSION"), global=true, help="The version of the images to download from GitHub. You can specify 'latest' to download the latest version (but that might be incompatible with this CTL version)")]
-        version : Version,
+        version: Version,
         /// Whether to overwrite existing images or not.
-        #[clap(short='F', long, global=true, help="If given, will overwrite services that are already there. Otherwise, these are not overwritten. Note that regardless, a download will still be performed.")]
-        force   : bool,
+        #[clap(
+            short = 'F',
+            long,
+            global = true,
+            help = "If given, will overwrite services that are already there. Otherwise, these are not overwritten. Note that regardless, a \
+                    download will still be performed."
+        )]
+        force:   bool,
 
         /// Whether to download the central or the worker VMs.
         #[clap(subcommand)]
-        kind : DownloadServicesSubcommand,
-    }
+        kind: DownloadServicesSubcommand,
+    },
 }
 
 /// Defines generate-related subcommands for the `branectl` tool.
@@ -164,118 +224,180 @@ enum GenerateSubcommand {
     #[clap(name = "node", about = "Generates a new 'node.yml' file at the location indicated by --node-config.")]
     Node {
         /// Defines one or more additional hostnames to define in the nested Docker container.
-        #[clap(short = 'H', long, help = "One or more additional hostnames to set in the spawned Docker containers. Should be given as '<hostname>:<ip>' pairs.")]
-        hosts : Vec<Pair<String, ':', IpAddr>>,
+        #[clap(
+            short = 'H',
+            long,
+            help = "One or more additional hostnames to set in the spawned Docker containers. Should be given as '<hostname>:<ip>' pairs."
+        )]
+        hosts: Vec<Pair<String, ':', IpAddr>>,
 
         /// If given, will generate missing directories instead of throwing errors.
-        #[clap(short='f', long, help = " If given, will generate any missing directories.")]
-        fix_dirs    : bool,
+        #[clap(short = 'f', long, help = " If given, will generate any missing directories.")]
+        fix_dirs:    bool,
         /// Custom config path.
-        #[clap(short='C', long, default_value = "./config", help = "A common ancestor for --infra-path, --secrets-path and --certs-path. See their descriptions for more info.")]
-        config_path : PathBuf,
+        #[clap(
+            short = 'C',
+            long,
+            default_value = "./config",
+            help = "A common ancestor for --infra-path, --secrets-path and --certs-path. See their descriptions for more info."
+        )]
+        config_path: PathBuf,
 
         /// Defines the possible nodes to generate a new node.yml file for.
         #[clap(subcommand)]
-        kind : Box<GenerateNodeSubcommand>,
+        kind: Box<GenerateNodeSubcommand>,
     },
 
     #[clap(name = "certs", about = "Generates root & server certificates for the given domain.")]
     Certs {
         /// If given, will generate missing directories instead of throwing errors.
-        #[clap(short='f', long, global=true, help = "If given, will generate any missing directories.")]
-        fix_dirs : bool,
+        #[clap(short = 'f', long, global = true, help = "If given, will generate any missing directories.")]
+        fix_dirs: bool,
         /// The directory to write to.
-        #[clap(short, long, default_value = "./", global=true, help = "The path of the directory to write the generated certificate files.")]
-        path     : PathBuf,
+        #[clap(short, long, default_value = "./", global = true, help = "The path of the directory to write the generated certificate files.")]
+        path:     PathBuf,
         /// The directory to write temporary scripts to.
-        #[clap(short, long, default_value = "/tmp", global=true, help = "The path of the directory to write the temporary scripts to we use for certificate generation.")]
-        temp_dir : PathBuf,
+        #[clap(
+            short,
+            long,
+            default_value = "/tmp",
+            global = true,
+            help = "The path of the directory to write the temporary scripts to we use for certificate generation."
+        )]
+        temp_dir: PathBuf,
 
         /// The type of certificate to generate.
         #[clap(subcommand)]
-        kind : Box<GenerateCertsSubcommand>,
+        kind: Box<GenerateCertsSubcommand>,
     },
 
     #[clap(name = "infra", about = "Generates a new 'infra.yml' file.")]
     Infra {
         /// Defines the list of domains
-        #[clap(name = "LOCATIONS", help = "The list of locations (i.e., worker nodes) connected to this instance. The list is given as a list of '<ID>:<ADDR>' pairs.")]
-        locations : Vec<Pair<String, ':', String>>,
+        #[clap(
+            name = "LOCATIONS",
+            help = "The list of locations (i.e., worker nodes) connected to this instance. The list is given as a list of '<ID>:<ADDR>' pairs."
+        )]
+        locations: Vec<Pair<String, ':', String>>,
 
         /// If given, will generate missing directories instead of throwing errors.
-        #[clap(short='f', long, help = "If given, will generate any missing directories.")]
-        fix_dirs : bool,
+        #[clap(short = 'f', long, help = "If given, will generate any missing directories.")]
+        fix_dirs: bool,
         /// The path to write to.
         #[clap(short, long, default_value = "./infra.yml", help = "The path to write the infrastructure file to.")]
-        path     : PathBuf,
+        path:     PathBuf,
 
         /// Determines the name of the given domain.
-        #[clap(short='N', long="name", help = "Sets the name (i.e., human-friendly name, not the identifier) of the given location. Should be given as a '<LOCATION>=<NAME>` pair. If omitted, will default to the domain's identifier with some preprocessing to make it look nicer.")]
-        names     : Vec<Pair<String, '=', String>>,
+        #[clap(
+            short = 'N',
+            long = "name",
+            help = "Sets the name (i.e., human-friendly name, not the identifier) of the given location. Should be given as a '<LOCATION>=<NAME>` \
+                    pair. If omitted, will default to the domain's identifier with some preprocessing to make it look nicer."
+        )]
+        names:     Vec<Pair<String, '=', String>>,
         /// Determines the port of the registry node on the given domain.
-        #[clap(short, long="reg-port", help = "Determines the port of the delegate service on the given location. Should be given as a '<LOCATION>=<PORT>' pair. If omitted, will default to '50051' for each location.")]
-        reg_ports : Vec<Pair<String, '=', u16>>,
+        #[clap(
+            short,
+            long = "reg-port",
+            help = "Determines the port of the delegate service on the given location. Should be given as a '<LOCATION>=<PORT>' pair. If omitted, \
+                    will default to '50051' for each location."
+        )]
+        reg_ports: Vec<Pair<String, '=', u16>>,
         /// Determines the port of the delegate node on the given domain.
-        #[clap(short, long="job-port", help = "Determines the port of the delegate service on the given location. Should be given as a '<LOCATION>=<PORT>' pair. If omitted, will default to '50052' for each location.")]
-        job_ports : Vec<Pair<String, '=', u16>>,
+        #[clap(
+            short,
+            long = "job-port",
+            help = "Determines the port of the delegate service on the given location. Should be given as a '<LOCATION>=<PORT>' pair. If omitted, \
+                    will default to '50052' for each location."
+        )]
+        job_ports: Vec<Pair<String, '=', u16>>,
     },
 
     #[clap(name = "backend", about = "Generates a new `backend.yml` file.")]
     Backend {
         /// If given, will generate missing directories instead of throwing errors.
-        #[clap(short='f', long, help = "If given, will generate any missing directories.")]
-        fix_dirs : bool,
+        #[clap(short = 'f', long, help = "If given, will generate any missing directories.")]
+        fix_dirs: bool,
         /// The path to write to.
         #[clap(short, long, default_value = "./backend.yml", help = "The path to write the credentials file to.")]
-        path     : PathBuf,
+        path:     PathBuf,
 
         /// The list of capabilities to advertise for this domain.
         #[clap(short, long, help = "The list of capabilities to advertise for this domain. Use '--list-capabilities' to see them.")]
-        capabilities    : Vec<Capability>,
+        capabilities:    Vec<Capability>,
         /// Whether to hash containers or not (but inverted).
-        #[clap(short, long, help = "If given, disables the container security hash, forgoing the need for hashing (saves time on the first execution of a container on a domain)")]
-        disable_hashing : bool,
+        #[clap(
+            short,
+            long,
+            help = "If given, disables the container security hash, forgoing the need for hashing (saves time on the first execution of a container \
+                    on a domain)"
+        )]
+        disable_hashing: bool,
 
         /// Defines the possible backends to generate a new backend.yml file for.
         #[clap(subcommand)]
-        kind : Box<GenerateBackendSubcommand>,
+        kind: Box<GenerateBackendSubcommand>,
     },
 
-    #[clap(name = "policy", alias = "policies", about = "Generates a new `policies.yml` file.")]
-    Policy {
+    #[clap(name = "policy_database", alias = "policy_db", about = "Generates a new `policies.db` database.")]
+    PolicyDatabase {
         /// If given, will generate missing directories instead of throwing errors.
-        #[clap(short='f', long, help = "If given, will generate any missing directories.")]
-        fix_dirs : bool,
+        #[clap(short = 'f', long, help = "If given, will generate any missing directories.")]
+        fix_dirs: bool,
         /// The path to write to.
         #[clap(short, long, default_value = "./policies.yml", help = "The path to write the policy file to.")]
-        path     : PathBuf,
-
-        /// Sets the default file to allow everything instead of nothing.
-        #[clap(short, long, help = "Generates the file with AllowAll-rules instead of DenyAll-rules. Don't forget to edit the file if you do!")]
-        allow_all : bool,
+        path:     PathBuf,
+        /// The branch to pull the migrations from.
+        #[clap(
+            short,
+            long,
+            default_value = "main",
+            help = "The branch of the `https://github.com/epi-project/policy-reasoner` repository from which to pull the Diesel migrations."
+        )]
+        branch:   String,
     },
 
     #[clap(name = "proxy", about = "Generates a new `proxy.yml` file.")]
     Proxy {
         /// If given, will generate missing directories instead of throwing errors.
         #[clap(short, long, help = "If given, will generate any missing directories.")]
-        fix_dirs : bool,
+        fix_dirs: bool,
         /// The path to write to.
         #[clap(short, long, default_value = "./proxy.yml", help = "The path to write the proxy file to.")]
-        path     : PathBuf,
+        path:     PathBuf,
 
         /// Defines the range of ports that we can allocate for outgoing connections.
-        #[clap(short, long, default_value="4200-4299", help="Defines the range of ports that we may allocate when one of the Brane services wants to make an outgoing connection. Given as '<START>-<END>', where '<START>' and '<END>' are port numbers, '<START>' >= '<END>'. Both are inclusive.")]
-        outgoing_range   : InclusiveRange<u16>,
+        #[clap(
+            short,
+            long,
+            default_value = "4200-4299",
+            help = "Defines the range of ports that we may allocate when one of the Brane services wants to make an outgoing connection. Given as \
+                    '<START>-<END>', where '<START>' and '<END>' are port numbers, '<START>' >= '<END>'. Both are inclusive."
+        )]
+        outgoing_range: InclusiveRange<u16>,
         /// Defines the map of incoming ports.
-        #[clap(short, long, help="Defines any incoming port mappings. Given as '<PORT>:<ADDRESS>', where the '<PORT>' is the port to open for incoming connections, and '<ADDRESS>' is the address to forward the traffic to.")]
-        incoming         : Vec<Pair<u16, ':', Address>>,
+        #[clap(
+            short,
+            long,
+            help = "Defines any incoming port mappings. Given as '<PORT>:<ADDRESS>', where the '<PORT>' is the port to open for incoming \
+                    connections, and '<ADDRESS>' is the address to forward the traffic to."
+        )]
+        incoming: Vec<Pair<u16, ':', Address>>,
         /// Defines if the proxy should be forwarded.
-        #[clap(short='F', long, help="If given, will forward any traffic to the given destination. The specific protocol use is given in '--forward-protocol'")]
-        forward          : Option<Address>,
+        #[clap(
+            short = 'F',
+            long,
+            help = "If given, will forward any traffic to the given destination. The specific protocol use is given in '--forward-protocol'"
+        )]
+        forward: Option<Address>,
         /// Defines which protocol to use if forwarding.
-        #[clap(short='P', long, default_value="socks6", help="Defines how to forward the traffic to a proxy. Ignored if '--forward' is not given.")]
-        forward_protocol : ProxyProtocol,
+        #[clap(
+            short = 'P',
+            long,
+            default_value = "socks6",
+            help = "Defines how to forward the traffic to a proxy. Ignored if '--forward' is not given."
+        )]
+        forward_protocol: ProxyProtocol,
     },
 }
 
@@ -283,19 +405,34 @@ enum GenerateSubcommand {
 #[derive(Debug, Subcommand)]
 #[clap(name = "unpack", alias = "extract", about = "Unpack a certain file that is baked-in the CTL executable.")]
 enum UnpackSubcommand {
-    #[clap(name = "compose", about = "Unpacks the Docker Compose file that we use to setup the services for an node. Note, however, that this Docker Compose file is templated with a lot of environment variables, so it's only really useful if you want to change some Compose settings. Check 'branectl start -f'.")]
+    #[clap(
+        name = "compose",
+        about = "Unpacks the Docker Compose file that we use to setup the services for an node. Note, however, that this Docker Compose file is \
+                 templated with a lot of environment variables, so it's only really useful if you want to change some Compose settings. Check \
+                 'branectl start -f'."
+    )]
     Compose {
         /// The location to which to extract the file.
-        #[clap(name="PATH", default_value="./docker-compose-$NODE.yml", help="Defines the path to which we unpack the file. You can use '$NODE' to refer to the node kind as specified by 'NODE_KIND'")]
-        path : PathBuf,
+        #[clap(
+            name = "PATH",
+            default_value = "./docker-compose-$NODE.yml",
+            help = "Defines the path to which we unpack the file. You can use '$NODE' to refer to the node kind as specified by 'NODE_KIND'"
+        )]
+        path: PathBuf,
 
         /// The type of node for which to extract.
-        #[clap(short, long, default_value="$NODECFG", help="Defines the kind of node for which to unpack the Docker Compose file. You can use '$NODECFG' to refer to the node kind defined in the `node.yml` file (see 'branectl -n').")]
-        kind     : ResolvableNodeKind,
+        #[clap(
+            short,
+            long,
+            default_value = "$NODECFG",
+            help = "Defines the kind of node for which to unpack the Docker Compose file. You can use '$NODECFG' to refer to the node kind defined \
+                    in the `node.yml` file (see 'branectl -n')."
+        )]
+        kind:     ResolvableNodeKind,
         /// Whether to fix missing directories (true) or throw errors (false).
-        #[clap(short, long, help="If given, will create missing directories instead of throwing an error.")]
-        fix_dirs : bool,
-    }
+        #[clap(short, long, help = "If given, will create missing directories instead of throwing an error.")]
+        fix_dirs: bool,
+    },
 }
 
 /// Defines the subcommands for the upgrade subcommand
@@ -305,18 +442,34 @@ enum UpgradeSubcommand {
     #[clap(name = "node", about = "Upgrade node.yml files to be compatible with this BRANE version.")]
     Node {
         /// The file or folder to upgrade.
-        #[clap(name = "PATH", default_value = "./", help = "The path to the file or folder (recursively traversed) of files to upgrade to this version. If a directory, will consider any YAML files (*.yml or *.yaml) that are successfully parsed with an old node.yml parser.")]
-        path : PathBuf,
+        #[clap(
+            name = "PATH",
+            default_value = "./",
+            help = "The path to the file or folder (recursively traversed) of files to upgrade to this version. If a directory, will consider any \
+                    YAML files (*.yml or *.yaml) that are successfully parsed with an old node.yml parser."
+        )]
+        path: PathBuf,
 
         /// Whether to run dryly or not
         #[clap(short, long, help = "If given, does not do anything but instead just reports which files would be updated.")]
-        dry_run   : bool,
+        dry_run:   bool,
         /// Whether to keep old versions
-        #[clap(short='O', long, help = "If given, will not keep the old versions alongside the new ones but instead overwrite them. Use them only if you are certain no unrelated files are converted or converted incorrectly! (see '--dry-run')")]
-        overwrite : bool,
+        #[clap(
+            short = 'O',
+            long,
+            help = "If given, will not keep the old versions alongside the new ones but instead overwrite them. Use them only if you are certain no \
+                    unrelated files are converted or converted incorrectly! (see '--dry-run')"
+        )]
+        overwrite: bool,
         /// Fixes the version from which we are converting.
-        #[clap(short, long, default_value = "all", help = "Whether to consider only one version when examining a file. Can be any valid BRANE version or 'auto' to use all supported versions.")]
-        version   : VersionFix,
+        #[clap(
+            short,
+            long,
+            default_value = "all",
+            help = "Whether to consider only one version when examining a file. Can be any valid BRANE version or 'auto' to use all supported \
+                    versions."
+        )]
+        version:   VersionFix,
     },
 }
 
@@ -336,17 +489,19 @@ enum PackageSubcommand {
     #[clap(name = "hash", about = "Hashes the given `image.tar` file for use in policies.")]
     Hash {
         /// The path to the image file.
-        #[clap(name = "IMAGE", help = "The image to compute the hash of. If it's a path that exists, will attempt to hash that file; otherwise, will hash based on an image in the local node's `packages` directory. You can use `name[:version]` syntax to specify the version.")]
-        image : String,
+        #[clap(
+            name = "IMAGE",
+            help = "The image to compute the hash of. If it's a path that exists, will attempt to hash that file; otherwise, will hash based on an \
+                    image in the local node's `packages` directory. You can use `name[:version]` syntax to specify the version."
+        )]
+        image: String,
     },
 }
 
 /// Defines data- and intermediate results-related subcommands for the `branectl` tool.
 #[derive(Debug, Subcommand)]
 #[clap(name = "data", about = "Manage data and intermediate results stored on this node.")]
-enum DataSubcommand {
-
-}
+enum DataSubcommand {}
 
 
 
@@ -378,16 +533,24 @@ async fn main() {
     // }
 
     // Initialize the logger
-    if let Err(err) = HumanLogger::terminal(if args.trace { DebugMode::Full } else if args.debug { DebugMode::Debug } else { DebugMode::HumanFriendly }).init() {
+    if let Err(err) = HumanLogger::terminal(if args.trace {
+        DebugMode::Full
+    } else if args.debug {
+        DebugMode::Debug
+    } else {
+        DebugMode::HumanFriendly
+    })
+    .init()
+    {
         eprintln!("WARNING: Failed to setup logger: {err} (no logging for this session)");
     }
 
     // Setup the friendlier version of panic
     if !args.trace && !args.debug {
         human_panic::setup_panic!(Metadata {
-            name: "Brane CTL".into(),
-            version: env!("CARGO_PKG_VERSION").into(),
-            authors: env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
+            name:     "Brane CTL".into(),
+            version:  env!("CARGO_PKG_VERSION").into(),
+            authors:  env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
             homepage: env!("CARGO_PKG_HOMEPAGE").into(),
         });
     }
@@ -397,74 +560,124 @@ async fn main() {
         CtlSubcommand::Download(subcommand) => match *subcommand {
             DownloadSubcommand::Services { fix_dirs, path, arch, version, force, kind } => {
                 // Run the subcommand
-                if let Err(err) = download::services(fix_dirs, path, arch, version, force, kind).await { error!("{}", err.trace()); std::process::exit(1); }
+                if let Err(err) = download::services(fix_dirs, path, arch, version, force, kind).await {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
             },
         },
         CtlSubcommand::Generate(subcommand) => match *subcommand {
-            GenerateSubcommand::Node{ hosts, fix_dirs, config_path, kind } => {
+            GenerateSubcommand::Node { hosts, fix_dirs, config_path, kind } => {
                 // Call the thing
-                if let Err(err) = generate::node(args.node_config, hosts, fix_dirs, config_path, *kind) { error!("{}", err.trace()); std::process::exit(1); }
+                if let Err(err) = generate::node(args.node_config, hosts, fix_dirs, config_path, *kind) {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
             },
 
             GenerateSubcommand::Certs { fix_dirs, path, temp_dir, kind } => {
                 // Call the thing
-                if let Err(err) = generate::certs(fix_dirs, path, temp_dir, *kind).await { error!("{}", err.trace()); std::process::exit(1); }
+                if let Err(err) = generate::certs(fix_dirs, path, temp_dir, *kind).await {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
             },
 
-            GenerateSubcommand::Infra{ locations, fix_dirs, path, names, reg_ports, job_ports } => {
+            GenerateSubcommand::Infra { locations, fix_dirs, path, names, reg_ports, job_ports } => {
                 // Call the thing
-                if let Err(err) = generate::infra(locations, fix_dirs, path, names, reg_ports, job_ports) { error!("{}", err.trace()); std::process::exit(1); }
+                if let Err(err) = generate::infra(locations, fix_dirs, path, names, reg_ports, job_ports) {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
             },
 
-            GenerateSubcommand::Backend{ fix_dirs, path, capabilities, disable_hashing, kind } => {
+            GenerateSubcommand::Backend { fix_dirs, path, capabilities, disable_hashing, kind } => {
                 // Call the thing
-                if let Err(err) = generate::backend(fix_dirs, path, capabilities, !disable_hashing, *kind) { error!("{}", err.trace()); std::process::exit(1); }
+                if let Err(err) = generate::backend(fix_dirs, path, capabilities, !disable_hashing, *kind) {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
             },
-            GenerateSubcommand::Policy{ fix_dirs, path, allow_all } => {
+            GenerateSubcommand::PolicyDatabase { fix_dirs, path, branch } => {
                 // Call the thing
-                if let Err(err) = generate::policy(fix_dirs, path, allow_all) { error!("{}", err.trace()); std::process::exit(1); }
+                if let Err(err) = generate::policy_database(fix_dirs, path, branch).await {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
             },
 
-            GenerateSubcommand::Proxy{ fix_dirs, path, outgoing_range, incoming, forward, forward_protocol } => {
+            GenerateSubcommand::Proxy { fix_dirs, path, outgoing_range, incoming, forward, forward_protocol } => {
                 // Call the thing
-                if let Err(err) = generate::proxy(fix_dirs, path, outgoing_range.0, incoming.into_iter().map(|p| (p.0, p.1)).collect(), forward.map(|a| ForwardConfig { address: a, protocol: forward_protocol })) { error!("{}", err.trace()); std::process::exit(1); }
+                if let Err(err) = generate::proxy(
+                    fix_dirs,
+                    path,
+                    outgoing_range.0,
+                    incoming.into_iter().map(|p| (p.0, p.1)).collect(),
+                    forward.map(|a| ForwardConfig { address: a, protocol: forward_protocol }),
+                ) {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
             },
         },
         CtlSubcommand::Upgrade(subcommand) => match *subcommand {
             UpgradeSubcommand::Node { path, dry_run, overwrite, version } => {
-                if let Err(err) = upgrade::node(path, dry_run, overwrite, version) { error!("{}", err.trace()); std::process::exit(1); }
+                if let Err(err) = upgrade::node(path, dry_run, overwrite, version) {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
             },
         },
         CtlSubcommand::Unpack(subcommand) => match *subcommand {
             UnpackSubcommand::Compose { kind, path, fix_dirs } => {
-                if let Err(err) = unpack::compose(kind, fix_dirs, path, args.node_config) { error!("{}", err.trace()); std::process::exit(1); }
+                if let Err(err) = unpack::compose(kind, fix_dirs, path, args.node_config) {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
             },
         },
         CtlSubcommand::Wizard(subcommand) => match *subcommand {
-            WizardSubcommand::Setup {  } => {
-                if let Err(err) = wizard::setup() { error!("{}", err.trace()); std::process::exit(1); }
+            WizardSubcommand::Setup {} => {
+                if let Err(err) = wizard::setup() {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
             },
         },
 
         CtlSubcommand::Packages(subcommand) => match *subcommand {
-            PackageSubcommand::Hash{ image } => {
+            PackageSubcommand::Hash { image } => {
                 // Call the thing
-                if let Err(err) = packages::hash(args.node_config, image).await { error!("{}", err.trace()); std::process::exit(1); }
+                if let Err(err) = packages::hash(args.node_config, image).await {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
+            },
+        },
+        CtlSubcommand::Data(subcommand) => match *subcommand {},
+
+        CtlSubcommand::Start { exe, file, docker_socket, docker_version, version, image_dir, local_aux, skip_import, profile_dir, kind } => {
+            if let Err(err) = lifetime::start(
+                exe,
+                file,
+                args.node_config,
+                DockerOptions { socket: docker_socket, version: docker_version },
+                StartOpts { compose_verbose: args.debug || args.trace, version, image_dir, local_aux, skip_import, profile_dir },
+                *kind,
+            )
+            .await
+            {
+                error!("{}", err.trace());
+                std::process::exit(1);
             }
         },
-        CtlSubcommand::Data(subcommand) => match *subcommand {
-            
+        CtlSubcommand::Stop { exe, file } => {
+            if let Err(err) = lifetime::stop(args.debug || args.trace, exe, file, args.node_config) {
+                error!("{}", err.trace());
+                std::process::exit(1);
+            }
         },
 
-        CtlSubcommand::Start{ exe, file, docker_socket, docker_version, version, image_dir, local_aux, skip_import, profile_dir, kind, } => {
-            if let Err(err) = lifetime::start(exe, file, args.node_config, DockerOptions{ socket: docker_socket, version: docker_version }, StartOpts{ compose_verbose: args.debug || args.trace, version, image_dir, local_aux, skip_import, profile_dir }, *kind).await { error!("{}", err.trace()); std::process::exit(1); }
-        },
-        CtlSubcommand::Stop{ exe, file } => {
-            if let Err(err) = lifetime::stop(args.debug || args.trace, exe, file, args.node_config) { error!("{}", err.trace()); std::process::exit(1); }
-        },
-
-        CtlSubcommand::Version { arch: _, kind: _, ctl: _, node: _ } => {
-            
-        },
+        CtlSubcommand::Version { arch: _, kind: _, ctl: _, node: _ } => {},
     }
 }

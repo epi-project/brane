@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    13 Dec 2023, 08:25:58
+//    03 Jan 2024, 14:33:06
 //  Auto updated?
 //    Yes
 //
@@ -15,8 +15,10 @@
 
 /***** LIBRARY *****/
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::mem;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -30,14 +32,16 @@ use brane_cfg::node::{CentralConfig, NodeConfig};
 use brane_shr::kafka::{ensure_topics, restore_committed_offsets};
 use brane_tsk::api::get_data_index;
 use brane_tsk::errors::PlanError;
-use futures_util::TryStreamExt;
-use log::{debug, error, info};
+use error_trace::trace;
+use futures_util::{FutureExt as _, TryStreamExt as _};
+use log::{debug, error, info, warn};
 use parking_lot::Mutex;
 use prost::Message as _;
 use rand::prelude::IteratorRandom;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{CommitMode, Consumer};
-use rdkafka::message::OwnedMessage;
+use rdkafka::error::KafkaError;
+use rdkafka::message::{BorrowedMessage, OwnedMessage};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::util::Timeout;
 use rdkafka::{ClientConfig, Message};
@@ -47,6 +51,8 @@ use specifications::data::{AccessKind, AvailabilityKind, DataIndex, PreprocessKi
 use specifications::package::Capability;
 use specifications::planning::{PlanningCommand, PlanningStatus, PlanningStatusKind, PlanningUpdate};
 use specifications::profiling::ProfileReport;
+use tokio::signal::unix::{signal, Signal, SignalKind};
+use tokio_stream::StreamExt as _;
 
 
 /***** CONSTANTS *****/
@@ -565,6 +571,19 @@ fn plan_deferred(
 
 
 
+/***** HELPERS *****/
+/// Defines a unification of Kafka messages and SIGTERM receival.
+enum MessageOrTerminate<'m> {
+    /// It's a Kafka message
+    Message(BorrowedMessage<'m>),
+    /// It's a SIGTERM notification
+    Terminate,
+}
+
+
+
+
+
 /***** LIBRARY *****/
 /// This function hosts the actual planner, which uses an event monitor to receive plans which are then planned.
 ///
@@ -623,195 +642,265 @@ pub async fn planner_server(
     #[allow(clippy::type_complexity)]
     let results: Arc<Mutex<HashMap<String, (Instant, HashMap<String, String>)>>> = Arc::new(Mutex::new(HashMap::new()));
 
+    // Spinup a future that listens for signals
+    let signal_stream = async {
+        // Register a SIGTERM handler to be Docker-friendly
+        let mut handler: Signal = match signal(SignalKind::terminate()) {
+            Ok(handler) => handler,
+            Err(err) => {
+                error!("{}", trace!(("Failed to register SIGTERM signal handler"), err));
+                warn!("Service will NOT shutdown gracefully on SIGTERM");
+                loop {
+                    tokio::time::sleep(Duration::from_secs(24 * 3600)).await;
+                }
+            },
+        };
+
+        // Wait until we receive such a signal after which we terminate the server
+        handler.recv().await;
+        info!("Received SIGTERM, shutting down gracefully...");
+        Ok(MessageOrTerminate::Terminate)
+    }
+    .into_stream();
+
     // Next, we start processing the incoming stream of messages as soon as they arrive
     match consumer
         .stream()
-        .try_for_each(|borrowed_message| {
-            consumer.commit_message(&borrowed_message, CommitMode::Sync).unwrap();
+        .map(|msg| msg.map(|m| MessageOrTerminate::Message(m)))
+        .merge(signal_stream)
+        .try_for_each(|input: MessageOrTerminate| {
+            // Match on the possible input
+            let fut: Pin<Box<dyn Future<Output = Result<(), KafkaError>>>> = match input {
+                MessageOrTerminate::Message(borrowed_message) => {
+                    consumer.commit_message(&borrowed_message, CommitMode::Sync).unwrap();
 
-            // Shadow with owned clones
-            let owned_message: OwnedMessage = borrowed_message.detach();
-            let producer: Arc<FutureProducer> = producer.clone();
-            let node_config_path: PathBuf = node_config_path.clone();
-            let results: Arc<Mutex<_>> = results.clone();
+                    // Shadow with owned clones
+                    let owned_message: OwnedMessage = borrowed_message.detach();
+                    let producer: Arc<FutureProducer> = producer.clone();
+                    let node_config_path: PathBuf = node_config_path.clone();
+                    let results: Arc<Mutex<_>> = results.clone();
 
-            // Do the rest in a future that takes ownership of the clones
-            async move {
-                // Get the key
-                let task_id: String = String::from_utf8_lossy(owned_message.key().unwrap_or(&[])).to_string();
-                info!("Received new plan request with ID '{task_id}'");
-                let report = ProfileReport::auto_reporting_file(format!("brane-plr workflow {task_id}"), format!("brane-plr_workflow-{task_id}"));
-                let _total = report.time("Total");
+                    // Do the rest in a future that takes ownership of the clones
+                    Box::pin(async move {
+                        // Get the key
+                        let task_id: String = String::from_utf8_lossy(owned_message.key().unwrap_or(&[])).to_string();
+                        info!("Received new plan request with ID '{task_id}'");
+                        let report =
+                            ProfileReport::auto_reporting_file(format!("brane-plr workflow {task_id}"), format!("brane-plr_workflow-{task_id}"));
+                        let _total = report.time("Total");
 
-                // Fetch the most recent NodeConfig
-                let node_config: NodeConfig = match NodeConfig::from_path(node_config_path) {
-                    Ok(config) => config,
-                    Err(err) => {
-                        error!("Failed to load NodeConfig file: {}", err);
-                        return Ok(());
-                    },
-                };
-                let central: CentralConfig = match node_config.node.try_into_central() {
-                    Some(central) => central,
-                    None => {
-                        error!("Provided a non-central `node.yml` file (please adapt to represent a central node for this service)");
-                        return Ok(());
-                    },
-                };
-
-                // Parse the payload, if any
-                if let Some(payload) = owned_message.payload() {
-                    // Parse as UTF-8
-                    let parsing = report.time("Parsing");
-                    // debug!("Message: \"\"\"{}\"\"\"", String::from_utf8_lossy(payload));
-                    // let message: String = String::from_utf8_lossy(payload).to_string();
-                    let cmd: PlanningCommand = match PlanningCommand::decode(payload) {
-                        Ok(cmd) => cmd,
-                        Err(err) => {
-                            error!("Failed to parse given PlanningCommand: {err}");
-                            return Ok(());
-                        },
-                    };
-
-                    // Attempt to parse the workflow
-                    debug!("Parsing workflow of {} characters for session '{}:{}'", cmd.workflow.len(), cmd.app_id, cmd.task_id);
-                    let mut workflow: Workflow = match serde_json::from_str(&cmd.workflow) {
-                        Ok(workflow) => workflow,
-                        Err(err) => {
-                            error!(
-                                "Failed to parse incoming message workflow on topic '{}' as Workflow JSON: {}\n\nworkflow:\n{}\n{}\n{}\n",
-                                central.services.plr.cmd,
-                                err,
-                                (0..80).map(|_| '-').collect::<String>(),
-                                cmd.workflow,
-                                (0..80).map(|_| '-').collect::<String>()
-                            );
-                            return Ok(());
-                        },
-                    };
-                    parsing.stop();
-
-                    // Send that we've started planning
-                    if let Err(err) =
-                        send_update(producer.clone(), &central.services.plr.res, &cmd.app_id, &cmd.task_id, PlanningStatus::Started(None)).await
-                    {
-                        error!("Failed to update client that planning has started: {}", err);
-                    };
-
-                    // Load the infrastructure file
-                    let index = report.time("Index retrieval");
-                    let infra: InfraFile = match InfraFile::from_path(&central.paths.infra) {
-                        Ok(infra) => infra,
-                        Err(err) => {
-                            error!("Failed to load infrastructure file '{}': {}", central.paths.infra.display(), err);
-                            return Ok(());
-                        },
-                    };
-
-                    // Fetch the data index
-                    let data_index_addr: String = format!("{}/data/info", central.services.api.address);
-                    let dindex: DataIndex = match get_data_index(&data_index_addr).await {
-                        Ok(dindex) => dindex,
-                        Err(err) => {
-                            error!("Failed to fetch DataIndex from '{}': {}", data_index_addr, err);
-                            return Ok(());
-                        },
-                    };
-                    index.stop();
-
-                    // Now we do the planning
-                    {
-                        let alg = report.nest("algorithm");
-                        let _total = alg.time("Total");
-
-                        // Get the symbol table muteable, so we can... mutate... it
-                        let mut table: Arc<SymTable> = Arc::new(SymTable::new());
-                        mem::swap(&mut workflow.table, &mut table);
-                        let mut table: SymTable = Arc::try_unwrap(table).unwrap();
-
-                        // Fetch any previous state for this table
-                        if let Some(results) = results.lock().get_mut(&cmd.app_id) {
-                            results.0 = Instant::now();
-                            table.results.extend(results.1.iter().map(|(k, v)| (k.clone(), v.clone())));
-                        }
-
-                        // Do the main edges first
-                        {
-                            // Start by getting a list of all the edges
-                            let mut edges: Arc<Vec<Edge>> = Arc::new(vec![]);
-                            mem::swap(&mut workflow.graph, &mut edges);
-                            let mut edges: Vec<Edge> = Arc::try_unwrap(edges).unwrap();
-
-                            // Plan them
-                            debug!("Planning main edges...");
-                            if let Err(err) = alg
-                                .time_fut(
-                                    "<<<main>>>",
-                                    plan_edges(
-                                        &mut table,
-                                        &mut edges,
-                                        &central.services.api.address,
-                                        &dindex,
-                                        &infra,
-                                        0,
-                                        None,
-                                        false,
-                                        &mut HashSet::new(),
-                                    ),
-                                )
-                                .await
-                            {
-                                error!("Failed to plan main edges for workflow with correlation ID '{}:{}': {}", cmd.app_id, cmd.task_id, err);
-                                if let Err(err) = send_update(
-                                    producer.clone(),
-                                    &central.services.plr.res,
-                                    &cmd.app_id,
-                                    &cmd.task_id,
-                                    PlanningStatus::Error(format!("{err}")),
-                                )
-                                .await
-                                {
-                                    error!("Failed to update client that planning has failed: {}", err);
-                                }
+                        // Fetch the most recent NodeConfig
+                        let node_config: NodeConfig = match NodeConfig::from_path(node_config_path) {
+                            Ok(config) => config,
+                            Err(err) => {
+                                error!("Failed to load NodeConfig file: {}", err);
                                 return Ok(());
+                            },
+                        };
+                        let central: CentralConfig = match node_config.node.try_into_central() {
+                            Some(central) => central,
+                            None => {
+                                error!("Provided a non-central `node.yml` file (please adapt to represent a central node for this service)");
+                                return Ok(());
+                            },
+                        };
+
+                        // Parse the payload, if any
+                        if let Some(payload) = owned_message.payload() {
+                            // Parse as UTF-8
+                            let parsing = report.time("Parsing");
+                            // debug!("Message: \"\"\"{}\"\"\"", String::from_utf8_lossy(payload));
+                            // let message: String = String::from_utf8_lossy(payload).to_string();
+                            let cmd: PlanningCommand = match PlanningCommand::decode(payload) {
+                                Ok(cmd) => cmd,
+                                Err(err) => {
+                                    error!("Failed to parse given PlanningCommand: {err}");
+                                    return Ok(());
+                                },
                             };
 
-                            // Move the edges back
-                            let mut edges: Arc<Vec<Edge>> = Arc::new(edges);
-                            mem::swap(&mut edges, &mut workflow.graph);
-                        }
-
-                        // Then we do the function edges
-                        {
-                            // Start by getting the map
-                            let mut funcs: Arc<HashMap<usize, Vec<Edge>>> = Arc::new(HashMap::new());
-                            mem::swap(&mut workflow.funcs, &mut funcs);
-                            let mut funcs: HashMap<usize, Vec<Edge>> = Arc::try_unwrap(funcs).unwrap();
-
-                            // Iterate through all of the edges
-                            for (idx, edges) in &mut funcs {
-                                debug!("Planning '{}' edges...", table.funcs[*idx].name);
-                                if let Err(err) = alg
-                                    .time_fut(
-                                        workflow.table.funcs[*idx].name.to_string(),
-                                        plan_edges(
-                                            &mut table,
-                                            edges,
-                                            &central.services.api.address,
-                                            &dindex,
-                                            &infra,
-                                            0,
-                                            None,
-                                            false,
-                                            &mut HashSet::new(),
-                                        ),
-                                    )
-                                    .await
-                                {
+                            // Attempt to parse the workflow
+                            debug!("Parsing workflow of {} characters for session '{}:{}'", cmd.workflow.len(), cmd.app_id, cmd.task_id);
+                            let mut workflow: Workflow = match serde_json::from_str(&cmd.workflow) {
+                                Ok(workflow) => workflow,
+                                Err(err) => {
                                     error!(
-                                        "Failed to plan function '{}' edges for workflow with correlation ID '{}:{}': {}",
-                                        table.funcs[*idx].name, cmd.app_id, cmd.task_id, err
+                                        "Failed to parse incoming message workflow on topic '{}' as Workflow JSON: {}\n\nworkflow:\n{}\n{}\n{}\n",
+                                        central.services.plr.cmd,
+                                        err,
+                                        (0..80).map(|_| '-').collect::<String>(),
+                                        cmd.workflow,
+                                        (0..80).map(|_| '-').collect::<String>()
                                     );
+                                    return Ok(());
+                                },
+                            };
+                            parsing.stop();
+
+                            // Send that we've started planning
+                            if let Err(err) =
+                                send_update(producer.clone(), &central.services.plr.res, &cmd.app_id, &cmd.task_id, PlanningStatus::Started(None))
+                                    .await
+                            {
+                                error!("Failed to update client that planning has started: {}", err);
+                            };
+
+                            // Load the infrastructure file
+                            let index = report.time("Index retrieval");
+                            let infra: InfraFile = match InfraFile::from_path(&central.paths.infra) {
+                                Ok(infra) => infra,
+                                Err(err) => {
+                                    error!("Failed to load infrastructure file '{}': {}", central.paths.infra.display(), err);
+                                    return Ok(());
+                                },
+                            };
+
+                            // Fetch the data index
+                            let data_index_addr: String = format!("{}/data/info", central.services.api.address);
+                            let dindex: DataIndex = match get_data_index(&data_index_addr).await {
+                                Ok(dindex) => dindex,
+                                Err(err) => {
+                                    error!("Failed to fetch DataIndex from '{}': {}", data_index_addr, err);
+                                    return Ok(());
+                                },
+                            };
+                            index.stop();
+
+                            // Now we do the planning
+                            {
+                                let alg = report.nest("algorithm");
+                                let _total = alg.time("Total");
+
+                                // Get the symbol table muteable, so we can... mutate... it
+                                let mut table: Arc<SymTable> = Arc::new(SymTable::new());
+                                mem::swap(&mut workflow.table, &mut table);
+                                let mut table: SymTable = Arc::try_unwrap(table).unwrap();
+
+                                // Fetch any previous state for this table
+                                if let Some(results) = results.lock().get_mut(&cmd.app_id) {
+                                    results.0 = Instant::now();
+                                    table.results.extend(results.1.iter().map(|(k, v)| (k.clone(), v.clone())));
+                                }
+
+                                // Do the main edges first
+                                {
+                                    // Start by getting a list of all the edges
+                                    let mut edges: Arc<Vec<Edge>> = Arc::new(vec![]);
+                                    mem::swap(&mut workflow.graph, &mut edges);
+                                    let mut edges: Vec<Edge> = Arc::try_unwrap(edges).unwrap();
+
+                                    // Plan them
+                                    debug!("Planning main edges...");
+                                    if let Err(err) = alg
+                                        .time_fut(
+                                            "<<<main>>>",
+                                            plan_edges(
+                                                &mut table,
+                                                &mut edges,
+                                                &central.services.api.address,
+                                                &dindex,
+                                                &infra,
+                                                0,
+                                                None,
+                                                false,
+                                                &mut HashSet::new(),
+                                            ),
+                                        )
+                                        .await
+                                    {
+                                        error!(
+                                            "Failed to plan main edges for workflow with correlation ID '{}:{}': {}",
+                                            cmd.app_id, cmd.task_id, err
+                                        );
+                                        if let Err(err) = send_update(
+                                            producer.clone(),
+                                            &central.services.plr.res,
+                                            &cmd.app_id,
+                                            &cmd.task_id,
+                                            PlanningStatus::Error(format!("{err}")),
+                                        )
+                                        .await
+                                        {
+                                            error!("Failed to update client that planning has failed: {}", err);
+                                        }
+                                        return Ok(());
+                                    };
+
+                                    // Move the edges back
+                                    let mut edges: Arc<Vec<Edge>> = Arc::new(edges);
+                                    mem::swap(&mut edges, &mut workflow.graph);
+                                }
+
+                                // Then we do the function edges
+                                {
+                                    // Start by getting the map
+                                    let mut funcs: Arc<HashMap<usize, Vec<Edge>>> = Arc::new(HashMap::new());
+                                    mem::swap(&mut workflow.funcs, &mut funcs);
+                                    let mut funcs: HashMap<usize, Vec<Edge>> = Arc::try_unwrap(funcs).unwrap();
+
+                                    // Iterate through all of the edges
+                                    for (idx, edges) in &mut funcs {
+                                        debug!("Planning '{}' edges...", table.funcs[*idx].name);
+                                        if let Err(err) = alg
+                                            .time_fut(
+                                                workflow.table.funcs[*idx].name.to_string(),
+                                                plan_edges(
+                                                    &mut table,
+                                                    edges,
+                                                    &central.services.api.address,
+                                                    &dindex,
+                                                    &infra,
+                                                    0,
+                                                    None,
+                                                    false,
+                                                    &mut HashSet::new(),
+                                                ),
+                                            )
+                                            .await
+                                        {
+                                            error!(
+                                                "Failed to plan function '{}' edges for workflow with correlation ID '{}:{}': {}",
+                                                table.funcs[*idx].name, cmd.app_id, cmd.task_id, err
+                                            );
+                                            if let Err(err) = send_update(
+                                                producer.clone(),
+                                                &central.services.plr.res,
+                                                &cmd.app_id,
+                                                &cmd.task_id,
+                                                PlanningStatus::Error(format!("{err}")),
+                                            )
+                                            .await
+                                            {
+                                                error!("Failed to update client that planning has failed: {}", err);
+                                            }
+                                            return Ok(());
+                                        }
+                                    }
+
+                                    // Put the map back
+                                    let mut funcs: Arc<HashMap<usize, Vec<Edge>>> = Arc::new(funcs);
+                                    mem::swap(&mut funcs, &mut workflow.funcs);
+                                }
+
+                                // Write the results back for this session
+                                results
+                                    .lock()
+                                    .entry(cmd.app_id.clone())
+                                    .and_modify(|results| *results = (Instant::now(), table.results.clone()))
+                                    .or_insert_with(|| (Instant::now(), table.results.clone()));
+
+                                // Then, put the table back
+                                let mut table: Arc<SymTable> = Arc::new(table);
+                                mem::swap(&mut table, &mut workflow.table);
+                            }
+
+                            // With the planning done, re-serialize
+                            debug!("Serializing plan...");
+                            let ser = report.time("Serialization");
+                            let splan: String = match serde_json::to_string(&workflow) {
+                                Ok(splan) => splan,
+                                Err(err) => {
+                                    error!("Failed to serialize plan: {}", err);
                                     if let Err(err) = send_update(
                                         producer.clone(),
                                         &central.services.plr.res,
@@ -824,72 +913,46 @@ pub async fn planner_server(
                                         error!("Failed to update client that planning has failed: {}", err);
                                     }
                                     return Ok(());
-                                }
-                            }
+                                },
+                            };
+                            ser.stop();
 
-                            // Put the map back
-                            let mut funcs: Arc<HashMap<usize, Vec<Edge>>> = Arc::new(funcs);
-                            mem::swap(&mut funcs, &mut workflow.funcs);
+                            // Send the result
+                            if let Err(err) =
+                                send_update(producer.clone(), &central.services.plr.res, &cmd.app_id, &cmd.task_id, PlanningStatus::Success(splan))
+                                    .await
+                            {
+                                error!("Failed to update client that planning has succeeded: {}", err);
+                            }
+                            debug!("Planning OK");
+
+                            // Clean the list for old things and nobody else is using it
+                            if let Some(mut results) = results.try_lock() {
+                                info!("Running garbage collector on old {} planning sessions...", results.len());
+                                results.retain(|_, (last_used, _)| last_used.elapsed() < Duration::from_secs(SESSION_TIMEOUT_S));
+                                debug!("{} planning sessions left after GC run", results.len());
+                            }
                         }
 
-                        // Write the results back for this session
-                        results
-                            .lock()
-                            .entry(cmd.app_id.clone())
-                            .and_modify(|results| *results = (Instant::now(), table.results.clone()))
-                            .or_insert_with(|| (Instant::now(), table.results.clone()));
+                        // Done
+                        Ok(())
+                    })
+                },
 
-                        // Then, put the table back
-                        let mut table: Arc<SymTable> = Arc::new(table);
-                        mem::swap(&mut table, &mut workflow.table);
-                    }
-
-                    // With the planning done, re-serialize
-                    debug!("Serializing plan...");
-                    let ser = report.time("Serialization");
-                    let splan: String = match serde_json::to_string(&workflow) {
-                        Ok(splan) => splan,
-                        Err(err) => {
-                            error!("Failed to serialize plan: {}", err);
-                            if let Err(err) = send_update(
-                                producer.clone(),
-                                &central.services.plr.res,
-                                &cmd.app_id,
-                                &cmd.task_id,
-                                PlanningStatus::Error(format!("{err}")),
-                            )
-                            .await
-                            {
-                                error!("Failed to update client that planning has failed: {}", err);
-                            }
-                            return Ok(());
-                        },
-                    };
-                    ser.stop();
-
-                    // Send the result
-                    if let Err(err) =
-                        send_update(producer.clone(), &central.services.plr.res, &cmd.app_id, &cmd.task_id, PlanningStatus::Success(splan)).await
-                    {
-                        error!("Failed to update client that planning has succeeded: {}", err);
-                    }
-                    debug!("Planning OK");
-
-                    // Clean the list for old things and nobody else is using it
-                    if let Some(mut results) = results.try_lock() {
-                        info!("Running garbage collector on old {} planning sessions...", results.len());
-                        results.retain(|_, (last_used, _)| last_used.elapsed() < Duration::from_secs(SESSION_TIMEOUT_S));
-                        debug!("{} planning sessions left after GC run", results.len());
-                    }
-                }
-
-                // Done
-                Ok(())
-            }
+                MessageOrTerminate::Terminate => Box::pin(async {
+                    info!("Received SIGTERM, shutting down gracefully");
+                    return Err(KafkaError::Canceled);
+                }),
+            };
+            fut
         })
         .await
     {
         Ok(_) => Ok(()),
+        Err(KafkaError::Canceled) => {
+            info!("Graceful shutdown complete.");
+            Ok(())
+        },
         Err(err) => Err(PlanError::KafkaStreamError { err }),
     }
 }
