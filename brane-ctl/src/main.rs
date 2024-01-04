@@ -4,7 +4,7 @@
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    03 Jan 2024, 15:41:43
+//    04 Jan 2024, 14:07:12
 //  Auto updated?
 //    Yes
 //
@@ -17,8 +17,8 @@ use std::path::PathBuf;
 
 use brane_cfg::proxy::{ForwardConfig, ProxyProtocol};
 use brane_ctl::spec::{
-    DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair, ResolvableNodeKind,
-    StartOpts, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
+    DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, JwtAlgorithm, KeyType,
+    KeyUsage, Pair, ResolvableNodeKind, StartOpts, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
 };
 use brane_ctl::{download, generate, lifetime, packages, unpack, upgrade, wizard};
 use brane_shr::errors::ErrorTrace as _;
@@ -217,6 +217,12 @@ enum DownloadSubcommand {
     },
 }
 
+// /// Defines arguments to the `branectl generate ...` subcommand.
+// #[derive(Debug, Parser)]
+// struct GenerateArguments {
+//     /// The common ancestor to all `config`-files.
+// }
+
 /// Defines generate-related subcommands for the `branectl` tool.
 #[derive(Debug, Subcommand)]
 #[clap(name = "generate", about = "Generate configuration files for setting up a new node.")]
@@ -232,7 +238,7 @@ enum GenerateSubcommand {
         hosts: Vec<Pair<String, ':', IpAddr>>,
 
         /// If given, will generate missing directories instead of throwing errors.
-        #[clap(short = 'f', long, help = " If given, will generate any missing directories.")]
+        #[clap(short = 'f', long, help = "If given, will generate any missing directories.")]
         fix_dirs:    bool,
         /// Custom config path.
         #[clap(
@@ -345,7 +351,7 @@ enum GenerateSubcommand {
         #[clap(short = 'f', long, help = "If given, will generate any missing directories.")]
         fix_dirs: bool,
         /// The path to write to.
-        #[clap(short, long, default_value = "./policies.yml", help = "The path to write the policy file to.")]
+        #[clap(short, long, default_value = "./policies.db", help = "The path to write the policy database file to.")]
         path:     PathBuf,
         /// The branch to pull the migrations from.
         #[clap(
@@ -355,6 +361,29 @@ enum GenerateSubcommand {
             help = "The branch of the `https://github.com/epi-project/policy-reasoner` repository from which to pull the Diesel migrations."
         )]
         branch:   String,
+    },
+
+    #[clap(name = "policy_secret", alias = "policy_secret", about = "Generates a new JWT key for use in the `brane-chk` service.")]
+    PolicySecret {
+        /// If given, will generate missing directories instead of throwing errors.
+        #[clap(short = 'f', long, help = "If given, will generate any missing directories.")]
+        fix_dirs: bool,
+        /// The path to write to.
+        #[clap(short, long, default_value = "./policy_secret.json", help = "The path to write the policy file to.")]
+        path:     PathBuf,
+
+        /// The type of key to parse.
+        #[clap(short = 't', long = "type", default_value = "oct", help = "The type of the key to generate. Options are 'oct'.")]
+        key_type: KeyType,
+        /// The identifier for this key.
+        #[clap(short = 'i', long = "id", default_value = "A", help = "Some identifier to distinguish the key.")]
+        key_id:   String,
+        /// The use of the key.
+        #[clap(short = 'u', long = "use", default_value = "sig", help = "The intended usage of the key to generate. Options are 'sig'.")]
+        key_use:  KeyUsage,
+        /// The algorithm used to sign JWTs.
+        #[clap(short = 'a', long = "alg", default_value = "HS256", help = "The algorithm with which to sign JWTs using the generated key.")]
+        jwt_alg:  JwtAlgorithm,
     },
 
     #[clap(name = "proxy", about = "Generates a new `proxy.yml` file.")]
@@ -598,9 +627,17 @@ async fn main() {
                     std::process::exit(1);
                 }
             },
+
             GenerateSubcommand::PolicyDatabase { fix_dirs, path, branch } => {
                 // Call the thing
                 if let Err(err) = generate::policy_database(fix_dirs, path, branch).await {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
+            },
+            GenerateSubcommand::PolicySecret { fix_dirs, path, key_type, key_id, key_use, jwt_alg } => {
+                // Call the thing
+                if let Err(err) = generate::policy_secret(fix_dirs, path, key_type, key_id, key_use, jwt_alg) {
                     error!("{}", err.trace());
                     std::process::exit(1);
                 }

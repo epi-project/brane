@@ -4,7 +4,7 @@
 //  Created:
 //    22 Nov 2022, 11:19:22
 //  Last edited:
-//    03 Jan 2024, 15:05:22
+//    04 Jan 2024, 17:10:04
 //  Auto updated?
 //    Yes
 //
@@ -525,7 +525,19 @@ fn construct_envs(version: &Version, node_config_path: &Path, node_config: &Node
 
         NodeSpecificConfig::Worker(node) => {
             // Now we do a little ugly something, but we unpack the paths here so that we get compile errors if we add more later on
-            let WorkerPaths { certs, packages, backend, policy_database, proxy, data, results, temp_data, temp_results } = &node.paths;
+            let WorkerPaths {
+                certs,
+                packages,
+                backend,
+                policy_database,
+                policy_deliberation_secret,
+                policy_expert_secret,
+                proxy,
+                data,
+                results,
+                temp_data,
+                temp_results,
+            } = &node.paths;
             let WorkerServices { reg, job, chk, prx } = &node.services;
 
             // Add the environment variables, which are basically just central-specific paths to mount in the compose file
@@ -540,6 +552,8 @@ fn construct_envs(version: &Version, node_config_path: &Path, node_config: &Node
                 // Paths
                 ("BACKEND", canonicalize_join(node_config_dir, backend)?.as_os_str().into()),
                 ("POLICY_DB", canonicalize_join(node_config_dir, policy_database)?.as_os_str().into()),
+                ("POLICY_DELIBERATION_SECRET", canonicalize_join(node_config_dir, policy_deliberation_secret)?.as_os_str().into()),
+                ("POLICY_EXPERT_SECRET", canonicalize_join(node_config_dir, policy_expert_secret)?.as_os_str().into()),
                 ("CERTS", canonicalize_join(node_config_dir, certs)?.as_os_str().into()),
                 ("PACKAGES", canonicalize_join(node_config_dir, packages)?.as_os_str().into()),
                 ("DATA", canonicalize_join(node_config_dir, data)?.as_os_str().into()),

@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:47
 //  Last edited:
-//    03 Jan 2024, 15:58:28
+//    04 Jan 2024, 15:06:31
 //  Auto updated?
 //    Yes
 //
@@ -21,6 +21,7 @@ use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use base64ct::Encoding as _;
 use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::info::Info as _;
 use brane_cfg::infra::{InfraFile, InfraLocation};
@@ -37,6 +38,7 @@ use enum_debug::EnumDebug as _;
 use hex_literal::hex;
 use log::{debug, info, warn};
 use rand::distributions::Alphanumeric;
+use rand::rngs::OsRng;
 use rand::Rng as _;
 use serde::Serialize;
 use specifications::address::Address;
@@ -44,7 +46,7 @@ use specifications::package::Capability;
 use tempfile::TempDir;
 
 pub use crate::errors::GenerateError as Error;
-use crate::spec::{GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, Pair};
+use crate::spec::{GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, JwtAlgorithm, KeyType, KeyUsage, Pair};
 use crate::utils::resolve_config_path;
 
 
@@ -481,7 +483,6 @@ struct CfsslExecutables<P1, P2> {
 }
 
 
-
 /// Defines the JSON format for the `ca-config.json` file we use to configure `cfssl` in general.
 #[derive(Clone, Debug, Serialize)]
 struct CfsslCaConfig {
@@ -519,7 +520,6 @@ struct CfsslCaConfigProfile {
 }
 
 
-
 /// Defines the JSON format for the `ca-csr.json` file we use to let `cfssl` generate a CA certificate for us.
 #[derive(Clone, Debug, Serialize)]
 struct CfsslCaCsr {
@@ -553,6 +553,36 @@ struct CfsslCsrKey {
     algo: String,
     /// The size of the key, in bits.
     size: usize,
+}
+
+
+
+/// The layout of the `policy_secret.json` file.
+#[derive(Clone, Debug, Serialize)]
+struct PolicySecret {
+    /// The list of keys in this set.
+    keys: Vec<PolicySecretKey>,
+}
+
+/// Defines the layout of a single key in the `policy_secret.json` file.
+#[derive(Clone, Debug, Serialize)]
+struct PolicySecretKey {
+    /// The key itself.
+    #[serde(rename = "k")]
+    key: String,
+
+    /// The identifier of the key.
+    #[serde(rename = "kid")]
+    key_id:   String,
+    /// The type of the key.
+    #[serde(rename = "kty")]
+    key_type: KeyType,
+    /// The usage of the key.
+    #[serde(rename = "use")]
+    key_use:  KeyUsage,
+    /// The JWT algorithm used for signing.
+    #[serde(rename = "alg")]
+    jwt_alg:  JwtAlgorithm,
 }
 
 
@@ -712,6 +742,8 @@ pub fn node(
             hostname,
             backend,
             policy_database,
+            policy_deliberation_secret,
+            policy_expert_secret,
             proxy,
             certs,
             packages,
@@ -745,13 +777,16 @@ pub fn node(
 
             // Resolve any path depending on the '$CONFIG'
             let backend: PathBuf = resolve_config_path(backend, &config_path);
-            let policy_database: PathBuf = resolve_config_path(policy_database, &config_path);
+            let policy_deliberation_secret: PathBuf = resolve_config_path(policy_deliberation_secret, &config_path);
+            let policy_expert_secret: PathBuf = resolve_config_path(policy_expert_secret, &config_path);
             let proxy: PathBuf = resolve_config_path(proxy, &config_path);
             let certs: PathBuf = resolve_config_path(certs, &config_path);
 
             // Ensure the directory structure is there
             ensure_dir_of(&backend, fix_dirs)?;
             ensure_dir_of(&policy_database, fix_dirs)?;
+            ensure_dir_of(&policy_deliberation_secret, fix_dirs)?;
+            ensure_dir_of(&policy_expert_secret, fix_dirs)?;
             ensure_dir_of(&proxy, fix_dirs)?;
             ensure_dir(&certs, fix_dirs)?;
             ensure_dir(&packages, fix_dirs)?;
@@ -773,6 +808,8 @@ pub fn node(
 
                         backend: canonicalize(backend)?,
                         policy_database: canonicalize(policy_database)?,
+                        policy_deliberation_secret: canonicalize(policy_deliberation_secret)?,
+                        policy_expert_secret: canonicalize(policy_expert_secret)?,
                         proxy: if external_proxy.is_some() { None } else { Some(canonicalize(proxy)?) },
 
                         data: canonicalize(data)?,
@@ -1368,6 +1405,60 @@ pub async fn policy_database(fix_dirs: bool, path: PathBuf, branch: String) -> R
 
     // Done
     println!("Successfully generated {}", style(path.display().to_string()).bold().green());
+    Ok(())
+}
+
+/// Handles generating a new JWT secret.
+///
+/// # Arguments
+/// - `fix_dirs`: if true, will generate missing directories instead of complaining.
+/// - `path`: The path to write the `policy_secret.json` to.
+/// - `key_type`: The type of key to generate.
+/// - `key_id`: Some identifier to use for this key.
+/// - `key_use`: The intended usage for this key.
+/// - `jwt_alg`: The JWT algorithm that should be used for signing.
+///
+/// # Errors
+/// This function may error if we encountered any I/O errors.
+pub fn policy_secret(
+    fix_dirs: bool,
+    path: PathBuf,
+    key_type: KeyType,
+    key_id: String,
+    key_use: KeyUsage,
+    jwt_alg: JwtAlgorithm,
+) -> Result<(), Error> {
+    info!("Generating policy_secret.json at '{}'...", path.display());
+
+    // Generate a new key with the given properties
+    debug!("Generating secret key ({key_type}, {jwt_alg})...");
+    let key: String = match (key_type, jwt_alg) {
+        (KeyType::Octet, JwtAlgorithm::Hs256) => {
+            // Generate a 256-bit, base64-encoded random string of bytes
+            // See: <https://datatracker.ietf.org/doc/html/rfc7518#section-6.4.1>
+            let mut key: [u8; 32] = [0; 32];
+            OsRng::default().fill(&mut key);
+            base64ct::Base64Url::encode_string(&key)
+        },
+    };
+
+    // Create the to-be-serialized JSON with this
+    debug!("Constructing JSON Web Key Set...");
+    let secret: PolicySecret = PolicySecret { keys: vec![PolicySecretKey { key, key_id, key_type, key_use, jwt_alg }] };
+
+    // Write it to a file
+    debug!("Writing secret to '{}'...", path.display());
+    ensure_dir_of(&path, fix_dirs)?;
+    let handle: File = match File::create(&path) {
+        Ok(handle) => handle,
+        Err(err) => return Err(Error::FileCreateError { what: "policy secret", path, err }),
+    };
+    if let Err(err) = serde_json::to_writer_pretty(handle, &secret) {
+        return Err(Error::FileSerializeError { what: "policy secret", path, err });
+    }
+
+    // OK
+    println!("Successfully generated {}", style(path.display()).bold().green());
     Ok(())
 }
 

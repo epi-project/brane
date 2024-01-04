@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 17:27:52
 //  Last edited:
-//    03 Jan 2024, 15:07:38
+//    04 Jan 2024, 15:06:51
 //  Auto updated?
 //    Yes
 //
@@ -21,10 +21,11 @@ use brane_cfg::node::NodeKind;
 use brane_tsk::docker::{ClientVersion, ImageSource};
 use clap::Subcommand;
 use enum_debug::EnumDebug;
+use serde::{Serialize, Serializer};
 use specifications::address::Address;
 use specifications::version::Version;
 
-use crate::errors::{InclusiveRangeParseError, PairParseError};
+use crate::errors::{InclusiveRangeParseError, JwtAlgorithmParseError, KeyTypeParseError, KeyUsageParseError, PairParseError};
 
 
 /***** STATICS *****/
@@ -87,7 +88,6 @@ impl FromStr for VersionFix {
 /// Defines an _inclusive_ range of numbers.
 #[derive(Clone, Debug)]
 pub struct InclusiveRange<T>(pub RangeInclusive<T>);
-
 impl<T> InclusiveRange<T> {
     /// Constructor for the InclusiveRange.
     ///
@@ -115,7 +115,6 @@ impl<T> InclusiveRange<T> {
         Self(RangeInclusive::new(start, end))
     }
 }
-
 impl<T: Display> Display for InclusiveRange<T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult { write!(f, "{}-{}", self.0.start(), self.0.end()) }
@@ -208,6 +207,122 @@ where
 
         // OK, return ourselves
         Ok(Self(key, value))
+    }
+}
+
+
+
+/// Lists known identifiers for JWT signing algorithms.
+#[derive(Clone, Copy, Debug, EnumDebug, Eq, Hash, PartialEq)]
+pub enum JwtAlgorithm {
+    /// Signed by appending the key, then hashing.
+    Hs256,
+}
+impl Display for JwtAlgorithm {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use JwtAlgorithm::*;
+        match self {
+            Hs256 => write!(f, "HS256"),
+        }
+    }
+}
+impl Serialize for JwtAlgorithm {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Hs256 => serializer.serialize_str("HS256"),
+        }
+    }
+}
+impl FromStr for JwtAlgorithm {
+    type Err = JwtAlgorithmParseError;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "HS256" => Ok(Self::Hs256),
+            raw => Err(JwtAlgorithmParseError::Unknown { raw: raw.into() }),
+        }
+    }
+}
+
+/// Lists known identifiers for key type.
+#[derive(Clone, Copy, Debug, EnumDebug, Eq, Hash, PartialEq)]
+pub enum KeyType {
+    /// It's an octet sequence.
+    Octet,
+}
+impl Display for KeyType {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use KeyType::*;
+        match self {
+            Octet => write!(f, "octet sequence"),
+        }
+    }
+}
+impl Serialize for KeyType {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Octet => serializer.serialize_str("oct"),
+        }
+    }
+}
+impl FromStr for KeyType {
+    type Err = KeyTypeParseError;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "oct" => Ok(Self::Octet),
+            raw => Err(KeyTypeParseError::Unknown { raw: raw.into() }),
+        }
+    }
+}
+
+/// Lists known identifiers for key usage.
+#[derive(Clone, Copy, Debug, EnumDebug, Eq, Hash, PartialEq)]
+pub enum KeyUsage {
+    /// It's used for signing tokens.
+    Signing,
+}
+impl Display for KeyUsage {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use KeyUsage::*;
+        match self {
+            Signing => write!(f, "signing"),
+        }
+    }
+}
+impl Serialize for KeyUsage {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Signing => serializer.serialize_str("sig"),
+        }
+    }
+}
+impl FromStr for KeyUsage {
+    type Err = KeyUsageParseError;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "sig" => Ok(Self::Signing),
+            raw => Err(KeyUsageParseError::Unknown { raw: raw.into() }),
+        }
     }
 }
 
@@ -357,6 +472,22 @@ pub enum GenerateNodeSubcommand {
             help = "The location of the `policies.db` file that determines which containers and users are allowed to be executed."
         )]
         policy_database: PathBuf,
+        /// Custom hash file path.
+        #[clap(
+            long,
+            default_value = "$CONFIG/policy_deliberation_secret.json",
+            help = "The location of the `policy_deliberation_secret.json` file that is used to verify authentication on the deliberation endpoint \
+                    in the checker."
+        )]
+        policy_deliberation_secret: PathBuf,
+        /// Custom hash file path.
+        #[clap(
+            long,
+            default_value = "$CONFIG/policy_expert_secret.json",
+            help = "The location of the `policy_expert_secret.json` file that is used to verify authentication on the policy expert endpoint in the \
+                    checker."
+        )]
+        policy_expert_secret: PathBuf,
         /// Custom `proxy.yml` path.
         #[clap(
             short = 'P',

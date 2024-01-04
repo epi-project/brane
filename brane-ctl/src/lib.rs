@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:12
 //  Last edited:
-//    03 Jan 2024, 15:19:38
+//    04 Jan 2024, 13:49:36
 //  Auto updated?
 //    Yes
 //
@@ -14,6 +14,7 @@
 //
 
 // Declare modules
+// pub mod args;
 pub mod download;
 pub mod errors;
 pub mod generate;

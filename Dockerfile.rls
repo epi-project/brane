@@ -197,4 +197,5 @@ COPY --from=build /brane-chk /brane-chk
 RUN chmod +x /brane-chk
 
 # Run the compiler executable as base
+WORKDIR /
 ENTRYPOINT [ "/brane-chk" ]

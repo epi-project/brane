@@ -4,7 +4,7 @@
 //  Created:
 //    28 Feb 2023, 10:01:27
 //  Last edited:
-//    03 Jan 2024, 15:09:04
+//    04 Jan 2024, 15:05:57
 //  Auto updated?
 //    Yes
 //
@@ -419,6 +419,10 @@ pub struct WorkerPaths {
     /// The path to the policy SQLite database file (`policy.db`)
     #[serde(alias = "policy_db")]
     pub policy_database: PathBuf,
+    /// The path to the secret used for the deliberation endpoint in the checker.
+    pub policy_deliberation_secret: PathBuf,
+    /// The path to the secret used for the policy expert endpoint in the checker.
+    pub policy_expert_secret: PathBuf,
     /// The path to the proxy file, if applicable. Ignored if no service is present.
     pub proxy: Option<PathBuf>,
 

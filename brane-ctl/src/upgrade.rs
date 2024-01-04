@@ -4,7 +4,7 @@
 //  Created:
 //    03 Jul 2023, 13:01:31
 //  Last edited:
-//    03 Jan 2024, 15:06:45
+//    04 Jan 2024, 15:06:06
 //  Auto updated?
 //    Yes
 //
@@ -448,6 +448,8 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
 
                             backend: worker.paths.backend,
                             policy_database: worker.paths.policies,
+                            policy_deliberation_secret: "NOT YET IMPLEMENTED".into(),
+                            policy_expert_secret: "NOT YET IMPLEMENTED".into(),
                             proxy: Some(proxy_path),
 
                             data: worker.paths.data,

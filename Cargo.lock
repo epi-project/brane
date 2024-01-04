@@ -685,6 +685,7 @@ dependencies = [
 name = "brane-ctl"
 version = "3.0.0"
 dependencies = [
+ "base64ct",
  "bollard",
  "brane-cfg",
  "brane-shr",

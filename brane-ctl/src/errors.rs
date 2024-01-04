@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    03 Jan 2024, 15:58:51
+//    04 Jan 2024, 14:56:42
 //  Auto updated?
 //    Yes
 //
@@ -103,6 +103,8 @@ pub enum GenerateError {
     FileNotAFile { path: PathBuf },
     /// Failed to write to the output file.
     FileWriteError { what: &'static str, path: PathBuf, err: std::io::Error },
+    /// Failed to serialize & write to the output file.
+    FileSerializeError { what: &'static str, path: PathBuf, err: serde_json::Error },
     /// Failed to download a file.
     DownloadError { source: String, target: PathBuf, err: Box<brane_shr::fs::Error> },
     /// Failed to set a file to executable.
@@ -170,6 +172,7 @@ impl Display for GenerateError {
 
             FileNotAFile { path } => write!(f, "File '{}' exists but not as a file", path.display()),
             FileWriteError { what, path, .. } => write!(f, "Failed to write to {} file '{}'", what, path.display()),
+            FileSerializeError { what, path, .. } => write!(f, "Failed to write JSON to {} file '{}'", what, path.display()),
             DownloadError { source, target, .. } => write!(f, "Failed to download '{}' to '{}'", source, target.display()),
             ExecutableError { .. } => write!(f, "Failed to make file executable"),
 
@@ -224,6 +227,7 @@ impl Error for GenerateError {
 
             FileNotAFile { .. } => None,
             FileWriteError { err, .. } => Some(err),
+            FileSerializeError { err, .. } => Some(err),
             DownloadError { err, .. } => Some(err),
             ExecutableError { err } => Some(err),
 
@@ -563,3 +567,56 @@ impl Display for ArchParseError {
     }
 }
 impl Error for ArchParseError {}
+
+
+
+/// Errors that relate to parsing JWT signing algorithm IDs.
+#[derive(Debug)]
+pub enum JwtAlgorithmParseError {
+    /// Unknown identifier given.
+    Unknown { raw: String },
+}
+impl Display for JwtAlgorithmParseError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use JwtAlgorithmParseError::*;
+        match self {
+            Unknown { raw } => write!(f, "Unknown JWT algorithm '{raw}' (options are: 'HS256')"),
+        }
+    }
+}
+impl Error for JwtAlgorithmParseError {}
+
+/// Errors that relate to parsing key type IDs.
+#[derive(Debug)]
+pub enum KeyTypeParseError {
+    /// Unknown identifier given.
+    Unknown { raw: String },
+}
+impl Display for KeyTypeParseError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use KeyTypeParseError::*;
+        match self {
+            Unknown { raw } => write!(f, "Unknown key type '{raw}' (options are: 'oct')"),
+        }
+    }
+}
+impl Error for KeyTypeParseError {}
+
+/// Errors that relate to parsing key usage IDs.
+#[derive(Debug)]
+pub enum KeyUsageParseError {
+    /// Unknown identifier given.
+    Unknown { raw: String },
+}
+impl Display for KeyUsageParseError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use KeyUsageParseError::*;
+        match self {
+            Unknown { raw } => write!(f, "Unknown key usage '{raw}' (options are: 'sig')"),
+        }
+    }
+}
+impl Error for KeyUsageParseError {}

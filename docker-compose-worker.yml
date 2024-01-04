@@ -35,7 +35,8 @@ services:
     volumes:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${POLICY_DB}:/lib/policy/data/policy.db
-    # - ${POLICY_EXPERT_SECRET}:/examples/config/jwk_set.json
+    - ${POLICY_DELIBERATION_SECRET}:/examples/config/jwk_set_delib.json
+    - ${POLICY_EXPERT_SECRET}:/examples/config/jwk_set_expert.json
 
   # The service in charge of the local container- and data registry
   brane-reg:
