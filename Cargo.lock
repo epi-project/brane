@@ -618,7 +618,7 @@ dependencies = [
  "clap",
  "console",
  "cwl",
- "dialoguer 0.10.4",
+ "dialoguer",
  "dirs-2",
  "dotenvy",
  "enum-debug",
@@ -692,7 +692,6 @@ dependencies = [
  "brane-tsk",
  "clap",
  "console",
- "dialoguer 0.11.0",
  "diesel",
  "diesel_migrations",
  "dirs-2",
@@ -984,7 +983,7 @@ version = "3.0.0"
 dependencies = [
  "async-compression 0.3.15",
  "console",
- "dialoguer 0.10.4",
+ "dialoguer",
  "enum-debug",
  "fs2",
  "futures-util",
@@ -1022,7 +1021,7 @@ dependencies = [
  "chrono",
  "clap",
  "console",
- "dialoguer 0.10.4",
+ "dialoguer",
  "dirs-2",
  "enum-debug",
  "futures-util",
@@ -1573,19 +1572,6 @@ dependencies = [
  "console",
  "shell-words",
  "tempfile",
- "zeroize",
-]
-
-[[package]]
-name = "dialoguer"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "658bce805d770f407bc62102fca7c2c64ceef2fbcb2b8bd19d2765ce093980de"
-dependencies = [
- "console",
- "shell-words",
- "tempfile",
- "thiserror",
  "zeroize",
 ]
 
@@ -4635,9 +4621,11 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.21.4",
+ "base64ct",
  "chrono",
  "const_format",
  "enum-debug",
+ "jsonwebtoken",
  "log",
  "num-traits",
  "parking_lot",

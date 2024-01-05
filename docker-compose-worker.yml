@@ -28,10 +28,11 @@ services:
   brane-chk:
     image: brane-chk:${BRANE_VERSION:-latest}
     container_name: ${CHK_NAME:-brane-chk}
-    command: --debug
     ports:
     - "0.0.0.0:${CHK_PORT}:${CHK_PORT}"
     restart: always
+    environment:
+      - ADDRESS=0.0.0.0:${CHK_PORT}
     volumes:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${POLICY_DB}:/lib/policy/data/policy.db

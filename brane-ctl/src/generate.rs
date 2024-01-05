@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:47
 //  Last edited:
-//    05 Jan 2024, 11:33:54
+//    05 Jan 2024, 11:52:20
 //  Auto updated?
 //    Yes
 //
@@ -20,8 +20,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::str::FromStr as _;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use base64ct::Encoding as _;
 use brane_cfg::backend::{BackendFile, Credentials};
@@ -34,14 +33,11 @@ use brane_cfg::node::{
 use brane_cfg::proxy::{self, ForwardConfig};
 use brane_shr::fs::{download_file_async, set_executable, DownloadSecurity};
 use console::{style, Style};
-use dialoguer::theme::ColorfulTheme;
-use dialoguer::Select;
 use diesel::{Connection as _, SqliteConnection};
 use diesel_migrations::{FileBasedMigrations, MigrationHarness as _};
 use enum_debug::EnumDebug as _;
 use hex_literal::hex;
 use jsonwebtoken::jwk::{self, Jwk, JwkSet, KeyAlgorithm, OctetKeyParameters, OctetKeyType, PublicKeyUse};
-use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use log::{debug, info, warn};
 use rand::distributions::Alphanumeric;
 use rand::rngs::OsRng;
@@ -49,6 +45,7 @@ use rand::Rng as _;
 use serde::Serialize;
 use specifications::address::Address;
 use specifications::package::Capability;
+use specifications::policy::generate_policy_token;
 use tempfile::TempDir;
 
 pub use crate::errors::GenerateError as Error;
@@ -1461,87 +1458,14 @@ pub fn policy_secret(fix_dirs: bool, path: PathBuf, key_id: String, key_alg: Key
 pub fn policy_token(fix_dirs: bool, path: PathBuf, secret_path: PathBuf, initiator: String, system: String, exp: Duration) -> Result<(), Error> {
     info!("Generating policy_token.json at '{}'...", path.display());
 
-    // Read the secret
-    debug!("Reading secret '{}'...", secret_path.display());
-    let secret: JwkSet = match File::open(&secret_path) {
-        Ok(handle) => match serde_json::from_reader(handle) {
-            Ok(secret) => secret,
-            Err(err) => return Err(Error::FileDeserializeError { what: "policy token", path: secret_path, err }),
-        },
-        Err(err) => return Err(Error::FileOpenError { what: "policy token", path: secret_path, err }),
-    };
-
-    // Resolve the set to a single key
-    let key: &Jwk = if secret.keys.len() > 1 {
-        // Perform a question
-        debug!("Multiple keys ({}) detected in secret '{}', manual resolution required", secret.keys.len(), secret_path.display());
-        let skeys = secret
-            .keys
-            .iter()
-            .enumerate()
-            .map(|(i, k)| if let Some(id) = &k.common.key_id { id.clone() } else { format!("<Key {i}>") })
-            .collect::<Vec<String>>();
-        let idx: usize =
-            match Select::with_theme(&ColorfulTheme::default()).default(0).with_prompt("Which key do you want to use?").items(&skeys).interact() {
-                Ok(idx) => idx,
-                Err(err) => return Err(Error::Prompt { what: "which key to use", err }),
-            };
-        &secret.keys[idx]
-    } else if secret.keys.len() == 1 {
-        debug!("Single key detected in secret '{}', trivial selection", secret_path.display());
-        &secret.keys[0]
-    } else {
-        return Err(Error::EmptySecret { path: secret_path });
-    };
-
-    // Now extract the information from the key we want
-    debug!("Extracting algorithm and key from JWK...");
-    let (alg, key): (Algorithm, EncodingKey) = {
-        // Get the algorithm
-        let alg: Algorithm = match &key.common.key_algorithm {
-            Some(alg) => match Algorithm::from_str(alg.to_string().as_str()) {
-                Ok(alg) => alg,
-                Err(_) => return Err(Error::UnsupportedKeyAlgorithm { key_alg: *alg }),
-            },
-            None => {
-                warn!("Policy secret '{}' has no algorithm specified; defaulting to HS256", secret_path.display());
-                Algorithm::HS256
-            },
-        };
-
-        // Get the encoding key from the key
-        let key: EncodingKey = match &key.algorithm {
-            jwk::AlgorithmParameters::OctetKey(OctetKeyParameters { value, .. }) => match EncodingKey::from_base64_secret(value) {
-                Ok(key) => key,
-                Err(err) => return Err(Error::KeyParse { raw: value.clone(), err }),
-            },
-
-            // The rest is unsupported
-            jwk::AlgorithmParameters::EllipticCurve(_) => return Err(Error::UnsupportedKeyType { ty: "EllipticCurve" }),
-            jwk::AlgorithmParameters::OctetKeyPair(_) => return Err(Error::UnsupportedKeyType { ty: "OctetKeyPair" }),
-            jwk::AlgorithmParameters::RSA(_) => return Err(Error::UnsupportedKeyType { ty: "RSA" }),
-        };
-
-        // Done
-        (alg, key)
-    };
-
-    // Construct a token with that secret
-    let exp: u64 = (SystemTime::now() + exp).duration_since(UNIX_EPOCH).unwrap().as_secs();
-    let token: String = match jsonwebtoken::encode(
-        &Header::new(alg),
-        &serde_json::json!({
-            "exp": exp,
-            "username": initiator,
-            "system": system,
-        }),
-        &key,
-    ) {
+    // Use the backend to do this
+    let token: String = match generate_policy_token(initiator, system, exp, secret_path) {
         Ok(token) => token,
-        Err(err) => return Err(Error::JwtEncode { alg, err }),
+        Err(err) => return Err(Error::TokenGenerate { err }),
     };
 
     // Finally, write that to a file
+    debug!("Writing token to '{}'...", path.display());
     ensure_dir_of(&path, fix_dirs)?;
     if let Err(err) = fs::write(&path, token) {
         return Err(Error::FileWriteError { what: "policy token", path, err });

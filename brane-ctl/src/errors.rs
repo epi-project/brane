@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    05 Jan 2024, 11:20:01
+//    05 Jan 2024, 11:52:06
 //  Auto updated?
 //    Yes
 //
@@ -23,7 +23,6 @@ use brane_tsk::docker::ImageSource;
 use console::style;
 use enum_debug::EnumDebug as _;
 use jsonwebtoken::jwk::KeyAlgorithm;
-use jsonwebtoken::Algorithm;
 use specifications::container::Image;
 use specifications::version::Version;
 
@@ -166,17 +165,8 @@ pub enum GenerateError {
 
     /// A particular combination of policy secret settings was not supported.
     UnsupportedKeyAlgorithm { key_alg: KeyAlgorithm },
-
-    /// Failed to ask the user which key to use.
-    Prompt { what: &'static str, err: dialoguer::Error },
-    /// A given secret did not have any keys.
-    EmptySecret { path: PathBuf },
-    /// Failed to parse the given JWK octet key
-    KeyParse { raw: String, err: jsonwebtoken::errors::Error },
-    /// Unsupported key type encountered
-    UnsupportedKeyType { ty: &'static str },
-    /// Failed to encode the final JWT
-    JwtEncode { alg: Algorithm, err: jsonwebtoken::errors::Error },
+    /// Failed to generate a new policy token.
+    TokenGenerate { err: specifications::policy::Error },
 }
 impl Display for GenerateError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -235,12 +225,7 @@ impl Display for GenerateError {
             UnsupportedKeyAlgorithm { key_alg } => {
                 write!(f, "Policy key algorithm {key_alg} is unsupported")
             },
-
-            Prompt { what, .. } => write!(f, "Failed to ask {what}"),
-            EmptySecret { path } => write!(f, "Policy secret '{}' does not contain any keys", path.display()),
-            KeyParse { raw, .. } => write!(f, "Failed to parse '{raw}' as a valid encoding key"),
-            UnsupportedKeyType { ty } => write!(f, "Unsupported policy secret type '{ty}'"),
-            JwtEncode { alg, .. } => write!(f, "Failed to create JWT using {alg:?}"),
+            TokenGenerate { .. } => write!(f, "Failed to generate new policy token"),
         }
     }
 }
@@ -289,12 +274,7 @@ impl Error for GenerateError {
             MigrationsApply { err, .. } => Some(&**err),
 
             UnsupportedKeyAlgorithm { .. } => None,
-
-            Prompt { err, .. } => Some(err),
-            EmptySecret { .. } => None,
-            KeyParse { err, .. } => Some(err),
-            UnsupportedKeyType { .. } => None,
-            JwtEncode { err, .. } => Some(err),
+            TokenGenerate { err, .. } => Some(err),
         }
     }
 }

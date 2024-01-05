@@ -18,6 +18,8 @@ All notable changes to the Brane framework will be documented in this file.
   - Part of this is:
     - Changing Docker Compose files used by `branectl` (\[**breaking change**\] if you use customized ones).
     - Adding `branectl generate policy_db` to initialize the policy database file.
+    - Adding `branectl generate policy_secret` to initialize a JWK set to use for API endpoint authentication in the policy reasoner.
+    - Adding `branectl generate policy_token` to initialize a JWT based on the given JWK set.
     - Changing `policies` path in `node.yml` to `policy_database` file \[**breaking change**\].
     - Removing `branectl generate policies` as the old file is no longer used \[**breaking change**\].
 - Graceful shutdown for instance services (`brane-api`, `brane-drv`, `brane-job`, `brane-plr`, `brane-reg`).
