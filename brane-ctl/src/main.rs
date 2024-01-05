@@ -4,7 +4,7 @@
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    04 Jan 2024, 14:07:12
+//    05 Jan 2024, 11:30:11
 //  Auto updated?
 //    Yes
 //
@@ -17,15 +17,17 @@ use std::path::PathBuf;
 
 use brane_cfg::proxy::{ForwardConfig, ProxyProtocol};
 use brane_ctl::spec::{
-    DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, JwtAlgorithm, KeyType,
-    KeyUsage, Pair, ResolvableNodeKind, StartOpts, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
+    DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair, ResolvableNodeKind,
+    StartOpts, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
 };
 use brane_ctl::{download, generate, lifetime, packages, unpack, upgrade, wizard};
-use brane_shr::errors::ErrorTrace as _;
 use brane_tsk::docker::{ClientVersion, DockerOptions};
 use clap::{Parser, Subcommand};
 use dotenvy::dotenv;
+use error_trace::ErrorTrace as _;
 use humanlog::{DebugMode, HumanLogger};
+use humantime::Duration as HumanDuration;
+use jsonwebtoken::jwk::KeyAlgorithm;
 use log::error;
 use specifications::address::Address;
 use specifications::arch::Arch;
@@ -363,27 +365,47 @@ enum GenerateSubcommand {
         branch:   String,
     },
 
-    #[clap(name = "policy_secret", alias = "policy_secret", about = "Generates a new JWT key for use in the `brane-chk` service.")]
+    #[clap(name = "policy_secret", about = "Generates a new JWT key for use in the `brane-chk` service.")]
     PolicySecret {
         /// If given, will generate missing directories instead of throwing errors.
         #[clap(short = 'f', long, help = "If given, will generate any missing directories.")]
         fix_dirs: bool,
         /// The path to write to.
-        #[clap(short, long, default_value = "./policy_secret.json", help = "The path to write the policy file to.")]
+        #[clap(short, long, default_value = "./policy_secret.json", help = "The path to write the policy secret to.")]
         path:     PathBuf,
 
-        /// The type of key to parse.
-        #[clap(short = 't', long = "type", default_value = "oct", help = "The type of the key to generate. Options are 'oct'.")]
-        key_type: KeyType,
         /// The identifier for this key.
         #[clap(short = 'i', long = "id", default_value = "A", help = "Some identifier to distinguish the key.")]
-        key_id:   String,
-        /// The use of the key.
-        #[clap(short = 'u', long = "use", default_value = "sig", help = "The intended usage of the key to generate. Options are 'sig'.")]
-        key_use:  KeyUsage,
+        key_id:  String,
         /// The algorithm used to sign JWTs.
         #[clap(short = 'a', long = "alg", default_value = "HS256", help = "The algorithm with which to sign JWTs using the generated key.")]
-        jwt_alg:  JwtAlgorithm,
+        jwt_alg: KeyAlgorithm,
+    },
+
+    #[clap(name = "policy_token", about = "Generates a new JWT for use to access the `brane-chk` service.")]
+    PolicyToken {
+        /// The name of the user using this token.
+        #[clap(name = "INITIATOR", help = "The name of the user that uses this token.")]
+        initiator: String,
+        /// The name of the system through which the access is performed.
+        #[clap(name = "SYSTEM", help = "The name of the system through which the access is performed.")]
+        system: String,
+        /// The expiry time.
+        #[clap(
+            name = "DURATION",
+            help = "The duration for which this token is valid. You can use freeform syntax like '5min', '1y' or even '1h 30min'"
+        )]
+        exp: HumanDuration,
+
+        /// If given, will generate missing directories instead of throwing errors.
+        #[clap(short = 'f', long, help = "If given, will generate any missing directories.")]
+        fix_dirs: bool,
+        /// The path to write to.
+        #[clap(short, long, default_value = "./policy_token.json", help = "The path to write the policy token to.")]
+        path: PathBuf,
+        /// The path of the secret file containing the key.
+        #[clap(short, long, default_value = "./policy_secret.json", help = "The path that contains the policy secret with which to sign the token.")]
+        secret_path: PathBuf,
     },
 
     #[clap(name = "proxy", about = "Generates a new `proxy.yml` file.")]
@@ -635,9 +657,16 @@ async fn main() {
                     std::process::exit(1);
                 }
             },
-            GenerateSubcommand::PolicySecret { fix_dirs, path, key_type, key_id, key_use, jwt_alg } => {
+            GenerateSubcommand::PolicySecret { fix_dirs, path, key_id, jwt_alg } => {
                 // Call the thing
-                if let Err(err) = generate::policy_secret(fix_dirs, path, key_type, key_id, key_use, jwt_alg) {
+                if let Err(err) = generate::policy_secret(fix_dirs, path, key_id, jwt_alg) {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
+            },
+            GenerateSubcommand::PolicyToken { initiator, system, exp, fix_dirs, path, secret_path } => {
+                // Call the thing
+                if let Err(err) = generate::policy_token(fix_dirs, path, secret_path, initiator, system, *exp) {
                     error!("{}", err.trace());
                     std::process::exit(1);
                 }

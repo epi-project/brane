@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 17:27:52
 //  Last edited:
-//    04 Jan 2024, 15:06:51
+//    05 Jan 2024, 11:28:02
 //  Auto updated?
 //    Yes
 //
@@ -21,11 +21,10 @@ use brane_cfg::node::NodeKind;
 use brane_tsk::docker::{ClientVersion, ImageSource};
 use clap::Subcommand;
 use enum_debug::EnumDebug;
-use serde::{Serialize, Serializer};
 use specifications::address::Address;
 use specifications::version::Version;
 
-use crate::errors::{InclusiveRangeParseError, JwtAlgorithmParseError, KeyTypeParseError, KeyUsageParseError, PairParseError};
+use crate::errors::{InclusiveRangeParseError, PairParseError};
 
 
 /***** STATICS *****/
@@ -33,6 +32,36 @@ lazy_static::lazy_static! {
     /// The default Docker API version that we're using.
     pub static ref API_DEFAULT_VERSION: String = format!("{}", brane_tsk::docker::API_DEFAULT_VERSION);
 }
+
+
+
+
+
+// /***** HELPERS *****/
+// /// Visitor that simply uses a `FromStr`-implementation to deserialize.
+// struct FromStrVisitor<T> {
+//     _value: PhantomData<T>,
+// }
+// impl<'de, T: FromStr> Visitor<'de> for FromStrVisitor<T>
+// where
+//     T: FromStr,
+//     T::Err: 'static + Error,
+// {
+//     type Value = T;
+
+//     fn expecting(&self, f: &mut Formatter) -> FResult { write!(f, "a {}", std::any::type_name::<T>()) }
+
+//     #[inline]
+//     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+//     where
+//         E: de::Error,
+//     {
+//         match Self::Value::from_str(v) {
+//             Ok(val) => Ok(val),
+//             Err(err) => Err(E::custom(trace!(("Failed to deserialize '{}' as a {}", v, std::any::type_name::<T>()), err))),
+//         }
+//     }
+// }
 
 
 
@@ -207,122 +236,6 @@ where
 
         // OK, return ourselves
         Ok(Self(key, value))
-    }
-}
-
-
-
-/// Lists known identifiers for JWT signing algorithms.
-#[derive(Clone, Copy, Debug, EnumDebug, Eq, Hash, PartialEq)]
-pub enum JwtAlgorithm {
-    /// Signed by appending the key, then hashing.
-    Hs256,
-}
-impl Display for JwtAlgorithm {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use JwtAlgorithm::*;
-        match self {
-            Hs256 => write!(f, "HS256"),
-        }
-    }
-}
-impl Serialize for JwtAlgorithm {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Self::Hs256 => serializer.serialize_str("HS256"),
-        }
-    }
-}
-impl FromStr for JwtAlgorithm {
-    type Err = JwtAlgorithmParseError;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "HS256" => Ok(Self::Hs256),
-            raw => Err(JwtAlgorithmParseError::Unknown { raw: raw.into() }),
-        }
-    }
-}
-
-/// Lists known identifiers for key type.
-#[derive(Clone, Copy, Debug, EnumDebug, Eq, Hash, PartialEq)]
-pub enum KeyType {
-    /// It's an octet sequence.
-    Octet,
-}
-impl Display for KeyType {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use KeyType::*;
-        match self {
-            Octet => write!(f, "octet sequence"),
-        }
-    }
-}
-impl Serialize for KeyType {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Self::Octet => serializer.serialize_str("oct"),
-        }
-    }
-}
-impl FromStr for KeyType {
-    type Err = KeyTypeParseError;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "oct" => Ok(Self::Octet),
-            raw => Err(KeyTypeParseError::Unknown { raw: raw.into() }),
-        }
-    }
-}
-
-/// Lists known identifiers for key usage.
-#[derive(Clone, Copy, Debug, EnumDebug, Eq, Hash, PartialEq)]
-pub enum KeyUsage {
-    /// It's used for signing tokens.
-    Signing,
-}
-impl Display for KeyUsage {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        use KeyUsage::*;
-        match self {
-            Signing => write!(f, "signing"),
-        }
-    }
-}
-impl Serialize for KeyUsage {
-    #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Self::Signing => serializer.serialize_str("sig"),
-        }
-    }
-}
-impl FromStr for KeyUsage {
-    type Err = KeyUsageParseError;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "sig" => Ok(Self::Signing),
-            raw => Err(KeyUsageParseError::Unknown { raw: raw.into() }),
-        }
     }
 }
 

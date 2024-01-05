@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    04 Jan 2024, 14:56:42
+//    05 Jan 2024, 11:20:01
 //  Auto updated?
 //    Yes
 //
@@ -22,6 +22,8 @@ use brane_shr::formatters::Capitalizeable;
 use brane_tsk::docker::ImageSource;
 use console::style;
 use enum_debug::EnumDebug as _;
+use jsonwebtoken::jwk::KeyAlgorithm;
+use jsonwebtoken::Algorithm;
 use specifications::container::Image;
 use specifications::version::Version;
 
@@ -105,6 +107,8 @@ pub enum GenerateError {
     FileWriteError { what: &'static str, path: PathBuf, err: std::io::Error },
     /// Failed to serialize & write to the output file.
     FileSerializeError { what: &'static str, path: PathBuf, err: serde_json::Error },
+    /// Failed to deserialize & read an input file.
+    FileDeserializeError { what: &'static str, path: PathBuf, err: serde_json::Error },
     /// Failed to download a file.
     DownloadError { source: String, target: PathBuf, err: Box<brane_shr::fs::Error> },
     /// Failed to set a file to executable.
@@ -159,6 +163,20 @@ pub enum GenerateError {
     DatabaseConnect { path: PathBuf, err: diesel::ConnectionError },
     /// Failed to apply a set of mitigations.
     MigrationsApply { path: PathBuf, err: Box<dyn 'static + Error> },
+
+    /// A particular combination of policy secret settings was not supported.
+    UnsupportedKeyAlgorithm { key_alg: KeyAlgorithm },
+
+    /// Failed to ask the user which key to use.
+    Prompt { what: &'static str, err: dialoguer::Error },
+    /// A given secret did not have any keys.
+    EmptySecret { path: PathBuf },
+    /// Failed to parse the given JWK octet key
+    KeyParse { raw: String, err: jsonwebtoken::errors::Error },
+    /// Unsupported key type encountered
+    UnsupportedKeyType { ty: &'static str },
+    /// Failed to encode the final JWT
+    JwtEncode { alg: Algorithm, err: jsonwebtoken::errors::Error },
 }
 impl Display for GenerateError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -173,6 +191,7 @@ impl Display for GenerateError {
             FileNotAFile { path } => write!(f, "File '{}' exists but not as a file", path.display()),
             FileWriteError { what, path, .. } => write!(f, "Failed to write to {} file '{}'", what, path.display()),
             FileSerializeError { what, path, .. } => write!(f, "Failed to write JSON to {} file '{}'", what, path.display()),
+            FileDeserializeError { what, path, .. } => write!(f, "Failed to read JSON from {} file '{}'", what, path.display()),
             DownloadError { source, target, .. } => write!(f, "Failed to download '{}' to '{}'", source, target.display()),
             ExecutableError { .. } => write!(f, "Failed to make file executable"),
 
@@ -212,6 +231,16 @@ impl Display for GenerateError {
             MigrationsRetrieve { path, .. } => write!(f, "Failed to find Diesel migrations in '{}'", path.display()),
             DatabaseConnect { path, .. } => write!(f, "Failed to connect to SQLite database file '{}'", path.display()),
             MigrationsApply { path, .. } => write!(f, "Failed to apply migrations to SQLite database file '{}'", path.display()),
+
+            UnsupportedKeyAlgorithm { key_alg } => {
+                write!(f, "Policy key algorithm {key_alg} is unsupported")
+            },
+
+            Prompt { what, .. } => write!(f, "Failed to ask {what}"),
+            EmptySecret { path } => write!(f, "Policy secret '{}' does not contain any keys", path.display()),
+            KeyParse { raw, .. } => write!(f, "Failed to parse '{raw}' as a valid encoding key"),
+            UnsupportedKeyType { ty } => write!(f, "Unsupported policy secret type '{ty}'"),
+            JwtEncode { alg, .. } => write!(f, "Failed to create JWT using {alg:?}"),
         }
     }
 }
@@ -228,6 +257,7 @@ impl Error for GenerateError {
             FileNotAFile { .. } => None,
             FileWriteError { err, .. } => Some(err),
             FileSerializeError { err, .. } => Some(err),
+            FileDeserializeError { err, .. } => Some(err),
             DownloadError { err, .. } => Some(err),
             ExecutableError { err } => Some(err),
 
@@ -257,6 +287,14 @@ impl Error for GenerateError {
             MigrationsRetrieve { err, .. } => Some(err),
             DatabaseConnect { err, .. } => Some(err),
             MigrationsApply { err, .. } => Some(&**err),
+
+            UnsupportedKeyAlgorithm { .. } => None,
+
+            Prompt { err, .. } => Some(err),
+            EmptySecret { .. } => None,
+            KeyParse { err, .. } => Some(err),
+            UnsupportedKeyType { .. } => None,
+            JwtEncode { err, .. } => Some(err),
         }
     }
 }
