@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 09:25:11
 //  Last edited:
-//    12 Dec 2023, 19:04:08
+//    05 Jan 2024, 14:35:04
 //  Auto updated?
 //    Yes
 //
@@ -525,14 +525,30 @@ fn pass_edge_instr(writer: &mut impl Write, instr: &EdgeInstr, table: &SymTable)
 /// # Errors
 /// This pass may error if we failed to write to the given writer.
 pub fn do_traversal(root: &Workflow, mut writer: impl Write) -> Result<(), Vec<Error>> {
-    let Workflow { table, metadata, graph, funcs } = root;
+    let Workflow { table, metadata, user, graph, funcs } = root;
 
     if let Err(err) = writeln!(&mut writer, "Workflow {{") {
         return Err(vec![Error::WriteError { err }]);
     };
 
     // Print parsed metadata
-    if !metadata.is_empty() {
+    if user.is_some() || !metadata.is_empty() {
+        // Print the user
+        if let Some(user) = &**user {
+            // Write it
+            if let Err(err) = writeln!(&mut writer, "{}User: '{}'", indent!(INDENT_SIZE), user) {
+                return Err(vec![Error::WriteError { err }]);
+            };
+
+            // Write a newline separating the tags
+            if !metadata.is_empty() {
+                if let Err(err) = writeln!(&mut writer) {
+                    return Err(vec![Error::WriteError { err }]);
+                };
+            }
+        }
+
+        // Print the metadata
         for md in metadata.iter() {
             if let Err(err) = writeln!(
                 &mut writer,

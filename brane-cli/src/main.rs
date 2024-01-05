@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    13 Dec 2023, 08:30:06
+//    05 Jan 2024, 16:06:33
 //  Auto updated?
 //    Yes
 //
@@ -161,25 +161,6 @@ enum SubCommand {
         #[clap(short, long, default_value = "latest", help = "Version of the package")]
         version: SemVersion,
     },
-
-    // #[clap(name = "login", about = "Log in to a registry")]
-    // Login {
-    //     #[clap(name = "HOST", help = "Hostname of the registry. May include a prefix URL.")]
-    //     host : Hostname,
-
-    //     #[clap(short, long, group = "identity", help = "Username of the account. Specify this if the remote instance does require secure authentication using certificates (see '--identity' in that case).")]
-    //     username    : Option<String>,
-    //     #[clap(short, long, group = "identity", help = "Path to the SSL certificate file to use to authenticate yourself in the remote instance. If the remote instance does not require secure authentication, consider using '--username' instead.")]
-    //     certificate : Option<PathBuf>,
-
-    //     #[clap(short, long, default_value = "50051", help = "The remote API port to connect to. You don't have to specify this if your system administrator didn't say so.")]
-    //     api_port : u16,
-    //     #[clap(short, long, default_value = "50053", help = "The remote driver port to connect to. You don't have to specify this if your system administrator didn't say so.")]
-    //     drv_port : u16,
-
-    //     #[clap(long, help = "If given, does not check with the remote host if the credentials are correct, but just caches them for further subcommands.")]
-    //     unchecked : bool,
-    // },
 
     // #[clap(name = "logout", about = "Log out from a registry")]
     // Logout {},

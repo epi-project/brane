@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    12 Dec 2023, 19:03:16
+//    05 Jan 2024, 14:32:50
 //  Auto updated?
 //    Yes
 //
@@ -55,6 +55,8 @@ pub struct Workflow {
     pub table:    Arc<SymTable>,
     /// Toplevel metadata
     pub metadata: Arc<HashSet<Metadata>>,
+    /// Whomst've ever submitted the workflow (as a string identifier).
+    pub user:     Arc<Option<String>>,
 
     /// Implements the graph. Note that the ordering of this graph is important, but it will not be executed linearly.
     pub graph: Arc<Vec<Edge>>,
@@ -77,6 +79,7 @@ impl Workflow {
         Self {
             table:    Arc::new(table),
             metadata: Arc::new(HashSet::new()),
+            user:     Arc::new(None),
 
             graph: Arc::new(graph),
             funcs: Arc::new(funcs),
@@ -124,6 +127,7 @@ impl Default for Workflow {
         Self {
             table:    Arc::new(SymTable::new()),
             metadata: Arc::new(HashSet::new()),
+            user:     Arc::new(None),
 
             graph: Arc::new(vec![]),
             funcs: Arc::new(HashMap::new()),
