@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    08 Jan 2024, 10:13:44
+//    08 Jan 2024, 10:34:52
 //  Auto updated?
 //    Yes
 //
@@ -662,6 +662,14 @@ enum InstanceSubcommand {
         /// Change the driver port to this.
         #[clap(short, long, help = "If given, changes the port of the driver service for this instance to this.")]
         drv_port: Option<u16>,
+        /// The name of the user as which we login.
+        #[clap(
+            short,
+            long,
+            help = "If given, changes the name as which to login to the instance. This is used to tell checkers who will download the result, but \
+                    only tentatively; a final check happens using domain-specific credentials."
+        )]
+        user:     Option<String>,
     },
 }
 
@@ -1015,8 +1023,8 @@ async fn run(options: Cli) -> Result<(), CliError> {
                     }
                 },
 
-                Edit { name, hostname, api_port, drv_port } => {
-                    if let Err(err) = instance::edit(name, hostname, api_port, drv_port) {
+                Edit { name, hostname, api_port, drv_port, user } => {
+                    if let Err(err) = instance::edit(name, hostname, api_port, drv_port, user) {
                         return Err(CliError::InstanceError { err });
                     }
                 },

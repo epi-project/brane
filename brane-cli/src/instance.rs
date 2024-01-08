@@ -4,7 +4,7 @@
 //  Created:
 //    26 Jan 2023, 09:22:13
 //  Last edited:
-//    08 Jan 2024, 10:13:33
+//    08 Jan 2024, 10:36:02
 //  Auto updated?
 //    Yes
 //
@@ -682,10 +682,17 @@ pub fn select(name: String) -> Result<(), Error> {
 /// - `hostname`: Whether to change the hostname of the instance and, if so, what to change it to.
 /// - `api_port`: Whether to change the API service port of the instance and, if so, what to change it to.
 /// - `drv_port`: Whether to change the driver service port of the instance and, if so, what to change it to.
+/// - `user`: Whether to change the user name which the user presents as receiver of the final result.
 ///
 /// # Errors
 /// This function errors if we failed to find the instance or failed to update its file.
-pub fn edit(name: Option<String>, hostname: Option<Hostname>, api_port: Option<u16>, drv_port: Option<u16>) -> Result<(), Error> {
+pub fn edit(
+    name: Option<String>,
+    hostname: Option<Hostname>,
+    api_port: Option<u16>,
+    drv_port: Option<u16>,
+    user: Option<String>,
+) -> Result<(), Error> {
     info!("Editing instance {}...", name.as_ref().map(|n| format!("'{n}'")).unwrap_or("<active>".into()));
 
     // Get the instance's directory
@@ -729,6 +736,10 @@ pub fn edit(name: Option<String>, hostname: Option<Hostname>, api_port: Option<u
     if let Some(port) = drv_port {
         println!("Updating driver service port to {}...", style(port).cyan().bold());
         info.drv = Address::Hostname(info.drv.domain().into(), port);
+    }
+    if let Some(user) = user {
+        println!("Updating username to {}...", style(&user).cyan().bold());
+        info.user = user;
     }
 
     // Write the modified file back
