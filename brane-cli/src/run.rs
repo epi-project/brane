@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    05 Jan 2024, 14:46:16
+//    08 Jan 2024, 10:19:57
 //  Auto updated?
 //    Yes
 //
@@ -49,6 +49,7 @@ use crate::vm::OfflineVm;
 /// - `source`: The collected source string for now. This will be updated with the new snippet.
 /// - `pindex`: The PackageIndex to resolve package imports with.
 /// - `dindex`: The DataIndex to resolve data instantiations with.
+/// - `user`: If given, then this is some tentative identifier of the user receiving the final workflow result.
 /// - `options`: The ParseOptions to use.
 /// - `what`: A string describing what we're parsing (e.g., a filename, `<stdin>`, ...).
 /// - `snippet`: The actual snippet to parse.
@@ -63,6 +64,7 @@ fn compile(
     source: &mut String,
     pindex: &PackageIndex,
     dindex: &DataIndex,
+    user: Option<&str>,
     options: &ParserOptions,
     what: impl AsRef<str>,
     snippet: impl AsRef<str>,
@@ -76,11 +78,19 @@ fn compile(
 
     // Compile the snippet, possibly fetching new ones while at it
     let workflow: Workflow = match compile_snippet(state, snippet.as_bytes(), pindex, dindex, options) {
-        CompileResult::Workflow(wf, warns) => {
+        CompileResult::Workflow(mut wf, warns) => {
             // Print any warnings to stdout
             for w in warns {
                 w.prettyprint(what, &source);
             }
+
+            // Then, inject the username if any
+            if let Some(user) = user {
+                debug!("Setting user '{user}' as receiver of final result");
+                wf.user = Arc::new(Some(user.into()));
+            }
+
+            // Done
             wf
         },
 
@@ -128,6 +138,7 @@ fn compile(
 /// - `drv_endpoint`: The `brane-drv` endpoint that we will connect to to run stuff.
 /// - `pindex`: The [`PackageIndex`] that contains the remote's available packages.
 /// - `dindex`: The [`DataIndex`] that contains the remote's available datasets.
+/// - `user`: Some (tentative) identifier of the user who might receive the end result.
 /// - `attach`: If given, we will try to attach to a session with that ID. Otherwise, we start a new session.
 /// - `options`: The ParserOptions that describe how to parse the given source.
 ///
@@ -142,6 +153,7 @@ pub async fn initialize_instance<O: Write, E: Write>(
     drv_endpoint: impl AsRef<str>,
     pindex: Arc<Mutex<PackageIndex>>,
     dindex: Arc<Mutex<DataIndex>>,
+    user: Option<String>,
     attach: Option<AppId>,
     options: ParserOptions,
 ) -> Result<InstanceVmState<O, E>, Error> {
@@ -188,6 +200,7 @@ pub async fn initialize_instance<O: Write, E: Write>(
 
         pindex,
         dindex,
+        user,
 
         state: CompileState::new(),
         source: String::new(),
@@ -455,6 +468,8 @@ pub struct InstanceVmState<O, E> {
     pub pindex: Arc<Mutex<PackageIndex>>,
     /// The data index for this session.
     pub dindex: Arc<Mutex<DataIndex>>,
+    /// A username of the person doing everything rn.
+    pub user:   Option<String>,
 
     /// The state of the compiler.
     pub state:   CompileState,
@@ -622,6 +637,7 @@ pub fn initialize_offline_vm(parse_opts: ParserOptions, docker_opts: DockerOptio
 /// # Arguments
 /// - `api_endpoint`: The `brane-api` endpoint that we download indices from.
 /// - `drv_endpoint`: The `brane-drv` endpoint that we will connect to to run stuff.
+/// - `user`: If given, then this is some tentative identifier of the user receiving the final workflow result.
 /// - `attach`: If given, we will try to attach to a session with that ID. Otherwise, we start a new session.
 /// - `options`: The ParserOptions that describe how to parse the given source.
 ///
@@ -633,6 +649,7 @@ pub fn initialize_offline_vm(parse_opts: ParserOptions, docker_opts: DockerOptio
 pub async fn initialize_instance_vm(
     api_endpoint: impl AsRef<str>,
     drv_endpoint: impl AsRef<str>,
+    user: Option<String>,
     attach: Option<AppId>,
     options: ParserOptions,
 ) -> Result<InstanceVmState<Stdout, Stderr>, Error> {
@@ -657,7 +674,7 @@ pub async fn initialize_instance_vm(
     };
 
     // Pass the rest to `initialize_instance`
-    initialize_instance(std::io::stdout(), std::io::stderr(), drv_endpoint, pindex, dindex, attach, options).await
+    initialize_instance(std::io::stdout(), std::io::stderr(), drv_endpoint, pindex, dindex, user, attach, options).await
 }
 
 
@@ -679,7 +696,7 @@ pub async fn run_dummy_vm(state: &mut DummyVmState, what: impl AsRef<str>, snipp
     let snippet: &str = snippet.as_ref();
 
     // Compile the workflow
-    let workflow: Workflow = compile(&mut state.state, &mut state.source, &state.pindex, &state.dindex, &state.options, what, snippet)?;
+    let workflow: Workflow = compile(&mut state.state, &mut state.source, &state.pindex, &state.dindex, None, &state.options, what, snippet)?;
 
     // Run it in the local VM (which is a bit ugly do to the need to consume the VM itself)
     let res: (DummyVm, Result<FullValue, DummyVmError>) = state.vm.take().unwrap().exec(workflow).await;
@@ -714,7 +731,7 @@ pub async fn run_offline_vm(state: &mut OfflineVmState, what: impl AsRef<str>, s
     let snippet: &str = snippet.as_ref();
 
     // Compile the workflow
-    let workflow: Workflow = compile(&mut state.state, &mut state.source, &state.pindex, &state.dindex, &state.options, what, snippet)?;
+    let workflow: Workflow = compile(&mut state.state, &mut state.source, &state.pindex, &state.dindex, None, &state.options, what, snippet)?;
 
     // Run it in the local VM (which is a bit ugly do to the need to consume the VM itself)
     let res: (OfflineVm, Result<FullValue, OfflineVmError>) = state.vm.take().unwrap().exec(workflow).await;
@@ -759,11 +776,8 @@ pub async fn run_instance_vm(
         // Acquire the locks
         let pindex: MutexGuard<PackageIndex> = state.pindex.lock();
         let dindex: MutexGuard<DataIndex> = state.dindex.lock();
-        compile(&mut state.state, &mut state.source, &pindex, &dindex, &state.options, what, snippet)?
+        compile(&mut state.state, &mut state.source, &pindex, &dindex, state.user.as_ref().map(|u| u.as_str()), &state.options, what, snippet)?
     };
-
-    // Find whoever is running this
-
 
     // Run the thing using the other function
     run_instance(drv_endpoint, state, &workflow, profile).await
@@ -1066,7 +1080,8 @@ async fn remote_run(
     let source: &str = source.as_ref();
 
     // First we initialize the remote thing
-    let mut state: InstanceVmState<Stdout, Stderr> = initialize_instance_vm(&api_endpoint, &drv_endpoint, None, options).await?;
+    let mut state: InstanceVmState<Stdout, Stderr> =
+        initialize_instance_vm(&api_endpoint, &drv_endpoint, Some(info.user.clone()), None, options).await?;
     // Next, we run the VM (one snippet only ayway)
     let res: FullValue = run_instance_vm(drv_endpoint, &mut state, what, source, profile).await?;
     // Then, we collect and process the result

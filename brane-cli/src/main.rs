@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    05 Jan 2024, 16:06:33
+//    08 Jan 2024, 10:13:44
 //  Auto updated?
 //    Yes
 //
@@ -594,6 +594,14 @@ enum InstanceSubcommand {
                     you to change it."
         )]
         drv_port: u16,
+        /// The name of the user as which we login.
+        #[clap(
+            short,
+            long,
+            help = "The name as which to login to the instance. This is used to tell checkers who will download the result, but only tentatively; a \
+                    final check happens using domain-specific credentials. Will default to a random name when omitted."
+        )]
+        user:     Option<String>,
 
         /// Any custom name for this instance.
         #[clap(short, long, help = "Some name to set for this instance. If omitted, will set the hostname instead.")]
@@ -974,12 +982,13 @@ async fn run(options: Cli) -> Result<(), CliError> {
             // Switch on the subcommand
             use InstanceSubcommand::*;
             match subcommand {
-                Add { hostname, api_port, drv_port, name, use_immediately, unchecked, force } => {
+                Add { hostname, api_port, drv_port, user, name, use_immediately, unchecked, force } => {
                     if let Err(err) = instance::add(
                         name.unwrap_or_else(|| hostname.hostname.clone()),
                         hostname,
                         api_port,
                         drv_port,
+                        user.unwrap_or_else(|| names::three::lowercase::rand().into()),
                         use_immediately,
                         unchecked,
                         force,

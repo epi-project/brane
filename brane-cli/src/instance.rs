@@ -4,7 +4,7 @@
 //  Created:
 //    26 Jan 2023, 09:22:13
 //  Last edited:
-//    13 Dec 2023, 08:27:15
+//    08 Jan 2024, 10:13:33
 //  Auto updated?
 //    Yes
 //
@@ -77,9 +77,11 @@ fn read_active_instance_link() -> Result<String, Error> {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct InstanceInfo {
     /// The place where we can find the API service for this instance.
-    pub api: Address,
+    pub api:  Address,
     /// The place where we can find the driver service for this instance.
-    pub drv: Address,
+    pub drv:  Address,
+    /// A username to send with workflow requests as receiver of the final result.
+    pub user: String,
 }
 impl InstanceInfo {
     /// Reads this InstanceInfo from the active instance's directory in the local configuration directory.
@@ -297,6 +299,7 @@ impl InstanceInfo {
 /// - `hostname`: The hostname of the instance.
 /// - `api_port`: The port where we can find the API service.
 /// - `drv_port`: The port where we can find the driver service.
+/// - `user`: The name of the user to login as.
 /// - `use_immediately`: Whether to switch to it or not.
 /// - `unchecked`: Whether to skip instance alive checking (true) or not (false).
 /// - `force`: Whether to ask for permission before overwriting an existing instance.
@@ -308,6 +311,7 @@ pub async fn add(
     hostname: Hostname,
     api_port: u16,
     drv_port: u16,
+    user: String,
     use_immediately: bool,
     unchecked: bool,
     force: bool,
@@ -387,7 +391,7 @@ pub async fn add(
 
     // Create a new InstanceInfo
     debug!("Writing InstanceInfo...");
-    let info: InstanceInfo = InstanceInfo { api, drv };
+    let info: InstanceInfo = InstanceInfo { api, drv, user };
 
     // Write it to wherever it wants to be
     info.to_default_path(&name)?;

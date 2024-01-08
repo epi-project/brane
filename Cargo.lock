@@ -634,6 +634,7 @@ dependencies = [
  "indicatif",
  "lazy_static",
  "log",
+ "names",
  "openapiv3",
  "openssl-sys",
  "parking_lot",
@@ -3026,6 +3027,14 @@ dependencies = [
  "mime",
  "spin 0.9.8",
  "version_check",
+]
+
+[[package]]
+name = "names"
+version = "0.1.0"
+source = "git+https://github.com/Lut99/names-rs#6fbb94733dfe526f7e68e374846e3802bac88327"
+dependencies = [
+ "rand 0.8.5",
 ]
 
 [[package]]

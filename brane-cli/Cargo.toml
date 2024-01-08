@@ -35,6 +35,7 @@ hyper = "0.14"
 indicatif = "0.17"
 lazy_static = "1.4"
 log = "0.4"
+names = { git = "https://github.com/Lut99/names-rs", default-features = false, features = ["rand", "three-lowercase"]}
 openapiv3 = "0.5"
 parking_lot = "0.12"
 path-clean = "1.0"
