@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    03 Jan 2024, 15:08:05
+//    08 Jan 2024, 14:06:10
 //  Auto updated?
 //    Yes
 //
@@ -494,12 +494,11 @@ pub async fn preprocess_transfer_tar(
 ///
 /// # Errors
 /// This function errors if we failed to reach the checker, or the checker itself crashed.
-async fn assert_workflow_permission(
-    worker_cfg: &WorkerConfig,
-    _workflow: &Workflow,
-    container_hash: impl AsRef<str>,
-) -> Result<bool, AuthorizeError> {
+async fn assert_workflow_permission(worker_cfg: &WorkerConfig, workflow: &Workflow, container_hash: impl AsRef<str>) -> Result<bool, AuthorizeError> {
     let container_hash: &str = container_hash.as_ref();
+
+    // Let's log who the workflow says submitted this
+    info!("User receiving the workflow's result: {:?}", workflow.user);
 
     // // Prepare the input struct
     // let body: CheckerRequestBody<&Workflow> = CheckerRequestBody {

@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    08 Jan 2024, 10:34:52
+//    08 Jan 2024, 14:00:01
 //  Auto updated?
 //    Yes
 //
@@ -596,7 +596,7 @@ enum InstanceSubcommand {
         drv_port: u16,
         /// The name of the user as which we login.
         #[clap(
-            short,
+            short = 'U',
             long,
             help = "The name as which to login to the instance. This is used to tell checkers who will download the result, but only tentatively; a \
                     final check happens using domain-specific credentials. Will default to a random name when omitted."
