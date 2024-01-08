@@ -16,10 +16,11 @@ All notable changes to the Brane framework will be documented in this file.
   - If you give `TEST_FILES=<file1>[,<file2>[...]]`, then only the given files are tested instead of all in the `tests` folder. The files are matched by name, and then specifically an `end_of()`-call.
 - Integration with the [policy reasoner effort](https://github.com/epi-project/policy-reasoner) (see issue #60).
   - Part of this is:
-    - Changing Docker Compose files used by `branectl` (\[**breaking change**\] if you use customized ones).
     - Adding `branectl generate policy_db` to initialize the policy database file.
     - Adding `branectl generate policy_secret` to initialize a JWK set to use for API endpoint authentication in the policy reasoner.
     - Adding `branectl generate policy_token` to initialize a JWT based on the given JWK set.
+    - Adding `user`-field to `InstanceInfo`, accompanied with a `--user` option when creating new instance in `brane` (\[**breaking change**\], regeneration of instances necessary).
+    - Changing Docker Compose files used by `branectl` (\[**breaking change**\] if you use customized ones).
     - Changing `policies` path in `node.yml` to `policy_database` file \[**breaking change**\].
     - Removing `branectl generate policies` as the old file is no longer used \[**breaking change**\].
 - Graceful shutdown for instance services (`brane-api`, `brane-drv`, `brane-job`, `brane-plr`, `brane-reg`).
