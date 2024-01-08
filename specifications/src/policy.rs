@@ -4,7 +4,7 @@
 //  Created:
 //    05 Jan 2024, 11:36:00
 //  Last edited:
-//    05 Jan 2024, 12:09:30
+//    08 Jan 2024, 16:01:09
 //  Auto updated?
 //    Yes
 //
@@ -84,7 +84,7 @@ impl error::Error for Error {
 
 
 
-/***** LIBRARY *****/
+/***** LIBRARY FUNCTIONS *****/
 /// Generates a new access token for the checker.
 ///
 /// # Arguments

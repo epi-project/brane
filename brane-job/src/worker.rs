@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    08 Jan 2024, 14:06:10
+//    08 Jan 2024, 18:46:08
 //  Auto updated?
 //    Yes
 //
@@ -30,7 +30,6 @@ use brane_ast::Workflow;
 use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, WorkerConfig};
-use brane_cfg::policies::{ContainerPolicy, PolicyFile};
 use brane_exe::FullValue;
 use brane_prx::client::ProxyClient;
 use brane_prx::spec::NewPathRequestTlsOptions;
@@ -41,11 +40,13 @@ use brane_tsk::errors::{AuthorizeError, CommitError, ExecuteError, PreprocessErr
 use brane_tsk::spec::JobStatus;
 use brane_tsk::tools::decode_base64;
 use chrono::Utc;
+// use deliberation::spec::ExecuteTaskRequest;
 use enum_debug::EnumDebug as _;
 use futures_util::StreamExt;
 use hyper::body::Bytes;
 // use kube::config::Kubeconfig;
 use log::{debug, error, info, warn};
+use serde::{Deserialize, Serialize};
 use serde_json_any_key::json_to_map;
 // use brane_tsk::k8s::{self, K8sOptions};
 use specifications::container::{Image, VolumeBind};
@@ -151,6 +152,22 @@ async fn update_client(tx: &Sender<Result<ExecuteReply, Status>>, status: JobSta
 
 
 
+/***** HELPER STRUCTURES *****/
+/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `ExecuteRequest`-struct.
+///
+/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PolicyExecuteRequest {
+    /// The workflow that is being examined.
+    pub workflow: Workflow,
+    /// The ID (i.e., program counter) of the call that we want to authorize.
+    pub task_id:  (usize, usize),
+}
+
+
+
+
+
 /***** AUXILLARY STRUCTURES *****/
 /// Helper structure for grouping together task-dependent "constants", but that are not part of the task itself.
 #[derive(Clone, Debug)]
@@ -175,6 +192,8 @@ impl ControlNodeInfo {
 pub struct TaskInfo {
     /// The name of the task to execute.
     pub name: String,
+    /// The identifier of the call to the task we're executing.
+    pub pc:   (usize, usize),
 
     /// The name of the task's parent package.
     pub package_name: String,
@@ -200,6 +219,7 @@ impl TaskInfo {
     ///
     /// # Arguments
     /// - `name`: The name of the task to execute.
+    /// - `pc`: The identifier of the call to the task we're executing.
     /// - `package_name`: The name of the task's parent package.
     /// - `package_version`: The version of the task's parent package.
     /// - `input`: The input datasets/results to this task, if any.
@@ -212,6 +232,7 @@ impl TaskInfo {
     #[inline]
     pub fn new(
         name: impl Into<String>,
+        pc: (usize, usize),
         package_name: impl Into<String>,
         package_version: impl Into<Version>,
         input: HashMap<DataName, AccessKind>,
@@ -221,6 +242,7 @@ impl TaskInfo {
     ) -> Self {
         Self {
             name: name.into(),
+            pc,
 
             package_name: package_name.into(),
             package_version: package_version.into(),
@@ -348,7 +370,7 @@ async fn preprocess_transfer_tar_local(
             },
         },
         Err(err) => {
-            return Err(PreprocessError::ProxyError { err: err.to_string() });
+            return Err(PreprocessError::ProxyError { err: Box::new(err) });
         },
     };
     if !res.status().is_success() {
@@ -482,93 +504,59 @@ pub async fn preprocess_transfer_tar(
 
 
 /***** EXECUTION FUNCTIONS *****/
-/// Runs the given workflow by the checker to see if it's authorized.
+/// Runs the given (call to a) task in the given workflow by the checker to see if it's authorized.
 ///
 /// # Arguments
 /// - `worker_cfg`: The configuration for this node's environment. For us, contains if and where we should proxy the request through and where we may find the checker.
 /// - `workflow`: The workflow to check.
-/// - `container_hash`: The hash of the container that we may use to identify it.
+/// - `call`: A program counter that identifies which call in the workflow we'll be checkin'.
 ///
 /// # Returns
 /// Whether the workflow has been accepted or not.
 ///
 /// # Errors
 /// This function errors if we failed to reach the checker, or the checker itself crashed.
-async fn assert_workflow_permission(worker_cfg: &WorkerConfig, workflow: &Workflow, container_hash: impl AsRef<str>) -> Result<bool, AuthorizeError> {
-    let container_hash: &str = container_hash.as_ref();
+async fn assert_task_permission(worker_cfg: &WorkerConfig, workflow: &Workflow, call: (usize, usize)) -> Result<bool, AuthorizeError> {
+    info!("Checking task '{}:{}' execution permission with checker '{}'...", call.0, call.1, worker_cfg.services.chk.address);
 
-    // Let's log who the workflow says submitted this
-    info!("User receiving the workflow's result: {:?}", workflow.user);
+    // Alrighty tighty, let's begin by building the request for the checker
+    debug!("Constructing checker request...");
+    let body: PolicyExecuteRequest = PolicyExecuteRequest { workflow: workflow.clone(), task_id: call };
 
-    // // Prepare the input struct
-    // let body: CheckerRequestBody<&Workflow> = CheckerRequestBody {
-    //     token : "abc".into(),
-    //     workflow,
-    // };
+    // Prepare the request to send
+    debug!("Building request...");
+    let client: reqwest::Client = match reqwest::Client::builder().build() {
+        Ok(client) => client,
+        Err(err) => return Err(AuthorizeError::ClientBuild { err }),
+    };
+    let req: reqwest::Request = match client.request(reqwest::Method::POST, worker_cfg.services.chk.address.to_string()).json(&body).build() {
+        Ok(req) => req,
+        Err(err) => return Err(AuthorizeError::ExecuteRequestBuild { addr: worker_cfg.services.chk.address.clone(), err }),
+    };
 
-    // // Send it as a request to the client
-    // let client: reqwest::Client = match reqwest::Client::builder().build() {
-    //     Ok(client) => client,
-    //     Err(err)   => { return Err(AuthorizeError::ClientError{ err }); },
-    // };
-    // let req: reqwest::Request = match client.request(reqwest::Method::POST, format!("{}", endpoint))
-    //     .json(&body)
-    //     .build()
-    // {
-    //     Ok(req)  => req,
-    //     Err(err) => { return Err(AuthorizeError::RequestError{ endpoint: format!("{}", endpoint), err }); }  ,
-    // };
-    // let res: reqwest::Response = match client.execute(req).await {
-    //     Ok(res)  => res,
-    //     Err(err) => { return Err(AuthorizeError::SendError{ endpoint: format!("{}", endpoint), err }); },
-    // };
+    // Send it
+    debug!("Sending request to '{}'...", worker_cfg.services.chk.address);
+    let res: reqwest::Response = match client.execute(req).await {
+        Ok(res) => res,
+        Err(err) => {
+            return Err(AuthorizeError::ExecuteRequestSend { addr: worker_cfg.services.chk.address.clone(), err });
+        },
+    };
 
-    // // Match on the status code
-    // let allowed: bool = match res.status() {
-    //     reqwest::StatusCode::OK        => true,
-    //     reqwest::StatusCode::FORBIDDEN => false,
-    //     code                           => { return Err(AuthorizeError::RequestFailed{ endpoint: format!("{}", endpoint), code, body: res.text().await.unwrap_or(String::from("???")) }); },
-    // };
+    // Match on the status code to find if it's OK
+    debug!("Waiting for response response...");
+    let allowed: bool = match res.status() {
+        reqwest::StatusCode::OK => true,
+        reqwest::StatusCode::FORBIDDEN => false,
+        code => {
+            return Err(AuthorizeError::ExecuteRequestFailure { addr: worker_cfg.services.chk.address.clone(), code, err: res.text().await.ok() });
+        },
+    };
 
-    // Due to time constraints, we have to use some hardcoded policies :(
-    // (man would I have liked to integrate eFLINT into this)
-
-    // // Load the policies in their simplified form
-    // let policies: PolicyFile = match PolicyFile::from_path_async(&worker_cfg.paths.policies).await {
-    //     Ok(policies) => policies,
-    //     Err(err)     => { return Err(AuthorizeError::PolicyFileError{ err }); },
-    // };
-
-    // // Go by the container rules to find any rule stating what to do
-    // for (i, rule) in policies.containers.into_iter().enumerate() {
-    //     // Match the rule
-    //     match rule {
-    //         ContainerPolicy::AllowAll => {
-    //             debug!("Allowing execution of container '{}' based on rule {} (AllowAll)", container_hash, i);
-    //             return Ok(true);
-    //         },
-    //         ContainerPolicy::DenyAll  => {
-    //             debug!("Denying execution of container '{}' based on rule {} (DenyAll)", container_hash, i);
-    //             return Ok(false);
-    //         },
-
-    //         ContainerPolicy::Allow{ name, hash } => {
-    //             if hash == container_hash {
-    //                 debug!("Allowing execution of container '{}' based on rule {} (Allow{})", container_hash, i, if let Some(name) = name { format!(" '{name}'") } else { String::new() });
-    //                 return Ok(true);
-    //             }
-    //         },
-    //         ContainerPolicy::Deny{ name, hash } => {
-    //             if hash == container_hash {
-    //                 debug!("Denying execution of container '{}' based on rule {} (Deny{})", container_hash, i, if let Some(name) = name { format!(" '{name}'") } else { String::new() });
-    //                 return Ok(false);
-    //             }
-    //         },
-    //     }
-    // }
-
-    // Otherwise, no matching rule found
-    Err(AuthorizeError::NoContainerPolicy { hash: container_hash.into() })
+    // Print what it told us
+    println!("Verdict: {}", if allowed { "allowed" } else { "denied" });
+    println!("{:?}", res.text().await);
+    Ok(false)
 }
 
 
@@ -625,7 +613,7 @@ async fn get_container(
             },
         },
         Err(err) => {
-            return Err(ExecuteError::ProxyError { err: err.to_string() });
+            return Err(ExecuteError::ProxyError { err: Box::new(err) });
         },
     };
     if !res.status().is_success() {
@@ -1116,7 +1104,7 @@ async fn execute_task(
             },
         },
         Err(err) => {
-            return err!(tx, ExecuteError::ProxyError { err: err.to_string() });
+            return err!(tx, ExecuteError::ProxyError { err: Box::new(err) });
         },
     };
 
@@ -1155,11 +1143,11 @@ async fn execute_task(
 
     /* AUTHORIZATION */
     // We only do the container security thing if the user told us to; otherwise, the hash will be empty
-    if let Some(container_hash) = container_hash {
+    if let Some(_container_hash) = container_hash {
         let _auth = prof.time("Authorization");
 
         // First: make sure that the workflow is allowed by the checker
-        match assert_workflow_permission(worker_cfg, &workflow, container_hash).await {
+        match assert_task_permission(worker_cfg, &workflow, tinfo.pc).await {
             Ok(true) => {
                 debug!("Checker accepted incoming workflow");
                 if let Err(err) = update_client(&tx, JobStatus::Authorized).await {
@@ -1628,12 +1616,12 @@ impl JobService for WorkerServer {
         };
 
         // Fetch the task ID
-        if request.task as usize >= workflow.table.tasks.len() {
-            error!("Given task ID '{}' is out-of-bounds for workflow with {} tasks", request.task, workflow.table.tasks.len());
+        if request.task_def as usize >= workflow.table.tasks.len() {
+            error!("Given task ID '{}' is out-of-bounds for workflow with {} tasks", request.task_def, workflow.table.tasks.len());
             if let Err(err) = tx
                 .send(Err(Status::invalid_argument(format!(
                     "Given task ID '{}' is out-of-bounds for workflow with {} tasks",
-                    request.task,
+                    request.task_def,
                     workflow.table.tasks.len()
                 ))))
                 .await
@@ -1642,14 +1630,14 @@ impl JobService for WorkerServer {
             }
             return Ok(Response::new(ReceiverStream::new(rx)));
         }
-        let task: &ComputeTaskDef = match &workflow.table.tasks[request.task as usize] {
+        let task: &ComputeTaskDef = match &workflow.table.tasks[request.task_def as usize] {
             TaskDef::Compute(def) => def,
             _ => {
-                error!("A task of type '{}' is not yet supported", workflow.table.tasks[request.task as usize].variant());
+                error!("A task of type '{}' is not yet supported", workflow.table.tasks[request.task_def as usize].variant());
                 if let Err(err) = tx
                     .send(Err(Status::invalid_argument(format!(
                         "A task of type '{}' is not yet supported",
-                        workflow.table.tasks[request.task as usize].variant()
+                        workflow.table.tasks[request.task_def as usize].variant()
                     ))))
                     .await
                 {
@@ -1705,8 +1693,16 @@ impl JobService for WorkerServer {
 
         // Collect some request data into ControlNodeInfo's and TaskInfo's.
         let cinfo: ControlNodeInfo = ControlNodeInfo::new(request.api);
-        let tinfo: TaskInfo =
-            TaskInfo::new(task.function.name.clone(), task.package.clone(), task.version, input, request.result, args, task.requirements.clone());
+        let tinfo: TaskInfo = TaskInfo::new(
+            task.function.name.clone(),
+            (request.call_fn as usize, request.call_edge as usize),
+            task.package.clone(),
+            task.version,
+            input,
+            request.result,
+            args,
+            task.requirements.clone(),
+        );
         total.stop();
         overhead.finish();
 

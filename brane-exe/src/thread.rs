@@ -4,7 +4,7 @@
 //  Created:
 //    09 Sep 2022, 13:23:41
 //  Last edited:
-//    07 Nov 2023, 16:16:23
+//    08 Jan 2024, 15:21:50
 //  Auto updated?
 //    Yes
 //
@@ -1314,7 +1314,8 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
 
                         // Prepare the TaskInfo for the call
                         let info: TaskInfo = TaskInfo {
-                            id: *task_id,
+                            pc,
+                            def: *task_id,
 
                             name: &function.name,
                             package_name: package,

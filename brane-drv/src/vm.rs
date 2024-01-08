@@ -4,7 +4,7 @@
 //  Created:
 //    27 Oct 2022, 10:14:26
 //  Last edited:
-//    07 Nov 2023, 16:41:23
+//    08 Jan 2024, 18:55:40
 //  Auto updated?
 //    Yes
 //
@@ -28,7 +28,7 @@ use brane_cfg::node::NodeConfig;
 use brane_exe::spec::{TaskInfo, VmPlugin};
 use brane_exe::{Error as VmError, FullValue, RunState, Vm};
 use brane_prx::client::ProxyClient;
-use brane_tsk::errors::{CommitError, ExecuteError, PreprocessError, StdoutError};
+use brane_tsk::errors::{CommitError, ExecuteError, PreprocessError, StdoutError, StringError};
 use brane_tsk::spec::{AppId, JobStatus};
 use enum_debug::EnumDebug as _;
 use log::{debug, info, warn};
@@ -127,7 +127,7 @@ impl VmPlugin for InstancePlugin {
                 },
             },
             Err(err) => {
-                return Err(PreprocessError::ProxyError { err: err.to_string() });
+                return Err(PreprocessError::ProxyError { err: Box::new(err) });
             },
         };
 
@@ -210,7 +210,9 @@ impl VmPlugin for InstancePlugin {
             api: api_address.serialize().to_string(),
 
             workflow,
-            task: info.id as u64,
+            call_fn: info.pc.0 as u64,
+            call_edge: info.pc.1 as u64,
+            task_def: info.def as u64,
 
             input: info.input.to_json_map().unwrap(),
             result: info.result.clone(),
@@ -226,7 +228,7 @@ impl VmPlugin for InstancePlugin {
                 },
             },
             Err(err) => {
-                return Err(ExecuteError::ProxyError { err: err.to_string() });
+                return Err(ExecuteError::ProxyError { err: Box::new(err) });
             },
         };
 
@@ -381,7 +383,12 @@ impl VmPlugin for InstancePlugin {
         let result: FullValue = match result {
             Ok(result) => result,
             Err(err) => {
-                return Err(ExecuteError::ExecuteError { endpoint: delegate_address, name: info.name.into(), status: state.into(), err });
+                return Err(ExecuteError::ExecuteError {
+                    endpoint: delegate_address,
+                    name:     info.name.into(),
+                    status:   state.into(),
+                    err:      StringError(err),
+                });
             },
         };
 
@@ -498,7 +505,7 @@ impl VmPlugin for InstancePlugin {
                 },
             },
             Err(err) => {
-                return Err(CommitError::ProxyError { err: err.to_string() });
+                return Err(CommitError::ProxyError { err: Box::new(err) });
             },
         };
 

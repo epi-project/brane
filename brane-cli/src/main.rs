@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    08 Jan 2024, 14:00:01
+//    08 Jan 2024, 19:15:04
 //  Auto updated?
 //    Yes
 //
@@ -28,10 +28,11 @@ use brane_shr::fs::DownloadSecurity;
 use brane_tsk::docker::{ClientVersion, DockerOptions};
 use brane_tsk::spec::AppId;
 use clap::Parser;
-use console::style;
 use dotenvy::dotenv;
+use error_trace::ErrorTrace as _;
+use humanlog::{DebugMode, HumanLogger};
 // use git2::Repository;
-use log::LevelFilter;
+use log::{error, info};
 use specifications::arch::Arch;
 use specifications::package::PackageKind;
 use specifications::version::Version as SemVersion;
@@ -732,14 +733,13 @@ async fn main() -> Result<()> {
     let options = Cli::parse();
 
     // Prepare the logger
-    let mut logger = env_logger::builder();
-    logger.format_module_path(false);
+    if let Err(err) = HumanLogger::terminal(if options.debug { DebugMode::Debug } else { DebugMode::HumanFriendly }).init() {
+        eprintln!("WARNING: Failed to setup logger: {err} (no logging for this session)");
+    }
+    info!("{} - v{}", env!("CARGO_BIN_NAME"), env!("CARGO_PKG_VERSION"));
 
-    if options.debug {
-        logger.filter_module("brane", LevelFilter::Debug).init();
-    } else {
-        logger.filter_module("brane", LevelFilter::Warn).init();
-
+    // Also setup humanpanic
+    if !options.debug {
         setup_panic!(Metadata {
             name:     "Brane CLI".into(),
             version:  env!("CARGO_PKG_VERSION").into(),
@@ -767,7 +767,7 @@ async fn main() -> Result<()> {
     match run(options).await {
         Ok(_) => process::exit(0),
         Err(err) => {
-            eprintln!("{}: {}", style("error").bold().red(), err);
+            error!("{}", err.trace());
             process::exit(1);
         },
     }

@@ -33,6 +33,7 @@ All notable changes to the Brane framework will be documented in this file.
 - `brane-drv` and `brane-plr` are now using Rust 2021 instead of Rust 2018.
 - BraneScript syntax to remove the `on`-structs, and instead using `on`-, `loc`- or `location`-attributes \[**breaking change**\].
 - The `checker` service entry in `node.yml` is now a private service instead of a public service (not a breaking change, since this now simply ignores the `external_address`-field if any).
+- More error prints to use a trace rather than endless colons.
 
 ### Fixed
 - The BraneScript compiler hanging in an infinite loop in some cases.

@@ -4,7 +4,7 @@
 //  Created:
 //    13 Sep 2022, 16:43:11
 //  Last edited:
-//    07 Nov 2023, 16:15:37
+//    08 Jan 2024, 15:22:07
 //  Auto updated?
 //    Yes
 //
@@ -168,7 +168,7 @@ impl VmPlugin for DummyPlugin {
         let state: RwLockReadGuard<Self::GlobalState> = global.read().unwrap();
 
         // Returns default values for the various types a function can have
-        let ret: &DataType = &state.workflow.as_ref().unwrap().table.tasks[info.id].func().ret;
+        let ret: &DataType = &state.workflow.as_ref().unwrap().table.tasks[info.def].func().ret;
         Ok(Some(default_return_value(ret, state.workflow.as_ref().unwrap(), info.name, info.package_name, info.result)))
     }
 

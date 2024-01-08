@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    08 Jan 2024, 10:19:57
+//    08 Jan 2024, 19:18:02
 //  Auto updated?
 //    Yes
 //
@@ -25,6 +25,7 @@ use brane_dsl::Language;
 use brane_exe::dummy::{DummyVm, Error as DummyVmError};
 use brane_exe::FullValue;
 use brane_tsk::docker::DockerOptions;
+use brane_tsk::errors::StringError;
 use brane_tsk::spec::{AppId, LOCALHOST};
 use console::style;
 use parking_lot::{Mutex, MutexGuard};
@@ -309,9 +310,7 @@ pub async fn run_instance<O: Write, E: Write>(
             },
             Err(status) => {
                 // Did not receive the message properly
-                if let Err(err) = writeln!(&mut state.stderr, "\nStatus error: {}", status.message()) {
-                    return Err(Error::WriteError { err });
-                }
+                error!("{}", error_trace::trace!(("Status error"), StringError(status.message().into())));
             },
             Ok(None) => {
                 // Stream closed by the remote for some rason
