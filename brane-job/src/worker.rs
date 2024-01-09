@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    08 Jan 2024, 18:46:08
+//    09 Jan 2024, 14:44:44
 //  Auto updated?
 //    Yes
 //
@@ -20,6 +20,7 @@ use std::ffi::OsStr;
 // use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
@@ -42,8 +43,10 @@ use brane_tsk::tools::decode_base64;
 use chrono::Utc;
 // use deliberation::spec::ExecuteTaskRequest;
 use enum_debug::EnumDebug as _;
+use error_trace::{trace, ErrorTrace as _};
 use futures_util::StreamExt;
 use hyper::body::Bytes;
+use hyper::header;
 // use kube::config::Kubeconfig;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -82,9 +85,9 @@ macro_rules! err {
 
     ($tx:ident,JobStatus:: $status:ident, $err:expr) => {{
         let err = $err;
-        log::error!("{}", err);
+        log::error!("{}", err.trace());
         if let Err(err) = update_client(&$tx, JobStatus::$status(format!("{}", err))).await {
-            log::error!("{}", err);
+            log::error!("{}", err.trace());
         }
         Err(err)
     }};
@@ -157,11 +160,57 @@ async fn update_client(tx: &Sender<Result<ExecuteReply, Status>>, status: JobSta
 ///
 /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct PolicyExecuteRequest {
+struct PolicyExecuteRequest {
     /// The workflow that is being examined.
     pub workflow: Workflow,
     /// The ID (i.e., program counter) of the call that we want to authorize.
     pub task_id:  (usize, usize),
+}
+
+/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `Verdict`-struct.
+///
+/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "verdict")]
+enum Verdict {
+    // Checker says yes
+    #[serde(rename = "allow")]
+    Allow(DeliberationAllowResponse),
+    // Checker says no
+    #[serde(rename = "deny")]
+    Deny(DeliberationDenyResponse),
+}
+
+/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationResponse`-struct.
+///
+/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct DeliberationResponse {
+    verdict_reference: String,
+}
+
+/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationAllowResponse`-struct.
+///
+/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct DeliberationAllowResponse {
+    #[serde(flatten)]
+    shared:    DeliberationResponse,
+    /// Signature by the checker
+    signature: String,
+}
+
+/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationDenyResponse`-struct.
+///
+/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct DeliberationDenyResponse {
+    #[serde(flatten)]
+    shared: DeliberationResponse,
+    /// A optional list that contains the reasons that the request is denied.
+    /// Only present if the request is denied and it only contains reasons
+    /// the checker wants to share.
+    reasons_for_denial: Option<Vec<String>>,
 }
 
 
@@ -523,40 +572,64 @@ async fn assert_task_permission(worker_cfg: &WorkerConfig, workflow: &Workflow, 
     debug!("Constructing checker request...");
     let body: PolicyExecuteRequest = PolicyExecuteRequest { workflow: workflow.clone(), task_id: call };
 
+    // Next, generate a JWT to inject in the request
+    let jwt: String = match specifications::policy::generate_policy_token(
+        if let Some(user) = &*workflow.user { user.as_str() } else { "UNKNOWN" },
+        &worker_cfg.name,
+        Duration::from_secs(60),
+        &worker_cfg.paths.policy_deliberation_secret,
+    ) {
+        Ok(token) => token,
+        Err(err) => return Err(AuthorizeError::TokenGenerate { secret: worker_cfg.paths.policy_deliberation_secret.clone(), err }),
+    };
+
     // Prepare the request to send
-    debug!("Building request...");
     let client: reqwest::Client = match reqwest::Client::builder().build() {
         Ok(client) => client,
         Err(err) => return Err(AuthorizeError::ClientBuild { err }),
     };
-    let req: reqwest::Request = match client.request(reqwest::Method::POST, worker_cfg.services.chk.address.to_string()).json(&body).build() {
-        Ok(req) => req,
-        Err(err) => return Err(AuthorizeError::ExecuteRequestBuild { addr: worker_cfg.services.chk.address.clone(), err }),
-    };
+    let addr: String = format!("{}/v1/deliberation/execute-task", worker_cfg.services.chk.address);
+    let req: reqwest::Request =
+        match client.request(reqwest::Method::POST, &addr).header(header::AUTHORIZATION, format!("Bearer {jwt}")).json(&body).build() {
+            Ok(req) => req,
+            Err(err) => return Err(AuthorizeError::ExecuteRequestBuild { addr, err }),
+        };
 
     // Send it
-    debug!("Sending request to '{}'...", worker_cfg.services.chk.address);
+    debug!("Sending request to '{addr}'...");
     let res: reqwest::Response = match client.execute(req).await {
         Ok(res) => res,
         Err(err) => {
-            return Err(AuthorizeError::ExecuteRequestSend { addr: worker_cfg.services.chk.address.clone(), err });
+            return Err(AuthorizeError::ExecuteRequestSend { addr, err });
         },
     };
 
     // Match on the status code to find if it's OK
-    debug!("Waiting for response response...");
-    let allowed: bool = match res.status() {
-        reqwest::StatusCode::OK => true,
-        reqwest::StatusCode::FORBIDDEN => false,
-        code => {
-            return Err(AuthorizeError::ExecuteRequestFailure { addr: worker_cfg.services.chk.address.clone(), code, err: res.text().await.ok() });
-        },
+    debug!("Waiting for checker response...");
+    if !res.status().is_success() {
+        return Err(AuthorizeError::ExecuteRequestFailure { addr, code: res.status(), err: res.text().await.ok() });
+    }
+    let res: String = match res.text().await {
+        Ok(res) => res,
+        Err(err) => return Err(AuthorizeError::ExecuteBodyDownload { addr, err }),
+    };
+    let res: Verdict = match serde_json::from_str(&res) {
+        Ok(res) => res,
+        Err(err) => return Err(AuthorizeError::ExecuteBodyDeserialize { addr, raw: res, err }),
     };
 
-    // Print what it told us
-    println!("Verdict: {}", if allowed { "allowed" } else { "denied" });
-    println!("{:?}", res.text().await);
-    Ok(false)
+    // Now match the checker's response
+    match res {
+        Verdict::Allow(_) => {
+            info!("Checker ALLOWED execution of task {}:{}", call.0, call.1);
+            Ok(true)
+        },
+
+        Verdict::Deny(_) => {
+            info!("Checker DENIED execution of task {}:{}", call.0, call.1);
+            Ok(false)
+        },
+    }
 }
 
 
@@ -892,10 +965,10 @@ async fn execute_task_local(
         },
     };
     if let Err(err) = update_client(tx, JobStatus::Created).await {
-        error!("{}", err);
+        error!("{}", err.trace());
     }
     if let Err(err) = update_client(tx, JobStatus::Started).await {
-        error!("{}", err);
+        error!("{}", err.trace());
     }
 
     // ...and wait for it to complete
@@ -912,7 +985,7 @@ async fn execute_task_local(
     debug!("Container return code: {}", code);
     debug!("Container stdout/stderr:\n\nstdout:\n{}\n\nstderr:\n{}\n", BlockFormatter::new(&stdout), BlockFormatter::new(&stderr));
     if let Err(err) = update_client(tx, JobStatus::Completed).await {
-        error!("{}", err);
+        error!("{}", err.trace());
     }
 
     // If the return code is no bueno, error and show stderr
@@ -1014,8 +1087,8 @@ async fn execute_task_local(
 //         Ok(name) => name,
 //         Err(err) => { return Err(JobStatus::CreationFailed(format!("Failed to spawn container: {err}"))); },
 //     };
-//     if let Err(err) = update_client(tx, JobStatus::Created).await { error!("{}", err); }
-//     if let Err(err) = update_client(tx, JobStatus::Started).await { error!("{}", err); }
+//     if let Err(err) = update_client(tx, JobStatus::Created).await { error!("{}", err.trace()); }
+//     if let Err(err) = update_client(tx, JobStatus::Started).await { error!("{}", err.trace()); }
 
 //     // ...and wait for it to complete
 //     let (code, stdout, stderr): (i32, String, String) = match exec.time_fut("join overhead", docker::join(dinfo, name, keep_container)).await {
@@ -1028,7 +1101,7 @@ async fn execute_task_local(
 //     // Let the client know it was done
 //     debug!("Container return code: {}", code);
 //     debug!("Container stdout/stderr:\n\nstdout:\n{}\n\nstderr:\n{}\n", BlockFormatter::new(&stdout), BlockFormatter::new(&stderr));
-//     if let Err(err) = update_client(tx, JobStatus::Completed).await { error!("{}", err); }
+//     if let Err(err) = update_client(tx, JobStatus::Completed).await { error!("{}", err.trace()); }
 
 //     // If the return code is no bueno, error and show stderr
 //     if code != 0 {
@@ -1088,7 +1161,7 @@ async fn execute_task(
     // We update the user first on that the job has been received
     info!("Starting execution of task '{}'", tinfo.name);
     if let Err(err) = update_client(&tx, JobStatus::Received).await {
-        error!("{}", err);
+        error!("{}", err.trace());
     }
 
 
@@ -1151,13 +1224,13 @@ async fn execute_task(
             Ok(true) => {
                 debug!("Checker accepted incoming workflow");
                 if let Err(err) = update_client(&tx, JobStatus::Authorized).await {
-                    error!("{}", err);
+                    error!("{}", err.trace());
                 }
             },
             Ok(false) => {
                 debug!("Checker rejected incoming workflow");
                 if let Err(err) = update_client(&tx, JobStatus::Denied).await {
-                    error!("{}", err);
+                    error!("{}", err.trace());
                 }
                 return Err(ExecuteError::AuthorizationFailure { checker: worker_cfg.services.reg.address.clone() });
             },
@@ -1196,7 +1269,7 @@ async fn execute_task(
                 Err(status) => {
                     error!("Job failed with status: {:?}", status);
                     if let Err(err) = update_client(&tx, status).await {
-                        error!("{}", err);
+                        error!("{}", err.trace());
                     }
                     return Ok(());
                 },
@@ -1206,7 +1279,7 @@ async fn execute_task(
         Credentials::Ssh { .. } => {
             error!("SSH backend is not yet supported");
             if let Err(err) = update_client(&tx, JobStatus::CreationFailed("SSH backend is not yet supported".into())).await {
-                error!("{}", err);
+                error!("{}", err.trace());
             }
             return Ok(());
         },
@@ -1214,7 +1287,7 @@ async fn execute_task(
         Credentials::Kubernetes { registry_address: _, config: _ } => {
             error!("Kubernetes backend is not yet supported");
             if let Err(err) = update_client(&tx, JobStatus::CreationFailed("Kubernetes backend is not yet supported".into())).await {
-                error!("{}", err);
+                error!("{}", err.trace());
             }
             return Ok(());
 
@@ -1229,7 +1302,7 @@ async fn execute_task(
             //     Ok(value)   => value,
             //     Err(status) => {
             //         error!("Job failed with status: {:?}", status);
-            //         if let Err(err) = update_client(&tx, status).await { error!("{}", err); }
+            //         if let Err(err) = update_client(&tx, status).await { error!("{}", err.trace()); }
             //         return Ok(());
             //     }
             // }
@@ -1237,7 +1310,7 @@ async fn execute_task(
         Credentials::Slurm { .. } => {
             error!("Slurm backend is not yet supported");
             if let Err(err) = update_client(&tx, JobStatus::CreationFailed("Slurm backend is not yet supported".into())).await {
-                error!("{}", err);
+                error!("{}", err.trace());
             }
             return Ok(());
         },
@@ -1249,7 +1322,7 @@ async fn execute_task(
     /* RETURN */
     // Alright, we are done; the rest is up to the little branelet itself.
     if let Err(err) = update_client(&tx, JobStatus::Finished(value)).await {
-        error!("{}", err);
+        error!("{}", err.trace());
     }
     Ok(())
 }
@@ -1493,7 +1566,7 @@ impl JobService for WorkerServer {
                 },
             },
             Err(err) => {
-                error!("Could not load `node.yml` file '{}': {}", self.node_config_path.display(), err);
+                error!("{}", trace!(("Could not load `node.yml` file '{}'", self.node_config_path.display()), err));
                 return Err(Status::internal("An internal error occurred"));
             },
         };
@@ -1519,7 +1592,7 @@ impl JobService for WorkerServer {
                 let node_config: NodeConfig = match NodeConfig::from_path(&self.node_config_path) {
                     Ok(config) => config,
                     Err(err) => {
-                        error!("{}", err);
+                        error!("{}", err.trace());
                         return Err(Status::internal("An internal error occurred"));
                     },
                 };
@@ -1541,7 +1614,7 @@ impl JobService for WorkerServer {
                 {
                     Ok(access) => access,
                     Err(err) => {
-                        error!("{}", err);
+                        error!("{}", err.trace());
                         return Err(Status::internal("An internal error occurred"));
                     },
                 };
@@ -1583,7 +1656,7 @@ impl JobService for WorkerServer {
                 },
             },
             Err(err) => {
-                error!("Could not load `node.yml` file '{}': {}", self.node_config_path.display(), err);
+                error!("{}", trace!(("Could not load `node.yml` file '{}'", self.node_config_path.display()), err));
                 return Err(Status::internal("An internal error occurred"));
             },
         };
@@ -1601,15 +1674,15 @@ impl JobService for WorkerServer {
         let workflow: Workflow = match serde_json::from_str(&request.workflow) {
             Ok(workflow) => workflow,
             Err(err) => {
-                error!("Failed to deserialize workflow: {}", err);
+                error!("{}", trace!(("Failed to deserialize workflow"), err));
                 debug!(
                     "Workflow:\n{}\n{}\n{}\n",
                     (0..80).map(|_| '-').collect::<String>(),
                     request.workflow,
                     (0..80).map(|_| '-').collect::<String>()
                 );
-                if let Err(err) = tx.send(Err(Status::invalid_argument(format!("Failed to deserialize workflow: {err}")))).await {
-                    error!("{}", err);
+                if let Err(err) = tx.send(Err(Status::invalid_argument(format!("{}", trace!(("Failed to deserialize workflow"), err))))).await {
+                    error!("{}", err.trace());
                 }
                 return Ok(Response::new(ReceiverStream::new(rx)));
             },
@@ -1626,7 +1699,7 @@ impl JobService for WorkerServer {
                 ))))
                 .await
             {
-                error!("{}", err);
+                error!("{}", err.trace());
             }
             return Ok(Response::new(ReceiverStream::new(rx)));
         }
@@ -1641,7 +1714,7 @@ impl JobService for WorkerServer {
                     ))))
                     .await
                 {
-                    error!("{}", err);
+                    error!("{}", err.trace());
                 }
                 return Ok(Response::new(ReceiverStream::new(rx)));
             },
@@ -1651,9 +1724,9 @@ impl JobService for WorkerServer {
         let input: HashMap<DataName, AccessKind> = match json_to_map(&request.input) {
             Ok(input) => input,
             Err(err) => {
-                error!("Failed to deserialize input '{}': {}", request.input, err);
+                error!("{}", trace!(("Failed to deserialize input '{}'", request.input), err));
                 if let Err(err) = tx.send(Err(Status::invalid_argument(format!("Failed to deserialize input '{}': {}", request.input, err)))).await {
-                    error!("{}", err);
+                    error!("{}", err.trace());
                 }
                 return Ok(Response::new(ReceiverStream::new(rx)));
             },
@@ -1663,10 +1736,10 @@ impl JobService for WorkerServer {
         let args: HashMap<String, FullValue> = match serde_json::from_str(&request.args) {
             Ok(args) => args,
             Err(err) => {
-                error!("Failed to deserialize arguments '{}': {}", request.args, err);
+                error!("{}", trace!(("Failed to deserialize arguments '{}'", request.args), err));
                 if let Err(err) = tx.send(Err(Status::invalid_argument(format!("Failed to deserialize arguments '{}': {}", request.args, err)))).await
                 {
-                    error!("{}", err);
+                    error!("{}", err.trace());
                 }
                 return Ok(Response::new(ReceiverStream::new(rx)));
             },
@@ -1678,7 +1751,7 @@ impl JobService for WorkerServer {
         let node_config: NodeConfig = match NodeConfig::from_path(&self.node_config_path) {
             Ok(config) => config,
             Err(err) => {
-                error!("{}", err);
+                error!("{}", err.trace());
                 return Err(Status::internal("An internal error occurred"));
             },
         };
@@ -1732,7 +1805,7 @@ impl JobService for WorkerServer {
                 },
             },
             Err(err) => {
-                error!("Could not load `node.yml` file '{}': {}", self.node_config_path.display(), err);
+                error!("{}", trace!(("Could not load `node.yml` file '{}'", self.node_config_path.display()), err));
                 return Err(Status::internal("An internal error occurred"));
             },
         };
@@ -1746,7 +1819,7 @@ impl JobService for WorkerServer {
         let node_config: NodeConfig = match NodeConfig::from_path(&self.node_config_path) {
             Ok(config) => config,
             Err(err) => {
-                error!("{}", err);
+                error!("{}", err.trace());
                 return Err(Status::internal("An internal error occurred"));
             },
         };
@@ -1761,7 +1834,7 @@ impl JobService for WorkerServer {
 
         // Run the function
         if let Err(err) = report.nest_fut("committing", |scope| commit_result(&worker, &request.result_name, &request.data_name, scope)).await {
-            error!("{}", err);
+            error!("{}", err.trace());
             return Err(Status::internal("An internal error occurred"));
         }
 

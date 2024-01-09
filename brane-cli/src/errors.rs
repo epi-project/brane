@@ -4,7 +4,7 @@
 //  Created:
 //    17 Feb 2022, 10:27:28
 //  Last edited:
-//    08 Jan 2024, 19:10:53
+//    09 Jan 2024, 12:00:32
 //  Auto updated?
 //    Yes
 //
@@ -17,7 +17,7 @@ use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::PathBuf;
 
 use brane_shr::errors::ErrorTrace as _;
-use brane_shr::formatters::PrettyListFormatter;
+use brane_shr::formatters::{BlockFormatter, PrettyListFormatter};
 use reqwest::StatusCode;
 use specifications::container::{ContainerInfoError, Image, LocalContainerInfoError};
 use specifications::package::{PackageInfoError, PackageKindError};
@@ -83,21 +83,21 @@ impl Display for CliError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use CliError::*;
         match self {
-            BuildError { .. }
-            | CertsError { .. }
-            | DataError { .. }
-            | ImportError { .. }
-            | InstanceError { .. }
-            | PackageError { .. }
-            | RegistryError { .. }
-            | ReplError { .. }
-            | RunError { .. }
-            | TestError { .. }
-            | VerifyError { .. }
-            | VersionError { .. }
-            | UpgradeError { .. }
-            | UtilError { .. }
-            | OtherError { .. } => write!(f, "Something went wrong"),
+            BuildError { err } => write!(f, "{}", err.trace()),
+            CertsError { err } => write!(f, "{}", err.trace()),
+            DataError { err } => write!(f, "{}", err.trace()),
+            ImportError { err } => write!(f, "{}", err.trace()),
+            InstanceError { err } => write!(f, "{}", err.trace()),
+            PackageError { err } => write!(f, "{}", err.trace()),
+            RegistryError { err } => write!(f, "{}", err.trace()),
+            ReplError { err } => write!(f, "{}", err.trace()),
+            RunError { err } => write!(f, "{}", err.trace()),
+            TestError { err } => write!(f, "{}", err.trace()),
+            VerifyError { err } => write!(f, "{}", err.trace()),
+            VersionError { err } => write!(f, "{}", err.trace()),
+            UpgradeError { err } => write!(f, "{}", err.trace()),
+            UtilError { err } => write!(f, "{}", err.trace()),
+            OtherError { err } => write!(f, "{err}"),
 
             PackageFileCanonicalizeError { path, .. } => write!(f, "Could not resolve package file path '{}'", path.display()),
             WorkdirCanonicalizeError { path, .. } => write!(f, "Could not resolve working directory '{}'", path.display()),
@@ -110,21 +110,21 @@ impl Error for CliError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use CliError::*;
         match self {
-            BuildError { err } => Some(err),
-            CertsError { err } => Some(err),
-            DataError { err } => Some(err),
-            ImportError { err } => Some(err),
-            InstanceError { err } => Some(err),
-            PackageError { err } => Some(err),
-            RegistryError { err } => Some(err),
-            ReplError { err } => Some(err),
-            RunError { err } => Some(err),
-            TestError { err } => Some(err),
-            VerifyError { err } => Some(err),
-            VersionError { err } => Some(err),
-            UpgradeError { err } => Some(err),
-            UtilError { err } => Some(err),
-            OtherError { err } => Some(&**err),
+            BuildError { .. } => None,
+            CertsError { .. } => None,
+            DataError { .. } => None,
+            ImportError { .. } => None,
+            InstanceError { .. } => None,
+            PackageError { .. } => None,
+            RegistryError { .. } => None,
+            ReplError { .. } => None,
+            RunError { .. } => None,
+            TestError { .. } => None,
+            VerifyError { .. } => None,
+            VersionError { .. } => None,
+            UpgradeError { .. } => None,
+            UtilError { .. } => None,
+            OtherError { .. } => None,
 
             PackageFileCanonicalizeError { err, .. } => Some(err),
             WorkdirCanonicalizeError { err, .. } => Some(err),
@@ -282,20 +282,20 @@ impl Display for BuildError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use BuildError::*;
         match self {
-            ContainerInfoOpenError { file, err } => write!(f, "Could not open the container info file '{}': {}", file.display(), err),
-            ContainerInfoParseError { file, err } => write!(f, "Could not parse the container info file '{}': {}", file.display(), err),
-            PackageDirError { err } => write!(f, "Could not create package directory: '{err}'"),
+            ContainerInfoOpenError { file, .. } => write!(f, "Could not open the container info file '{}'", file.display()),
+            ContainerInfoParseError { file, .. } => write!(f, "Could not parse the container info file '{}'", file.display()),
+            PackageDirError { .. } => write!(f, "Could not create package directory"),
 
-            OasDocumentParseError { file, err } => write!(f, "Could not parse the OAS Document '{}': {}", file.display(), err),
-            VersionParseError { err } => write!(f, "Could not parse OAS Document version number: {err}"),
-            PackageInfoFromOpenAPIError { err } => write!(f, "Could not convert the OAS Document into a Package Info file: {err}"),
+            OasDocumentParseError { file, .. } => write!(f, "Could not parse the OAS Document '{}'", file.display()),
+            VersionParseError { .. } => write!(f, "Could not parse OAS Document version number"),
+            PackageInfoFromOpenAPIError { .. } => write!(f, "Could not convert the OAS Document into a Package Info file"),
 
             // LockFileExists{ path }        => write!(f, "The build directory '{}' is busy; try again later (a lock file exists)", path.display()),
-            // LockCreateError{ path, err }  => write!(f, "Could not create lock file '{}': {}", path.display(), err),
-            // LockCleanupError{ path, err } => write!(f, "Could not clean the lock file ('{}') from build directory: {}", path.display(), err),
-            LockCreateError { name, err } => write!(f, "Failed to create lockfile for package '{name}': {err}"),
+            // LockCreateError{ path, .. }  => write!(f, "Could not create lock file '{}'", path.display()),
+            // LockCleanupError{ path, .. } => write!(f, "Could not clean the lock file ('{}') from build directory", path.display()),
+            LockCreateError { name, .. } => write!(f, "Failed to create lockfile for package '{name}'"),
 
-            DockerfileStrWriteError { err } => write!(f, "Could not write to the internal DockerFile: {err}"),
+            DockerfileStrWriteError { .. } => write!(f, "Could not write to the internal DockerFile"),
             UnsafePath { path } => write!(
                 f,
                 "File '{}' tries to escape package working directory; consider moving Brane's working directory up (using --workdir) and avoid '..'",
@@ -303,55 +303,55 @@ impl Display for BuildError {
             ),
             MissingExecutable { path } => write!(f, "Could not find the package entrypoint '{}'", path.display()),
 
-            DockerfileCreateError { path, err } => write!(f, "Could not create Dockerfile '{}': {}", path.display(), err),
-            DockerfileWriteError { path, err } => write!(f, "Could not write to Dockerfile '{}': {}", path.display(), err),
-            ContainerDirCreateError { path, err } => write!(f, "Could not create container directory '{}': {}", path.display(), err),
-            BraneletCanonicalizeError { path, err } => write!(f, "Could not resolve custom init binary path '{}': {}", path.display(), err),
-            BraneletCopyError { source, target, err } => {
-                write!(f, "Could not copy custom init binary from '{}' to '{}': {}", source.display(), target.display(), err)
+            DockerfileCreateError { path, .. } => write!(f, "Could not create Dockerfile '{}'", path.display()),
+            DockerfileWriteError { path, .. } => write!(f, "Could not write to Dockerfile '{}'", path.display()),
+            ContainerDirCreateError { path, .. } => write!(f, "Could not create container directory '{}'", path.display()),
+            BraneletCanonicalizeError { path, .. } => write!(f, "Could not resolve custom init binary path '{}'", path.display()),
+            BraneletCopyError { source, target, .. } => {
+                write!(f, "Could not copy custom init binary from '{}' to '{}'", source.display(), target.display())
             },
-            WdClearError { path, err } => write!(f, "Could not clear existing package working directory '{}': {}", path.display(), err),
-            WdCreateError { path, err } => write!(f, "Could not create package working directory '{}': {}", path.display(), err),
-            LocalContainerInfoCreateError { err } => write!(f, "Could not write local container info to container directory: {err}"),
-            WdSourceFileCanonicalizeError { path, err } => write!(f, "Could not resolve file '{}' in the package info file: {}", path.display(), err),
-            WdTargetFileCanonicalizeError { path, err } => {
-                write!(f, "Could not resolve file '{}' in the package working directory: {}", path.display(), err)
+            WdClearError { path, .. } => write!(f, "Could not clear existing package working directory '{}'", path.display()),
+            WdCreateError { path, .. } => write!(f, "Could not create package working directory '{}'", path.display()),
+            LocalContainerInfoCreateError { .. } => write!(f, "Could not write local container info to container directory"),
+            WdSourceFileCanonicalizeError { path, .. } => write!(f, "Could not resolve file '{}' in the package info file", path.display()),
+            WdTargetFileCanonicalizeError { path, .. } => {
+                write!(f, "Could not resolve file '{}' in the package working directory", path.display())
             },
-            WdDirCreateError { path, err } => write!(f, "Could not create directory '{}' in the package working directory: {}", path.display(), err),
-            WdDirEntryError { path, err } => {
-                write!(f, "Could not read entry in directory '{}' in the package working directory: {}", path.display(), err)
+            WdDirCreateError { path, .. } => write!(f, "Could not create directory '{}' in the package working directory", path.display()),
+            WdDirEntryError { path, .. } => {
+                write!(f, "Could not read entry in directory '{}' in the package working directory", path.display())
             },
-            WdDirReadError { path, err } => write!(f, "Could not read directory '{}' in the package working directory: {}", path.display(), err),
-            WdFileCopyError { source, target, err } => {
-                write!(f, "Could not copy file '{}' to '{}' in the package working directory: {}", source.display(), target.display(), err)
+            WdDirReadError { path, .. } => write!(f, "Could not read directory '{}' in the package working directory", path.display()),
+            WdFileCopyError { source, target, .. } => {
+                write!(f, "Could not copy file '{}' to '{}' in the package working directory", source.display(), target.display())
             },
-            WdFileRenameError { source, target, err } => {
-                write!(f, "Could not rename file '{}' to '{}' in the package working directory: {}", source.display(), target.display(), err)
+            WdFileRenameError { source, target, .. } => {
+                write!(f, "Could not rename file '{}' to '{}' in the package working directory", source.display(), target.display())
             },
-            WdFileCreateError { path, err } => write!(f, "Could not create new file '{}' in the package working directory: {}", path.display(), err),
-            WdFileOpenError { path, err } => write!(f, "Could not open file '{}' in the package working directory: {}", path.display(), err),
-            WdFileReadError { path, err } => write!(f, "Could not read from file '{}' in the package working directory: {}", path.display(), err),
-            WdFileWriteError { path, err } => write!(f, "Could not write to file '{}' in the package working directory: {}", path.display(), err),
-            WdFileRemoveError { path, err } => write!(f, "Could not remove file '{}' in the package working directory: {}", path.display(), err),
-            WdCompressionLaunchError { command, err } => write!(f, "Could not run command '{command}' to compress working directory: {err}"),
+            WdFileCreateError { path, .. } => write!(f, "Could not create new file '{}' in the package working directory", path.display()),
+            WdFileOpenError { path, .. } => write!(f, "Could not open file '{}' in the package working directory", path.display()),
+            WdFileReadError { path, .. } => write!(f, "Could not read from file '{}' in the package working directory", path.display()),
+            WdFileWriteError { path, .. } => write!(f, "Could not write to file '{}' in the package working directory", path.display()),
+            WdFileRemoveError { path, .. } => write!(f, "Could not remove file '{}' in the package working directory", path.display()),
+            WdCompressionLaunchError { command, .. } => write!(f, "Could not run command '{command}' to compress working directory"),
             WdCompressionError { command, code, stdout, stderr } => write!(
                 f,
                 "Command '{}' to compress working directory returned exit code {}:\n\nstdout:\n{}\n{}\n{}\n\nstderr:\n{}\n{}\n{}\n\n",
                 command, code, *CLI_LINE_SEPARATOR, stdout, *CLI_LINE_SEPARATOR, *CLI_LINE_SEPARATOR, stderr, *CLI_LINE_SEPARATOR
             ),
-            WdConfirmationError { err } => write!(f, "Failed to ask the user (you!) for consent: {err}"),
+            WdConfirmationError { .. } => write!(f, "Failed to ask the user (you!) for consent"),
 
-            OpenAPISerializeError { err } => write!(f, "Could not re-serialize OpenAPI document: {err}"),
-            OpenAPIFileCreateError { path, err } => write!(f, "Could not create OpenAPI file '{}': {}", path.display(), err),
-            OpenAPIFileWriteError { path, err } => write!(f, "Could not write to OpenAPI file '{}': {}", path.display(), err),
+            OpenAPISerializeError { .. } => write!(f, "Could not re-serialize OpenAPI document"),
+            OpenAPIFileCreateError { path, .. } => write!(f, "Could not create OpenAPI file '{}'", path.display()),
+            OpenAPIFileWriteError { path, .. } => write!(f, "Could not write to OpenAPI file '{}'", path.display()),
 
-            // PackageFileCreateError{ path, err }     => write!(f, "Could not create file '{}' within the package directory: {}", path.display(), err),
-            // PackageFileWriteError{ path, err }      => write!(f, "Could not write to file '{}' within the package directory: {}", path.display(), err),
-            // ContainerInfoSerializeError{ err }      => write!(f, "Could not re-serialize container.yml: {}", err),
-            // LocalContainerInfoSerializeError{ err } => write!(f, "Could not re-serialize container.yml as local_container.yml: {}", err),
-            // PackageInfoSerializeError{ err }        => write!(f, "Could not serialize generated package info file: {}", err),
-            BuildKitLaunchError { command, err } => {
-                write!(f, "Could not determine if Docker & BuildKit are installed: failed to run command '{command}': {err}")
+            // PackageFileCreateError{ path, .. }     => write!(f, "Could not create file '{}' within the package directory", path.display()),
+            // PackageFileWriteError{ path, .. }      => write!(f, "Could not write to file '{}' within the package directory", path.display()),
+            // ContainerInfoSerializeError{ .. }      => write!(f, "Could not re-serialize container.yml: {}", err),
+            // LocalContainerInfoSerializeError{ .. } => write!(f, "Could not re-serialize container.yml as local_container.yml: {}", err),
+            // PackageInfoSerializeError{ .. }        => write!(f, "Could not serialize generated package info file: {}", err),
+            BuildKitLaunchError { command, .. } => {
+                write!(f, "Could not determine if Docker & BuildKit are installed: failed to run command '{command}'")
             },
             BuildKitError { command, code, stdout, stderr } => write!(
                 f,
@@ -359,20 +359,20 @@ impl Display for BuildError {
                  installed?\n\nstdout:\n{}\n{}\n{}\n\nstderr:\n{}\n{}\n{}\n\n",
                 command, code, *CLI_LINE_SEPARATOR, stdout, *CLI_LINE_SEPARATOR, *CLI_LINE_SEPARATOR, stderr, *CLI_LINE_SEPARATOR
             ),
-            ImageBuildLaunchError { command, err } => write!(f, "Could not run command '{command}' to build the package image: {err}"),
+            ImageBuildLaunchError { command, .. } => write!(f, "Could not run command '{command}' to build the package image"),
             ImageBuildError { command, code } => write!(f, "Command '{command}' to build the package image returned exit code {code}"),
 
-            DigestError { err } => write!(f, "Could not get Docker image digest: {err}"),
-            PackageFileCreateError { err } => write!(f, "Could not write package info to build directory: {err}"),
+            DigestError { .. } => write!(f, "Could not get Docker image digest"),
+            PackageFileCreateError { .. } => write!(f, "Could not write package info to build directory"),
 
-            // BuildError::DockerCleanupError{ image, err } => write!(f, "Could not remove existing image '{}' from docker daemon: {}", image, err),
-            FileCleanupError { path, err } => write!(f, "Could not clean file '{}' from build directory: {}", path.display(), err),
-            DirCleanupError { path, err } => write!(f, "Could not clean directory '{}' from build directory: {}", path.display(), err),
-            CleanupError { path, err } => write!(f, "Could not clean build directory '{}': {}", path.display(), err),
+            // BuildError::DockerCleanupError{ image, .. } => write!(f, "Could not remove existing image '{}' from docker daemon", image),
+            FileCleanupError { path, .. } => write!(f, "Could not clean file '{}' from build directory", path.display()),
+            DirCleanupError { path, .. } => write!(f, "Could not clean directory '{}' from build directory", path.display()),
+            CleanupError { path, .. } => write!(f, "Could not clean build directory '{}'", path.display()),
 
-            ImageTarOpenError { path, err } => write!(f, "Could not open the built image.tar ('{}'): {}", path.display(), err),
-            ImageTarEntriesError { path, err } => write!(f, "Could get entries in the built image.tar ('{}'): {}", path.display(), err),
-            ManifestParseError { path, err } => write!(f, "Could not parse extracted Docker manifest '{}': {}", path.display(), err),
+            ImageTarOpenError { path, .. } => write!(f, "Could not open the built image.tar ('{}')", path.display()),
+            ImageTarEntriesError { path, .. } => write!(f, "Could get entries in the built image.tar ('{}')", path.display()),
+            ManifestParseError { path, .. } => write!(f, "Could not parse extracted Docker manifest '{}'", path.display()),
             ManifestNotOneEntry { path, n } => {
                 write!(f, "Extracted Docker manifest '{}' has an incorrect number of entries: got {}, expected 1", path.display(), n)
             },
@@ -383,14 +383,84 @@ impl Display for BuildError {
                 config
             ),
             NoManifest { path } => write!(f, "Built image.tar ('{}') does not contain a manifest.json", path.display()),
-            DigestFileCreateError { path, err } => write!(f, "Could not open digest file '{}': {}", path.display(), err),
-            DigestFileWriteError { path, err } => write!(f, "Could not write to digest file '{}': {}", path.display(), err),
+            DigestFileCreateError { path, .. } => write!(f, "Could not open digest file '{}'", path.display()),
+            DigestFileWriteError { path, .. } => write!(f, "Could not write to digest file '{}'", path.display()),
 
-            HostArchError { err } => write!(f, "Could not get host architecture: {err}"),
+            HostArchError { .. } => write!(f, "Could not get host architecture"),
         }
     }
 }
-impl Error for BuildError {}
+impl Error for BuildError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use BuildError::*;
+        match self {
+            ContainerInfoOpenError { err, .. } => Some(err),
+            ContainerInfoParseError { err, .. } => Some(err),
+            PackageDirError { err } => Some(err),
+
+            OasDocumentParseError { err, .. } => Some(&**err),
+            VersionParseError { err } => Some(err),
+            PackageInfoFromOpenAPIError { err } => Some(&**err),
+
+            LockCreateError { err, .. } => Some(err),
+
+            DockerfileStrWriteError { err, .. } => Some(err),
+            UnsafePath { .. } => None,
+            MissingExecutable { .. } => None,
+
+            DockerfileCreateError { err, .. } => Some(err),
+            DockerfileWriteError { err, .. } => Some(err),
+            ContainerDirCreateError { err, .. } => Some(err),
+            BraneletCanonicalizeError { err, .. } => Some(err),
+            BraneletCopyError { err, .. } => Some(err),
+            WdClearError { err, .. } => Some(err),
+            WdCreateError { err, .. } => Some(err),
+            LocalContainerInfoCreateError { err } => Some(err),
+            WdSourceFileCanonicalizeError { err, .. } => Some(err),
+            WdTargetFileCanonicalizeError { err, .. } => Some(err),
+            WdDirCreateError { err, .. } => Some(err),
+            WdFileCopyError { err, .. } => Some(err),
+            WdDirReadError { err, .. } => Some(err),
+            WdDirEntryError { err, .. } => Some(err),
+            WdFileRenameError { err, .. } => Some(err),
+            WdFileCreateError { err, .. } => Some(err),
+            WdFileOpenError { err, .. } => Some(err),
+            WdFileReadError { err, .. } => Some(err),
+            WdFileWriteError { err, .. } => Some(err),
+            WdFileRemoveError { err, .. } => Some(err),
+            WdCompressionLaunchError { err, .. } => Some(err),
+            WdCompressionError { .. } => None,
+            WdConfirmationError { err } => Some(err),
+
+            OpenAPISerializeError { err } => Some(err),
+            OpenAPIFileCreateError { err, .. } => Some(err),
+            OpenAPIFileWriteError { err, .. } => Some(err),
+
+            BuildKitLaunchError { err, .. } => Some(err),
+            BuildKitError { .. } => None,
+            ImageBuildLaunchError { err, .. } => Some(err),
+            ImageBuildError { .. } => None,
+
+            DigestError { err } => Some(err),
+            PackageFileCreateError { err } => Some(err),
+
+            FileCleanupError { err, .. } => Some(err),
+            DirCleanupError { err, .. } => Some(err),
+            CleanupError { err, .. } => Some(err),
+
+            ImageTarOpenError { err, .. } => Some(err),
+            ImageTarEntriesError { err, .. } => Some(err),
+            ManifestParseError { err, .. } => Some(err),
+            ManifestNotOneEntry { .. } => None,
+            ManifestInvalidConfigBlob { .. } => None,
+            NoManifest { .. } => None,
+            DigestFileCreateError { err, .. } => Some(err),
+            DigestFileWriteError { err, .. } => Some(err),
+
+            HostArchError { err } => Some(err),
+        }
+    }
+}
 
 
 
@@ -457,8 +527,8 @@ impl Display for CertsError {
         match self {
             ActiveInstanceNotASoftlinkError { path } => write!(f, "Active instance link '{}' exists but is not a symlink", path.display()),
 
-            CertParseError { path, i, err } => write!(f, "Failed to parse certificate {} in file '{}': {}", i, path.display(), err),
-            CertExtensionsError { path, i, err } => write!(f, "Failed to get extensions in certificate {} in file '{}': {}", i, path.display(), err),
+            CertParseError { path, i, .. } => write!(f, "Failed to parse certificate {} in file '{}'", i, path.display()),
+            CertExtensionsError { path, i, .. } => write!(f, "Failed to get extensions in certificate {} in file '{}'", i, path.display()),
             CertNoKeyUsageError { path, i } => {
                 write!(f, "Certificate {} in file '{}' does not have key usage defined (extension)", i, path.display())
             },
@@ -471,39 +541,73 @@ impl Display for CertsError {
                 i,
                 path.display()
             ),
-            CertIssuerCaError { path, i, err } => {
-                write!(f, "Failed to get the CA field in the issuer field of certificate {} in file '{}': {}", i, path.display(), err)
+            CertIssuerCaError { path, i, .. } => {
+                write!(f, "Failed to get the CA field in the issuer field of certificate {} in file '{}'", i, path.display())
             },
 
-            InstanceDirError { err } => write!(f, "Failed to get instance directory: {err}"),
+            InstanceDirError { .. } => write!(f, "Failed to get instance directory"),
             UnknownInstance { name } => write!(f, "Unknown instance '{name}'"),
-            ActiveInstanceReadError { err } => write!(f, "Failed to read active instance: {err}"),
-            InstancePathError { name, err } => write!(f, "Failed to get instance path for instance '{name}': {err}"),
-            PemLoadError { path, err } => write!(f, "Failed to load PEM file '{}': {}", path.display(), err),
+            ActiveInstanceReadError { .. } => write!(f, "Failed to read active instance"),
+            InstancePathError { name, .. } => write!(f, "Failed to get instance path for instance '{name}'"),
+            PemLoadError { path, .. } => write!(f, "Failed to load PEM file '{}'", path.display()),
             NoCaCert => write!(f, "No CA certificate given (specify at least one certificate that has 'CRL Sign' key usage flag set)"),
             NoClientCert => {
                 write!(f, "No client certificate given (specify at least one certificate that has 'Digital Signature' key usage flag set)")
             },
             NoClientKey => write!(f, "No client private key given (specify at least one private key)"),
             NoDomainName => write!(f, "Location name not specified in certificates; specify the target location name manually using '--domain'"),
-            ConfirmationError { err } => {
-                write!(f, "Failed to ask the user (you!) for confirmation: {err} (if you are sure, you can skip this step by using '--force')")
+            ConfirmationError { .. } => {
+                write!(f, "Failed to ask the user (you!) for confirmation (if you are sure, you can skip this step by using '--force')")
             },
             CertsDirNotADir { path } => write!(f, "Certificate directory '{}' exists but is not a directory", path.display()),
-            CertsDirRemoveError { path, err } => write!(f, "Failed to remove certificate directory '{}': {}", path.display(), err),
-            CertsDirCreateError { path, err } => write!(f, "Failed to create certificate directory '{}': {}", path.display(), err),
-            FileOpenError { what, path, err } => write!(f, "Failed to open {} file '{}' for appending: {}", what, path.display(), err),
-            FileWriteError { what, path, err } => write!(f, "Failed to write to {} file '{}': {}", what, path.display(), err),
+            CertsDirRemoveError { path, .. } => write!(f, "Failed to remove certificate directory '{}'", path.display()),
+            CertsDirCreateError { path, .. } => write!(f, "Failed to create certificate directory '{}'", path.display()),
+            FileOpenError { what, path, .. } => write!(f, "Failed to open {} file '{}' for appending", what, path.display()),
+            FileWriteError { what, path, .. } => write!(f, "Failed to write to {} file '{}'", what, path.display()),
 
-            InstancesDirError { err } => write!(f, "Failed to get instances directory: {err}"),
-            DirReadError { what, path, err } => write!(f, "Failed to read {} directory '{}': {}", what, path.display(), err),
-            DirEntryReadError { what, path, entry, err } => {
-                write!(f, "Failed to read entry {} in {} directory '{}': {}", entry, what, path.display(), err)
+            InstancesDirError { .. } => write!(f, "Failed to get instances directory"),
+            DirReadError { what, path, .. } => write!(f, "Failed to read {} directory '{}'", what, path.display()),
+            DirEntryReadError { what, path, entry, .. } => {
+                write!(f, "Failed to read entry {} in {} directory '{}'", entry, what, path.display())
             },
         }
     }
 }
-impl Error for CertsError {}
+impl Error for CertsError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use CertsError::*;
+        match self {
+            ActiveInstanceNotASoftlinkError { .. } => None,
+
+            CertParseError { err, .. } => Some(err),
+            CertExtensionsError { err, .. } => Some(err),
+            CertNoKeyUsageError { .. } => None,
+            CertAmbigiousUsageError { .. } => None,
+            CertNoUsageError { .. } => None,
+            CertIssuerCaError { err, .. } => Some(err),
+
+            InstanceDirError { err } => Some(err),
+            UnknownInstance { .. } => None,
+            ActiveInstanceReadError { err } => Some(err),
+            InstancePathError { err, .. } => Some(err),
+            PemLoadError { err, .. } => Some(err),
+            NoCaCert => None,
+            NoClientCert => None,
+            NoClientKey => None,
+            NoDomainName => None,
+            ConfirmationError { err } => Some(err),
+            CertsDirNotADir { .. } => None,
+            CertsDirRemoveError { err, .. } => Some(err),
+            CertsDirCreateError { err, .. } => Some(err),
+            FileOpenError { err, .. } => Some(err),
+            FileWriteError { err, .. } => Some(err),
+
+            InstancesDirError { err } => Some(err),
+            DirReadError { err, .. } => Some(err),
+            DirEntryReadError { err, .. } => Some(err),
+        }
+    }
+}
 
 
 
@@ -614,7 +718,7 @@ impl Display for DataError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use DataError::*;
         match self {
-            RequestError { what, address, err } => write!(f, "Failed to send {what} request to '{address}': {err}"),
+            RequestError { what, address, .. } => write!(f, "Failed to send {what} request to '{address}'"),
             RequestFailure { address, code, message } => write!(
                 f,
                 "Request to '{}' failed with status code {} ({}){}",
@@ -623,47 +727,47 @@ impl Display for DataError {
                 code.canonical_reason().unwrap_or("???"),
                 if let Some(msg) = message { format!(": {msg}") } else { String::new() }
             ),
-            ResponseTextError { address, err } => write!(f, "Failed to get body from response sent by '{address}' as text: {err}"),
-            // KeypairLoadError{ err }                          => write!(f, "Failed to load keypair: {}", err),
-            // StoreLoadError{ err }                            => write!(f, "Failed to load root store: {}", err),
-            FileReadError { what, path, err } => write!(f, "Failed to read {} file '{}': {}", what, path.display(), err),
-            CertsDirError { err } => write!(f, "Failed to get certificates directory for active instance: {err}"),
-            IdentityFileError { path, err } => write!(f, "Failed to parse identity file '{}': {}", path.display(), err),
-            CertificateError { path, err } => write!(f, "Failed to parse certificate '{}': {}", path.display(), err),
+            ResponseTextError { address, .. } => write!(f, "Failed to get body from response sent by '{address}' as text"),
+            // KeypairLoadError{ .. }                          => write!(f, "Failed to load keypair: {}", err),
+            // StoreLoadError{ .. }                            => write!(f, "Failed to load root store: {}", err),
+            FileReadError { what, path, .. } => write!(f, "Failed to read {} file '{}'", what, path.display()),
+            CertsDirError { .. } => write!(f, "Failed to get certificates directory for active instance"),
+            IdentityFileError { path, .. } => write!(f, "Failed to parse identity file '{}'", path.display()),
+            CertificateError { path, .. } => write!(f, "Failed to parse certificate '{}'", path.display()),
             DirNotADirError { what, path } => write!(f, "{} directory '{}' is not a directory", what, path.display()),
-            DirRemoveError { what, path, err } => write!(f, "Failed to remove {} directory '{}': {}", what, path.display(), err),
-            DirCreateError { what, path, err } => write!(f, "Failed to create {} directory '{}': {}", what, path.display(), err),
+            DirRemoveError { what, path, .. } => write!(f, "Failed to remove {} directory '{}'", what, path.display()),
+            DirCreateError { what, path, .. } => write!(f, "Failed to create {} directory '{}'", what, path.display()),
             // EmptyCertFile{ path }                            => write!(f, "No certificates found in certificate file '{}'", path.display()),
-            // IdentityFileError{ certfile, keyfile, err }      => write!(f, "Failed to parse '{}' and '{}' as a single Identity: {}", certfile.display(), keyfile.display(), err),
-            // RootError{ cafile, err }                         => write!(f, "Failed to parse '{}' as a root certificate: {}", cafile.display(), err),
-            TempDirError { err } => write!(f, "Failed to create temporary directory: {err}"),
-            DatasetDirError { name, err } => write!(f, "Failed to create dataset directory for dataset '{name}': {err}"),
-            ProxyCreateError { address, err } => write!(f, "Failed to create new proxy to '{address}': {err}"),
-            ClientCreateError { err } => write!(f, "Failed to create new client: {err}"),
-            DownloadStreamError { address, err } => write!(f, "Failed to get next chunk in download stream from '{address}': {err}"),
-            TarCreateError { path, err } => write!(f, "Failed to create tarball file '{}': {}", path.display(), err),
-            // TarOpenError{ path, err }                => write!(f, "Failed to re-open tarball file '{}': {}", path.display(), err),
-            TarWriteError { path, err } => write!(f, "Failed to write to tarball file '{}': {}", path.display(), err),
-            TarExtractError { err } => write!(f, "Failed to extract downloaded archive: {err}"),
+            // IdentityFileError{ certfile, keyfile, .. }      => write!(f, "Failed to parse '{}' and '{}' as a single Identity", certfile.display(), keyfile.display()),
+            // RootError{ cafile, .. }                         => write!(f, "Failed to parse '{}' as a root certificate", cafile.display()),
+            TempDirError { .. } => write!(f, "Failed to create temporary directory"),
+            DatasetDirError { name, .. } => write!(f, "Failed to create dataset directory for dataset '{name}'"),
+            ProxyCreateError { address, .. } => write!(f, "Failed to create new proxy to '{address}'"),
+            ClientCreateError { .. } => write!(f, "Failed to create new client"),
+            DownloadStreamError { address, .. } => write!(f, "Failed to get next chunk in download stream from '{address}'"),
+            TarCreateError { path, .. } => write!(f, "Failed to create tarball file '{}'", path.display()),
+            // TarOpenError{ path, .. }                => write!(f, "Failed to re-open tarball file '{}'", path.display()),
+            TarWriteError { path, .. } => write!(f, "Failed to write to tarball file '{}'", path.display()),
+            TarExtractError { .. } => write!(f, "Failed to extract downloaded archive"),
 
-            DatasetsError { err } => write!(f, "Failed to get datasets folder: {err}"),
-            LocalDataIndexError { err } => write!(f, "Failed to get local data index: {err}"),
+            DatasetsError { .. } => write!(f, "Failed to get datasets folder"),
+            LocalDataIndexError { .. } => write!(f, "Failed to get local data index"),
 
-            AssetFileError { path, err } => write!(f, "Failed to load given asset file '{}': {}", path.display(), err),
-            FileCanonicalizeError { path, err } => write!(f, "Failed to resolve path '{}': {}", path.display(), err),
+            AssetFileError { path, .. } => write!(f, "Failed to load given asset file '{}'", path.display()),
+            FileCanonicalizeError { path, .. } => write!(f, "Failed to resolve path '{}'", path.display()),
             FileNotFoundError { path } => write!(f, "Referenced file '{}' not found (are you using the correct working directory?)", path.display()),
             FileNotAFileError { path } => write!(f, "Referenced file '{}' is not a file", path.display()),
-            DatasetDirCreateError { err } => write!(f, "Failed to create target dataset directory in the Brane data folder: {err}"),
+            DatasetDirCreateError { .. } => write!(f, "Failed to create target dataset directory in the Brane data folder"),
             DuplicateDatasetError { name } => write!(f, "A dataset with the name '{name}' already exists locally"),
-            DataCopyError { err } => write!(f, "Failed to data directory: {err}"),
-            DataInfoWriteError { err } => write!(f, "Failed to write DataInfo file: {err}"),
+            DataCopyError { .. } => write!(f, "Failed to data directory"),
+            DataInfoWriteError { .. } => write!(f, "Failed to write DataInfo file"),
 
             NoEqualsInKeyPair { raw } => write!(f, "Missing '=' in key/value pair '{raw}'"),
-            InstanceInfoError { err } => write!(f, "Could not read active instance info file: {err}"),
-            ActiveInstanceReadError { err } => write!(f, "Failed to read active instance link: {err}"),
-            InstancePathError { name, err } => write!(f, "Could not get path of instance '{name}': {err}"),
-            RemoteDataIndexError { address, err } => write!(f, "Failed to fetch remote data index from '{address}': {err}"),
-            DataSelectError { err } => write!(f, "Failed to ask the user (you!) to select a download location: {err}"),
+            InstanceInfoError { .. } => write!(f, "Could not read active instance info file"),
+            ActiveInstanceReadError { .. } => write!(f, "Failed to read active instance link"),
+            InstancePathError { name, .. } => write!(f, "Could not get path of instance '{name}'"),
+            RemoteDataIndexError { address, .. } => write!(f, "Failed to fetch remote data index from '{address}'"),
+            DataSelectError { .. } => write!(f, "Failed to ask the user (you!) to select a download location"),
             UnknownLocation { name } => write!(f, "Unknown location '{name}'"),
 
             UnknownDataset { name } => write!(f, "Unknown dataset '{name}'"),
@@ -678,13 +782,71 @@ impl Display for DataError {
                 }
             ),
 
-            // DatasetDirError{ err }   => write!(f, "Failed to get to-be-removed dataset directory: {}", err),
-            ConfirmationError { err } => write!(f, "Failed to ask the user (you) for confirmation before removing a dataset: {err}"),
-            RemoveError { path, err } => write!(f, "Failed to remove dataset directory '{}': {}", path.display(), err),
+            // DatasetDirError{ .. }   => write!(f, "Failed to get to-be-removed dataset directory: {}", err),
+            ConfirmationError { .. } => write!(f, "Failed to ask the user (you) for confirmation before removing a dataset"),
+            RemoveError { path, .. } => write!(f, "Failed to remove dataset directory '{}'", path.display()),
         }
     }
 }
-impl Error for DataError {}
+impl Error for DataError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use DataError::*;
+        match self {
+            RequestError { err, .. } => Some(err),
+            RequestFailure { .. } => None,
+            ResponseTextError { err, .. } => Some(err),
+            // KeypairLoadError{ .. } => None,
+            // StoreLoadError{ .. } => None,
+            FileReadError { err, .. } => Some(err),
+            CertsDirError { .. } => None,
+            IdentityFileError { err, .. } => Some(err),
+            CertificateError { err, .. } => Some(err),
+            DirNotADirError { .. } => None,
+            DirRemoveError { err, .. } => Some(err),
+            DirCreateError { err, .. } => Some(err),
+            // EmptyCertFile{ .. } => None,
+            // IdentityFileError{ err, .. } => Some(err),
+            // RootError{ err, .. } => Some(err),
+            TempDirError { .. } => None,
+            DatasetDirError { err, .. } => Some(err),
+            ProxyCreateError { err, .. } => Some(err),
+            ClientCreateError { .. } => None,
+            DownloadStreamError { err, .. } => Some(err),
+            TarCreateError { err, .. } => Some(err),
+            // TarOpenError{ err, .. } => Some(err),
+            TarWriteError { err, .. } => Some(err),
+            // TarExtractError{ err, .. } => Some(err),
+            TarExtractError { .. } => None,
+
+            DatasetsError { .. } => None,
+            LocalDataIndexError { .. } => None,
+
+            AssetFileError { err, .. } => Some(err),
+            FileCanonicalizeError { err, .. } => Some(err),
+            FileNotFoundError { .. } => None,
+            FileNotAFileError { .. } => None,
+            DatasetDirCreateError { .. } => None,
+            DuplicateDatasetError { .. } => None,
+            DataCopyError { .. } => None,
+            DataInfoWriteError { .. } => None,
+
+            NoEqualsInKeyPair { .. } => None,
+            InstanceInfoError { .. } => None,
+            ActiveInstanceReadError { .. } => None,
+            InstancePathError { err, .. } => Some(err),
+            RemoteDataIndexError { err, .. } => Some(err),
+            DataSelectError { .. } => None,
+            UnknownLocation { .. } => None,
+
+            UnknownDataset { .. } => None,
+            UnavailableDataset { .. } => None,
+
+            // DatasetDirError{ .. } => None,
+            ConfirmationError { .. } => None,
+            RemoveError { err, .. } => Some(err),
+        }
+    }
+}
 
 
 
@@ -703,20 +865,32 @@ pub enum ImportError {
 }
 impl Display for ImportError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use ImportError::*;
         match self {
-            ImportError::TempDirError { err } => write!(f, "Could not create temporary repository directory: {err}"),
-            ImportError::TempDirCanonicalizeError { path, err } => {
-                write!(f, "Could not resolve temporary directory path '{}': {}", path.display(), err)
+            TempDirError { .. } => write!(f, "Could not create temporary repository directory"),
+            TempDirCanonicalizeError { path, .. } => {
+                write!(f, "Could not resolve temporary directory path '{}'", path.display())
             },
-            ImportError::RepoCloneError { repo, target, err } => {
-                write!(f, "Could not clone repository at '{}' to directory '{}': {}", repo, target.display(), err)
+            RepoCloneError { repo, target, .. } => {
+                write!(f, "Could not clone repository at '{}' to directory '{}'", repo, target.display())
             },
 
-            ImportError::RepoEscapeError { path } => write!(f, "Path '{}' points outside of repository folder", path.display()),
+            RepoEscapeError { path } => write!(f, "Path '{}' points outside of repository folder", path.display()),
         }
     }
 }
-impl Error for ImportError {}
+impl Error for ImportError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use ImportError::*;
+        match self {
+            TempDirError { err, .. } => Some(err),
+            TempDirCanonicalizeError { err, .. } => Some(err),
+            RepoCloneError { err, .. } => Some(err),
+
+            RepoEscapeError { .. } => None,
+        }
+    }
+}
 
 
 
@@ -781,22 +955,22 @@ impl Display for InstanceError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use InstanceError::*;
         match self {
-            InstanceDirError { err } => write!(f, "Failed to get directory for instance: {err}"),
-            InstanceInfoOpenError { path, err } => write!(f, "Failed to open instance info file '{}': {}", path.display(), err),
-            InstanceInfoReadError { path, err } => write!(f, "Failed to read instance info file '{}': {}", path.display(), err),
-            InstanceInfoParseError { path, err } => write!(f, "Failed to parse instance info file '{}' as valid YAML: {}", path.display(), err),
-            InstanceInfoSerializeError { err } => write!(f, "Failed to serialize instance info struct: {err}"),
-            InstanceInfoCreateError { path, err } => write!(f, "Failed to create new info instance file '{}': {}", path.display(), err),
-            InstanceInfoWriteError { path, err } => write!(f, "Failed to write to instance info file '{}': {}", path.display(), err),
+            InstanceDirError { .. } => write!(f, "Failed to get directory for instance"),
+            InstanceInfoOpenError { path, .. } => write!(f, "Failed to open instance info file '{}'", path.display()),
+            InstanceInfoReadError { path, .. } => write!(f, "Failed to read instance info file '{}'", path.display()),
+            InstanceInfoParseError { path, .. } => write!(f, "Failed to parse instance info file '{}' as valid YAML", path.display()),
+            InstanceInfoSerializeError { .. } => write!(f, "Failed to serialize instance info struct"),
+            InstanceInfoCreateError { path, .. } => write!(f, "Failed to create new info instance file '{}'", path.display()),
+            InstanceInfoWriteError { path, .. } => write!(f, "Failed to write to instance info file '{}'", path.display()),
 
             IllegalInstanceName { raw, illegal_char } => {
                 write!(f, "Instance name '{raw}' contains illegal character '{illegal_char}' (use '--name' to override it with a custom one)")
             },
-            AddressParseError { err } => write!(f, "Failed to convert hostname to a valid address: {err}"),
-            RequestError { address, err } => write!(
+            AddressParseError { .. } => write!(f, "Failed to convert hostname to a valid address"),
+            RequestError { address, .. } => write!(
                 f,
-                "Failed to send request to the instance API at '{address}': {err} (if this is something on your end, you may skip this check by \
-                 providing '--unchecked')"
+                "Failed to send request to the instance API at '{address}' (if this is something on your end, you may skip this check by providing \
+                 '--unchecked')"
             ),
             InstanceNotAliveError { address, code, err } => write!(
                 f,
@@ -804,35 +978,70 @@ impl Display for InstanceError {
                 address,
                 code,
                 code.canonical_reason().unwrap_or("???"),
-                if let Some(err) = err { format!(": {err}") } else { String::new() }
+                if let Some(err) = err { format!("\n\nResponse:\n{}\n", BlockFormatter::new(err)) } else { String::new() }
             ),
 
-            ConfirmationError { err } => {
-                write!(f, "Failed to ask the user (you!) for confirmation: {err} (if you are sure, you can skip this step by using '--force')")
+            ConfirmationError { .. } => {
+                write!(f, "Failed to ask the user (you!) for confirmation (if you are sure, you can skip this step by using '--force')")
             },
 
-            InstancesDirError { err } => write!(f, "Failed to get the instances directory: {err}"),
-            InstancesDirReadError { path, err } => write!(f, "Failed to read instances directory '{}': {}", path.display(), err),
-            InstancesDirEntryReadError { path, entry, err } => {
-                write!(f, "Failed to read instances directory '{}' entry {}: {}", path.display(), entry, err)
+            InstancesDirError { .. } => write!(f, "Failed to get the instances directory"),
+            InstancesDirReadError { path, .. } => write!(f, "Failed to read instances directory '{}'", path.display()),
+            InstancesDirEntryReadError { path, entry, .. } => {
+                write!(f, "Failed to read instances directory '{}' entry {}", path.display(), entry)
             },
-            ActiveInstanceTargetError { path, err } => write!(f, "Failed to get target of active instance link '{}': {}", path.display(), err),
+            ActiveInstanceTargetError { path, .. } => write!(f, "Failed to get target of active instance link '{}'", path.display()),
 
             UnknownInstance { name } => write!(f, "Unknown instance '{name}'"),
             InstanceNotADirError { path } => write!(f, "Instance directory '{}' exists but is not a directory", path.display()),
-            ActiveInstancePathError { err } => write!(f, "Failed to get active instance link path: {err}"),
+            ActiveInstancePathError { .. } => write!(f, "Failed to get active instance link path"),
             ActiveInstanceNotAFileError { path } => write!(f, "Active instance link '{}' exists but is not a file", path.display()),
-            ActiveInstanceReadError { path, err } => write!(f, "Failed to read active instance link '{}': {}", path.display(), err),
-            ActiveInstanceRemoveError { path, err } => write!(f, "Failed to remove existing active instance link '{}': {}", path.display(), err),
-            ActiveInstanceCreateError { path, target, err } => {
-                write!(f, "Failed to create active instance link '{}' to '{}': {}", path.display(), target, err)
+            ActiveInstanceReadError { path, .. } => write!(f, "Failed to read active instance link '{}'", path.display()),
+            ActiveInstanceRemoveError { path, .. } => write!(f, "Failed to remove existing active instance link '{}'", path.display()),
+            ActiveInstanceCreateError { path, target, .. } => {
+                write!(f, "Failed to create active instance link '{}' to '{}'", path.display(), target)
             },
 
             NoActiveInstance => write!(f, "No active instance is set (run 'brane instance select' first)"),
         }
     }
 }
-impl Error for InstanceError {}
+impl Error for InstanceError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use InstanceError::*;
+        match self {
+            InstanceDirError { err, .. } => Some(err),
+            InstanceInfoOpenError { err, .. } => Some(err),
+            InstanceInfoReadError { err, .. } => Some(err),
+            InstanceInfoParseError { err, .. } => Some(err),
+            InstanceInfoSerializeError { err, .. } => Some(err),
+            InstanceInfoCreateError { err, .. } => Some(err),
+            InstanceInfoWriteError { err, .. } => Some(err),
+
+            IllegalInstanceName { .. } => None,
+            AddressParseError { err, .. } => Some(err),
+            RequestError { err, .. } => Some(err),
+            InstanceNotAliveError { .. } => None,
+
+            ConfirmationError { err, .. } => Some(err),
+
+            InstancesDirError { err, .. } => Some(err),
+            InstancesDirReadError { err, .. } => Some(err),
+            InstancesDirEntryReadError { err, .. } => Some(err),
+            ActiveInstanceTargetError { err, .. } => Some(err),
+
+            UnknownInstance { .. } => None,
+            InstanceNotADirError { .. } => None,
+            ActiveInstancePathError { err, .. } => Some(err),
+            ActiveInstanceNotAFileError { .. } => None,
+            ActiveInstanceReadError { err, .. } => Some(err),
+            ActiveInstanceRemoveError { err, .. } => Some(err),
+            ActiveInstanceCreateError { err, .. } => Some(err),
+
+            NoActiveInstance => None,
+        }
+    }
+}
 
 
 
@@ -869,26 +1078,44 @@ impl std::fmt::Display for PackageError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use self::PackageError::*;
         match self {
-            UtilError { err } => write!(f, "{err}"),
-            IndexError { err } => write!(f, "Failed to fetch a local package index: {err}"),
+            UtilError { err } => write!(f, "{}", err.trace()),
+            IndexError { .. } => write!(f, "Failed to fetch a local package index"),
 
-            PackageVersionError { name, version, err } => write!(f, "Package '{name}' does not exist or has no version {version} ({err})"),
-            PackageError { name, err } => write!(f, "Package '{name}' does not exist ({err})"),
-            ConsentError { err } => write!(f, "Failed to ask for your consent: {err}"),
-            PackageRemoveError { name, version, dir, err } => {
-                write!(f, "Failed to remove package '{}' (version {}) at '{}': {}", name, version, dir.display(), err)
+            PackageVersionError { name, version, .. } => write!(f, "Package '{name}' does not exist or has no version {version}"),
+            PackageError { name, .. } => write!(f, "Package '{name}' does not exist"),
+            ConsentError { .. } => write!(f, "Failed to ask for your consent"),
+            PackageRemoveError { name, version, dir, .. } => {
+                write!(f, "Failed to remove package '{}' (version {}) at '{}'", name, version, dir.display())
             },
-            VersionsError { name, dir, err } => write!(f, "Failed to get versions of package '{}' (at '{}'): {}", name, dir.display(), err),
-            VersionParseError { name, raw, err } => write!(f, "Could not parse '{raw}' as a version for package '{name}': {err}"),
-            PackageInfoError { path, err } => write!(f, "Could not load package info file '{}': {}", path.display(), err),
+            VersionsError { name, dir, .. } => write!(f, "Failed to get versions of package '{}' (at '{}')", name, dir.display()),
+            VersionParseError { name, raw, .. } => write!(f, "Could not parse '{raw}' as a version for package '{name}'"),
+            PackageInfoError { path, .. } => write!(f, "Could not load package info file '{}'", path.display()),
             PackageInfoNoDigest { path } => write!(f, "Package info file '{}' has no digest set", path.display()),
-            DockerRemoveError { image, err } => {
-                write!(f, "Failed to remove image '{}' from the local Docker daemon: {}", image.digest().unwrap_or("<no digest given>"), err)
+            DockerRemoveError { image, .. } => {
+                write!(f, "Failed to remove image '{}' from the local Docker daemon", image.digest().unwrap_or("<no digest given>"))
             },
         }
     }
 }
-impl std::error::Error for PackageError {}
+impl std::error::Error for PackageError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use self::PackageError::*;
+        match self {
+            UtilError { .. } => None,
+            IndexError { err } => Some(err),
+
+            PackageVersionError { err, .. } => Some(err),
+            PackageError { err, .. } => Some(err),
+            ConsentError { err } => Some(err),
+            PackageRemoveError { err, .. } => Some(err),
+            VersionsError { err, .. } => Some(err),
+            VersionParseError { err, .. } => Some(err),
+            PackageInfoError { err, .. } => Some(err),
+            PackageInfoNoDigest { .. } => None,
+            DockerRemoveError { err, .. } => Some(err),
+        }
+    }
+}
 
 
 
@@ -1030,18 +1257,32 @@ impl Display for ReplError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use ReplError::*;
         match self {
-            ConfigDirCreateError { err } => write!(f, "Could not create the configuration directory for the REPL history: {err}"),
-            HistoryFileError { err } => write!(f, "Could not get REPL history file location: {err}"),
-            EditorCreateError { err } => write!(f, "Failed to create new rustyline editor: {err}"),
-            InstanceInfoError { err } => write!(f, "{err}"),
+            ConfigDirCreateError { .. } => write!(f, "Could not create the configuration directory for the REPL history"),
+            HistoryFileError { .. } => write!(f, "Could not get REPL history file location"),
+            EditorCreateError { .. } => write!(f, "Failed to create new rustyline editor"),
+            InstanceInfoError { .. } => write!(f, "Failed to load instance info file"),
 
-            InitializeError { what, err } => write!(f, "Failed to initialize {what} and associated structures: {err}"),
-            RunError { what, err } => write!(f, "Failed to execute workflow on {what}: {err}"),
-            ProcessError { what, err } => write!(f, "Failed to process {what} workflow results: {err}"),
+            InitializeError { what, .. } => write!(f, "Failed to initialize {what} and associated structures"),
+            RunError { what, .. } => write!(f, "Failed to execute workflow on {what}"),
+            ProcessError { what, .. } => write!(f, "Failed to process {what} workflow results"),
         }
     }
 }
-impl Error for ReplError {}
+impl Error for ReplError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use ReplError::*;
+        match self {
+            ConfigDirCreateError { err } => Some(err),
+            HistoryFileError { err } => Some(err),
+            EditorCreateError { err } => Some(err),
+            InstanceInfoError { err } => Some(err),
+
+            InitializeError { err, .. } => Some(err),
+            RunError { err, .. } => Some(err),
+            ProcessError { err, .. } => Some(err),
+        }
+    }
+}
 
 
 

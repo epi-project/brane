@@ -4,7 +4,7 @@
 //  Created:
 //    05 Jan 2024, 11:36:00
 //  Last edited:
-//    08 Jan 2024, 16:01:09
+//    09 Jan 2024, 14:45:34
 //  Auto updated?
 //    Yes
 //
@@ -24,6 +24,7 @@ use base64ct::Encoding as _;
 use jsonwebtoken::jwk::{self, Jwk, JwkSet, KeyAlgorithm, OctetKeyParameters};
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use log::{debug, info, warn};
+use serde::{Deserialize, Serialize};
 
 
 /***** ERRORS *****/
@@ -189,3 +190,12 @@ pub fn generate_policy_token(
     // OK
     Ok(token)
 }
+
+
+
+
+
+/***** LIBRARY *****/
+/// Represents the response of a reasoner. This can be used to tell the client why it went wrong.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct CheckerResponse {}

@@ -1816,7 +1816,7 @@ dependencies = [
 [[package]]
 name = "error-trace"
 version = "1.1.1"
-source = "git+https://github.com/Lut99/error-trace-rs#c84781f9b2ca7996216e9700a5a2b08435610191"
+source = "git+https://github.com/Lut99/error-trace-rs#f297499c41cb33fc287d931eec748fde6bc9b164"
 
 [[package]]
 name = "expanduser"

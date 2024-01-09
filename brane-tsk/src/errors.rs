@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    08 Jan 2024, 19:03:13
+//    09 Jan 2024, 14:41:36
 //  Auto updated?
 //    Yes
 //
@@ -670,19 +670,26 @@ impl Error for ExecuteError {
 /// A special case of the execute error, this relates to authorization errors in the backend eFLINT reasoner (or other reasoners).
 #[derive(Debug)]
 pub enum AuthorizeError {
+    /// Failed to generate a new JWT for a request.
+    TokenGenerate { secret: PathBuf, err: specifications::policy::Error },
     /// Failed to build a `reqwest::Client`.
     ClientBuild { err: reqwest::Error },
     /// Failed to build a request to the policy reasoner.
-    ExecuteRequestBuild { addr: Address, err: reqwest::Error },
+    ExecuteRequestBuild { addr: String, err: reqwest::Error },
     /// Failed to send a request to the policy reasoner.
-    ExecuteRequestSend { addr: Address, err: reqwest::Error },
+    ExecuteRequestSend { addr: String, err: reqwest::Error },
     /// Request did not succeed
-    ExecuteRequestFailure { addr: Address, code: StatusCode, err: Option<String> },
+    ExecuteRequestFailure { addr: String, code: StatusCode, err: Option<String> },
+    /// Failed to download the body of an execute request response.
+    ExecuteBodyDownload { addr: String, err: reqwest::Error },
+    /// Failed to deserialize the body of an execute request response.
+    ExecuteBodyDeserialize { addr: String, raw: String, err: serde_json::Error },
 }
 impl Display for AuthorizeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use AuthorizeError::*;
         match self {
+            TokenGenerate { secret, .. } => write!(f, "Failed to generate new JWT using secret '{}'", secret.display()),
             ClientBuild { .. } => write!(f, "Failed to build HTTP client"),
             ExecuteRequestBuild { addr, .. } => write!(f, "Failed to build an ExecuteRequest destined for the checker at '{addr}'"),
             ExecuteRequestSend { addr, .. } => write!(f, "Failed to send ExecuteRequest to checker '{addr}'"),
@@ -698,6 +705,10 @@ impl Display for AuthorizeError {
                     String::new()
                 }
             ),
+            ExecuteBodyDownload { addr, .. } => write!(f, "Failed to download response body from '{addr}'"),
+            ExecuteBodyDeserialize { addr, raw, .. } => {
+                write!(f, "Failed to deserialize response body received from '{}' as valid JSON\n\nResponse:\n{}\n", addr, BlockFormatter::new(raw))
+            },
         }
     }
 }
@@ -705,10 +716,13 @@ impl Error for AuthorizeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use AuthorizeError::*;
         match self {
+            TokenGenerate { err, .. } => Some(err),
             ClientBuild { err, .. } => Some(err),
             ExecuteRequestBuild { err, .. } => Some(err),
             ExecuteRequestSend { err, .. } => Some(err),
             ExecuteRequestFailure { .. } => None,
+            ExecuteBodyDownload { err, .. } => Some(err),
+            ExecuteBodyDeserialize { err, .. } => Some(err),
         }
     }
 }
