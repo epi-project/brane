@@ -4,7 +4,7 @@
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    05 Jan 2024, 11:30:11
+//    10 Jan 2024, 16:21:56
 //  Auto updated?
 //    Yes
 //
@@ -17,10 +17,10 @@ use std::path::PathBuf;
 
 use brane_cfg::proxy::{ForwardConfig, ProxyProtocol};
 use brane_ctl::spec::{
-    DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair, ResolvableNodeKind,
-    StartOpts, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
+    DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair,
+    PolicyInputLanguage, ResolvableNodeKind, StartOpts, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
 };
-use brane_ctl::{download, generate, lifetime, packages, unpack, upgrade, wizard};
+use brane_ctl::{download, generate, lifetime, packages, policies, unpack, upgrade, wizard};
 use brane_tsk::docker::{ClientVersion, DockerOptions};
 use clap::{Parser, Subcommand};
 use dotenvy::dotenv;
@@ -80,6 +80,8 @@ enum CtlSubcommand {
     Packages(Box<PackageSubcommand>),
     #[clap(subcommand)]
     Data(Box<DataSubcommand>),
+    #[clap(subcommand)]
+    Policies(Box<PolicySubcommand>),
 
     #[clap(name = "start", about = "Starts the local node by loading and then launching (already compiled) image files.")]
     Start {
@@ -554,6 +556,41 @@ enum PackageSubcommand {
 #[clap(name = "data", about = "Manage data and intermediate results stored on this node.")]
 enum DataSubcommand {}
 
+/// Defines policy-related subcommands for the `branectl` tool.
+#[derive(Debug, Subcommand)]
+#[clap(name = "policies", alias = "policy", about = "Manage the checker's policies by adding them or setting different active versions.")]
+enum PolicySubcommand {
+    /// Adds a given policy file to the remote checker.
+    #[clap(name = "add", about = "Adds a new policy to the checker, but does not yet set it as active.")]
+    Add {
+        /// The path to the policy file to add, but with stdout capabilities.
+        #[clap(
+            name = "INPUT",
+            help = "The input policy to send to the remote checker. Given as a path to a file, or '-' to read from stdin (end you policy with \
+                    Ctrl+D)."
+        )]
+        input:    String,
+        /// The language of the input.
+        #[clap(
+            short,
+            long,
+            help = "The language of the input policy. Options are 'eflint' and 'eflint-json', where the former will be compiled to the latter \
+                    before sending. If omitted, will attempt to deduce it based on the 'INPUT'."
+        )]
+        language: Option<PolicyInputLanguage>,
+        /// The JWT to use to authenticate with the remote checker.
+        #[clap(
+            short,
+            long,
+            env,
+            help = "A JSON Web Token (JWT) to use to authenticate to the checker. If omitted, will use the one from the `policy_expert_secret` file \
+                    in the given `node.yml` when found. Note that you can also just set an environment variable named 'TOKEN' with the value if you \
+                    don't want to give it everytime."
+        )]
+        token:    Option<String>,
+    },
+}
+
 
 
 
@@ -721,6 +758,15 @@ async fn main() {
             },
         },
         CtlSubcommand::Data(subcommand) => match *subcommand {},
+        CtlSubcommand::Policies(subcommand) => match *subcommand {
+            PolicySubcommand::Add { input, language, token } => {
+                // Call the thing
+                if let Err(err) = policies::add(args.node_config, input, token, language).await {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
+            },
+        },
 
         CtlSubcommand::Start { exe, file, docker_socket, docker_version, version, image_dir, local_aux, skip_import, profile_dir, kind } => {
             if let Err(err) = lifetime::start(

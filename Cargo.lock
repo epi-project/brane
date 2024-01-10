@@ -54,6 +54,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ansi_term"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d52a9bb7ec0cf484c551830a7ce27bd20d67eac647e1befb56b0be4ee39a55d2"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
 name = "anstream"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -271,6 +280,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "audit-logger"
+version = "0.1.0"
+source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+dependencies = [
+ "async-trait",
+ "auth-resolver",
+ "deliberation",
+ "enum-debug",
+ "policy",
+ "serde",
+ "serde_json",
+ "state-resolver",
+ "warp",
+ "workflow 0.1.0",
+]
+
+[[package]]
+name = "auth-resolver"
+version = "0.1.0"
+source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+dependencies = [
+ "async-trait",
+ "serde",
+ "warp",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -287,7 +323,7 @@ dependencies = [
  "bitflags 1.3.2",
  "bytes",
  "futures-util",
- "http",
+ "http 0.2.9",
  "http-body",
  "hyper",
  "itoa",
@@ -313,7 +349,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures-util",
- "http",
+ "http 0.2.9",
  "http-body",
  "mime",
  "rustversion",
@@ -474,7 +510,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "hex",
- "http",
+ "http 0.2.9",
  "hyper",
  "hyperlocal",
  "log",
@@ -508,10 +544,10 @@ dependencies = [
  "async-compression 0.3.15",
  "brane-cfg",
  "brane-prx",
- "brane-shr",
+ "brane-shr 3.0.0",
  "bytes",
  "chrono",
- "clap",
+ "clap 4.4.6",
  "dotenvy",
  "enum-debug",
  "env_logger",
@@ -529,7 +565,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.25",
- "specifications",
+ "specifications 3.0.0",
  "tempfile",
  "time 0.3.30",
  "tokio",
@@ -544,8 +580,8 @@ dependencies = [
 name = "brane-ast"
 version = "3.0.0"
 dependencies = [
- "brane-dsl",
- "brane-shr",
+ "brane-dsl 3.0.0",
+ "brane-shr 3.0.0",
  "console",
  "enum-debug",
  "im",
@@ -553,7 +589,26 @@ dependencies = [
  "log",
  "serde",
  "serde_json_any_key",
- "specifications",
+ "specifications 3.0.0",
+ "strum 0.25.0",
+ "uuid 0.8.2",
+]
+
+[[package]]
+name = "brane-ast"
+version = "3.0.0"
+source = "git+https://github.com/epi-project/brane#c449568e79ecebcb03e0884e8d4f5496633f2f6f"
+dependencies = [
+ "brane-dsl 3.0.0 (git+https://github.com/epi-project/brane)",
+ "brane-shr 3.0.0 (git+https://github.com/epi-project/brane)",
+ "console",
+ "enum-debug",
+ "im",
+ "lazy_static",
+ "log",
+ "serde",
+ "serde_json_any_key",
+ "specifications 3.0.0 (git+https://github.com/epi-project/brane)",
  "strum 0.25.0",
  "uuid 0.8.2",
 ]
@@ -562,11 +617,11 @@ dependencies = [
 name = "brane-cc"
 version = "3.0.0"
 dependencies = [
- "brane-ast",
- "brane-dsl",
- "brane-shr",
+ "brane-ast 3.0.0",
+ "brane-dsl 3.0.0",
+ "brane-shr 3.0.0",
  "brane-tsk",
- "clap",
+ "clap 4.4.6",
  "dotenvy",
  "enum-debug",
  "expanduser",
@@ -575,7 +630,7 @@ dependencies = [
  "log",
  "openssl-sys",
  "serde_json",
- "specifications",
+ "specifications 3.0.0",
  "tokio",
  "url",
 ]
@@ -585,14 +640,14 @@ name = "brane-cfg"
 version = "3.0.0"
 dependencies = [
  "async-trait",
- "brane-shr",
+ "brane-shr 3.0.0",
  "enum-debug",
  "log",
  "rustls",
  "rustls-pemfile",
  "serde",
  "serde_yaml 0.9.25",
- "specifications",
+ "specifications 3.0.0",
  "tokio",
  "x509-parser",
 ]
@@ -606,16 +661,16 @@ dependencies = [
  "async-trait",
  "base64 0.21.4",
  "bollard",
- "brane-ast",
+ "brane-ast 3.0.0",
  "brane-cfg",
  "brane-drv",
- "brane-dsl",
+ "brane-dsl 3.0.0",
  "brane-exe",
  "brane-oas",
- "brane-shr",
+ "brane-shr 3.0.0",
  "brane-tsk",
  "chrono",
- "clap",
+ "clap 4.4.6",
  "console",
  "cwl",
  "dialoguer",
@@ -652,7 +707,7 @@ dependencies = [
  "serde_json",
  "serde_with 3.4.0",
  "serde_yaml 0.9.25",
- "specifications",
+ "specifications 3.0.0",
  "tar",
  "tempfile",
  "tokio",
@@ -669,7 +724,7 @@ dependencies = [
 name = "brane-cli-c"
 version = "3.0.0"
 dependencies = [
- "brane-ast",
+ "brane-ast 3.0.0",
  "brane-cli",
  "brane-exe",
  "brane-tsk",
@@ -680,7 +735,7 @@ dependencies = [
  "openssl-sys",
  "parking_lot",
  "serde_json",
- "specifications",
+ "specifications 3.0.0",
  "tokio",
 ]
 
@@ -691,9 +746,9 @@ dependencies = [
  "base64ct",
  "bollard",
  "brane-cfg",
- "brane-shr",
+ "brane-shr 3.0.0",
  "brane-tsk",
- "clap",
+ "clap 4.4.6",
  "console",
  "diesel",
  "diesel_migrations",
@@ -708,13 +763,15 @@ dependencies = [
  "jsonwebtoken",
  "lazy_static",
  "log",
+ "names",
  "openssl-sys",
  "rand 0.8.5",
  "serde",
  "serde_json",
  "serde_yaml 0.9.25",
  "shlex",
- "specifications",
+ "specifications 3.0.0",
+ "srv",
  "tempfile",
  "tokio",
 ]
@@ -724,13 +781,13 @@ name = "brane-drv"
 version = "3.0.0"
 dependencies = [
  "async-trait",
- "brane-ast",
+ "brane-ast 3.0.0",
  "brane-cfg",
  "brane-exe",
  "brane-prx",
- "brane-shr",
+ "brane-shr 3.0.0",
  "brane-tsk",
- "clap",
+ "clap 4.4.6",
  "dashmap 5.5.3",
  "dotenvy",
  "enum-debug",
@@ -742,7 +799,7 @@ dependencies = [
  "rdkafka",
  "serde_json",
  "serde_json_any_key",
- "specifications",
+ "specifications 3.0.0",
  "tokio",
  "tokio-stream",
  "tonic 0.9.2",
@@ -752,7 +809,7 @@ dependencies = [
 name = "brane-dsl"
 version = "3.0.0"
 dependencies = [
- "brane-shr",
+ "brane-shr 3.0.0",
  "bytes",
  "enum-debug",
  "itertools 0.10.5",
@@ -764,7 +821,28 @@ dependencies = [
  "semver 1.0.20",
  "serde",
  "serde_json",
- "specifications",
+ "specifications 3.0.0",
+ "thiserror",
+]
+
+[[package]]
+name = "brane-dsl"
+version = "3.0.0"
+source = "git+https://github.com/epi-project/brane#c449568e79ecebcb03e0884e8d4f5496633f2f6f"
+dependencies = [
+ "brane-shr 3.0.0 (git+https://github.com/epi-project/brane)",
+ "bytes",
+ "enum-debug",
+ "itertools 0.10.5",
+ "log",
+ "nom",
+ "nom_locate",
+ "rand 0.8.5",
+ "regex",
+ "semver 1.0.20",
+ "serde",
+ "serde_json",
+ "specifications 3.0.0 (git+https://github.com/epi-project/brane)",
  "thiserror",
 ]
 
@@ -775,8 +853,8 @@ dependencies = [
  "async-recursion",
  "async-trait",
  "base64 0.13.1",
- "brane-ast",
- "brane-shr",
+ "brane-ast 3.0.0",
+ "brane-shr 3.0.0",
  "console",
  "enum-debug",
  "futures",
@@ -785,7 +863,7 @@ dependencies = [
  "serde",
  "serde_json",
  "simplelog",
- "specifications",
+ "specifications 3.0.0",
  "tokio",
  "uuid 1.5.0",
 ]
@@ -796,14 +874,14 @@ version = "3.0.0"
 dependencies = [
  "base64 0.21.4",
  "bollard",
- "brane-ast",
+ "brane-ast 3.0.0",
  "brane-cfg",
  "brane-exe",
  "brane-prx",
- "brane-shr",
+ "brane-shr 3.0.0",
  "brane-tsk",
  "chrono",
- "clap",
+ "clap 4.4.6",
  "dashmap 4.0.2",
  "dotenvy",
  "enum-debug",
@@ -819,7 +897,7 @@ dependencies = [
  "serde_json",
  "serde_json_any_key",
  "serde_yaml 0.9.25",
- "specifications",
+ "specifications 3.0.0",
  "tokio",
  "tokio-stream",
  "tonic 0.9.2",
@@ -831,10 +909,10 @@ version = "3.0.0"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
- "brane-ast",
+ "brane-ast 3.0.0",
  "brane-exe",
  "brane-oas",
- "clap",
+ "clap 4.4.6",
  "dotenvy",
  "env_logger",
  "libc",
@@ -843,7 +921,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.25",
- "specifications",
+ "specifications 3.0.0",
  "subprocess",
  "tokio",
  "tonic 0.9.2",
@@ -858,7 +936,7 @@ dependencies = [
  "async-stream",
  "bincode",
  "bytes",
- "clap",
+ "clap 4.4.6",
  "derive_more",
  "dotenvy",
  "env_logger",
@@ -899,7 +977,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.25",
- "specifications",
+ "specifications 3.0.0",
 ]
 
 [[package]]
@@ -907,11 +985,11 @@ name = "brane-plr"
 version = "3.0.0"
 dependencies = [
  "async-recursion",
- "brane-ast",
+ "brane-ast 3.0.0",
  "brane-cfg",
- "brane-shr",
+ "brane-shr 3.0.0",
  "brane-tsk",
- "clap",
+ "clap 4.4.6",
  "dotenvy",
  "env_logger",
  "error-trace",
@@ -923,7 +1001,7 @@ dependencies = [
  "rdkafka",
  "reqwest",
  "serde_json",
- "specifications",
+ "specifications 3.0.0",
  "tokio",
  "tokio-stream",
 ]
@@ -934,9 +1012,9 @@ version = "3.0.0"
 dependencies = [
  "anyhow",
  "brane-cfg",
- "brane-shr",
+ "brane-shr 3.0.0",
  "brane-tsk",
- "clap",
+ "clap 4.4.6",
  "dotenvy",
  "env_logger",
  "error-trace",
@@ -947,7 +1025,7 @@ dependencies = [
  "serde",
  "serde_json",
  "socksx",
- "specifications",
+ "specifications 3.0.0",
  "tokio",
  "tokio-rustls",
  "tonic 0.10.2",
@@ -961,8 +1039,8 @@ version = "3.0.0"
 dependencies = [
  "base64 0.21.4",
  "brane-cfg",
- "brane-shr",
- "clap",
+ "brane-shr 3.0.0",
+ "clap 4.4.6",
  "dotenvy",
  "env_logger",
  "error-trace",
@@ -972,7 +1050,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.25",
- "specifications",
+ "specifications 3.0.0",
  "tempfile",
  "tokio",
  "tokio-rustls",
@@ -1001,8 +1079,36 @@ dependencies = [
  "regex",
  "reqwest",
  "sha2",
- "specifications",
+ "specifications 3.0.0",
  "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tokio-tar",
+ "url",
+]
+
+[[package]]
+name = "brane-shr"
+version = "3.0.0"
+source = "git+https://github.com/epi-project/brane#c449568e79ecebcb03e0884e8d4f5496633f2f6f"
+dependencies = [
+ "async-compression 0.3.15",
+ "console",
+ "dialoguer",
+ "enum-debug",
+ "fs2",
+ "futures-util",
+ "hex",
+ "humanlog",
+ "indicatif",
+ "log",
+ "num-derive 0.3.3",
+ "num-traits",
+ "rdkafka",
+ "regex",
+ "reqwest",
+ "sha2",
+ "specifications 3.0.0 (git+https://github.com/epi-project/brane)",
  "tokio",
  "tokio-stream",
  "tokio-tar",
@@ -1017,12 +1123,12 @@ dependencies = [
  "base64 0.21.4",
  "base64ct",
  "bollard",
- "brane-ast",
+ "brane-ast 3.0.0",
  "brane-cfg",
  "brane-exe",
- "brane-shr",
+ "brane-shr 3.0.0",
  "chrono",
- "clap",
+ "clap 4.4.6",
  "console",
  "dialoguer",
  "dirs-2",
@@ -1046,7 +1152,7 @@ dependencies = [
  "serde_yaml 0.9.25",
  "sha2",
  "shellexpand",
- "specifications",
+ "specifications 3.0.0",
  "tokio",
  "tokio-tar",
  "tokio-util",
@@ -1127,6 +1233,21 @@ dependencies = [
 
 [[package]]
 name = "clap"
+version = "2.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0610544180c38b88101fecf2dd634b174a62eef6946f84dfc6a7127512b381c"
+dependencies = [
+ "ansi_term",
+ "atty",
+ "bitflags 1.3.2",
+ "strsim 0.8.0",
+ "textwrap",
+ "unicode-width",
+ "vec_map",
+]
+
+[[package]]
+name = "clap"
 version = "4.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d04704f56c2cde07f43e8e2c154b43f216dc5c92fc98ada720177362f953b956"
@@ -1144,7 +1265,7 @@ dependencies = [
  "anstream",
  "anstyle",
  "clap_lex",
- "strsim",
+ "strsim 0.10.0",
 ]
 
 [[package]]
@@ -1190,6 +1311,17 @@ name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
+
+[[package]]
+name = "colored"
+version = "1.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a5f741c91823341bebf717d4c71bda820630ce065443b58bd1b7451af008355"
+dependencies = [
+ "is-terminal",
+ "lazy_static",
+ "winapi",
+]
 
 [[package]]
 name = "combine"
@@ -1438,7 +1570,7 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
- "strsim",
+ "strsim 0.10.0",
  "syn 1.0.109",
 ]
 
@@ -1452,7 +1584,7 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
- "strsim",
+ "strsim 0.10.0",
  "syn 2.0.38",
 ]
 
@@ -1506,6 +1638,21 @@ name = "data-encoding"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2e66c9d817f1720209181c316d28635c050fa304f9c79e47a520882661b7308"
+
+[[package]]
+name = "deliberation"
+version = "0.1.0"
+source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+dependencies = [
+ "brane-ast 3.0.0 (git+https://github.com/epi-project/brane)",
+ "enum-debug",
+ "log",
+ "serde",
+ "serde_json",
+ "transform",
+ "uuid 0.8.2",
+ "workflow 0.3.0",
+]
 
 [[package]]
 name = "der-parser"
@@ -1723,6 +1870,15 @@ name = "dotenvy"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
+
+[[package]]
+name = "eflint-json"
+version = "0.1.0"
+source = "git+https://gitlab.com/eflint/json-spec-rs?branch=incorrect-is-invariant#ec16789f8f697cf3edef32ea8f99ae73aea21ede"
+dependencies = [
+ "enum-debug",
+ "serde",
+]
 
 [[package]]
 name = "either"
@@ -2162,7 +2318,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "futures-util",
- "http",
+ "http 0.2.9",
  "indexmap 1.9.3",
  "slab",
  "tokio",
@@ -2191,7 +2347,7 @@ dependencies = [
  "base64 0.21.4",
  "bytes",
  "headers-core",
- "http",
+ "http 0.2.9",
  "httpdate",
  "mime",
  "sha1 0.10.6",
@@ -2203,7 +2359,7 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7f66481bfee273957b1f20485a4ff3362987f85b2c236580d81b4eb7a326429"
 dependencies = [
- "http",
+ "http 0.2.9",
 ]
 
 [[package]]
@@ -2257,13 +2413,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "http"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b32afd38673a8016f7c9ae69e5af41a58f81b1d31689040f2f1959594ce194ea"
+dependencies = [
+ "bytes",
+ "fnv",
+ "itoa",
+]
+
+[[package]]
 name = "http-body"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5f38f16d184e36f2408a55281cd658ecbd3ca05cce6d6510a176eca393e26d1"
 dependencies = [
  "bytes",
- "http",
+ "http 0.2.9",
  "pin-project-lite",
 ]
 
@@ -2272,6 +2439,16 @@ name = "http-range-header"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "add0ab9360ddbd88cfeb3bd9574a1d85cfdfa14db10b3e21d3700dbc4328758f"
+
+[[package]]
+name = "http-serde"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f560b665ad9f1572cfcaf034f7fb84338a7ce945216d64a90fd81f046a3caee"
+dependencies = [
+ "http 0.2.9",
+ "serde",
+]
 
 [[package]]
 name = "httparse"
@@ -2330,7 +2507,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http",
+ "http 0.2.9",
  "http-body",
  "httparse",
  "httpdate",
@@ -2350,7 +2527,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d78e1e73ec14cf7375674f74d7dde185c8206fd9dea6fb6295e8a98098aaa97"
 dependencies = [
  "futures-util",
- "http",
+ "http 0.2.9",
  "hyper",
  "log",
  "rustls",
@@ -2739,7 +2916,7 @@ dependencies = [
  "dirs-next",
  "either",
  "futures",
- "http",
+ "http 0.2.9",
  "http-body",
  "hyper",
  "hyper-timeout",
@@ -2772,7 +2949,7 @@ dependencies = [
  "dirs-next",
  "either",
  "futures",
- "http",
+ "http 0.2.9",
  "http-body",
  "hyper",
  "hyper-rustls",
@@ -2804,7 +2981,7 @@ checksum = "25983d07f414dfffba08c5951fe110f649113416b1d8e22f7c89c750eb2555a7"
 dependencies = [
  "chrono",
  "form_urlencoded",
- "http",
+ "http 0.2.9",
  "k8s-openapi 0.18.0",
  "once_cell",
  "serde",
@@ -2820,7 +2997,7 @@ checksum = "f924177ad71936cfe612641b45bb9879890696d3c026f0846423529f4fa449af"
 dependencies = [
  "chrono",
  "form_urlencoded",
- "http",
+ "http 0.2.9",
  "json-patch",
  "k8s-openapi 0.18.0",
  "once_cell",
@@ -3022,7 +3199,7 @@ dependencies = [
  "bytes",
  "encoding_rs",
  "futures-util",
- "http",
+ "http 0.2.9",
  "httparse",
  "log",
  "memchr",
@@ -3490,6 +3667,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
+name = "policy"
+version = "0.1.0"
+source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "enum-debug",
+ "log",
+ "serde",
+ "serde_json",
+ "transform",
+ "warp",
+]
+
+[[package]]
 name = "portable-atomic"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3519,6 +3711,17 @@ dependencies = [
  "lazy_static",
  "term",
  "unicode-width",
+]
+
+[[package]]
+name = "problem_details"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09c30ce00f18c85c0a9cfaecb51d7d2bce8ca36f2d7850b009b3ea166f2dca9d"
+dependencies = [
+ "http 0.2.9",
+ "http-serde",
+ "serde",
 ]
 
 [[package]]
@@ -3805,6 +4008,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "reasonerconn"
+version = "0.1.0"
+source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "audit-logger",
+ "eflint-json",
+ "enum-debug",
+ "log",
+ "policy",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "state-resolver",
+ "tokio",
+ "transform",
+ "workflow 0.1.0",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3914,7 +4138,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http",
+ "http 0.2.9",
  "http-body",
  "hyper",
  "hyper-rustls",
@@ -4135,6 +4359,15 @@ name = "ryu"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad4cc8da4ef723ed60bced201181d83791ad433213d8c24efffda1eec85d741"
+
+[[package]]
+name = "same-file"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
+dependencies = [
+ "winapi-util",
+]
 
 [[package]]
 name = "schannel"
@@ -4528,6 +4761,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "simple_logger"
+version = "1.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45b60258a35dc3cb8a16890b8fd6723349bfa458d7960e25e633f1b1c19d7b5e"
+dependencies = [
+ "atty",
+ "colored",
+ "log",
+ "time 0.3.30",
+ "winapi",
+]
+
+[[package]]
 name = "simplelog"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4608,7 +4854,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
- "clap",
+ "clap 4.4.6",
  "dotenv",
  "env_logger",
  "futures",
@@ -4657,6 +4903,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "specifications"
+version = "3.0.0"
+source = "git+https://github.com/epi-project/brane#c449568e79ecebcb03e0884e8d4f5496633f2f6f"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.21.4",
+ "chrono",
+ "const_format",
+ "enum-debug",
+ "log",
+ "num-traits",
+ "parking_lot",
+ "prost 0.11.9",
+ "prost-types",
+ "reqwest",
+ "semver 1.0.20",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "serde_test",
+ "serde_with 3.4.0",
+ "serde_yaml 0.9.25",
+ "strum 0.24.1",
+ "strum_macros 0.24.3",
+ "tonic 0.9.2",
+ "uuid 0.8.2",
+]
+
+[[package]]
 name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4669,12 +4945,47 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 
 [[package]]
+name = "srv"
+version = "0.1.0"
+source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+dependencies = [
+ "audit-logger",
+ "auth-resolver",
+ "chrono",
+ "deliberation",
+ "error-trace",
+ "http 1.0.0",
+ "log",
+ "policy",
+ "problem_details",
+ "reasonerconn",
+ "serde",
+ "serde_json",
+ "state-resolver",
+ "tokio",
+ "tokio-scoped",
+ "uuid 0.8.2",
+ "warp",
+ "workflow 0.1.0",
+]
+
+[[package]]
 name = "standback"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e113fb6f3de07a243d434a56ec6f186dfd51cb08448239fe7bcae73f87ff28ff"
 dependencies = [
  "version_check",
+]
+
+[[package]]
+name = "state-resolver"
+version = "0.1.0"
+source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+dependencies = [
+ "async-trait",
+ "serde",
+ "workflow 0.1.0",
 ]
 
 [[package]]
@@ -4737,6 +5048,12 @@ name = "str-buf"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e08d8363704e6c71fc928674353e6b7c23dcea9d82d7012c8faf2a3a025f8d0"
+
+[[package]]
+name = "strsim"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
 name = "strsim"
@@ -4898,6 +5215,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bab24d30b911b2376f3a13cc2cd443142f0c81dda04c118693e35b3835757755"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "textwrap"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
+dependencies = [
+ "unicode-width",
 ]
 
 [[package]]
@@ -5065,6 +5391,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-scoped"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4beb8ba13bc53ac53ce1d52b42f02e5d8060f0f42138862869beb769722b256"
+dependencies = [
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
 name = "tokio-stream"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5164,7 +5500,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http",
+ "http 0.2.9",
  "http-body",
  "hyper",
  "hyper-timeout",
@@ -5191,7 +5527,7 @@ dependencies = [
  "base64 0.21.4",
  "bytes",
  "h2",
- "http",
+ "http 0.2.9",
  "http-body",
  "hyper",
  "hyper-timeout",
@@ -5237,7 +5573,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "http",
+ "http 0.2.9",
  "http-body",
  "http-range-header",
  "mime",
@@ -5292,6 +5628,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "transform"
+version = "0.1.1"
+source = "git+https://github.com/Lut99/transform-rs#17d06ab4cf1bc2f8f25f2a8276159c2722cdf301"
+
+[[package]]
 name = "treediff"
 version = "4.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5315,7 +5656,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "data-encoding",
- "http",
+ "http 0.2.9",
  "httparse",
  "log",
  "rand 0.8.5",
@@ -5456,6 +5797,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
+name = "vec_map"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
+
+[[package]]
 name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5466,6 +5813,16 @@ name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
+name = "walkdir"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d71d857dc86794ca4c280d616f7da00d2dbfd8cd788846559a6813e6aa4b54ee"
+dependencies = [
+ "same-file",
+ "winapi-util",
+]
 
 [[package]]
 name = "want"
@@ -5486,7 +5843,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "headers",
- "http",
+ "http 0.2.9",
  "hyper",
  "log",
  "mime",
@@ -5807,6 +6164,36 @@ checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
 dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "workflow"
+version = "0.1.0"
+source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+dependencies = [
+ "brane-ast 3.0.0 (git+https://github.com/epi-project/brane)",
+ "eflint-json",
+ "enum-debug",
+ "log",
+ "num-traits",
+ "rand 0.8.5",
+ "serde",
+ "specifications 3.0.0 (git+https://github.com/epi-project/brane)",
+ "transform",
+]
+
+[[package]]
+name = "workflow"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddf0c77a6b8182c0a6add70007d2c858baa15bb93484f16fdf0c4200050cd00b"
+dependencies = [
+ "clap 2.34.0",
+ "log",
+ "serde",
+ "serde_yaml 0.8.26",
+ "simple_logger",
+ "walkdir",
 ]
 
 [[package]]

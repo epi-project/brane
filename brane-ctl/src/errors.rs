@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    05 Jan 2024, 11:52:06
+//    10 Jan 2024, 15:48:34
 //  Auto updated?
 //    Yes
 //
@@ -558,6 +558,24 @@ impl Display for PairParseError {
     }
 }
 impl Error for PairParseError {}
+
+
+
+/// Errors that relate to parsing [`PolicyInputLanguage`](crate::spec::PolicyInputLanguage)s.
+#[derive(Debug)]
+pub enum PolicyInputLanguageParseError {
+    /// The given identifier was not recognized.
+    Unknown { raw: String },
+}
+impl Display for PolicyInputLanguageParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use PolicyInputLanguageParseError::*;
+        match self {
+            Unknown { raw } => write!(f, "Unknown policy input language '{raw}' (options are 'eflint' or 'eflint-json')"),
+        }
+    }
+}
+impl Error for PolicyInputLanguageParseError {}
 
 
 

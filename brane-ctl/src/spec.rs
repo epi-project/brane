@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 17:27:52
 //  Last edited:
-//    05 Jan 2024, 11:28:02
+//    10 Jan 2024, 15:48:56
 //  Auto updated?
 //    Yes
 //
@@ -24,7 +24,7 @@ use enum_debug::EnumDebug;
 use specifications::address::Address;
 use specifications::version::Version;
 
-use crate::errors::{InclusiveRangeParseError, PairParseError};
+use crate::errors::{InclusiveRangeParseError, PairParseError, PolicyInputLanguageParseError};
 
 
 /***** STATICS *****/
@@ -244,6 +244,37 @@ where
 
 
 /***** LIBRARY *****/
+/// Defines recognized input language identifiers for policy files.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PolicyInputLanguage {
+    /// It's human-friendly eFLINT
+    EFlint,
+    /// It's machine-friendly eFLINT JSON.
+    EFlintJson,
+}
+impl Display for PolicyInputLanguage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use PolicyInputLanguage::*;
+        match self {
+            EFlint => write!(f, "eFLINT"),
+            EFlintJson => write!(f, "eFLINT JSON"),
+        }
+    }
+}
+impl FromStr for PolicyInputLanguage {
+    type Err = PolicyInputLanguageParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "eflint" => Ok(Self::EFlint),
+            "eflint-json" => Ok(Self::EFlintJson),
+            raw => Err(PolicyInputLanguageParseError::Unknown { raw: raw.into() }),
+        }
+    }
+}
+
+
+
 /// Defines a collection of options to pass to the `start`-subcommand handler.
 #[derive(Clone, Debug)]
 pub struct StartOpts {

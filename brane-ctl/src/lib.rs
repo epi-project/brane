@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:12
 //  Last edited:
-//    04 Jan 2024, 13:49:36
+//    10 Jan 2024, 15:49:42
 //  Auto updated?
 //    Yes
 //
@@ -21,6 +21,7 @@ pub mod generate;
 pub mod lifetime;
 pub mod old_configs;
 pub mod packages;
+pub mod policies;
 pub mod spec;
 pub mod unpack;
 pub mod upgrade;
