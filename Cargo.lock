@@ -282,7 +282,7 @@ dependencies = [
 [[package]]
 name = "audit-logger"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+source = "git+https://github.com/epi-project/policy-reasoner#fef5e23c6a95defbabc2a2a6d89ebbf16fafe1e7"
 dependencies = [
  "async-trait",
  "auth-resolver",
@@ -299,7 +299,7 @@ dependencies = [
 [[package]]
 name = "auth-resolver"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+source = "git+https://github.com/epi-project/policy-reasoner#fef5e23c6a95defbabc2a2a6d89ebbf16fafe1e7"
 dependencies = [
  "async-trait",
  "serde",
@@ -754,6 +754,7 @@ dependencies = [
  "diesel_migrations",
  "dirs-2",
  "dotenvy",
+ "eflint-to-json",
  "enum-debug",
  "error-trace",
  "hex-literal",
@@ -766,6 +767,7 @@ dependencies = [
  "names",
  "openssl-sys",
  "rand 0.8.5",
+ "reqwest",
  "serde",
  "serde_json",
  "serde_yaml 0.9.25",
@@ -1642,7 +1644,7 @@ checksum = "c2e66c9d817f1720209181c316d28635c050fa304f9c79e47a520882661b7308"
 [[package]]
 name = "deliberation"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+source = "git+https://github.com/epi-project/policy-reasoner#fef5e23c6a95defbabc2a2a6d89ebbf16fafe1e7"
 dependencies = [
  "brane-ast 3.0.0 (git+https://github.com/epi-project/brane)",
  "enum-debug",
@@ -1650,7 +1652,7 @@ dependencies = [
  "serde",
  "serde_json",
  "transform",
- "uuid 0.8.2",
+ "uuid 1.5.0",
  "workflow 0.3.0",
 ]
 
@@ -1878,6 +1880,23 @@ source = "git+https://gitlab.com/eflint/json-spec-rs?branch=incorrect-is-invaria
 dependencies = [
  "enum-debug",
  "serde",
+]
+
+[[package]]
+name = "eflint-to-json"
+version = "0.1.0"
+source = "git+https://github.com/epi-project/policy-reasoner#fef5e23c6a95defbabc2a2a6d89ebbf16fafe1e7"
+dependencies = [
+ "async-recursion",
+ "console",
+ "futures-util",
+ "hex",
+ "hex-literal",
+ "indicatif",
+ "log",
+ "reqwest",
+ "sha2",
+ "tokio",
 ]
 
 [[package]]
@@ -3181,9 +3200,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.8.8"
+version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "927a765cd3fc26206e66b296465fa9d3e5ab003e651c1b3c060e7956d96b19d2"
+checksum = "8f3d0b296e374a4e6f3c7b0a1f5a51d748a0d34c85e7dc48fc3fa9a87657fe09"
 dependencies = [
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
@@ -3669,7 +3688,7 @@ checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 [[package]]
 name = "policy"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+source = "git+https://github.com/epi-project/policy-reasoner#fef5e23c6a95defbabc2a2a6d89ebbf16fafe1e7"
 dependencies = [
  "async-trait",
  "chrono",
@@ -4010,7 +4029,7 @@ dependencies = [
 [[package]]
 name = "reasonerconn"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+source = "git+https://github.com/epi-project/policy-reasoner#fef5e23c6a95defbabc2a2a6d89ebbf16fafe1e7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4947,7 +4966,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "srv"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+source = "git+https://github.com/epi-project/policy-reasoner#fef5e23c6a95defbabc2a2a6d89ebbf16fafe1e7"
 dependencies = [
  "audit-logger",
  "auth-resolver",
@@ -4964,7 +4983,7 @@ dependencies = [
  "state-resolver",
  "tokio",
  "tokio-scoped",
- "uuid 0.8.2",
+ "uuid 1.5.0",
  "warp",
  "workflow 0.1.0",
 ]
@@ -4981,7 +5000,7 @@ dependencies = [
 [[package]]
 name = "state-resolver"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+source = "git+https://github.com/epi-project/policy-reasoner#fef5e23c6a95defbabc2a2a6d89ebbf16fafe1e7"
 dependencies = [
  "async-trait",
  "serde",
@@ -5332,9 +5351,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.33.0"
+version = "1.35.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f38200e3ef7995e5ef13baec2f432a6da0aa9ac495b2c0e8f3b7eec2c92d653"
+checksum = "c89b4efa943be685f629b149f53829423f8f5531ea21249408e8e2f8671ec104"
 dependencies = [
  "backtrace",
  "bytes",
@@ -5361,9 +5380,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "2.1.0"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "630bdcf245f78637c13ec01ffae6187cca34625e8c63150d424b59e55af2675e"
+checksum = "5b8a1e28f2deaa14e508979454cb3a223b10b938b45af148bc0986de36f1923b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6169,7 +6188,7 @@ dependencies = [
 [[package]]
 name = "workflow"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#64e56bd9e3d0e8fa608e09ddbf603a31884a1fbe"
+source = "git+https://github.com/epi-project/policy-reasoner#fef5e23c6a95defbabc2a2a6d89ebbf16fafe1e7"
 dependencies = [
  "brane-ast 3.0.0 (git+https://github.com/epi-project/brane)",
  "eflint-json",

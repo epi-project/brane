@@ -18,6 +18,7 @@ diesel = { version = "2.1", features = ["sqlite"] }
 diesel_migrations = "2.1"
 dirs-2 = "3.0"
 dotenvy = "0.15"
+eflint-to-json = { git = "https://github.com/epi-project/policy-reasoner" }
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
 error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
 # env_logger = "0.10"
@@ -31,6 +32,7 @@ log = "0.4"
 names = { git = "https://github.com/Lut99/names-rs", default-features = false, features = [ "rand", "three-lowercase" ]}
 srv = { git = "https://github.com/epi-project/policy-reasoner" }
 rand = "0.8"
+reqwest = { version = "0.11" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
