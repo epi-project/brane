@@ -205,6 +205,13 @@ RUN apt-get update && apt-get install -y \
     sqlite3 \
  && rm -rf /var/lib/apt/lists/*
 
+# Generate a start script
+RUN printf 'some_cmd > some_file 2>&1 &\n\n'
+
+# Install the eFLINT JSON server
+ADD https://github.com/Olaf-Erkemeij/eflint-server/raw/bd3997df89441f13cbc82bd114223646df41540d/eflint-server /eflint-server
+RUN chmod +x /eflint-server
+
 # Copy some config from the build stage
 COPY --from=build-policy-reasoner /policy-reasoner/examples/config/jwt_resolver.yaml /examples/config/jwt_resolver.yaml
 RUN mkdir -p /examples/eflint_reasonerconn && echo '{ "users": [], "locations": [], "datasets": [], "functions": [] }' > /examples/eflint_reasonerconn/example-state.json
