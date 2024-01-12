@@ -35,7 +35,7 @@ services:
       - ADDRESS=0.0.0.0:${CHK_PORT}
     volumes:
     - ${NODE_CONFIG_PATH}:/node.yml
-    - ${POLICY_DB}:/lib/policy/data/policy.db
+    - ${POLICY_DB}:/data/policy.db
     - ${POLICY_DELIBERATION_SECRET}:/examples/config/jwk_set_delib.json
     - ${POLICY_EXPERT_SECRET}:/examples/config/jwk_set_expert.json
 

@@ -4,7 +4,7 @@
 //  Created:
 //    10 Jan 2024, 15:57:54
 //  Last edited:
-//    11 Jan 2024, 13:57:03
+//    12 Jan 2024, 15:17:26
 //  Auto updated?
 //    Yes
 //
@@ -15,21 +15,24 @@
 use std::error;
 use std::ffi::OsStr;
 use std::fmt::{Display, Formatter, Result as FResult};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use brane_cfg::info::Info;
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig, WorkerConfig};
 use brane_shr::formatters::BlockFormatter;
 use console::style;
+use dialoguer::theme::ColorfulTheme;
 use enum_debug::EnumDebug;
 use error_trace::trace;
 use log::{debug, info};
+use policy::{Policy, PolicyVersion};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use reqwest::{Client, Request, Response, StatusCode};
 use serde_json::value::RawValue;
-use srv::models::{AddPolicyPostModel, PolicyContentPostModel};
+use specifications::address::{Address, AddressOpt};
+use srv::models::{AddPolicyPostModel, PolicyContentPostModel, SetVersionPostModel};
 use tokio::fs::{self as tfs, File as TFile};
 
 use crate::spec::PolicyInputLanguage;
@@ -39,24 +42,34 @@ use crate::spec::PolicyInputLanguage;
 /// Defines errors that may originate in `branectl policies ...` subcommands.
 #[derive(Debug)]
 pub enum Error {
+    /// Failed to get the active version of the policy.
+    ActiveVersionGet { addr: Address, err: Box<Self> },
     /// Failed to deserialize the read input file as JSON.
     InputDeserialize { path: PathBuf, raw: String, err: serde_json::Error },
     /// Failed to read the input file.
     InputRead { path: PathBuf, err: std::io::Error },
     /// Failed to compile the input file to eFLINT JSON.
     InputToJson { path: PathBuf, err: eflint_to_json::Error },
+    /// The wrong policy was activated on the remote checker, somehow.
+    InvalidPolicyActivated { addr: Address, got: Option<i64>, expected: Option<i64> },
     /// A policy language was attempted to derive from a path without extension.
     MissingExtension { path: PathBuf },
     /// The given node config file was not a worker config file.
     NodeConfigIncompatible { path: PathBuf, got: String },
     /// Failed to load the node configuration file for this node.
     NodeConfigLoad { path: PathBuf, err: brane_cfg::info::YamlError },
+    /// Found a policy on a checker without a version defined.
+    PolicyWithoutVersion { addr: Address, which: String },
     /// Failed to build a request.
-    RequestBuild { addr: String, err: reqwest::Error },
+    RequestBuild { kind: &'static str, addr: String, err: reqwest::Error },
     /// A request failed for some reason.
     RequestFailure { addr: String, code: StatusCode, response: Option<String> },
     /// Failed to send a request.
-    RequestSend { addr: String, err: reqwest::Error },
+    RequestSend { kind: &'static str, addr: String, err: reqwest::Error },
+    /// Failed to deserialize the checker response as valid JSON.
+    ResponseDeserialize { addr: String, raw: String, err: serde_json::Error },
+    /// Failed to download the body of the checker's response.
+    ResponseDownload { addr: String, err: reqwest::Error },
     /// Failed to create a temporary file.
     TempFileCreate { path: PathBuf, err: std::io::Error },
     /// Failed to write to a temporary file from stdin.
@@ -67,16 +80,28 @@ pub enum Error {
     UnknownExtension { path: PathBuf, ext: String },
     /// The policy was given on stdout but no language was specified.
     UnspecifiedInputLanguage,
+    /// Failed to query the user which version to select.
+    VersionSelect { err: dialoguer::Error },
+    /// Failed to get the versions on the remote checker.
+    VersionsGet { addr: Address, err: Box<Self> },
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use Error::*;
         match self {
+            ActiveVersionGet { addr, .. } => write!(f, "Failed to get active version of checker '{addr}'"),
             InputDeserialize { path, raw, .. } => {
                 write!(f, "Failed to deserialize contents of '{}' to JSON\n\nRaw value:\n{}\n", path.display(), BlockFormatter::new(raw))
             },
             InputRead { path, .. } => write!(f, "Failed to read input file '{}'", path.display()),
             InputToJson { path, .. } => write!(f, "Failed to compile input file '{}' to eFLINT JSON", path.display()),
+            InvalidPolicyActivated { addr, got, expected } => write!(
+                f,
+                "Checker '{}' activated wrong policy; it says it activated {}, but we requested to activate {}",
+                addr,
+                if let Some(got) = got { got.to_string() } else { "None".into() },
+                if let Some(expected) = expected { expected.to_string() } else { "None".into() }
+            ),
             MissingExtension { path } => {
                 write!(f, "Cannot derive input language from '{}' that has no extension; manually specify it using '--language'", path.display())
             },
@@ -84,7 +109,8 @@ impl Display for Error {
                 write!(f, "Given node configuration file '{}' is for a {} node, but expected a Worker node", path.display(), got)
             },
             NodeConfigLoad { path, .. } => write!(f, "Failed to load node configuration file '{}'", path.display()),
-            RequestBuild { addr, .. } => write!(f, "Failed to build new POST-request to '{addr}'"),
+            PolicyWithoutVersion { addr, which } => write!(f, "{which} policy return by checker '{addr}' has no version number set"),
+            RequestBuild { kind, addr, .. } => write!(f, "Failed to build new {kind}-request to '{addr}'"),
             RequestFailure { addr, code, response } => write!(
                 f,
                 "Request to '{}' failed with status {} ({}){}",
@@ -93,7 +119,11 @@ impl Display for Error {
                 code.canonical_reason().unwrap_or("???"),
                 if let Some(response) = response { format!("\n\nResponse:\n{}\n", BlockFormatter::new(response)) } else { String::new() }
             ),
-            RequestSend { addr, .. } => write!(f, "Failed to send POST-request to '{addr}'"),
+            RequestSend { kind, addr, .. } => write!(f, "Failed to send {kind}-request to '{addr}'"),
+            ResponseDeserialize { addr, raw, .. } => {
+                write!(f, "Failed to deserialize response from '{}' as JSON\n\nResponse:\n{}\n", addr, BlockFormatter::new(raw))
+            },
+            ResponseDownload { addr, .. } => write!(f, "Failed to download response from '{addr}'"),
             TempFileCreate { path, .. } => write!(f, "Failed to create temporary file '{}'", path.display()),
             TempFileWrite { path, .. } => write!(f, "Failed to copy stdin to temporary file '{}'", path.display()),
             TokenGenerate { secret, .. } => write!(
@@ -108,6 +138,8 @@ impl Display for Error {
                 ext
             ),
             UnspecifiedInputLanguage => write!(f, "Cannot derive input language when giving input via stdin; manually specify it using '--language'"),
+            VersionSelect { .. } => write!(f, "Failed to ask you which version to make active"),
+            VersionsGet { addr, .. } => write!(f, "Failed to get policy versions stored in checker '{addr}'"),
         }
     }
 }
@@ -115,21 +147,229 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         use Error::*;
         match self {
+            ActiveVersionGet { err, .. } => Some(&**err),
             InputDeserialize { err, .. } => Some(err),
             InputRead { err, .. } => Some(err),
             InputToJson { err, .. } => Some(err),
+            InvalidPolicyActivated { .. } => None,
             MissingExtension { .. } => None,
             NodeConfigIncompatible { .. } => None,
             NodeConfigLoad { err, .. } => Some(err),
+            PolicyWithoutVersion { .. } => None,
             RequestBuild { err, .. } => Some(err),
             RequestFailure { .. } => None,
             RequestSend { err, .. } => Some(err),
+            ResponseDeserialize { err, .. } => Some(err),
+            ResponseDownload { err, .. } => Some(err),
             TempFileCreate { err, .. } => Some(err),
             TempFileWrite { err, .. } => Some(err),
             TokenGenerate { err, .. } => Some(err),
             UnknownExtension { .. } => None,
             UnspecifiedInputLanguage => None,
+            VersionSelect { err } => Some(err),
+            VersionsGet { err, .. } => Some(&**err),
         }
+    }
+}
+
+
+
+
+
+/***** HELPER FUNCTIONS *****/
+/// Resolves the node.yml file so that it's only loaded when needed to resolve information not given.
+///
+/// # Arguments
+/// - `node_config_path`: The path to load the file from if it doesn't exist.
+/// - `worker`: The [`WorkerConfig`] to potentially pass.
+///
+/// # Returns
+/// A new [`WorkerConfig`] if `worker` was [`None`], or else the given one.
+///
+/// # Errors
+/// This function may error if we failed to load a node config from the given path, or the node config was not for a worker node.
+fn resolve_worker_config(node_config_path: impl AsRef<Path>, worker: Option<WorkerConfig>) -> Result<WorkerConfig, Error> {
+    worker.map(|cfg| Ok(cfg)).unwrap_or_else(|| {
+        let node_config_path: &Path = node_config_path.as_ref();
+
+        debug!("Loading node configuration file '{}'...", node_config_path.display());
+        let node: NodeConfig = match NodeConfig::from_path(&node_config_path) {
+            Ok(node) => node,
+            Err(err) => return Err(Error::NodeConfigLoad { path: node_config_path.into(), err }),
+        };
+
+        // Assert it's of the correct type
+        match node.node {
+            NodeSpecificConfig::Worker(worker) => Ok(worker),
+            other => Err(Error::NodeConfigIncompatible { path: node_config_path.into(), got: other.variant().to_string() }),
+        }
+    })
+}
+
+/// Resolves a token by either using the given one or generating a new one.
+///
+/// When generating a new one, the token in the given [`WorkerConfig`] is used. This, too, will be resolved in that case.
+///
+/// # Arguments
+/// - `node_config_path`: The path to load the worker config from if `worker_config` if [`None`].
+/// - `worker_config`: An optional [`WorkerConfig`] that will be loaded from disk and updated if [`None`].
+/// - `token`: An optional token that will be returned if [`Some`].
+///
+/// # Returns
+/// A new token if `token` was [`None`], or else the given one.
+///
+/// # Errors
+/// This function may error if we failed to load the node config file correctly or if we failed to generate the token.
+fn resolve_token(node_config_path: impl AsRef<Path>, worker: &mut Option<WorkerConfig>, token: Option<String>) -> Result<String, Error> {
+    if let Some(token) = token {
+        debug!("Using given token '{token}'");
+        Ok(token)
+    } else {
+        // Resolve the worker
+        let worker_cfg: WorkerConfig = resolve_worker_config(&node_config_path, worker.take())?;
+
+        // Attempt to generate a new token based on the secret in the `node.yml` file
+        match specifications::policy::generate_policy_token(
+            names::three::lowercase::rand(),
+            "branectl",
+            Duration::from_secs(60),
+            &worker_cfg.paths.policy_expert_secret,
+        ) {
+            Ok(token) => {
+                debug!("Using generated token '{token}'");
+                *worker = Some(worker_cfg);
+                Ok(token)
+            },
+            Err(err) => return Err(Error::TokenGenerate { secret: worker_cfg.paths.policy_expert_secret, err }),
+        }
+    }
+}
+
+/// Resolves the port in the given address.
+///
+/// If it has one, nothing happens and it's returned as an [`Address`]; else, the port defined for the checker service in the given `worker` is given.
+///
+/// # Arguments
+/// - `node_config_path`: The path to load the worker config from if `worker_config` if [`None`].
+/// - `worker_config`: An optional [`WorkerConfig`] that will be loaded from disk and updated if [`None`].
+/// - `address`: The [`AddressOpt`] who's port to resolve.
+///
+/// # Returns
+/// The given `address` as an [`Address`] if it has a port, or else an [`Address`] with the same hostname but a port taken from the (resolved) `worker_config`.
+///
+/// # Errors
+/// This function may error if we have to load a new worker config but fail to do so.
+fn resolve_addr_opt(node_config_path: impl AsRef<Path>, worker: &mut Option<WorkerConfig>, mut address: AddressOpt) -> Result<Address, Error> {
+    // Resolve the address port if needed
+    if address.port().is_none() {
+        // Resolve the worker and store the port of the checker
+        let worker_cfg: WorkerConfig = resolve_worker_config(&node_config_path, worker.take())?;
+        *address.port_mut() = Some(worker_cfg.services.chk.address.port());
+        *worker = Some(worker_cfg);
+    }
+
+    // Return the address as an [`Address`], which we can unwrap because we asserted the port is `Some(...)`.
+    Ok(Address::try_from(address).unwrap())
+}
+
+/// Helper function that pulls the versions in a checker.
+///
+/// # Arguments
+/// - `address`: The address where the checker may be reached.
+/// - `token`: The token used for authenticating the checker.
+///
+/// # Returns
+/// A list of versions found on the remote checkers.
+///
+/// # Errors
+/// This function may error if we failed to reach the checker, failed to authenticate or failed to download/parse the result.
+async fn get_versions_on_checker(address: &Address, token: &str) -> Result<Vec<PolicyVersion>, Error> {
+    info!("Retrieving policies on checker '{address}'");
+
+    // Prepare the request
+    let url: String = format!("http://{address}/v1/policies/versions");
+    debug!("Building GET-request to '{url}'...");
+    let client: Client = Client::new();
+    let req: Request = match client.get(&url).bearer_auth(token).build() {
+        Ok(req) => req,
+        Err(err) => return Err(Error::RequestBuild { kind: "GET", addr: url, err }),
+    };
+
+    // Send it
+    debug!("Sending request to '{url}'...");
+    let res: Response = match client.execute(req).await {
+        Ok(res) => res,
+        Err(err) => return Err(Error::RequestSend { kind: "GET", addr: url, err }),
+    };
+    debug!("Server responded with {}", res.status());
+    if !res.status().is_success() {
+        return Err(Error::RequestFailure { addr: url, code: res.status(), response: res.text().await.ok() });
+    }
+
+    // Attempt to parse the result as a list of policy versions
+    match res.text().await {
+        Ok(body) => {
+            // Log the full response first
+            debug!("Response:\n{}\n", BlockFormatter::new(&body));
+            // Parse it as a [`Policy`]
+            match serde_json::from_str(&body) {
+                Ok(body) => Ok(body),
+                Err(err) => Err(Error::ResponseDeserialize { addr: url, raw: body, err }),
+            }
+        },
+        Err(err) => Err(Error::ResponseDownload { addr: url, err }),
+    }
+}
+
+/// Helper function that pulls the currently active versions on a checker.
+///
+/// # Arguments
+/// - `address`: The address where the checker may be reached.
+/// - `token`: The token used for authenticating the checker.
+///
+/// # Returns
+/// A single [`Policy`] that describes the active policy, or [`None`] is none is active.
+///
+/// # Errors
+/// This function may error if we failed to reach the checker, failed to authenticate or failed to download/parse the result.
+async fn get_active_version_on_checker(address: &Address, token: &str) -> Result<Option<Policy>, Error> {
+    info!("Retrieving active policy of checker '{address}'");
+
+    // Prepare the request
+    let url: String = format!("http://{address}/v1/policies/active");
+    debug!("Building GET-request to '{url}'...");
+    let client: Client = Client::new();
+    let req: Request = match client.get(&url).bearer_auth(token).build() {
+        Ok(req) => req,
+        Err(err) => return Err(Error::RequestBuild { kind: "GET", addr: url, err }),
+    };
+
+    // Send it
+    debug!("Sending request to '{url}'...");
+    let res: Response = match client.execute(req).await {
+        Ok(res) => res,
+        Err(err) => return Err(Error::RequestSend { kind: "GET", addr: url, err }),
+    };
+    debug!("Server responded with {}", res.status());
+    match res.status() {
+        StatusCode::OK => {},
+        // No policy was active
+        StatusCode::NOT_FOUND => return Ok(None),
+        code => return Err(Error::RequestFailure { addr: url, code, response: res.text().await.ok() }),
+    }
+
+    // Attempt to parse the result as a list of policy versions
+    match res.text().await {
+        Ok(body) => {
+            // Log the full response first
+            debug!("Response:\n{}\n", BlockFormatter::new(&body));
+            // Parse it as a [`Policy`]
+            match serde_json::from_str(&body) {
+                Ok(body) => Ok(body),
+                Err(err) => Err(Error::ResponseDeserialize { addr: url, raw: body, err }),
+            }
+        },
+        Err(err) => Err(Error::ResponseDownload { addr: url, err }),
     }
 }
 
@@ -185,47 +425,152 @@ impl Display for EFlintJsonVersion {
 
 
 /***** LIBRARY *****/
+/// Activates a remote policy in the checker.
+///
+/// # Arguments
+/// - `node_config_path`: The path to the node configuration file that determines which node we're working for.
+/// - `version`: The version to activate in the checker. Should do some TUI stuff if not given.
+/// - `address`: The address on which to reach the checker. May be missing a port, to be resolved in the node.yml.
+/// - `token`: A token used for authentication with the remote checker. If omitted, will attempt to generate one based on the secret file in the node.yml file.
+pub async fn activate(node_config_path: PathBuf, version: Option<i64>, address: AddressOpt, token: Option<String>) -> Result<(), Error> {
+    info!(
+        "Activating policy{} on checker of node defined by '{}'",
+        if let Some(version) = &version { format!(" version '{version}'") } else { String::new() },
+        node_config_path.display()
+    );
+
+    // See if we need to resolve the token & address
+    let mut worker: Option<WorkerConfig> = None;
+    let token: String = resolve_token(&node_config_path, &mut worker, token)?;
+    let address: Address = resolve_addr_opt(&node_config_path, &mut worker, address)?;
+
+    // Now we resolve the version
+    let version: i64 = if let Some(version) = version {
+        version
+    } else {
+        // Alrighty; first, pull a list of all available versions from the checker
+        let mut versions: Vec<PolicyVersion> = match get_versions_on_checker(&address, &token).await {
+            Ok(versions) => versions,
+            Err(err) => return Err(Error::VersionsGet { addr: address, err: Box::new(err) }),
+        };
+        // Then fetch the already active version
+        let active_version: Option<i64> = match get_active_version_on_checker(&address, &token).await {
+            Ok(version) => version.map(|v| v.version.version).flatten(),
+            Err(err) => return Err(Error::ActiveVersionGet { addr: address, err: Box::new(err) }),
+        };
+
+        // Preprocess the versions into neat representations
+        let mut sversions: Vec<String> = Vec::with_capacity(versions.len());
+        for (i, version) in versions.iter().enumerate() {
+            // Discard it if it has no version
+            if version.version.is_none() {
+                return Err(Error::PolicyWithoutVersion { addr: address, which: format!("{i}th") });
+            }
+
+            // See if it's selected to print either bold or not
+            let mut line: String = if version.version == active_version { style("Version ").bold().to_string() } else { "Version ".into() };
+            line.push_str(&style(version.version.unwrap()).bold().green().to_string());
+            if version.version == active_version {
+                line.push_str(
+                    &style(format!(
+                        " (created at {}, by {})",
+                        version.created_at.format("%H:%M:%S %d-%m-%Y"),
+                        version.creator.as_ref().map(|c| c.as_str()).unwrap_or("<unknown>")
+                    ))
+                    .to_string(),
+                );
+            } else {
+                line.push_str(&format!(
+                    " (created at {}, by {})",
+                    version.created_at.format("%H:%M:%S %d-%m-%Y"),
+                    version.creator.as_ref().map(|c| c.as_str()).unwrap_or("<unknown>")
+                ));
+            }
+
+            // Add the rendered line to the list
+            sversions.push(line);
+        }
+
+        // Ask the user using dialoguer, then return that version
+        let idx: usize = match dialoguer::Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("Which version do you want to make active?")
+            .items(&sversions)
+            .interact()
+        {
+            Ok(idx) => idx,
+            Err(err) => return Err(Error::VersionSelect { err }),
+        };
+
+        // Done
+        versions.swap_remove(idx).version.unwrap()
+    };
+    debug!("Activating policy version {version}");
+
+    // Now build the request and send it
+    let url: String = format!("http://{address}/v1/policies/active");
+    debug!("Building PUT-request to '{url}'...");
+    let client: Client = Client::new();
+    let req: Request = match client.put(&url).bearer_auth(token).json(&SetVersionPostModel { version }).build() {
+        Ok(req) => req,
+        Err(err) => return Err(Error::RequestBuild { kind: "GET", addr: url, err }),
+    };
+
+    // Send it
+    debug!("Sending request to '{url}'...");
+    let res: Response = match client.execute(req).await {
+        Ok(res) => res,
+        Err(err) => return Err(Error::RequestSend { kind: "GET", addr: url, err }),
+    };
+    debug!("Server responded with {}", res.status());
+    if !res.status().is_success() {
+        return Err(Error::RequestFailure { addr: url, code: res.status(), response: res.text().await.ok() });
+    }
+
+    // Attempt to parse the result as a Policy
+    let res: Policy = match res.text().await {
+        Ok(body) => {
+            // Log the full response first
+            debug!("Response:\n{}\n", BlockFormatter::new(&body));
+            // Parse it as a [`Policy`]
+            match serde_json::from_str(&body) {
+                Ok(body) => body,
+                Err(err) => return Err(Error::ResponseDeserialize { addr: url, raw: body, err }),
+            }
+        },
+        Err(err) => return Err(Error::ResponseDownload { addr: url, err }),
+    };
+    if res.version.version != Some(version) {
+        return Err(Error::InvalidPolicyActivated { addr: address, got: res.version.version, expected: Some(version) });
+    }
+
+    // Done!
+    println!("Successfully activated policy {} to checker {}.", style(version).bold().green(), style(address).bold().green(),);
+    Ok(())
+}
+
+
+
 /// Adds the given policy to the checker defined in the given node config file.
 ///
 /// # Arguments
 /// - `node_config_path`: The path to the node configuration file that determines which node we're working for.
 /// - `input`: The policy (or rather, a path thereto) to submit.
 /// - `language`: The language of the input.
+/// - `address`: The address on which to reach the checker. May be missing a port, to be resolved in the node.yml.
 /// - `token`: A token used for authentication with the remote checker. If omitted, will attempt to generate one based on the secret file in the node.yml file.
-pub async fn add(node_config_path: PathBuf, input: String, token: Option<String>, language: Option<PolicyInputLanguage>) -> Result<(), Error> {
+pub async fn add(
+    node_config_path: PathBuf,
+    input: String,
+    language: Option<PolicyInputLanguage>,
+    address: AddressOpt,
+    token: Option<String>,
+) -> Result<(), Error> {
     info!("Adding policy '{}' to checker of node defined by '{}'", input, node_config_path.display());
 
-    // First, load the node config file
-    debug!("Loading node configuration file '{}'...", node_config_path.display());
-    let node: NodeConfig = match NodeConfig::from_path_async(&node_config_path).await {
-        Ok(node) => node,
-        Err(err) => return Err(Error::NodeConfigLoad { path: node_config_path, err }),
-    };
-    // Assert it's of the correct type
-    let worker: WorkerConfig = match node.node {
-        NodeSpecificConfig::Worker(worker) => worker,
-        other => return Err(Error::NodeConfigIncompatible { path: node_config_path, got: other.variant().to_string() }),
-    };
-
-    // Then see if we need to resolve the token
-    let token: String = if let Some(token) = token {
-        debug!("Using given token '{token}'");
-        token
-    } else {
-        // Attempt to generate a new token based on the secret in the `node.yml` file
-        match specifications::policy::generate_policy_token(
-            names::three::lowercase::rand(),
-            "branectl",
-            Duration::from_secs(60),
-            &worker.paths.policy_expert_secret,
-        ) {
-            Ok(token) => {
-                debug!("Using generated token '{token}'");
-                token
-            },
-            Err(err) => return Err(Error::TokenGenerate { secret: worker.paths.policy_expert_secret, err }),
-        }
-    };
+    // See if we need to resolve the token & address
+    let mut worker: Option<WorkerConfig> = None;
+    let token: String = resolve_token(&node_config_path, &mut worker, token)?;
+    let address: Address = resolve_addr_opt(&node_config_path, &mut worker, address)?;
 
     // Next stop: resolve the input to a path to read from
     let (input, from_stdin): (PathBuf, bool) = if input == "-" {
@@ -307,7 +652,7 @@ pub async fn add(node_config_path: PathBuf, input: String, token: Option<String>
     };
 
     // Finally, construct a request for the checker
-    let url: String = format!("{}/v1/policies", worker.services.chk.address);
+    let url: String = format!("http://{}/v1/policies", address);
     debug!("Building POST-request to '{url}'...");
     let client: Client = Client::new();
     let contents: AddPolicyPostModel = AddPolicyPostModel {
@@ -317,14 +662,14 @@ pub async fn add(node_config_path: PathBuf, input: String, token: Option<String>
     };
     let req: Request = match client.post(&url).bearer_auth(token).json(&contents).build() {
         Ok(req) => req,
-        Err(err) => return Err(Error::RequestBuild { addr: url, err }),
+        Err(err) => return Err(Error::RequestBuild { kind: "POST", addr: url, err }),
     };
 
     // Now send it!
     debug!("Sending request to '{url}'...");
     let res: Response = match client.execute(req).await {
         Ok(res) => res,
-        Err(err) => return Err(Error::RequestSend { addr: url, err }),
+        Err(err) => return Err(Error::RequestSend { kind: "POST", addr: url, err }),
     };
     debug!("Server responded with {}", res.status());
     if !res.status().is_success() {
@@ -332,15 +677,25 @@ pub async fn add(node_config_path: PathBuf, input: String, token: Option<String>
     }
 
     // Log the response body
-    if let Ok(res) = res.text().await {
-        debug!("Response:\n{}\n", BlockFormatter::new(res));
-    }
+    let body: Policy = match res.text().await {
+        Ok(body) => {
+            // Log the full response first
+            debug!("Response:\n{}\n", BlockFormatter::new(&body));
+            // Parse it as a [`Policy`]
+            match serde_json::from_str(&body) {
+                Ok(body) => body,
+                Err(err) => return Err(Error::ResponseDeserialize { addr: url, raw: body, err }),
+            }
+        },
+        Err(err) => return Err(Error::ResponseDownload { addr: url, err }),
+    };
 
     // Done!
     println!(
-        "Successfully added policy {} to checker of node {}.",
+        "Successfully added policy {} to checker {}{}.",
         style(if from_stdin { "<stdin>".into() } else { input.display().to_string() }).bold().green(),
-        style(worker.name).bold().green()
+        style(address).bold().green(),
+        if let Some(version) = body.version.version { format!(" as version {}", style(version).bold().green()) } else { String::new() }
     );
     Ok(())
 }

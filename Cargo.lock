@@ -673,7 +673,7 @@ dependencies = [
  "clap 4.4.6",
  "console",
  "cwl",
- "dialoguer",
+ "dialoguer 0.10.4",
  "dirs-2",
  "dotenvy",
  "enum-debug",
@@ -750,6 +750,7 @@ dependencies = [
  "brane-tsk",
  "clap 4.4.6",
  "console",
+ "dialoguer 0.11.0",
  "diesel",
  "diesel_migrations",
  "dirs-2",
@@ -766,6 +767,7 @@ dependencies = [
  "log",
  "names",
  "openssl-sys",
+ "policy",
  "rand 0.8.5",
  "reqwest",
  "serde",
@@ -1066,7 +1068,7 @@ version = "3.0.0"
 dependencies = [
  "async-compression 0.3.15",
  "console",
- "dialoguer",
+ "dialoguer 0.10.4",
  "enum-debug",
  "fs2",
  "futures-util",
@@ -1096,7 +1098,7 @@ source = "git+https://github.com/epi-project/brane#c449568e79ecebcb03e0884e8d4f5
 dependencies = [
  "async-compression 0.3.15",
  "console",
- "dialoguer",
+ "dialoguer 0.10.4",
  "enum-debug",
  "fs2",
  "futures-util",
@@ -1132,7 +1134,7 @@ dependencies = [
  "chrono",
  "clap 4.4.6",
  "console",
- "dialoguer",
+ "dialoguer 0.10.4",
  "dirs-2",
  "enum-debug",
  "futures-util",
@@ -1724,6 +1726,19 @@ dependencies = [
  "console",
  "shell-words",
  "tempfile",
+ "zeroize",
+]
+
+[[package]]
+name = "dialoguer"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "658bce805d770f407bc62102fca7c2c64ceef2fbcb2b8bd19d2765ce093980de"
+dependencies = [
+ "console",
+ "shell-words",
+ "tempfile",
+ "thiserror",
  "zeroize",
 ]
 

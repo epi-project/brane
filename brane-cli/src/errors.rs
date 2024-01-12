@@ -915,7 +915,7 @@ pub enum InstanceError {
     /// The given instance name is invalid.
     IllegalInstanceName { raw: String, illegal_char: char },
     /// Failed to parse an address from the hostname (and a little modification).
-    AddressParseError { err: specifications::address::AddressParseError },
+    AddressParseError { err: specifications::address::AddressError },
     /// Failed to send a request to the remote instance.
     RequestError { address: String, err: reqwest::Error },
     /// The remote instance was not alive (at least, API/health was not)

@@ -19,6 +19,8 @@ All notable changes to the Brane framework will be documented in this file.
     - Adding `branectl generate policy_db` to initialize the policy database file.
     - Adding `branectl generate policy_secret` to initialize a JWK set to use for API endpoint authentication in the policy reasoner.
     - Adding `branectl generate policy_token` to initialize a JWT based on the given JWK set.
+    - Adding `branectl policy add` to push policies to the checker.
+    - Adding `branectl policy activate` to activate policies on the checker.
     - Adding `user`-field to `InstanceInfo`, accompanied with a `--user` option when creating new instance in `brane` (\[**breaking change**\], regeneration of instances necessary).
     - Changing Docker Compose files used by `branectl` (\[**breaking change**\] if you use customized ones).
     - Changing `policies` path in `node.yml` to `policy_database` file \[**breaking change**\].

@@ -4,7 +4,7 @@
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    10 Jan 2024, 16:21:56
+//    12 Jan 2024, 15:01:46
 //  Auto updated?
 //    Yes
 //
@@ -29,7 +29,7 @@ use humanlog::{DebugMode, HumanLogger};
 use humantime::Duration as HumanDuration;
 use jsonwebtoken::jwk::KeyAlgorithm;
 use log::error;
-use specifications::address::Address;
+use specifications::address::{Address, AddressOpt};
 use specifications::arch::Arch;
 use specifications::package::Capability;
 use specifications::version::Version;
@@ -560,6 +560,38 @@ enum DataSubcommand {}
 #[derive(Debug, Subcommand)]
 #[clap(name = "policies", alias = "policy", about = "Manage the checker's policies by adding them or setting different active versions.")]
 enum PolicySubcommand {
+    /// Activates a policy in the remote checker.
+    #[clap(name = "activate", about = "Activates an already added policy in the remote checker.")]
+    Activate {
+        /// The policy to activate. If omitted, the CTL should request the list and present them to the user.
+        #[clap(
+            name = "VERSION",
+            help = "The version of the policy to activate. Omit to have branectl download the version metadata from the checker and let you choose \
+                    interactively."
+        )]
+        version: Option<i64>,
+
+        /// Address on which to find the checker.
+        #[clap(
+            short,
+            long,
+            default_value = "localhost",
+            help = "The address on which to reach the checker service, given as '<HOSTNAME>[:<PORT>]'. If you omit the port, the one from the \
+                    `node.yml` file is read."
+        )]
+        address: AddressOpt,
+        /// The JWT to use to authenticate with the remote checker.
+        #[clap(
+            short,
+            long,
+            env,
+            help = "A JSON Web Token (JWT) to use to authenticate to the checker. If omitted, will use the one from the `policy_expert_secret` file \
+                    in the given `node.yml` when found. Note that you can also just set an environment variable named 'TOKEN' with the value if you \
+                    don't want to give it everytime."
+        )]
+        token:   Option<String>,
+    },
+
     /// Adds a given policy file to the remote checker.
     #[clap(name = "add", about = "Adds a new policy to the checker, but does not yet set it as active.")]
     Add {
@@ -578,6 +610,16 @@ enum PolicySubcommand {
                     before sending. If omitted, will attempt to deduce it based on the 'INPUT'."
         )]
         language: Option<PolicyInputLanguage>,
+
+        /// Address on which to find the checker.
+        #[clap(
+            short,
+            long,
+            default_value = "localhost",
+            help = "The address on which to reach the checker service, given as '<HOSTNAME>[:<PORT>]'. If you omit the port, the one from the \
+                    `node.yml` file is read."
+        )]
+        address: AddressOpt,
         /// The JWT to use to authenticate with the remote checker.
         #[clap(
             short,
@@ -587,7 +629,7 @@ enum PolicySubcommand {
                     in the given `node.yml` when found. Note that you can also just set an environment variable named 'TOKEN' with the value if you \
                     don't want to give it everytime."
         )]
-        token:    Option<String>,
+        token:   Option<String>,
     },
 }
 
@@ -759,9 +801,17 @@ async fn main() {
         },
         CtlSubcommand::Data(subcommand) => match *subcommand {},
         CtlSubcommand::Policies(subcommand) => match *subcommand {
-            PolicySubcommand::Add { input, language, token } => {
+            PolicySubcommand::Activate { version, address, token } => {
                 // Call the thing
-                if let Err(err) = policies::add(args.node_config, input, token, language).await {
+                if let Err(err) = policies::activate(args.node_config, version, address, token).await {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
+            },
+
+            PolicySubcommand::Add { input, language, address, token } => {
+                // Call the thing
+                if let Err(err) = policies::add(args.node_config, input, language, address, token).await {
                     error!("{}", err.trace());
                     std::process::exit(1);
                 }
