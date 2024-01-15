@@ -206,7 +206,8 @@ RUN apt-get update && apt-get install -y \
  && rm -rf /var/lib/apt/lists/*
 
 # Generate a start script
-RUN printf 'some_cmd > some_file 2>&1 &\n\n'
+RUN printf '#!/bin/bash\n# Startup script for the policy reasoner container\n\n# Spawn the eFLINT reasoner itself\n/eflint-server 2>&1 &\n\n# Launch the policy reasoner binary\n/brane-chk $@\n\n' > /startup.sh \
+ && chmod +x /startup.sh
 
 # Install the eFLINT JSON server
 ADD https://github.com/Olaf-Erkemeij/eflint-server/raw/bd3997df89441f13cbc82bd114223646df41540d/eflint-server /eflint-server
@@ -222,4 +223,4 @@ RUN chmod +x /brane-chk
 
 # Run the compiler executable as base
 WORKDIR /
-ENTRYPOINT [ "/brane-chk" ]
+ENTRYPOINT [ "/startup.sh" ]

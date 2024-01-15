@@ -27,6 +27,7 @@ services:
   # The service in charge of policy
   brane-chk:
     image: brane-chk:${BRANE_VERSION:-latest}
+    init: true
     container_name: ${CHK_NAME:-brane-chk}
     ports:
     - "0.0.0.0:${CHK_PORT}:${CHK_PORT}"
