@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    10 Jan 2024, 15:48:34
+//    15 Jan 2024, 13:23:20
 //  Auto updated?
 //    Yes
 //
@@ -302,6 +302,9 @@ pub enum LifetimeError {
     /// Failed to write to a Docker Compose file.
     DockerComposeWriteError { path: PathBuf, err: std::io::Error },
 
+    /// Failed to touch the audit log into existance.
+    AuditLogCreate { path: PathBuf, err: std::io::Error },
+
     /// Failed to read the `proxy.yml` file.
     ProxyReadError { err: brane_cfg::info::YamlError },
     /// Failed to open the extra hosts file.
@@ -345,6 +348,8 @@ impl Display for LifetimeError {
             },
             DockerComposeCreateError { path, .. } => write!(f, "Failed to create Docker Compose file '{}'", path.display()),
             DockerComposeWriteError { path, .. } => write!(f, "Failed to write to Docker Compose file '{}'", path.display()),
+
+            AuditLogCreate { path, .. } => write!(f, "Failed to touch audit log '{}' into existance", path.display()),
 
             ProxyReadError { .. } => write!(f, "Failed to read proxy config file"),
             HostsFileCreateError { path, .. } => write!(f, "Failed to create extra hosts file '{}'", path.display()),
@@ -394,6 +399,8 @@ impl Error for LifetimeError {
             DockerComposeNotBakedIn { .. } => None,
             DockerComposeCreateError { err, .. } => Some(err),
             DockerComposeWriteError { err, .. } => Some(err),
+
+            AuditLogCreate { err, .. } => Some(err),
 
             ProxyReadError { err } => Some(err),
             HostsFileCreateError { err, .. } => Some(err),

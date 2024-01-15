@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:47
 //  Last edited:
-//    09 Jan 2024, 13:23:23
+//    15 Jan 2024, 12:55:13
 //  Auto updated?
 //    Yes
 //
@@ -717,6 +717,7 @@ pub fn node(
             policy_database,
             policy_deliberation_secret,
             policy_expert_secret,
+            policy_audit_log,
             proxy,
             certs,
             packages,
@@ -752,6 +753,7 @@ pub fn node(
             let backend: PathBuf = resolve_config_path(backend, &config_path);
             let policy_deliberation_secret: PathBuf = resolve_config_path(policy_deliberation_secret, &config_path);
             let policy_expert_secret: PathBuf = resolve_config_path(policy_expert_secret, &config_path);
+            let policy_audit_log: Option<PathBuf> = policy_audit_log.map(|p| resolve_config_path(p, &config_path));
             let proxy: PathBuf = resolve_config_path(proxy, &config_path);
             let certs: PathBuf = resolve_config_path(certs, &config_path);
 
@@ -760,6 +762,9 @@ pub fn node(
             ensure_dir_of(&policy_database, fix_dirs)?;
             ensure_dir_of(&policy_deliberation_secret, fix_dirs)?;
             ensure_dir_of(&policy_expert_secret, fix_dirs)?;
+            if let Some(policy_audit_log) = &policy_audit_log {
+                ensure_dir_of(policy_audit_log, fix_dirs)?;
+            }
             ensure_dir_of(&proxy, fix_dirs)?;
             ensure_dir(&certs, fix_dirs)?;
             ensure_dir(&packages, fix_dirs)?;
@@ -783,6 +788,7 @@ pub fn node(
                         policy_database: canonicalize(policy_database)?,
                         policy_deliberation_secret: canonicalize(policy_deliberation_secret)?,
                         policy_expert_secret: canonicalize(policy_expert_secret)?,
+                        policy_audit_log: policy_audit_log.map(|p| canonicalize(p)).transpose()?,
                         proxy: if external_proxy.is_some() { None } else { Some(canonicalize(proxy)?) },
 
                         data: canonicalize(data)?,

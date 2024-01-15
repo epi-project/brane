@@ -4,7 +4,7 @@
 //  Created:
 //    22 Nov 2022, 11:19:22
 //  Last edited:
-//    04 Jan 2024, 17:10:04
+//    15 Jan 2024, 13:23:36
 //  Auto updated?
 //    Yes
 //
@@ -26,10 +26,10 @@ use std::str::FromStr as _;
 use bollard::Docker;
 use brane_cfg::info::Info as _;
 use brane_cfg::node::{
-    CentralPaths, CentralServices, NodeConfig, NodeKind, NodeSpecificConfig, PrivateOrExternalService, ProxyPaths, ProxyServices, WorkerPaths,
-    WorkerServices,
+    CentralConfig, CentralPaths, CentralServices, NodeConfig, NodeKind, NodeSpecificConfig, PrivateOrExternalService, ProxyConfig, ProxyPaths,
+    ProxyServices, WorkerConfig, WorkerPaths, WorkerServices,
 };
-use brane_cfg::proxy::ProxyConfig;
+use brane_cfg::proxy;
 use brane_tsk::docker::{ensure_image, get_digest, DockerOptions, ImageSource};
 use console::style;
 use log::{debug, info};
@@ -279,6 +279,69 @@ fn resolve_docker_compose_file(file: Option<PathBuf>, kind: NodeKind, mut versio
     }
 }
 
+/// Generates some files and directories on the host to make all the canonicalizes happy.
+///
+/// # Arguments
+/// - `node_config`: The [`NodeConfig`] that contains information about where to generate exactly that.
+///
+/// # Returns
+/// This function errors if we failed to generate any of the required files/directories.
+fn prepare_host(node_config: &NodeConfig) -> Result<(), Error> {
+    // Match on who we're preparing for
+    match &node_config.node {
+        NodeSpecificConfig::Central(central) => {
+            // Nothing to do for a central (yet)
+            let CentralConfig {
+                paths: CentralPaths { certs: _, packages: _, infra: _, proxy: _ },
+                services: CentralServices { api: _, drv: _, plr: _, prx: _, aux_scylla: _, aux_kafka: _, aux_zookeeper: _ },
+            } = central;
+            Ok(())
+        },
+
+        NodeSpecificConfig::Worker(worker) => {
+            // Extract the paths we're interested in
+            let WorkerConfig {
+                name: _,
+                paths:
+                    WorkerPaths {
+                        certs: _,
+                        packages: _,
+                        backend: _,
+                        policy_database: _,
+                        policy_deliberation_secret: _,
+                        policy_expert_secret: _,
+                        policy_audit_log,
+                        proxy: _,
+                        data: _,
+                        results: _,
+                        temp_data: _,
+                        temp_results: _,
+                    },
+                services: WorkerServices { reg: _, job: _, chk: _, prx: _ },
+            } = worker;
+
+            // Generate an empty log if it doesn't exist
+            if let Some(policy_audit_log) = policy_audit_log {
+                if !policy_audit_log.exists() {
+                    debug!("Generating empty persistent audit log at '{}'...", policy_audit_log.display());
+                    if let Err(err) = File::create(&policy_audit_log) {
+                        return Err(Error::AuditLogCreate { path: policy_audit_log.clone(), err });
+                    }
+                }
+            }
+
+            // Done
+            Ok(())
+        },
+
+        NodeSpecificConfig::Proxy(proxy) => {
+            // Nothing to do for a proxy (yet)
+            let ProxyConfig { paths: ProxyPaths { certs: _, proxy: _ }, services: ProxyServices { prx: _ } } = proxy;
+            Ok(())
+        },
+    }
+}
+
 /// Generate an additional, temporary `docker-compose.yml` file that adds additional hostnames and/or additional volumes.
 ///
 /// # Arguments
@@ -314,7 +377,7 @@ fn generate_override_file(node_config: &NodeConfig, hosts: &HashMap<String, IpAd
                 // Open the extra ports
 
                 // Read the proxy file to find the incoming ports
-                let proxy: ProxyConfig = match ProxyConfig::from_path(proxy_path) {
+                let proxy: proxy::ProxyConfig = match proxy::ProxyConfig::from_path(proxy_path) {
                     Ok(proxy) => proxy,
                     Err(err) => {
                         return Err(Error::ProxyReadError { err });
@@ -345,7 +408,7 @@ fn generate_override_file(node_config: &NodeConfig, hosts: &HashMap<String, IpAd
                 // Open the extra ports
 
                 // Read the proxy file to find the incoming ports
-                let proxy: ProxyConfig = match ProxyConfig::from_path(proxy_path) {
+                let proxy: proxy::ProxyConfig = match proxy::ProxyConfig::from_path(proxy_path) {
                     Ok(proxy) => proxy,
                     Err(err) => {
                         return Err(Error::ProxyReadError { err });
@@ -362,10 +425,16 @@ fn generate_override_file(node_config: &NodeConfig, hosts: &HashMap<String, IpAd
                 prx_svc.profiles = vec!["donotstart".into()];
             }
 
+            // Also a checker override
+            let mut chk_svc: ComposeOverrideFileService = svc.clone();
+            if let Some(policy_audit_log) = &node.paths.policy_audit_log {
+                chk_svc.volumes.push(format!("{}:/audit-log.log", policy_audit_log.display()));
+            }
+
             // Generate the override file for this node
             ComposeOverrideFile {
                 version:  "3.6",
-                services: HashMap::from([("brane-reg", svc.clone()), ("brane-job", svc.clone()), ("brane-chk", svc), ("brane-prx", prx_svc)]),
+                services: HashMap::from([("brane-reg", svc.clone()), ("brane-job", svc), ("brane-chk", chk_svc), ("brane-prx", prx_svc)]),
             }
         },
 
@@ -376,7 +445,7 @@ fn generate_override_file(node_config: &NodeConfig, hosts: &HashMap<String, IpAd
             // Read the management port
             let manage_port: u16 = node.services.prx.bind.port();
             // Read the proxy file to find the incoming ports
-            let proxy: ProxyConfig = match ProxyConfig::from_path(&node.paths.proxy) {
+            let proxy: proxy::ProxyConfig = match proxy::ProxyConfig::from_path(&node.paths.proxy) {
                 Ok(proxy) => proxy,
                 Err(err) => {
                     return Err(Error::ProxyReadError { err });
@@ -532,6 +601,8 @@ fn construct_envs(version: &Version, node_config_path: &Path, node_config: &Node
                 policy_database,
                 policy_deliberation_secret,
                 policy_expert_secret,
+                // Note: handled by `generate_override_file()`
+                policy_audit_log: _,
                 proxy,
                 data,
                 results,
@@ -778,6 +849,9 @@ pub async fn start(
                     return Err(Error::DockerConnectError { err });
                 },
             };
+
+            // Generate some things that we might need before we actually hit run
+            prepare_host(&node_config)?;
 
             // Generate hosts file
             let overridefile: Option<PathBuf> = generate_override_file(&node_config, &node_config.hostnames, opts.profile_dir)?;

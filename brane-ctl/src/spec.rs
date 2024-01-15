@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 17:27:52
 //  Last edited:
-//    10 Jan 2024, 15:48:56
+//    15 Jan 2024, 12:56:29
 //  Auto updated?
 //    Yes
 //
@@ -421,7 +421,7 @@ pub enum GenerateNodeSubcommand {
             long,
             default_value = "$CONFIG/policy_deliberation_secret.json",
             help = "The location of the `policy_deliberation_secret.json` file that is used to verify authentication on the deliberation endpoint \
-                    in the checker."
+                    in the checker. Use '$CONFIG' to reference the value given by --config-path."
         )]
         policy_deliberation_secret: PathBuf,
         /// Custom hash file path.
@@ -429,9 +429,16 @@ pub enum GenerateNodeSubcommand {
             long,
             default_value = "$CONFIG/policy_expert_secret.json",
             help = "The location of the `policy_expert_secret.json` file that is used to verify authentication on the policy expert endpoint in the \
-                    checker."
+                    checker. Use '$CONFIG' to reference the value given by --config-path."
         )]
         policy_expert_secret: PathBuf,
+        /// Custom audit log path (optional)
+        #[clap(
+            long,
+            help = "If given, will map the audit log of the checker to some persistent location. Use '$CONFIG' to reference the value given by \
+                    --config-path."
+        )]
+        policy_audit_log: Option<PathBuf>,
         /// Custom `proxy.yml` path.
         #[clap(
             short = 'P',
