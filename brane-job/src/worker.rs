@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    09 Jan 2024, 14:44:44
+//    15 Jan 2024, 15:17:08
 //  Auto updated?
 //    Yes
 //
@@ -41,6 +41,7 @@ use brane_tsk::errors::{AuthorizeError, CommitError, ExecuteError, PreprocessErr
 use brane_tsk::spec::JobStatus;
 use brane_tsk::tools::decode_base64;
 use chrono::Utc;
+use deliberation::spec::Verdict;
 // use deliberation::spec::ExecuteTaskRequest;
 use enum_debug::EnumDebug as _;
 use error_trace::{trace, ErrorTrace as _};
@@ -56,6 +57,7 @@ use specifications::container::{Image, VolumeBind};
 use specifications::data::{AccessKind, AssetInfo};
 use specifications::package::{Capability, PackageIndex, PackageInfo, PackageKind};
 use specifications::profiling::{ProfileReport, ProfileScopeHandle};
+use specifications::registering::DownloadAssetRequest;
 use specifications::version::Version;
 use specifications::working::{
     CommitReply, CommitRequest, ExecuteReply, ExecuteRequest, JobService, PreprocessKind, PreprocessReply, PreprocessRequest, TaskStatus,
@@ -167,51 +169,51 @@ struct PolicyExecuteRequest {
     pub task_id:  (usize, usize),
 }
 
-/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `Verdict`-struct.
-///
-/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "verdict")]
-enum Verdict {
-    // Checker says yes
-    #[serde(rename = "allow")]
-    Allow(DeliberationAllowResponse),
-    // Checker says no
-    #[serde(rename = "deny")]
-    Deny(DeliberationDenyResponse),
-}
+// /// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `Verdict`-struct.
+// ///
+// /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// #[serde(tag = "verdict")]
+// enum Verdict {
+//     // Checker says yes
+//     #[serde(rename = "allow")]
+//     Allow(DeliberationAllowResponse),
+//     // Checker says no
+//     #[serde(rename = "deny")]
+//     Deny(DeliberationDenyResponse),
+// }
 
-/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationResponse`-struct.
-///
-/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct DeliberationResponse {
-    verdict_reference: String,
-}
+// /// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationResponse`-struct.
+// ///
+// /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// struct DeliberationResponse {
+//     verdict_reference: String,
+// }
 
-/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationAllowResponse`-struct.
-///
-/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct DeliberationAllowResponse {
-    #[serde(flatten)]
-    shared:    DeliberationResponse,
-    /// Signature by the checker
-    signature: String,
-}
+// /// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationAllowResponse`-struct.
+// ///
+// /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// struct DeliberationAllowResponse {
+//     #[serde(flatten)]
+//     shared:    DeliberationResponse,
+//     /// Signature by the checker
+//     signature: String,
+// }
 
-/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationDenyResponse`-struct.
-///
-/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct DeliberationDenyResponse {
-    #[serde(flatten)]
-    shared: DeliberationResponse,
-    /// A optional list that contains the reasons that the request is denied.
-    /// Only present if the request is denied and it only contains reasons
-    /// the checker wants to share.
-    reasons_for_denial: Option<Vec<String>>,
-}
+// /// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationDenyResponse`-struct.
+// ///
+// /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// struct DeliberationDenyResponse {
+//     #[serde(flatten)]
+//     shared: DeliberationResponse,
+//     /// A optional list that contains the reasons that the request is denied.
+//     /// Only present if the request is denied and it only contains reasons
+//     /// the checker wants to share.
+//     reasons_for_denial: Option<Vec<String>>,
+// }
 
 
 
@@ -411,7 +413,13 @@ async fn preprocess_transfer_tar_local(
     // Send a reqwest
     debug!("Sending download request...");
     let download = prof.time("Downloading");
-    let res = match proxy.get(address, Some(NewPathRequestTlsOptions { location: location.clone(), use_client_auth: true })).await {
+    let res = match proxy
+        .get_with_body(address, Some(NewPathRequestTlsOptions { location: location.clone(), use_client_auth: true }), &DownloadAssetRequest {
+            workflow: serde_json::to_value(&workflow).unwrap(),
+            task:     Some(pc),
+        })
+        .await
+    {
         Ok(result) => match result {
             Ok(res) => res,
             Err(err) => {

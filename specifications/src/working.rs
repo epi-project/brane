@@ -4,7 +4,7 @@
 //  Created:
 //    06 Jan 2023, 15:01:17
 //  Last edited:
-//    08 Jan 2024, 15:23:56
+//    15 Jan 2024, 15:20:36
 //  Auto updated?
 //    Yes
 //
@@ -219,6 +219,24 @@ pub struct PreprocessRequest {
     /// The type of preprocessing that will need to happen.
     #[prost(tags = "3", oneof = "PreprocessKind")]
     pub kind: Option<PreprocessKind>,
+
+    /// The workflow provided as context of the data transfer.
+    #[prost(tag = "4", required, string)]
+    pub workflow: String,
+    /// The function in which we do the call.
+    #[prost(tag = "5", message)]
+    pub pc: Option<ProgramCounter>,
+}
+
+/// Defines two numbers that make up a program counter.
+#[derive(Clone, Message)]
+pub struct ProgramCounter {
+    /// The function ID of the PC.
+    #[prost(tag = "1", required, uint64)]
+    pub func_id:  u64,
+    /// The edge index of the PC.
+    #[prost(tag = "2", required, uint64)]
+    pub edge_idx: u64,
 }
 
 /// The reply sent by the worker when the preprocessing of a dataset has been done.

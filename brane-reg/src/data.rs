@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 15:40:40
 //  Last edited:
-//    03 Jan 2024, 15:08:36
+//    15 Jan 2024, 15:12:51
 //  Auto updated?
 //    Yes
 //
@@ -13,18 +13,29 @@
 //!   path (and children).
 //
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
+use brane_ast::ast::{DataName, Edge};
+use brane_ast::Workflow;
 use brane_cfg::certs::extract_client_name;
 use brane_cfg::info::Info as _;
-use brane_cfg::node::NodeConfig;
-use brane_cfg::policies::{PolicyFile, UserPolicy};
+use brane_cfg::node::{NodeConfig, NodeSpecificConfig, WorkerConfig};
+use brane_shr::formatters::BlockFormatter;
 use brane_shr::fs::archive_async;
+use brane_tsk::errors::AuthorizeError;
+use deliberation::spec::Verdict;
+use enum_debug::EnumDebug as _;
+use error_trace::trace;
 use log::{debug, error, info};
+use reqwest::header;
 use rustls::Certificate;
+use serde::{Deserialize, Serialize};
 use specifications::data::{AccessKind, AssetInfo};
 use specifications::profiling::ProfileReport;
+use specifications::registering::DownloadAssetRequest;
 use tempfile::TempDir;
 use tokio::fs as tfs;
 use tokio::io::AsyncReadExt;
@@ -34,7 +45,7 @@ use warp::hyper::{Body, StatusCode};
 use warp::reply::{self, Response};
 use warp::{Rejection, Reply};
 
-use crate::errors::AuthorizeError;
+// use crate::errors::AuthorizeError;
 pub use crate::errors::DataError as Error;
 use crate::spec::Context;
 use crate::store::Store;
@@ -44,153 +55,212 @@ use crate::store::Store;
 /// Runs the do-be-done data transfer by the checker to assess if we're allowed to do it.
 ///
 /// # Arguments
-/// - `identity`: The name (or other method of identifying the user) of the person who will download the dataset.
-/// - `data`: The name of the dataset they are trying to access.
+/// - `worker_cfg`: The configuration for this node's environment. For us, contains if and where we should proxy the request through and where we may find the checker.
+/// - `workflow`: The workflow to check.
+/// - `client_name`: The name as which the client is authenticated. Will be matched with the indicated task.
+/// - `data_name`: The name of the dataset they are trying to access.
+/// - `call`: A program counter that identifies for which call in the workflow we're doing this request (if any).
 ///
 /// # Returns
 /// Whether permission is given or not.
 ///
 /// # Errors
 /// This function errors if we failed to ask the checker. Clearly, that should be treated as permission denied.
-pub async fn assert_data_permission(node_config: &NodeConfig, identifier: impl AsRef<str>, data: impl AsRef<str>) -> Result<bool, AuthorizeError> {
-    let identifier: &str = identifier.as_ref();
-    let data: &str = data.as_ref();
+pub async fn assert_data_permission(
+    worker_cfg: &WorkerConfig,
+    workflow: &Workflow,
+    client_name: &str,
+    data_name: DataName,
+    call: Option<(usize, usize)>,
+) -> Result<bool, AuthorizeError> {
+    info!(
+        "Checking data access of '{}'{} permission with checker '{}'...",
+        data_name,
+        if let Some(call) = call { format!(" (in the context of {}:{})", call.0, call.1) } else { String::new() },
+        worker_cfg.services.chk.address
+    );
 
-    // We don't have a checker yet to ask ;(
+    // Check if the authenticated name checks out
+    if let Some((func_id, edge_idx)) = call {
+        // Extract the parts of the node we're interested in
+        let (at, input): (&String, &HashMap<DataName, _>) = if func_id == usize::MAX {
+            match workflow.graph.get(edge_idx) {
+                Some(Edge::Node { task: _, locs: _, at, input, result: _, metadata: _, next: _ }) => {
+                    if let Some(at) = at {
+                        (at, input)
+                    } else {
+                        return Err(AuthorizeError::MissingLocation { pc: (func_id, edge_idx) });
+                    }
+                },
 
-    // Instead, consider a simpler policy model...
+                Some(edge) => return Err(AuthorizeError::AuthorizationWrongEdge { pc: (func_id, edge_idx), got: edge.variant().to_string() }),
+                None => return Err(AuthorizeError::IllegalEdgeIdx { func: func_id, got: edge_idx, max: workflow.graph.len() }),
+            }
+        } else {
+            match workflow.funcs.get(&func_id) {
+                Some(edges) => match edges.get(edge_idx) {
+                    Some(Edge::Node { task: _, locs: _, at, input, result: _, metadata: _, next: _ }) => {
+                        if let Some(at) = at {
+                            (at, input)
+                        } else {
+                            return Err(AuthorizeError::MissingLocation { pc: (func_id, edge_idx) });
+                        }
+                    },
 
-    // // Load the policy file
-    // let policies: PolicyFile = match PolicyFile::from_path_async(&node_config.node.worker().paths.policies).await {
-    //     Ok(policies) => policies,
-    //     Err(err)     => { return Err(AuthorizeError::PolicyFileError{ err }); },
-    // };
+                    Some(edge) => return Err(AuthorizeError::AuthorizationWrongEdge { pc: (func_id, edge_idx), got: edge.variant().to_string() }),
+                    None => return Err(AuthorizeError::IllegalEdgeIdx { func: func_id, got: edge_idx, max: edges.len() }),
+                },
 
-    // // Match all the rules in-order
-    // for (i, rule) in policies.users.into_iter().enumerate() {
-    //     // Match on the rule
-    //     match rule {
-    //         UserPolicy::AllowAll => {
-    //             debug!("Allowed downloading of dataset '{}' to '{}' based on rule {} (AllowAll)", data, identifier, i);
-    //             return Ok(true);
-    //         },
-    //         UserPolicy::DenyAll => {
-    //             debug!("Denied downloading of dataset '{}' to '{}' based on rule {} (DenyAll)", data, identifier, i);
-    //             return Ok(false);
-    //         },
+                None => return Err(AuthorizeError::IllegalFuncId { got: func_id }),
+            }
+        };
 
-    //         UserPolicy::AllowUserAll { name } => {
-    //             if name == identifier {
-    //                 debug!("Allowed downloading of dataset '{}' to '{}' based on rule {} (AllowUserAll '{}')", data, identifier, i, name);
-    //                 return Ok(true);
-    //             }
-    //         },
-    //         UserPolicy::DenyUserAll { name } => {
-    //             if name == identifier {
-    //                 debug!("Denied downloading of dataset '{}' to '{}' based on rule {} (DenyUserAll '{}')", data, identifier, i, name);
-    //                 return Ok(false);
-    //             }
-    //         },
+        // Assert that they match with the request
+        if client_name != at {
+            return Err(AuthorizeError::AuthorizationUserMismatch {
+                who: format!("task {func_id}:{edge_idx} executor"),
+                authenticated: client_name.into(),
+                workflow: at.clone(),
+            });
+        }
+        if !input.contains_key(&data_name) {
+            return Err(AuthorizeError::AuthorizationDataMismatch { pc: (func_id, edge_idx), data_name });
+        }
+    } else {
+        // Authenticate the scientist
+        match &*workflow.user {
+            Some(user) => {
+                if client_name != user {
+                    return Err(AuthorizeError::AuthorizationUserMismatch {
+                        who: "end user".into(),
+                        authenticated: client_name.into(),
+                        workflow: user.clone(),
+                    });
+                }
+            },
 
-    //         UserPolicy::Allow{ name, data: allowed_data } => {
-    //             if name == identifier && data == allowed_data {
-    //                 debug!("Allowed downloading of dataset '{}' to '{}' based on rule {} (Allow '{}' on {:?})", data, identifier, i, name, allowed_data);
-    //                 return Ok(true);
-    //             }
-    //         },
-    //         UserPolicy::Deny{ name, data: denied_data } => {
-    //             if name == identifier && data == denied_data {
-    //                 debug!("Denied downloading of dataset '{}' to '{}' based on rule {} (Deny '{}' on {:?})", data, identifier, i, name, denied_data);
-    //                 return Ok(false);
-    //             }
-    //         },
-    //     }
-    // }
+            None => return Err(AuthorizeError::NoWorkflowUser { workflow: serde_json::to_string_pretty(workflow).unwrap() }),
+        }
+    }
 
-    // Otherwise, didn't find a rule
-    Err(AuthorizeError::NoUserPolicy { user: identifier.into(), data: data.into() })
+    // Alrighty tighty, let's begin by building the request for the checker
+    debug!("Constructing checker request...");
+    let body: AccessDataRequest = AccessDataRequest { workflow: workflow.clone(), data_id: data_name.name().into(), task_id: call };
+
+    // Next, generate a JWT to inject in the request
+    let jwt: String = match specifications::policy::generate_policy_token(
+        if let Some(user) = &*workflow.user { user.as_str() } else { "UNKNOWN" },
+        &worker_cfg.name,
+        Duration::from_secs(60),
+        &worker_cfg.paths.policy_deliberation_secret,
+    ) {
+        Ok(token) => token,
+        Err(err) => return Err(AuthorizeError::TokenGenerate { secret: worker_cfg.paths.policy_deliberation_secret.clone(), err }),
+    };
+
+    // Prepare the request to send
+    let client: reqwest::Client = match reqwest::Client::builder().build() {
+        Ok(client) => client,
+        Err(err) => return Err(AuthorizeError::ClientBuild { err }),
+    };
+    let addr: String = format!("{}/v1/deliberation/access-data", worker_cfg.services.chk.address);
+    let req: reqwest::Request =
+        match client.request(reqwest::Method::POST, &addr).header(header::AUTHORIZATION, format!("Bearer {jwt}")).json(&body).build() {
+            Ok(req) => req,
+            Err(err) => return Err(AuthorizeError::ExecuteRequestBuild { addr, err }),
+        };
+
+    // Send it
+    debug!("Sending request to '{addr}'...");
+    let res: reqwest::Response = match client.execute(req).await {
+        Ok(res) => res,
+        Err(err) => {
+            return Err(AuthorizeError::ExecuteRequestSend { addr, err });
+        },
+    };
+
+    // Match on the status code to find if it's OK
+    debug!("Waiting for checker response...");
+    if !res.status().is_success() {
+        return Err(AuthorizeError::ExecuteRequestFailure { addr, code: res.status(), err: res.text().await.ok() });
+    }
+    let res: String = match res.text().await {
+        Ok(res) => res,
+        Err(err) => return Err(AuthorizeError::ExecuteBodyDownload { addr, err }),
+    };
+    let res: Verdict = match serde_json::from_str(&res) {
+        Ok(res) => res,
+        Err(err) => return Err(AuthorizeError::ExecuteBodyDeserialize { addr, raw: res, err }),
+    };
+
+    // Now match the checker's response
+    match res {
+        Verdict::Allow(_) => {
+            info!(
+                "Checker ALLOWED data access of '{}'{}",
+                data_name,
+                if let Some(call) = call { format!(" (in the context of {}:{})", call.0, call.1) } else { String::new() },
+            );
+            Ok(true)
+        },
+
+        Verdict::Deny(_) => {
+            info!(
+                "Checker DENIED data access of '{}'{}",
+                data_name,
+                if let Some(call) = call { format!(" (in the context of {}:{})", call.0, call.1) } else { String::new() },
+            );
+            Ok(false)
+        },
+    }
 }
 
 /// Runs the do-be-done intermediate result transfer by the checker to assess if we're allowed to do it.
 ///
 /// # Arguments
-/// - `identity`: The name (or other method of identifying the user) of the person who will download the intermediate result.
-/// - `result`: The name of the intermediate result they are trying to access.
+/// - `worker_cfg`: The configuration for this node's environment. For us, contains if and where we should proxy the request through and where we may find the checker.
+/// - `workflow`: The workflow to check.
+/// - `client_name`: The name as which the client is authenticated. Will be matched with the indicated task.
+/// - `data_name`: The name of the dataset they are trying to access.
+/// - `call`: A program counter that identifies for which call in the workflow we're doing this request (if any).
 ///
 /// # Returns
 /// Whether permission is given or not.
 ///
 /// # Errors
 /// This function errors if we failed to ask the checker. Clearly, that should be treated as permission denied.
+#[inline]
 pub async fn assert_result_permission(
-    node_config: &NodeConfig,
-    identifier: impl AsRef<str>,
-    result: impl AsRef<str>,
+    worker_cfg: &WorkerConfig,
+    workflow: &Workflow,
+    client_name: &str,
+    data_name: DataName,
+    call: Option<(usize, usize)>,
 ) -> Result<bool, AuthorizeError> {
-    let identifier: &str = identifier.as_ref();
-    let result: &str = result.as_ref();
+    assert_data_permission(worker_cfg, workflow, client_name, data_name, call).await
+}
 
-    // We don't have a checker yet to ask ;(
 
-    // Instead, consider a simpler policy model...
 
-    // // Load the policy file
-    // let policies: PolicyFile = match PolicyFile::from_path_async(&node_config.node.worker().paths.policies).await {
-    //     Ok(policies) => policies,
-    //     Err(err) => {
-    //         return Err(AuthorizeError::PolicyFileError { err });
-    //     },
-    // };
 
-    // // Match all the rules in-order
-    // for (i, rule) in policies.users.into_iter().enumerate() {
-    //     // Match on the rule
-    //     match rule {
-    //         UserPolicy::AllowAll => {
-    //             debug!("Allowed downloading of dataset '{}' to '{}' based on rule {} (AllowAll)", result, identifier, i);
-    //             return Ok(true);
-    //         },
-    //         UserPolicy::DenyAll => {
-    //             debug!("Denied downloading of dataset '{}' to '{}' based on rule {} (DenyAll)", result, identifier, i);
-    //             return Ok(false);
-    //         },
 
-    //         UserPolicy::AllowUserAll { name } => {
-    //             if name == identifier {
-    //                 debug!("Allowed downloading of dataset '{}' to '{}' based on rule {} (AllowUserAll '{}')", result, identifier, i, name);
-    //                 return Ok(true);
-    //             }
-    //         },
-    //         UserPolicy::DenyUserAll { name } => {
-    //             if name == identifier {
-    //                 debug!("Denied downloading of dataset '{}' to '{}' based on rule {} (DenyUserAll '{}')", result, identifier, i, name);
-    //                 return Ok(false);
-    //             }
-    //         },
-
-    //         UserPolicy::Allow { name, data: allowed_result } => {
-    //             if name == identifier && result == allowed_result {
-    //                 debug!(
-    //                     "Allowed downloading of dataset '{}' to '{}' based on rule {} (Allow '{}' on {:?})",
-    //                     result, identifier, i, name, allowed_result
-    //                 );
-    //                 return Ok(true);
-    //             }
-    //         },
-    //         UserPolicy::Deny { name, data: denied_result } => {
-    //             if name == identifier && result == denied_result {
-    //                 debug!(
-    //                     "Denied downloading of dataset '{}' to '{}' based on rule {} (Deny '{}' on {:?})",
-    //                     result, identifier, i, name, denied_result
-    //                 );
-    //                 return Ok(false);
-    //             }
-    //         },
-    //     }
-    // }
-
-    // Otherwise, didn't find a rule
-    Err(AuthorizeError::NoUserPolicy { user: identifier.into(), data: result.into() })
+/***** HELPER STRUCTURES *****/
+/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `AccessDataRequest`-struct.
+///
+/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+#[derive(Serialize, Deserialize)]
+pub struct AccessDataRequest {
+    pub workflow: Workflow,
+    /// Identifier for the requested dataset
+    pub data_id:  String,
+    /// Structured as follows:
+    /// - `0`: Pointer to the particular function, where there are two cases:
+    ///   - `usize::MAX` means main function (workflow.graph)
+    ///   - otherwise, index into function table (workflow.funcs[...])
+    /// - `1`: Pointer to the instruction (Edge) within the function indicated by `0`.
+    /// Empty if the requested dataset is the
+    /// result of the workflow
+    pub task_id:  Option<(usize, usize)>,
 }
 
 
@@ -344,6 +414,7 @@ pub async fn get(name: String, context: Arc<Context>) -> Result<impl Reply, Reje
 /// # Arguments
 /// - `cert`: The client certificate by which we may extract some identity. Only clients that are authenticated by the local store may connect.
 /// - `name`: The name of the dataset to download.
+/// - `body`: The body given with the request.
 /// - `context`: The context that carries options and some shared structures between the warp paths.
 ///
 /// # Returns
@@ -351,8 +422,23 @@ pub async fn get(name: String, context: Arc<Context>) -> Result<impl Reply, Reje
 ///
 /// # Errors
 /// This function may error (i.e., reject) if we didn't know the given name or we failed to serialize the relevant AssetInfo.
-pub async fn download_data(cert: Option<Certificate>, name: String, context: Arc<Context>) -> Result<impl Reply, Rejection> {
+pub async fn download_data(
+    cert: Option<Certificate>,
+    name: String,
+    body: DownloadAssetRequest,
+    context: Arc<Context>,
+) -> Result<impl Reply, Rejection> {
     info!("Handling GET on `/data/download/{}` (i.e., download dataset)...", name);
+
+    // Parse if a valid workflow is given
+    debug!("Parsing workflow in request body...\n\nWorkflow:\n{}\n", BlockFormatter::new(serde_json::to_string_pretty(&body.workflow).unwrap()));
+    let workflow: Workflow = match serde_json::from_value(body.workflow) {
+        Ok(wf) => wf,
+        Err(err) => {
+            debug!("{}", trace!(("Given request has an invalid workflow"), err));
+            return Ok(warp::reply::with_status(Response::new("Invalid workflow".to_string().into()), StatusCode::BAD_REQUEST));
+        },
+    };
 
     // Load the config file
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
@@ -362,25 +448,21 @@ pub async fn download_data(cert: Option<Certificate>, name: String, context: Arc
             return Err(warp::reject::reject());
         },
     };
-    if !node_config.node.is_worker() {
+    let worker_config: WorkerConfig = if let NodeSpecificConfig::Worker(worker) = node_config.node {
+        worker
+    } else {
         error!("Given NodeConfig file '{}' does not have properties for a worker node.", context.node_config_path.display());
         return Err(warp::reject::reject());
-    }
+    };
 
     // Start profiling (F first function, but now we can use the location)
-    let report = ProfileReport::auto_reporting_file(
-        format!("brane-reg /data/download/{name}"),
-        format!("brane-reg_{}_download-{}", node_config.node.worker().name, name),
-    );
+    let report =
+        ProfileReport::auto_reporting_file(format!("brane-reg /data/download/{name}"), format!("brane-reg_{}_download-{}", worker_config.name, name));
 
     // Load the store
-    debug!(
-        "Loading data ('{}') and results ('{}')...",
-        node_config.node.worker().paths.data.display(),
-        node_config.node.worker().paths.results.display()
-    );
+    debug!("Loading data ('{}') and results ('{}')...", worker_config.paths.data.display(), worker_config.paths.results.display());
     let loading = report.time("Disk loading");
-    let store: Store = match Store::from_dirs(&node_config.node.worker().paths.data, &node_config.node.worker().paths.results).await {
+    let store: Store = match Store::from_dirs(&worker_config.paths.data, &worker_config.paths.results).await {
         Ok(store) => store,
         Err(err) => {
             error!("Failed to load the store: {}", err);
@@ -416,7 +498,7 @@ pub async fn download_data(cert: Option<Certificate>, name: String, context: Arc
     };
 
     // Before we continue, assert that this dataset may be downloaded by this person (uh-oh, how we gon' do that)
-    match assert_data_permission(&node_config, &client_name, &info.name).await {
+    match assert_data_permission(&worker_config, &workflow, &client_name, DataName::Data(name.clone()), body.task).await {
         Ok(true) => {
             info!("Checker authorized download of dataset '{}' by '{}'", info.name, client_name);
         },
@@ -436,7 +518,7 @@ pub async fn download_data(cert: Option<Certificate>, name: String, context: Arc
     match &info.access {
         AccessKind::File { path } => {
             debug!("Accessing file '{}' @ '{}' as AccessKind::File...", name, path.display());
-            let path: PathBuf = node_config.node.worker().paths.data.join(&name).join(path);
+            let path: PathBuf = worker_config.paths.data.join(&name).join(path);
             debug!("File can be found under: '{}'", path.display());
 
             // First, get a temporary directory
@@ -517,6 +599,7 @@ pub async fn download_data(cert: Option<Certificate>, name: String, context: Arc
 /// # Arguments
 /// - `cert`: The client certificate by which we may extract some identity. Only clients that are authenticated by the local store may connect.
 /// - `name`: The name of the intermediate result to download.
+/// - `body`: The body given with the request.
 /// - `context`: The context that carries options and some shared structures between the warp paths.
 ///
 /// # Returns
@@ -524,8 +607,23 @@ pub async fn download_data(cert: Option<Certificate>, name: String, context: Arc
 ///
 /// # Errors
 /// This function may error (i.e., reject) if we didn't know the given name or we failed to serialize the relevant AssetInfo.
-pub async fn download_result(cert: Option<Certificate>, name: String, context: Arc<Context>) -> Result<impl Reply, Rejection> {
+pub async fn download_result(
+    cert: Option<Certificate>,
+    name: String,
+    body: DownloadAssetRequest,
+    context: Arc<Context>,
+) -> Result<impl Reply, Rejection> {
     info!("Handling GET on `/results/download/{}` (i.e., download intermediate result)...", name);
+
+    // Parse if a valid workflow is given
+    debug!("Parsing workflow in request body...\n\nWorkflow:\n{}\n", BlockFormatter::new(serde_json::to_string_pretty(&body.workflow).unwrap()));
+    let workflow: Workflow = match serde_json::from_value(body.workflow) {
+        Ok(wf) => wf,
+        Err(err) => {
+            debug!("{}", trace!(("Given request has an invalid workflow"), err));
+            return Ok(warp::reply::with_status(Response::new("Invalid workflow".to_string().into()), StatusCode::BAD_REQUEST));
+        },
+    };
 
     // Load the config file
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
@@ -535,25 +633,23 @@ pub async fn download_result(cert: Option<Certificate>, name: String, context: A
             return Err(warp::reject::reject());
         },
     };
-    if !node_config.node.is_worker() {
+    let worker_config: WorkerConfig = if let NodeSpecificConfig::Worker(worker) = node_config.node {
+        worker
+    } else {
         error!("Given NodeConfig file '{}' does not have properties for a worker node.", context.node_config_path.display());
         return Err(warp::reject::reject());
-    }
+    };
 
     // Start profiling (F first function, but now we can use the location)
     let report = ProfileReport::auto_reporting_file(
         format!("brane-reg /results/download/{name}"),
-        format!("brane-reg_{}_download-{}", node_config.node.worker().name, name),
+        format!("brane-reg_{}_download-{}", worker_config.name, name),
     );
 
     // Load the store
-    debug!(
-        "Loading data ('{}') and results ('{}')...",
-        node_config.node.worker().paths.data.display(),
-        node_config.node.worker().paths.results.display()
-    );
+    debug!("Loading data ('{}') and results ('{}')...", worker_config.paths.data.display(), worker_config.paths.results.display());
     let loading = report.time("Disk loading");
-    let store: Store = match Store::from_dirs(&node_config.node.worker().paths.data, &node_config.node.worker().paths.results).await {
+    let store: Store = match Store::from_dirs(&worker_config.paths.data, &worker_config.paths.results).await {
         Ok(store) => store,
         Err(err) => {
             error!("Failed to load the store: {}", err);
@@ -589,7 +685,7 @@ pub async fn download_result(cert: Option<Certificate>, name: String, context: A
     };
 
     // Before we continue, assert that this dataset may be downloaded by this person (uh-oh, how we gon' do that)
-    match assert_result_permission(&node_config, &client_name, &name).await {
+    match assert_result_permission(&worker_config, &workflow, &client_name, DataName::IntermediateResult(name.clone()), body.task).await {
         Ok(true) => {
             info!("Checker authorized download of intermediate result '{}' by '{}'", name, client_name);
         },

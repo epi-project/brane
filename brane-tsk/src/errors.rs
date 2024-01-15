@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    09 Jan 2024, 14:41:36
+//    15 Jan 2024, 15:10:37
 //  Auto updated?
 //    Yes
 //
@@ -684,6 +684,21 @@ pub enum AuthorizeError {
     ExecuteBodyDownload { addr: String, err: reqwest::Error },
     /// Failed to deserialize the body of an execute request response.
     ExecuteBodyDeserialize { addr: String, raw: String, err: serde_json::Error },
+
+    /// The data to authorize is not input to the task given as context.
+    AuthorizationDataMismatch { pc: (usize, usize), data_name: DataName },
+    /// The user to authorize does not execute the given task.
+    AuthorizationUserMismatch { who: String, authenticated: String, workflow: String },
+    /// An edge was referenced to be executed which wasn't an [`Edge::Node`](brane_ast::ast::Edge).
+    AuthorizationWrongEdge { pc: (usize, usize), got: String },
+    /// An edge index given was out-of-bounds for the given function.
+    IllegalEdgeIdx { func: usize, got: usize, max: usize },
+    /// A given function does not exist
+    IllegalFuncId { got: usize },
+    /// There was a node in a workflow with no `at`-specified.
+    MissingLocation { pc: (usize, usize) },
+    /// The workflow has no end user specified.
+    NoWorkflowUser { workflow: String },
 }
 impl Display for AuthorizeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -709,6 +724,22 @@ impl Display for AuthorizeError {
             ExecuteBodyDeserialize { addr, raw, .. } => {
                 write!(f, "Failed to deserialize response body received from '{}' as valid JSON\n\nResponse:\n{}\n", addr, BlockFormatter::new(raw))
             },
+
+            AuthorizationDataMismatch { pc, data_name } => write!(f, "Dataset '{}' is not an input to task {}:{}", data_name, pc.0, pc.1),
+            AuthorizationUserMismatch { who, authenticated, workflow } => {
+                write!(
+                    f,
+                    "Authorized user '{}' does not match {} user in workflow\n\nWorkflow:\n{}\n",
+                    authenticated,
+                    who,
+                    BlockFormatter::new(workflow)
+                )
+            },
+            AuthorizationWrongEdge { pc, got } => write!(f, "Edge {}:{} in workflow is not an Edge::Node but an Edge::{}", pc.0, pc.1, got),
+            IllegalEdgeIdx { func, got, max } => write!(f, "Edge index {got} is out-of-bounds for function {func} with {max} edges"),
+            IllegalFuncId { got } => write!(f, "Function {got} does not exist in given workflow"),
+            MissingLocation { pc } => write!(f, "Node call at {}:{} has no location planned", pc.0, pc.1),
+            NoWorkflowUser { workflow } => write!(f, "Given workflow has no end user specified\n\nWorkflow:\n{}\n", BlockFormatter::new(workflow)),
         }
     }
 }
@@ -723,6 +754,14 @@ impl Error for AuthorizeError {
             ExecuteRequestFailure { .. } => None,
             ExecuteBodyDownload { err, .. } => Some(err),
             ExecuteBodyDeserialize { err, .. } => Some(err),
+
+            AuthorizationDataMismatch { .. } => None,
+            AuthorizationUserMismatch { .. } => None,
+            AuthorizationWrongEdge { .. } => None,
+            IllegalEdgeIdx { .. } => None,
+            IllegalFuncId { .. } => None,
+            MissingLocation { .. } => None,
+            NoWorkflowUser { .. } => None,
         }
     }
 }

@@ -4,7 +4,7 @@
 //  Created:
 //    27 Oct 2022, 10:14:26
 //  Last edited:
-//    08 Jan 2024, 18:55:40
+//    15 Jan 2024, 15:24:11
 //  Auto updated?
 //    Yes
 //
@@ -116,7 +116,7 @@ impl VmPlugin for InstancePlugin {
         // Prepare the request to send to the delegate node
         debug!("Sending preprocess request to job node '{}'...", delegate_address);
         let job = prof.time(format!("on {delegate_address}"));
-        let message: working_grpc::PreprocessRequest = working_grpc::PreprocessRequest { data: Some(name.into()), kind: Some(preprocess.into()) };
+        let message: working_grpc::PreprocessRequest = working_grpc::PreprocessRequest { data: Some(name.into()), kind: Some(preprocess.into()), workflow:  };
 
         // Create the client
         let mut client: working_grpc::JobServiceClient = match proxy.connect_to_job(delegate_address.to_string()).await {
