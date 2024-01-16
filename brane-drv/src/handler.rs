@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:18:11
 //  Last edited:
-//    07 Nov 2023, 16:41:12
+//    16 Jan 2024, 16:09:22
 //  Auto updated?
 //    Yes
 //
@@ -22,6 +22,7 @@ use brane_exe::FullValue;
 use brane_prx::client::ProxyClient;
 use brane_tsk::spec::AppId;
 use dashmap::DashMap;
+use error_trace::{trace, ErrorTrace as _};
 use log::{debug, error};
 use specifications::driving::{CreateSessionReply, CreateSessionRequest, DriverService, ExecuteReply, ExecuteRequest};
 use specifications::profiling::ProfileReport;
@@ -40,11 +41,11 @@ use crate::vm::InstanceVm;
 macro_rules! fatal_err {
     ($tx:ident,Status:: $status:ident, $err:expr) => {{
         // Always log to stderr
-        log::error!("{}", $err);
+        log::error!("{}", $err.trace());
         // Attempt to log on tx
         let serr: String = $err.to_string();
         if let Err(err) = $tx.send(Err(Status::$status(serr))).await {
-            log::error!("Failed to notify client of error: {}", err);
+            log::error!("{}", trace!(("Failed to notify client of error"), err));
         }
         // Return
         return;
@@ -54,7 +55,7 @@ macro_rules! fatal_err {
         log::error!("Aborting incoming request: {}", $status);
         // Attempt to log on tx
         if let Err(err) = $tx.send(Err($status)).await {
-            log::error!("Failed to notify client of error: {}", err);
+            log::error!("{}", trace!(("Failed to notify client of error"), err));
         }
         // Return
         return;
@@ -62,10 +63,10 @@ macro_rules! fatal_err {
 
     ($tx:ident, $rx:ident,Status:: $status:ident, $err:expr) => {{
         // Always log to stderr
-        log::error!("{}", $err);
+        log::error!("{}", $err.trace());
         // Attempt to log on tx
         if let Err(err) = $tx.send(Err(Status::$status($err.to_string()))).await {
-            log::error!("Failed to notify client of error: {}", err);
+            log::error!("{}", trace!(("Failed to notify client of error"), err));
         }
         // Return
         return Ok(Response::new(ReceiverStream::new($rx)));
@@ -75,7 +76,7 @@ macro_rules! fatal_err {
         log::error!("Aborting incoming request: {}", $status);
         // Attempt to log on tx
         if let Err(err) = $tx.send(Err($status)).await {
-            log::error!("Failed to notify client of error: {}", err);
+            log::error!("{}", trace!(("Failed to notify client of error"), err));
         }
         // Return
         return Ok(Response::new(ReceiverStream::new($rx)));
@@ -243,7 +244,7 @@ impl DriverService for DriverHandler {
 
                     // Send it
                     if let Err(err) = tx.send(Ok(reply)).await {
-                        error!("Failed to send workflow result back to client: {}", err);
+                        error!("{}", trace!(("Failed to send workflow result back to client"), err));
                     }
                 },
                 Err(err) => {

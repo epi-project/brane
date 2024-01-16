@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    16 Jan 2024, 12:04:43
+//    16 Jan 2024, 17:23:50
 //  Auto updated?
 //    Yes
 //
@@ -91,7 +91,7 @@ macro_rules! err {
         let err = $err;
         log::error!("{}", err.trace());
         if let Err(err) = update_client(&$tx, JobStatus::$status(format!("{}", err))).await {
-            log::error!("{}", err.trace());
+            log::error!("{}", trace!(("Failed to update client on error"), err));
         }
         Err(err)
     }};

@@ -4,7 +4,7 @@
 //  Created:
 //    01 Nov 2022, 11:15:17
 //  Last edited:
-//    03 Jan 2024, 14:43:29
+//    16 Jan 2024, 17:29:27
 //  Auto updated?
 //    Yes
 //
@@ -132,7 +132,7 @@ where
                 let (socket, client_addr) = match incoming {
                     Ok(res) => res,
                     Err(err) => {
-                        error!("Failed to accept incoming connection: {}", err);
+                        error!("{}", trace!(("Failed to accept incoming connection"), err));
                         continue;
                     },
                 };
@@ -141,7 +141,7 @@ where
                 let stream: TlsStream<tokio::net::TcpStream> = match acceptor.accept(socket).await {
                     Ok(stream) => stream,
                     Err(err) => {
-                        error!("Failed to accept incoming connection from '{}' with TLS: {}", client_addr, err);
+                        error!("{}", trace!(("Failed to accept incoming connection from '{}' with TLS", client_addr), err));
                         continue;
                     },
                 };
@@ -168,7 +168,7 @@ where
 
                     // Now we run that service to serve the request
                     if let Err(err) = Http::new().serve_connection(stream, service).await {
-                        error!("Failed to handle incoming request: {}", err);
+                        error!("{}", trace!(("Failed to handle incoming request"), err));
                     }
                 });
 

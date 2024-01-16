@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 15:11:44
 //  Last edited:
-//    15 Jan 2024, 14:37:18
+//    16 Jan 2024, 17:28:39
 //  Auto updated?
 //    Yes
 //
@@ -22,6 +22,7 @@ use brane_reg::spec::Context;
 use brane_reg::{data, health, infra, version};
 use clap::Parser;
 use dotenvy::dotenv;
+use error_trace::{trace, ErrorTrace as _};
 use log::{debug, error, info, LevelFilter};
 use rustls::Certificate;
 use warp::Filter;
@@ -72,7 +73,7 @@ async fn main() {
     let node_config: NodeConfig = match NodeConfig::from_path(&args.node_config_path) {
         Ok(config) => config,
         Err(err) => {
-            error!("Failed to load NodeConfig file: {}", err);
+            error!("{}", trace!(("Failed to load NodeConfig file"), err));
             std::process::exit(1);
         },
     };
@@ -147,7 +148,7 @@ async fn main() {
     {
         Ok(_) => {},
         Err(err) => {
-            error!("{}", err);
+            error!("{}", err.trace());
             std::process::exit(1);
         },
     }

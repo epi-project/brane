@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2022, 11:59:58
 //  Last edited:
-//    03 Jan 2024, 14:06:47
+//    16 Jan 2024, 16:11:04
 //  Auto updated?
 //    Yes
 //
@@ -79,7 +79,7 @@ async fn main() {
     let node_config: NodeConfig = match NodeConfig::from_path(&opts.node_config_path) {
         Ok(config) => config,
         Err(err) => {
-            error!("Failed to load NodeConfig file: {}", err);
+            error!("{}", trace!(("Failed to load NodeConfig file"), err));
             std::process::exit(1);
         },
     };
@@ -130,7 +130,7 @@ async fn main() {
         })
         .await
     {
-        error!("Failed to start gRPC server: {}", err);
+        error!("{}", trace!(("Failed to start gRPC server"), err));
         std::process::exit(1);
     }
 }

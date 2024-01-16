@@ -24,6 +24,9 @@ All notable changes to the Brane framework will be documented in this file.
     - Adding `user`-field to `InstanceInfo`, accompanied with a `--user` option when creating new instance in `brane` (\[**breaking change**\], regeneration of instances necessary).
     - Changing Docker Compose files used by `branectl` (\[**breaking change**\] if you use customized ones).
     - Changing `policies` path in `node.yml` to `policy_database` file \[**breaking change**\].
+    - Changing `brane-job` to ask permission to ask a task from the `brane-chk` service.
+    - Changing `brane-reg` to ask permission to ask a task from the `brane-chk` service.
+    - Changing the `checker` service entry in `node.yml` to a private service instead of a public service (not a breaking change, since this now simply ignores the `external_address`-field if any).
     - Removing `branectl generate policies` as the old file is no longer used \[**breaking change**\].
 - Graceful shutdown for instance services (`brane-api`, `brane-drv`, `brane-job`, `brane-plr`, `brane-reg`).
 - Passing the `--debug` flag is now the default to the builtin `docker-compose-*.yml` files in `branectl`. If you want to revert to default behaviour, extract the compose file(s) first (`branectl extract compose ...`), change it accordingly, and then pass it during lifetime commands (e.g., `branectl start -f path/to/compose/file ...`).
@@ -34,7 +37,6 @@ All notable changes to the Brane framework will be documented in this file.
 - `branec` now uses [humanlog](https://github.com/Lut99/humanlog-rs) as logging backend for nicer messages.
 - `brane-drv` and `brane-plr` are now using Rust 2021 instead of Rust 2018.
 - BraneScript syntax to remove the `on`-structs, and instead using `on`-, `loc`- or `location`-attributes \[**breaking change**\].
-- The `checker` service entry in `node.yml` is now a private service instead of a public service (not a breaking change, since this now simply ignores the `external_address`-field if any).
 - More error prints to use a trace rather than endless colons.
 
 ### Fixed
@@ -42,6 +44,7 @@ All notable changes to the Brane framework will be documented in this file.
   - Specifically, it might fail if it is parsing a non-`[` unary operator.
 - The BraneScript compiler panicking on successive projections.
 - CI/CD in the repository by moving most of it to scripts which we _can_ test offline.
+- The WIR using platform-specific `usize::MAX` to detect the main function. This has been replaced with `FunctionId` (`brane-ast`) and `ProgramCounter` (`brane-exe`) \[**breaking change**\].
 
 ## [3.0.0] - 2023-10-22
 ### Added

@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 15:40:40
 //  Last edited:
-//    16 Jan 2024, 11:50:59
+//    16 Jan 2024, 17:32:47
 //  Auto updated?
 //    Yes
 //
@@ -30,7 +30,7 @@ use brane_shr::fs::archive_async;
 use brane_tsk::errors::AuthorizeError;
 use deliberation::spec::Verdict;
 use enum_debug::EnumDebug as _;
-use error_trace::trace;
+use error_trace::{trace, ErrorTrace as _};
 use log::{debug, error, info};
 use reqwest::header;
 use rustls::Certificate;
@@ -287,7 +287,7 @@ pub async fn list(context: Arc<Context>) -> Result<impl Reply, Rejection> {
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
         Ok(config) => config,
         Err(err) => {
-            error!("Failed to load NodeConfig file: {}", err);
+            error!("{}", trace!(("Failed to load NodeConfig file"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -309,7 +309,7 @@ pub async fn list(context: Arc<Context>) -> Result<impl Reply, Rejection> {
     let store: Store = match Store::from_dirs(&node_config.node.worker().paths.data, &node_config.node.worker().paths.results).await {
         Ok(store) => store,
         Err(err) => {
-            error!("Failed to load the store: {}", err);
+            error!("{}", trace!(("Failed to load the store"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -352,7 +352,7 @@ pub async fn get(name: String, context: Arc<Context>) -> Result<impl Reply, Reje
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
         Ok(config) => config,
         Err(err) => {
-            error!("Failed to load NodeConfig file: {}", err);
+            error!("{}", trace!(("Failed to load NodeConfig file"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -377,7 +377,7 @@ pub async fn get(name: String, context: Arc<Context>) -> Result<impl Reply, Reje
     let store: Store = match Store::from_dirs(&node_config.node.worker().paths.data, &node_config.node.worker().paths.results).await {
         Ok(store) => store,
         Err(err) => {
-            error!("Failed to load the store: {}", err);
+            error!("{}", trace!(("Failed to load the store"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -446,7 +446,7 @@ pub async fn download_data(
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
         Ok(config) => config,
         Err(err) => {
-            error!("Failed to load NodeConfig file: {}", err);
+            error!("{}", trace!(("Failed to load NodeConfig file"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -467,7 +467,7 @@ pub async fn download_data(
     let store: Store = match Store::from_dirs(&worker_config.paths.data, &worker_config.paths.results).await {
         Ok(store) => store,
         Err(err) => {
-            error!("Failed to load the store: {}", err);
+            error!("{}", trace!(("Failed to load the store"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -518,7 +518,7 @@ pub async fn download_data(
             return Ok(reply::with_status(Response::new(Body::empty()), StatusCode::FORBIDDEN));
         },
         Err(err) => {
-            error!("Failed to consult the checker: {}", err);
+            error!("{}", trace!(("Failed to consult the checker"), err));
             return Err(warp::reject::reject());
         },
     }
@@ -537,7 +537,7 @@ pub async fn download_data(
                 Ok(tmpdir) => tmpdir,
                 Err(err) => {
                     let err = Error::TempDirCreateError { err };
-                    error!("{}", err);
+                    error!("{}", err.trace());
                     return Err(warp::reject::custom(err));
                 },
             };
@@ -546,7 +546,7 @@ pub async fn download_data(
             let tar_path: PathBuf = tmpdir.path().join("data.tar.gz");
             if let Err(err) = archive_async(&path, &tar_path, true).await {
                 let err = Error::DataArchiveError { err };
-                error!("{}", err);
+                error!("{}", err.trace());
                 return Err(warp::reject::custom(err));
             }
             arch.stop();
@@ -567,7 +567,7 @@ pub async fn download_data(
                     Ok(handle) => handle,
                     Err(err) => {
                         let err = Error::TarOpenError { path: tar_path, err };
-                        error!("{}", err);
+                        error!("{}", err.trace());
                         return Err(warp::reject::custom(err));
                     },
                 };
@@ -580,7 +580,7 @@ pub async fn download_data(
                     let bytes: usize = match handle.read(&mut buf).await {
                         Ok(bytes) => bytes,
                         Err(err) => {
-                            error!("{}", Error::TarReadError { path: tar_path, err });
+                            error!("{}", Error::TarReadError { path: tar_path, err }.trace());
                             break;
                         },
                     };
@@ -590,7 +590,7 @@ pub async fn download_data(
 
                     // Send that with the body
                     if let Err(err) = body_sender.send_data(Bytes::copy_from_slice(&buf[..bytes])).await {
-                        error!("{}", Error::TarSendError { err });
+                        error!("{}", Error::TarSendError { err }.trace());
                     }
                 }
 
@@ -639,7 +639,7 @@ pub async fn download_result(
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
         Ok(config) => config,
         Err(err) => {
-            error!("Failed to load NodeConfig file: {}", err);
+            error!("{}", trace!(("Failed to load NodeConfig file"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -662,7 +662,7 @@ pub async fn download_result(
     let store: Store = match Store::from_dirs(&worker_config.paths.data, &worker_config.paths.results).await {
         Ok(store) => store,
         Err(err) => {
-            error!("Failed to load the store: {}", err);
+            error!("{}", trace!(("Failed to load the store"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -713,7 +713,7 @@ pub async fn download_result(
             return Ok(reply::with_status(Response::new(Body::empty()), StatusCode::FORBIDDEN));
         },
         Err(err) => {
-            error!("Failed to consult the checker: {}", err);
+            error!("{}", trace!(("Failed to consult the checker"), err));
             return Err(warp::reject::reject());
         },
     }
@@ -725,7 +725,7 @@ pub async fn download_result(
         Ok(tmpdir) => tmpdir,
         Err(err) => {
             let err = Error::TempDirCreateError { err };
-            error!("{}", err);
+            error!("{}", err.trace());
             return Err(warp::reject::custom(err));
         },
     };
@@ -734,7 +734,7 @@ pub async fn download_result(
     let tar_path: PathBuf = tmpdir.path().join("data.tar.gz");
     if let Err(err) = archive_async(&path, &tar_path, true).await {
         let err = Error::DataArchiveError { err };
-        error!("{}", err);
+        error!("{}", err.trace());
         return Err(warp::reject::custom(err));
     }
     arch.stop();
@@ -755,7 +755,7 @@ pub async fn download_result(
             Ok(handle) => handle,
             Err(err) => {
                 let err = Error::TarOpenError { path: tar_path, err };
-                error!("{}", err);
+                error!("{}", err.trace());
                 return Err(warp::reject::custom(err));
             },
         };
@@ -768,7 +768,7 @@ pub async fn download_result(
             let bytes: usize = match handle.read(&mut buf).await {
                 Ok(bytes) => bytes,
                 Err(err) => {
-                    error!("{}", Error::TarReadError { path: tar_path, err });
+                    error!("{}", Error::TarReadError { path: tar_path, err }.trace());
                     break;
                 },
             };
@@ -778,7 +778,7 @@ pub async fn download_result(
 
             // Send that with the body
             if let Err(err) = body_sender.send_data(Bytes::copy_from_slice(&buf[..bytes])).await {
-                error!("{}", Error::TarSendError { err });
+                error!("{}", Error::TarSendError { err }.trace());
             }
         }
 

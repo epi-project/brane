@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    13 Dec 2023, 08:26:45
+//    16 Jan 2024, 16:10:26
 //  Auto updated?
 //    Yes
 //
@@ -26,6 +26,7 @@ use brane_shr::kafka::{ensure_topics, restore_committed_offsets};
 use brane_tsk::errors::PlanError;
 use brane_tsk::spec::{AppId, TaskId};
 use dashmap::DashMap;
+use error_trace::trace;
 use futures_util::TryStreamExt;
 use log::{debug, error};
 use prost::Message as _;
@@ -296,7 +297,7 @@ impl InstancePlanner {
                                 let msg: PlanningUpdate = match PlanningUpdate::decode(payload) {
                                     Ok(msg) => msg,
                                     Err(err) => {
-                                        error!("Failed to decode incoming PlanningUpdate: {}", err);
+                                        error!("{}", trace!(("Failed to decode incoming PlanningUpdate"), err));
                                         return Ok(());
                                     },
                                 };
@@ -363,7 +364,7 @@ impl InstancePlanner {
                     })
                     .await
                 {
-                    error!("Failed to run InstancePlanner event monitor: {}", err);
+                    error!("{}", trace!(("Failed to run InstancePlanner event monitor"), err));
                     error!(
                         "Note: you will likely not get any events now. Automatically restarting in 3 seconds, but you might want to investigate the \
                          problem."

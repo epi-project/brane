@@ -1,40 +1,40 @@
 //  INFRA.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    05 Jan 2023, 11:35:25
 //  Last edited:
-//    07 Jun 2023, 16:29:40
+//    16 Jan 2024, 17:33:30
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Defines path functions for infrastructure-related querying.
-// 
+//
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use brane_cfg::backend::BackendFile;
+use brane_cfg::info::Info as _;
+use brane_cfg::node::{NodeConfig, NodeSpecificConfig, WorkerConfig};
+use error_trace::trace;
 use log::{error, info};
-use warp::{Rejection, Reply};
+use specifications::package::Capability;
 use warp::http::HeaderValue;
 use warp::hyper::Body;
 use warp::reply::Response;
-
-use brane_cfg::info::Info as _;
-use brane_cfg::backend::BackendFile;
-use brane_cfg::node::{NodeConfig, NodeSpecificConfig, WorkerConfig};
-use specifications::package::Capability;
+use warp::{Rejection, Reply};
 
 use crate::spec::Context;
 
 
 /***** LIBRARY *****/
 /// Handles a GET on the `/infra/capabilities` path, returning what kind of capabilities this infrastructure supports.
-/// 
+///
 /// # Returns
 /// The response that can be send back to the client. Contains the set of capabilities supported.
-/// 
+///
 /// # Errors
 /// This function doesn't usually error.
 pub async fn get_capabilities(context: Arc<Context>) -> Result<impl Reply, Rejection> {
@@ -43,8 +43,8 @@ pub async fn get_capabilities(context: Arc<Context>) -> Result<impl Reply, Rejec
     // Read the node file
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
         Ok(config) => config,
-        Err(err)   => {
-            error!("Failed to load NodeConfig file: {}", err);
+        Err(err) => {
+            error!("{}", trace!(("Failed to load NodeConfig file"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -57,8 +57,8 @@ pub async fn get_capabilities(context: Arc<Context>) -> Result<impl Reply, Rejec
     // Read the backend file
     let backend: BackendFile = match BackendFile::from_path(worker_config.paths.backend) {
         Ok(backend) => backend,
-        Err(err)    => {
-            error!("Failed to load backend file: {}", err);
+        Err(err) => {
+            error!("{}", trace!(("Failed to load backend file"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -67,8 +67,8 @@ pub async fn get_capabilities(context: Arc<Context>) -> Result<impl Reply, Rejec
     let capabilities: HashSet<Capability> = backend.capabilities.unwrap_or_default();
     let capabilities: String = match serde_json::to_string(&capabilities) {
         Ok(capabilities) => capabilities,
-        Err(err)         => {
-            error!("Failed to serialize backend capabilities: {}", err);
+        Err(err) => {
+            error!("{}", trace!(("Failed to serialize backend capabilities"), err));
             return Err(warp::reject::reject());
         },
     };
@@ -76,12 +76,8 @@ pub async fn get_capabilities(context: Arc<Context>) -> Result<impl Reply, Rejec
 
     // Construct a response with the body and the content-length header
     let mut response = Response::new(Body::from(capabilities));
-    response.headers_mut().insert(
-        "Content-Length",
-        HeaderValue::from(capabilities_len),
-    );
+    response.headers_mut().insert("Content-Length", HeaderValue::from(capabilities_len));
 
     // Done
     Ok(response)
 }
-
