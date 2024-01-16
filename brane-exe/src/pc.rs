@@ -4,7 +4,7 @@
 //  Created:
 //    16 Jan 2024, 09:59:53
 //  Last edited:
-//    16 Jan 2024, 14:58:52
+//    16 Jan 2024, 15:02:54
 //  Auto updated?
 //    Yes
 //
@@ -62,7 +62,7 @@ impl Error for ProgramCounterParseError {
 
 /***** LIBRARY *****/
 /// Used to keep track of the current executing edge in a workflow.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct ProgramCounter {
     /// The function ID of the function currently being executed.
     pub func_id:  FunctionId,
@@ -188,6 +188,15 @@ impl ProgramCounter {
         // Build the serialization with it
         ResolvedProgramCounter { func_id: self.func_id, func_name: name, edge_idx: self.edge_idx }
     }
+
+    /// Returns whether this ProgramCounter points to somewhere in the `<main>` function.
+    ///
+    /// # Returns
+    /// True if [`self.func_id.is_main()`](FunctionId::is_main()) is true, or else false.
+    #[inline]
+    #[must_use]
+    #[track_caller]
+    pub fn is_main(&self) -> bool { self.func_id.is_main() }
 }
 impl Display for ProgramCounter {
     #[inline]

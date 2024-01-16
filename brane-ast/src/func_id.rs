@@ -4,7 +4,7 @@
 //  Created:
 //    16 Jan 2024, 11:31:56
 //  Last edited:
-//    16 Jan 2024, 11:33:52
+//    16 Jan 2024, 15:03:01
 //  Auto updated?
 //    Yes
 //
@@ -53,7 +53,7 @@ impl Error for FunctionIdParseError {
 
 /***** LIBRARY *****/
 /// Enum that can be used for function identifiers, to specially handle `main`.
-#[derive(Clone, Copy, Debug, EnumDebug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, EnumDebug, Eq, Hash, PartialEq)]
 pub enum FunctionId {
     /// It's the main function
     Main,
