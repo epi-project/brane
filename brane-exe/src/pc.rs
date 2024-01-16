@@ -4,7 +4,7 @@
 //  Created:
 //    16 Jan 2024, 09:59:53
 //  Last edited:
-//    16 Jan 2024, 11:34:10
+//    16 Jan 2024, 14:46:47
 //  Auto updated?
 //    Yes
 //
@@ -18,6 +18,7 @@ use std::ops::{Add, AddAssign};
 use std::str::FromStr;
 
 use brane_ast::func_id::FunctionId;
+use brane_ast::SymTable;
 use num_traits::AsPrimitive;
 use serde::de::{self, Deserialize, Deserializer, Visitor};
 use serde::ser::{Serialize, SerializeSeq, Serializer};
@@ -51,6 +52,33 @@ impl Error for ProgramCounterParseError {
             MissingColon { .. } => None,
             InvalidFunctionId { err } => err.source(),
             InvalidIdx { err, .. } => Some(err),
+        }
+    }
+}
+
+
+
+
+
+/***** FORMATTERS *****/
+/// A static formatter for a [`ProgramCounter`] that shows it with resolved function names.
+#[derive(Clone, Debug)]
+pub struct ProgramCounterFormatter<'s> {
+    /// The [`ProgramCounter`] to format.
+    pc: ProgramCounter,
+    /// The [`SymTable`] to resolve the functions with.
+    symtable: &'s SymTable,
+}
+impl<'s> Display for ProgramCounterFormatter<'s> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        // Match on the function ID first
+        match self.pc.func_id {
+            FunctionId::Main => write!(f, "<main>:{}", self.pc.edge_idx),
+            FunctionId::Func(id) => match self.symtable.funcs.get(id) {
+                Some(def) => write!(f, "{}:{}", def.name, self.pc.edge_idx),
+                None => write!(f, "{}:{}", id, self.pc.edge_idx),
+            },
         }
     }
 }
@@ -168,6 +196,16 @@ impl ProgramCounter {
         self.edge_idx = 0;
         self
     }
+
+    /// Returns a formatter that shows the resolved name of the function.
+    ///
+    /// # Arguments
+    /// - `symtable`: A workflow [`SymTable`] that is used to resolve the function identifiers to names.
+    ///
+    /// # Returns
+    /// A [`ProgramCounterFormatter`] that does the actual formatting as it implements [`Display`].
+    #[inline]
+    pub fn resolved<'s>(&'_ self, symtable: &'s SymTable) -> ProgramCounterFormatter<'s> { ProgramCounterFormatter { pc: *self, symtable } }
 }
 impl Display for ProgramCounter {
     #[inline]
