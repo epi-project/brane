@@ -4,7 +4,7 @@
 //  Created:
 //    26 Aug 2022, 18:26:40
 //  Last edited:
-//    08 Jan 2024, 15:21:25
+//    16 Jan 2024, 11:15:28
 //  Auto updated?
 //    Yes
 //
@@ -26,6 +26,7 @@ use specifications::profiling::ProfileScopeHandle;
 use specifications::version::Version;
 
 use crate::frame_stack::FrameStack;
+use crate::pc::ProgramCounter;
 use crate::value::FullValue;
 
 
@@ -78,6 +79,7 @@ pub trait VmPlugin: 'static + Send + Sync {
     /// # Arguments
     /// - `global`: The custom global state for keeping track of your own things during execution.
     /// - `local`: The custom local state for keeping track of your own things faster but only local to this (execution) thread.
+    /// - `pc`: A [`ProgramCounter`] that denotes for which task in the workflow we're preprocessing.
     /// - `loc`: The location where this preprocessing should happen.
     /// - `name`: The name of the intermediate result to make public. You'll typically only use this for debugging.
     /// - `preprocess`: The PreprocessKind that determines what you must do to make the dataset available.
@@ -93,6 +95,7 @@ pub trait VmPlugin: 'static + Send + Sync {
     async fn preprocess(
         global: Arc<RwLock<Self::GlobalState>>,
         local: Self::LocalState,
+        pc: ProgramCounter,
         loc: Location,
         name: DataName,
         preprocess: PreprocessKind,
@@ -241,7 +244,7 @@ impl<G: CustomGlobalState> RunState<G> {
 #[derive(Clone, Debug)]
 pub struct TaskInfo<'a> {
     /// The program counter of the execution (may be used to identify the call to the task itself).
-    pub pc:  (usize, usize),
+    pub pc:  ProgramCounter,
     /// The identifier of the task definition itself.
     pub def: usize,
 

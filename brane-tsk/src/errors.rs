@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    15 Jan 2024, 15:10:37
+//    16 Jan 2024, 11:50:43
 //  Auto updated?
 //    Yes
 //
@@ -19,7 +19,9 @@ use std::path::PathBuf;
 
 use bollard::ClientVersion;
 use brane_ast::ast::DataName;
+use brane_ast::func_id::FunctionId;
 use brane_ast::locations::{Location, Locations};
+use brane_exe::pc::ProgramCounter;
 use brane_shr::formatters::{BlockFormatter, Capitalizeable};
 use enum_debug::EnumDebug as _;
 use reqwest::StatusCode;
@@ -686,17 +688,17 @@ pub enum AuthorizeError {
     ExecuteBodyDeserialize { addr: String, raw: String, err: serde_json::Error },
 
     /// The data to authorize is not input to the task given as context.
-    AuthorizationDataMismatch { pc: (usize, usize), data_name: DataName },
+    AuthorizationDataMismatch { pc: ProgramCounter, data_name: DataName },
     /// The user to authorize does not execute the given task.
     AuthorizationUserMismatch { who: String, authenticated: String, workflow: String },
     /// An edge was referenced to be executed which wasn't an [`Edge::Node`](brane_ast::ast::Edge).
-    AuthorizationWrongEdge { pc: (usize, usize), got: String },
+    AuthorizationWrongEdge { pc: ProgramCounter, got: String },
     /// An edge index given was out-of-bounds for the given function.
-    IllegalEdgeIdx { func: usize, got: usize, max: usize },
+    IllegalEdgeIdx { func: FunctionId, got: usize, max: usize },
     /// A given function does not exist
-    IllegalFuncId { got: usize },
+    IllegalFuncId { got: FunctionId },
     /// There was a node in a workflow with no `at`-specified.
-    MissingLocation { pc: (usize, usize) },
+    MissingLocation { pc: ProgramCounter },
     /// The workflow has no end user specified.
     NoWorkflowUser { workflow: String },
 }
@@ -725,7 +727,7 @@ impl Display for AuthorizeError {
                 write!(f, "Failed to deserialize response body received from '{}' as valid JSON\n\nResponse:\n{}\n", addr, BlockFormatter::new(raw))
             },
 
-            AuthorizationDataMismatch { pc, data_name } => write!(f, "Dataset '{}' is not an input to task {}:{}", data_name, pc.0, pc.1),
+            AuthorizationDataMismatch { pc, data_name } => write!(f, "Dataset '{data_name}' is not an input to task {pc}"),
             AuthorizationUserMismatch { who, authenticated, workflow } => {
                 write!(
                     f,
@@ -735,10 +737,10 @@ impl Display for AuthorizeError {
                     BlockFormatter::new(workflow)
                 )
             },
-            AuthorizationWrongEdge { pc, got } => write!(f, "Edge {}:{} in workflow is not an Edge::Node but an Edge::{}", pc.0, pc.1, got),
+            AuthorizationWrongEdge { pc, got } => write!(f, "Edge {pc} in workflow is not an Edge::Node but an Edge::{got}"),
             IllegalEdgeIdx { func, got, max } => write!(f, "Edge index {got} is out-of-bounds for function {func} with {max} edges"),
             IllegalFuncId { got } => write!(f, "Function {got} does not exist in given workflow"),
-            MissingLocation { pc } => write!(f, "Node call at {}:{} has no location planned", pc.0, pc.1),
+            MissingLocation { pc } => write!(f, "Node call at {pc} has no location planned"),
             NoWorkflowUser { workflow } => write!(f, "Given workflow has no end user specified\n\nWorkflow:\n{}\n", BlockFormatter::new(workflow)),
         }
     }

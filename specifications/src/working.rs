@@ -4,7 +4,7 @@
 //  Created:
 //    06 Jan 2023, 15:01:17
 //  Last edited:
-//    15 Jan 2024, 15:20:36
+//    16 Jan 2024, 11:39:10
 //  Auto updated?
 //    Yes
 //
@@ -258,25 +258,22 @@ pub struct ExecuteRequest {
 
     /// The workflow of which the task to execute is a part.
     #[prost(tag = "2", required, string)]
-    pub workflow:  String,
-    /// The function in which we do the call.
-    #[prost(tag = "3", required, uint64)]
-    pub call_fn:   u64,
-    /// The edge in the `call_fn` where we do the call.
-    #[prost(tag = "4", required, uint64)]
-    pub call_edge: u64,
+    pub workflow: String,
+    /// The function & edge in which we do the call.
+    #[prost(tag = "3", required, message)]
+    pub call_pc:  ProgramCounter,
     /// The index of the task to execute in the workflow's task table.
-    #[prost(tag = "5", required, uint64)]
-    pub task_def:  u64,
+    #[prost(tag = "4", required, uint64)]
+    pub task_def: u64,
 
     /// The input (i.e., datasets/intermediate results) that are used in this call. It is a map encoded as JSON.
-    #[prost(tag = "6", required, string)]
+    #[prost(tag = "5", required, string)]
     pub input:  String,
     /// The intermediat result returned by this call, if any.
-    #[prost(tag = "7", optional, string)]
+    #[prost(tag = "6", optional, string)]
     pub result: Option<String>,
     /// The arguments to run the request with. Given as a JSON-encoded map of names to FullValues.
-    #[prost(tag = "8", required, string)]
+    #[prost(tag = "7", required, string)]
     pub args:   String,
 }
 

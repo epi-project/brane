@@ -4,7 +4,7 @@
 //  Created:
 //    13 Sep 2022, 16:43:11
 //  Last edited:
-//    08 Jan 2024, 15:22:07
+//    16 Jan 2024, 11:30:41
 //  Auto updated?
 //    Yes
 //
@@ -27,6 +27,7 @@ use specifications::profiling::ProfileScopeHandle;
 
 pub use crate::errors::DummyVmError as Error;
 use crate::errors::VmError;
+use crate::pc::ProgramCounter;
 use crate::spec::{CustomGlobalState, RunState, TaskInfo, VmPlugin};
 use crate::value::FullValue;
 use crate::vm::Vm;
@@ -138,12 +139,13 @@ impl VmPlugin for DummyPlugin {
     async fn preprocess(
         _global: Arc<RwLock<Self::GlobalState>>,
         _local: Self::LocalState,
+        pc: ProgramCounter,
         _loc: Location,
         name: DataName,
         _preprocess: specifications::data::PreprocessKind,
         _prof: ProfileScopeHandle<'_>,
     ) -> Result<AccessKind, Self::PreprocessError> {
-        info!("Processing dummy `DummyVm::preprocess()` call for intermediate result '{}'", name);
+        info!("Processing dummy `DummyVm::preprocess()` call for intermediate result '{name}' in {pc}");
 
         // We also accept it with a dummy accesskind
         Ok(AccessKind::File { path: PathBuf::new() })

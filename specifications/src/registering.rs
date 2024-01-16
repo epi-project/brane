@@ -4,7 +4,7 @@
 //  Created:
 //    15 Jan 2024, 14:32:30
 //  Last edited:
-//    15 Jan 2024, 14:35:45
+//    16 Jan 2024, 11:45:57
 //  Auto updated?
 //    Yes
 //
@@ -27,5 +27,5 @@ pub struct DownloadAssetRequest {
     pub workflow: Value,
     /// The task within the workflow that acts as the context in which the download occurs. If omitted, then it should be interpreted as the data being accessed to download the final result of the workflow.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub task:     Option<(usize, usize)>,
+    pub task:     Option<(Option<u64>, u64)>,
 }

@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 10:45:50
 //  Last edited:
-//    13 Dec 2023, 08:24:55
+//    16 Jan 2024, 11:34:32
 //  Auto updated?
 //    Yes
 //
@@ -17,9 +17,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use brane_ast::ast::{SymTable, VarDef};
+use brane_ast::func_id::FunctionId;
 use brane_ast::DataType;
 
 pub use crate::errors::FrameStackError as Error;
+use crate::pc::ProgramCounter;
 use crate::value::Value;
 
 
@@ -32,7 +34,7 @@ struct Frame {
     /// The variables that live within this frame, mapped by their definition index.
     vars: HashMap<usize, Option<Value>>,
     /// The return address to return to after returning from this frame.
-    ret:  (usize, usize),
+    ret:  ProgramCounter,
 }
 
 impl Frame {
@@ -46,7 +48,7 @@ impl Frame {
     /// # Returns
     /// A new Frame instance.
     #[inline]
-    fn new(def: usize, ret: (usize, usize)) -> Self { Self { def, vars: HashMap::new(), ret } }
+    fn new(def: usize, ret: ProgramCounter) -> Self { Self { def, vars: HashMap::new(), ret } }
 }
 
 
@@ -76,7 +78,7 @@ impl FrameStack {
     pub fn new(size: usize, table: Arc<SymTable>) -> Self {
         // Prepare the main frame
         let mut data: Vec<Frame> = Vec::with_capacity(size);
-        data.push(Frame { def: usize::MAX, vars: HashMap::new(), ret: (usize::MAX, usize::MAX) });
+        data.push(Frame { def: usize::MAX, vars: HashMap::new(), ret: ProgramCounter::new(FunctionId::Main, usize::MAX) });
 
         // Run it
         Self { data, table }
@@ -93,7 +95,7 @@ impl FrameStack {
 
         // Now manually create the stack with a custom frame
         let mut data: Vec<Frame> = Vec::with_capacity(self.data.capacity());
-        data.push(Frame { def: usize::MAX, vars, ret: (usize::MAX, usize::MAX) });
+        data.push(Frame { def: usize::MAX, vars, ret: ProgramCounter::new(FunctionId::Main, usize::MAX) });
         Self { data, table: self.table.clone() }
     }
 
@@ -120,7 +122,7 @@ impl FrameStack {
     ///
     /// # Errors
     /// This function may error if the FrameStack overflows.
-    pub fn push(&mut self, def: usize, ret: (usize, usize)) -> Result<(), Error> {
+    pub fn push(&mut self, def: usize, ret: ProgramCounter) -> Result<(), Error> {
         // Create the new Frame & insert it
         self.data.push(Frame::new(def, ret));
         Ok(())
@@ -129,12 +131,12 @@ impl FrameStack {
     /// Pops the top value off of the FrameStack, returning the expected data type and return address.
     ///
     /// # Returns
-    /// A tuple with the return address and expected return type, respectively. If the main was popped, however, then the return address is `(usize::MAX, usize::MAX)`.
+    /// A [`ProgramCounter`] denoting the return address and expected return type, respectively. If the main was popped, however, then the return address is `(usize::MAX, usize::MAX)`.
     ///
     /// # Errors
     /// This function may error if there was nothing left on the stack.
     #[inline]
-    pub fn pop(&mut self) -> Result<((usize, usize), DataType), Error> {
+    pub fn pop(&mut self) -> Result<(ProgramCounter, DataType), Error> {
         // Attempt to pop
         match self.data.pop() {
             Some(frame) => {

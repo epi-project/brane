@@ -1,0 +1,18 @@
+// TAUTOLOGY.eflint
+//   by Lut99
+//
+// Created:
+//   16 Jan 2024, 13:30:31
+// Last edited:
+//   16 Jan 2024, 13:30:47
+// Auto updated?
+//   Yes
+//
+// Description:
+//   Example eFLINT policy file that accepts everything, as it does not
+//   throw violations.
+//
+
+
+// An Invariant that is physically incapable of violating (poor thing)
+Invariant tautology When True.

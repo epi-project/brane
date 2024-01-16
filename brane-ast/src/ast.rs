@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    05 Jan 2024, 14:32:50
+//    16 Jan 2024, 11:35:15
 //  Auto updated?
 //    Yes
 //
@@ -86,39 +86,39 @@ impl Workflow {
         }
     }
 
-    /// Returns the edge pointed to by the given PC.
-    ///
-    /// # Arguments
-    /// - `pc`: The position of the Edge to return. Given as a pair of `(function index, edge index in that function)`, where a function index of `usize::MAX` means it's the main script function.
-    ///
-    /// # Returns
-    /// A reference to the Edge pointed to by the given PC.
-    ///
-    /// # Panics
-    /// This function panics if either part of the `pc` is out-of-bounds _and_ the function index is not `usize::MAX`.
-    #[inline]
-    pub fn edge(&self, pc: (usize, usize)) -> &Edge {
-        if pc.0 == usize::MAX {
-            // Main
-            if pc.1 >= self.graph.len() {
-                panic!("Edge index {} is out-of-bounds for main function of {} edges", pc.1, self.graph.len());
-            }
-            &self.graph[pc.1]
-        } else {
-            // It's a function
-            match self.funcs.get(&pc.0) {
-                Some(graph) => {
-                    if pc.1 >= graph.len() {
-                        panic!("Edge index {} is out-of-bounds for function '{}' of {} edges", pc.1, self.table.funcs[pc.0].name, graph.len());
-                    }
-                    &graph[pc.1]
-                },
-                None => {
-                    panic!("Function index {} is unknown", pc.0);
-                },
-            }
-        }
-    }
+    // /// Returns the edge pointed to by the given PC.
+    // ///
+    // /// # Arguments
+    // /// - `pc`: The position of the Edge to return. Given as a pair of `(function index, edge index in that function)`, where a function index of `usize::MAX` means it's the main script function.
+    // ///
+    // /// # Returns
+    // /// A reference to the Edge pointed to by the given PC.
+    // ///
+    // /// # Panics
+    // /// This function panics if either part of the `pc` is out-of-bounds _and_ the function index is not `usize::MAX`.
+    // #[inline]
+    // pub fn edge(&self, pc: (usize, usize)) -> &Edge {
+    //     if pc.0 == usize::MAX {
+    //         // Main
+    //         if pc.1 >= self.graph.len() {
+    //             panic!("Edge index {} is out-of-bounds for main function of {} edges", pc.1, self.graph.len());
+    //         }
+    //         &self.graph[pc.1]
+    //     } else {
+    //         // It's a function
+    //         match self.funcs.get(&pc.0) {
+    //             Some(graph) => {
+    //                 if pc.1 >= graph.len() {
+    //                     panic!("Edge index {} is out-of-bounds for function '{}' of {} edges", pc.1, self.table.funcs[pc.0].name, graph.len());
+    //                 }
+    //                 &graph[pc.1]
+    //             },
+    //             None => {
+    //                 panic!("Function index {} is unknown", pc.0);
+    //             },
+    //         }
+    //     }
+    // }
 }
 
 impl Default for Workflow {

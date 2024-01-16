@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 15:40:40
 //  Last edited:
-//    15 Jan 2024, 15:12:51
+//    16 Jan 2024, 11:50:59
 //  Auto updated?
 //    Yes
 //
@@ -19,10 +19,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use brane_ast::ast::{DataName, Edge};
+use brane_ast::func_id::FunctionId;
 use brane_ast::Workflow;
 use brane_cfg::certs::extract_client_name;
 use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig, WorkerConfig};
+use brane_exe::pc::ProgramCounter;
 use brane_shr::formatters::BlockFormatter;
 use brane_shr::fs::archive_async;
 use brane_tsk::errors::AuthorizeError;
@@ -71,60 +73,60 @@ pub async fn assert_data_permission(
     workflow: &Workflow,
     client_name: &str,
     data_name: DataName,
-    call: Option<(usize, usize)>,
+    call: Option<ProgramCounter>,
 ) -> Result<bool, AuthorizeError> {
     info!(
         "Checking data access of '{}'{} permission with checker '{}'...",
         data_name,
-        if let Some(call) = call { format!(" (in the context of {}:{})", call.0, call.1) } else { String::new() },
+        if let Some(call) = call { format!(" (in the context of {})", call) } else { String::new() },
         worker_cfg.services.chk.address
     );
 
     // Check if the authenticated name checks out
-    if let Some((func_id, edge_idx)) = call {
+    if let Some(pc) = call {
         // Extract the parts of the node we're interested in
-        let (at, input): (&String, &HashMap<DataName, _>) = if func_id == usize::MAX {
-            match workflow.graph.get(edge_idx) {
+        let (at, input): (&String, &HashMap<DataName, _>) = if pc.func_id.is_main() {
+            match workflow.graph.get(pc.edge_idx) {
                 Some(Edge::Node { task: _, locs: _, at, input, result: _, metadata: _, next: _ }) => {
                     if let Some(at) = at {
                         (at, input)
                     } else {
-                        return Err(AuthorizeError::MissingLocation { pc: (func_id, edge_idx) });
+                        return Err(AuthorizeError::MissingLocation { pc });
                     }
                 },
 
-                Some(edge) => return Err(AuthorizeError::AuthorizationWrongEdge { pc: (func_id, edge_idx), got: edge.variant().to_string() }),
-                None => return Err(AuthorizeError::IllegalEdgeIdx { func: func_id, got: edge_idx, max: workflow.graph.len() }),
+                Some(edge) => return Err(AuthorizeError::AuthorizationWrongEdge { pc, got: edge.variant().to_string() }),
+                None => return Err(AuthorizeError::IllegalEdgeIdx { func: pc.func_id, got: pc.edge_idx, max: workflow.graph.len() }),
             }
         } else {
-            match workflow.funcs.get(&func_id) {
-                Some(edges) => match edges.get(edge_idx) {
+            match workflow.funcs.get(&pc.func_id.id()) {
+                Some(edges) => match edges.get(pc.edge_idx) {
                     Some(Edge::Node { task: _, locs: _, at, input, result: _, metadata: _, next: _ }) => {
                         if let Some(at) = at {
                             (at, input)
                         } else {
-                            return Err(AuthorizeError::MissingLocation { pc: (func_id, edge_idx) });
+                            return Err(AuthorizeError::MissingLocation { pc });
                         }
                     },
 
-                    Some(edge) => return Err(AuthorizeError::AuthorizationWrongEdge { pc: (func_id, edge_idx), got: edge.variant().to_string() }),
-                    None => return Err(AuthorizeError::IllegalEdgeIdx { func: func_id, got: edge_idx, max: edges.len() }),
+                    Some(edge) => return Err(AuthorizeError::AuthorizationWrongEdge { pc, got: edge.variant().to_string() }),
+                    None => return Err(AuthorizeError::IllegalEdgeIdx { func: pc.func_id, got: pc.edge_idx, max: edges.len() }),
                 },
 
-                None => return Err(AuthorizeError::IllegalFuncId { got: func_id }),
+                None => return Err(AuthorizeError::IllegalFuncId { got: pc.func_id }),
             }
         };
 
         // Assert that they match with the request
         if client_name != at {
             return Err(AuthorizeError::AuthorizationUserMismatch {
-                who: format!("task {func_id}:{edge_idx} executor"),
+                who: format!("task {pc} executor"),
                 authenticated: client_name.into(),
                 workflow: at.clone(),
             });
         }
         if !input.contains_key(&data_name) {
-            return Err(AuthorizeError::AuthorizationDataMismatch { pc: (func_id, edge_idx), data_name });
+            return Err(AuthorizeError::AuthorizationDataMismatch { pc, data_name });
         }
     } else {
         // Authenticate the scientist
@@ -199,7 +201,7 @@ pub async fn assert_data_permission(
             info!(
                 "Checker ALLOWED data access of '{}'{}",
                 data_name,
-                if let Some(call) = call { format!(" (in the context of {}:{})", call.0, call.1) } else { String::new() },
+                if let Some(call) = call { format!(" (in the context of {})", call) } else { String::new() },
             );
             Ok(true)
         },
@@ -208,7 +210,7 @@ pub async fn assert_data_permission(
             info!(
                 "Checker DENIED data access of '{}'{}",
                 data_name,
-                if let Some(call) = call { format!(" (in the context of {}:{})", call.0, call.1) } else { String::new() },
+                if let Some(call) = call { format!(" (in the context of {})", call) } else { String::new() },
             );
             Ok(false)
         },
@@ -235,7 +237,7 @@ pub async fn assert_result_permission(
     workflow: &Workflow,
     client_name: &str,
     data_name: DataName,
-    call: Option<(usize, usize)>,
+    call: Option<ProgramCounter>,
 ) -> Result<bool, AuthorizeError> {
     assert_data_permission(worker_cfg, workflow, client_name, data_name, call).await
 }
@@ -260,7 +262,7 @@ pub struct AccessDataRequest {
     /// - `1`: Pointer to the instruction (Edge) within the function indicated by `0`.
     /// Empty if the requested dataset is the
     /// result of the workflow
-    pub task_id:  Option<(usize, usize)>,
+    pub task_id:  Option<ProgramCounter>,
 }
 
 
@@ -498,7 +500,15 @@ pub async fn download_data(
     };
 
     // Before we continue, assert that this dataset may be downloaded by this person (uh-oh, how we gon' do that)
-    match assert_data_permission(&worker_config, &workflow, &client_name, DataName::Data(name.clone()), body.task).await {
+    match assert_data_permission(
+        &worker_config,
+        &workflow,
+        &client_name,
+        DataName::Data(name.clone()),
+        body.task.map(|t| ProgramCounter::new(if let Some(id) = t.0 { FunctionId::Func(id as usize) } else { FunctionId::Main }, t.1 as usize)),
+    )
+    .await
+    {
         Ok(true) => {
             info!("Checker authorized download of dataset '{}' by '{}'", info.name, client_name);
         },
@@ -685,7 +695,15 @@ pub async fn download_result(
     };
 
     // Before we continue, assert that this dataset may be downloaded by this person (uh-oh, how we gon' do that)
-    match assert_result_permission(&worker_config, &workflow, &client_name, DataName::IntermediateResult(name.clone()), body.task).await {
+    match assert_result_permission(
+        &worker_config,
+        &workflow,
+        &client_name,
+        DataName::IntermediateResult(name.clone()),
+        body.task.map(|t| ProgramCounter::new(if let Some(id) = t.0 { FunctionId::Func(id as usize) } else { FunctionId::Main }, t.1 as usize)),
+    )
+    .await
+    {
         Ok(true) => {
             info!("Checker authorized download of intermediate result '{}' by '{}'", name, client_name);
         },

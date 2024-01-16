@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:34:05
 //  Last edited:
-//    13 Dec 2023, 08:29:14
+//    16 Jan 2024, 12:05:52
 //  Auto updated?
 //    Yes
 //
@@ -24,6 +24,7 @@ use brane_ast::ast::DataName;
 use brane_ast::locations::Location;
 use brane_ast::Workflow;
 use brane_exe::errors::VmError;
+use brane_exe::pc::ProgramCounter;
 use brane_exe::spec::{RunState, TaskInfo, VmPlugin};
 use brane_exe::value::FullValue;
 use brane_exe::Vm;
@@ -64,13 +65,14 @@ impl VmPlugin for OfflinePlugin {
     async fn preprocess(
         _global: Arc<RwLock<Self::GlobalState>>,
         _local: Self::LocalState,
+        pc: ProgramCounter,
         _loc: Location,
         name: DataName,
         preprocess: PreprocessKind,
         _prof: ProfileScopeHandle<'_>,
     ) -> Result<AccessKind, Self::PreprocessError> {
-        info!("Preprocessing data '{}' in an offline environment", name);
-        debug!("Method of preprocessing: {:?}", preprocess);
+        info!("Preprocessing data '{name}' for call at {pc} in an offline environment");
+        debug!("Method of preprocessing: {preprocess:?}");
 
         // Match on the type of preprocessing
         match preprocess {

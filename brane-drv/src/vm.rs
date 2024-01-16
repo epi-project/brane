@@ -4,7 +4,7 @@
 //  Created:
 //    27 Oct 2022, 10:14:26
 //  Last edited:
-//    15 Jan 2024, 15:24:11
+//    16 Jan 2024, 11:54:13
 //  Auto updated?
 //    Yes
 //
@@ -20,11 +20,13 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use async_trait::async_trait;
 use brane_ast::ast::DataName;
+use brane_ast::func_id::FunctionId;
 use brane_ast::locations::Location;
 use brane_ast::Workflow;
 use brane_cfg::info::Info as _;
 use brane_cfg::infra::InfraFile;
 use brane_cfg::node::NodeConfig;
+use brane_exe::pc::ProgramCounter;
 use brane_exe::spec::{TaskInfo, VmPlugin};
 use brane_exe::{Error as VmError, FullValue, RunState, Vm};
 use brane_prx::client::ProxyClient;
@@ -75,6 +77,7 @@ impl VmPlugin for InstancePlugin {
     async fn preprocess(
         global: Arc<RwLock<Self::GlobalState>>,
         _local: Self::LocalState,
+        pc: ProgramCounter,
         loc: Location,
         name: DataName,
         preprocess: PreprocessKind,
@@ -85,7 +88,7 @@ impl VmPlugin for InstancePlugin {
 
         // Resolve the location to an address (and get the proxy while we have a lock anyway)
         let disk = prof.time("File loading");
-        let (proxy, delegate_address): (Arc<ProxyClient>, Address) = {
+        let (proxy, delegate_address, workflow): (Arc<ProxyClient>, Address, String) = {
             // Load the node config file to get the path to...
             let state: RwLockReadGuard<GlobalState> = global.read().unwrap();
             let node_config: NodeConfig = match NodeConfig::from_path(&state.node_config_path) {
@@ -105,7 +108,11 @@ impl VmPlugin for InstancePlugin {
 
             // Resolve to an address
             match infra.get(&loc) {
-                Some(info) => (state.proxy.clone(), info.delegate.clone()),
+                Some(info) => (
+                    state.proxy.clone(),
+                    info.delegate.clone(),
+                    state.workflow.clone().unwrap_or_else(|| panic!("Workflow state not injected by the time the workflow is being executed")),
+                ),
                 None => {
                     return Err(PreprocessError::UnknownLocationError { loc });
                 },
@@ -116,7 +123,15 @@ impl VmPlugin for InstancePlugin {
         // Prepare the request to send to the delegate node
         debug!("Sending preprocess request to job node '{}'...", delegate_address);
         let job = prof.time(format!("on {delegate_address}"));
-        let message: working_grpc::PreprocessRequest = working_grpc::PreprocessRequest { data: Some(name.into()), kind: Some(preprocess.into()), workflow:  };
+        let message: working_grpc::PreprocessRequest = working_grpc::PreprocessRequest {
+            data: Some(name.into()),
+            kind: Some(preprocess.into()),
+            workflow,
+            pc: Some(specifications::working::ProgramCounter {
+                func_id:  if let FunctionId::Func(id) = pc.func_id { id as u64 } else { u64::MAX },
+                edge_idx: pc.edge_idx as u64,
+            }),
+        };
 
         // Create the client
         let mut client: working_grpc::JobServiceClient = match proxy.connect_to_job(delegate_address.to_string()).await {
@@ -210,8 +225,10 @@ impl VmPlugin for InstancePlugin {
             api: api_address.serialize().to_string(),
 
             workflow,
-            call_fn: info.pc.0 as u64,
-            call_edge: info.pc.1 as u64,
+            call_pc: specifications::working::ProgramCounter {
+                func_id:  if let FunctionId::Func(id) = info.pc.func_id { id as u64 } else { u64::MAX },
+                edge_idx: info.pc.edge_idx as u64,
+            },
             task_def: info.def as u64,
 
             input: info.input.to_json_map().unwrap(),

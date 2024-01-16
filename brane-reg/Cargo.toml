@@ -27,6 +27,7 @@ warp = "0.3"
 
 brane-ast = { path = "../brane-ast" }
 brane-cfg = { path = "../brane-cfg" }
+brane-exe = { path = "../brane-exe" }
 brane-shr = { path = "../brane-shr" }
 brane-tsk = { path = "../brane-tsk" }
 specifications = { path = "../specifications" }

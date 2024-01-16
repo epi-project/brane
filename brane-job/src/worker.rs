@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    15 Jan 2024, 15:17:08
+//    16 Jan 2024, 12:04:43
 //  Auto updated?
 //    Yes
 //
@@ -26,11 +26,13 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
 use bollard::API_DEFAULT_VERSION;
 use brane_ast::ast::{ComputeTaskDef, DataName, TaskDef};
+use brane_ast::func_id::FunctionId;
 use brane_ast::locations::Location;
 use brane_ast::Workflow;
 use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, WorkerConfig};
+use brane_exe::pc::ProgramCounter;
 use brane_exe::FullValue;
 use brane_prx::client::ProxyClient;
 use brane_prx::spec::NewPathRequestTlsOptions;
@@ -166,7 +168,7 @@ struct PolicyExecuteRequest {
     /// The workflow that is being examined.
     pub workflow: Workflow,
     /// The ID (i.e., program counter) of the call that we want to authorize.
-    pub task_id:  (usize, usize),
+    pub task_id:  ProgramCounter,
 }
 
 // /// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `Verdict`-struct.
@@ -244,7 +246,7 @@ pub struct TaskInfo {
     /// The name of the task to execute.
     pub name: String,
     /// The identifier of the call to the task we're executing.
-    pub pc:   (usize, usize),
+    pub pc:   ProgramCounter,
 
     /// The name of the task's parent package.
     pub package_name: String,
@@ -283,7 +285,7 @@ impl TaskInfo {
     #[inline]
     pub fn new(
         name: impl Into<String>,
-        pc: (usize, usize),
+        pc: ProgramCounter,
         package_name: impl Into<String>,
         package_version: impl Into<Version>,
         input: HashMap<DataName, AccessKind>,
@@ -319,6 +321,8 @@ impl TaskInfo {
 /// # Arguments
 /// - `worker_cfg`: The configuration for this node's environment. For us, contains the path where we may find certificates and where to download data & result files to.
 /// - `proxy`: The proxy client we use to proxy the data transfer.
+/// - `pc`: The ProgramCounter of the edge that provides context for this preprocessing. If omitted, should be interpreted as that the context is retrieving the workflow result instead.
+/// - `workflow`: A [`Workflow`] that is given as context to the registry.
 /// - `location`: The location to download the tarball from.
 /// - `address`: The address to download the tarball from.
 /// - `data_name`: The type of the data (i.e., Data or IntermediateResult) combined with its identifier.
@@ -332,6 +336,8 @@ impl TaskInfo {
 async fn preprocess_transfer_tar_local(
     worker_cfg: &WorkerConfig,
     proxy: Arc<ProxyClient>,
+    pc: Option<ProgramCounter>,
+    workflow: Workflow,
     location: Location,
     address: impl AsRef<str>,
     data_name: DataName,
@@ -416,7 +422,7 @@ async fn preprocess_transfer_tar_local(
     let res = match proxy
         .get_with_body(address, Some(NewPathRequestTlsOptions { location: location.clone(), use_client_auth: true }), &DownloadAssetRequest {
             workflow: serde_json::to_value(&workflow).unwrap(),
-            task:     Some(pc),
+            task:     pc.map(|pc| (if let FunctionId::Func(id) = pc.func_id { Some(id as u64) } else { None }, pc.edge_idx as u64)),
         })
         .await
     {
@@ -506,6 +512,8 @@ async fn preprocess_transfer_tar_local(
 /// # Arguments
 /// - `worker_cfg`: The configuration for this node's environment. For us, contains the path where we may find certificates and where to download data & result files to.
 /// - `proxy`: The proxy client we use to proxy the data transfer.
+/// - `pc`: The ProgramCounter of the edge that provides context for this preprocessing. If omitted, should be interpreted as that the context is retrieving the workflow result instead.
+/// - `workflow`: A [`Workflow`] that is given as context to the registry.
 /// - `location`: The location to download the tarball from.
 /// - `address`: The address to download the tarball from.
 /// - `data_name`: The type of the data (i.e., Data or IntermediateResult) combined with its identifier.
@@ -519,6 +527,8 @@ async fn preprocess_transfer_tar_local(
 pub async fn preprocess_transfer_tar(
     worker_cfg: &WorkerConfig,
     proxy: Arc<ProxyClient>,
+    pc: Option<ProgramCounter>,
+    workflow: Workflow,
     location: Location,
     address: impl AsRef<str>,
     data_name: DataName,
@@ -538,7 +548,7 @@ pub async fn preprocess_transfer_tar(
     match backend.method {
         Credentials::Local { .. } => {
             // Download the container locally
-            preprocess_transfer_tar_local(worker_cfg, proxy, location, address, data_name, prof).await
+            preprocess_transfer_tar_local(worker_cfg, proxy, pc, workflow, location, address, data_name, prof).await
         },
 
         Credentials::Ssh { .. } => Err(PreprocessError::UnsupportedBackend { what: "SSH" }),
@@ -573,8 +583,8 @@ pub async fn preprocess_transfer_tar(
 ///
 /// # Errors
 /// This function errors if we failed to reach the checker, or the checker itself crashed.
-async fn assert_task_permission(worker_cfg: &WorkerConfig, workflow: &Workflow, call: (usize, usize)) -> Result<bool, AuthorizeError> {
-    info!("Checking task '{}:{}' execution permission with checker '{}'...", call.0, call.1, worker_cfg.services.chk.address);
+async fn assert_task_permission(worker_cfg: &WorkerConfig, workflow: &Workflow, call: ProgramCounter) -> Result<bool, AuthorizeError> {
+    info!("Checking task '{}' execution permission with checker '{}'...", call, worker_cfg.services.chk.address);
 
     // Alrighty tighty, let's begin by building the request for the checker
     debug!("Constructing checker request...");
@@ -629,12 +639,12 @@ async fn assert_task_permission(worker_cfg: &WorkerConfig, workflow: &Workflow, 
     // Now match the checker's response
     match res {
         Verdict::Allow(_) => {
-            info!("Checker ALLOWED execution of task {}:{}", call.0, call.1);
+            info!("Checker ALLOWED execution of task {}", call);
             Ok(true)
         },
 
         Verdict::Deny(_) => {
-            info!("Checker DENIED execution of task {}:{}", call.0, call.1);
+            info!("Checker DENIED execution of task {}", call);
             Ok(false)
         },
     }
@@ -1561,7 +1571,7 @@ impl JobService for WorkerServer {
     type ExecuteStream = ReceiverStream<Result<ExecuteReply, Status>>;
 
     async fn preprocess(&self, request: Request<PreprocessRequest>) -> Result<Response<PreprocessReply>, Status> {
-        let request = request.into_inner();
+        let PreprocessRequest { data, kind, workflow, pc } = request.into_inner();
         debug!("Receiving preprocess request");
 
         // Load the location ID from the node config
@@ -1584,7 +1594,7 @@ impl JobService for WorkerServer {
         let _total = report.time("Total");
 
         // Fetch the data kind
-        let data_name: DataName = match request.data {
+        let data_name: DataName = match data {
             Some(name) => name.into(),
             None => {
                 debug!("Incoming request has invalid data name (dropping it)");
@@ -1593,7 +1603,7 @@ impl JobService for WorkerServer {
         };
 
         // Parse the preprocess kind
-        match request.kind {
+        match kind {
             Some(PreprocessKind::TransferRegistryTar(TransferRegistryTar { location, address })) => {
                 // Load the node config file
                 let disk = report.time("File loading");
@@ -1613,10 +1623,36 @@ impl JobService for WorkerServer {
                 };
                 disk.stop();
 
+                // Parse the workflow
+                let workflow: Workflow = match report.time_func("Workflow deserialization", || {
+                    // Attempt to deserialize
+                    serde_json::from_str(&workflow)
+                }) {
+                    Ok(wf) => wf,
+                    Err(err) => {
+                        debug!("{}", trace!(("Incoming workflow couldn't be deserialized"), err));
+                        return Err(Status::invalid_argument("Invalid workflow"));
+                    },
+                };
+
                 // Run the function that way
                 let access: AccessKind = match report
                     .nest_fut("TransferTar preprocessing", |scope| {
-                        preprocess_transfer_tar(&worker, self.proxy.clone(), location, address, data_name, scope)
+                        preprocess_transfer_tar(
+                            &worker,
+                            self.proxy.clone(),
+                            pc.map(|pc| {
+                                ProgramCounter::new(
+                                    if pc.func_id == u64::MAX { FunctionId::Main } else { FunctionId::Func(pc.func_id as usize) },
+                                    pc.edge_idx as usize,
+                                )
+                            }),
+                            workflow,
+                            location,
+                            address,
+                            data_name,
+                            scope,
+                        )
                     })
                     .await
                 {
@@ -1776,7 +1812,10 @@ impl JobService for WorkerServer {
         let cinfo: ControlNodeInfo = ControlNodeInfo::new(request.api);
         let tinfo: TaskInfo = TaskInfo::new(
             task.function.name.clone(),
-            (request.call_fn as usize, request.call_edge as usize),
+            ProgramCounter::new(
+                if request.call_pc.func_id == u64::MAX { FunctionId::Main } else { FunctionId::Func(request.call_pc.func_id as usize) },
+                request.call_pc.edge_idx as usize,
+            ),
             task.package.clone(),
             task.version,
             input,

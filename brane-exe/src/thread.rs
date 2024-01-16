@@ -4,7 +4,7 @@
 //  Created:
 //    09 Sep 2022, 13:23:41
 //  Last edited:
-//    08 Jan 2024, 15:21:50
+//    16 Jan 2024, 11:34:39
 //  Auto updated?
 //    Yes
 //
@@ -20,6 +20,7 @@ use std::sync::{Arc, RwLock};
 
 use async_recursion::async_recursion;
 use brane_ast::ast::{ClassDef, ComputeTaskDef, DataName, Edge, EdgeInstr, FunctionDef, TaskDef};
+use brane_ast::func_id::FunctionId;
 use brane_ast::locations::Location;
 use brane_ast::spec::{BuiltinClasses, BuiltinFunctions};
 use brane_ast::{DataType, MergeStrategy, Workflow};
@@ -35,6 +36,7 @@ use crate::dbg_node;
 use crate::errors::ReturnEdge;
 pub use crate::errors::VmError as Error;
 use crate::frame_stack::FrameStack;
+use crate::pc::ProgramCounter;
 use crate::spec::{CustomGlobalState, CustomLocalState, RunState, TaskInfo, VmPlugin};
 use crate::stack::Stack;
 use crate::value::{FullValue, Value};
@@ -148,7 +150,7 @@ enum EdgeResult {
     /// The Edge completed the thread, returning a value. It also contains the timings it took to do the last instruction.
     Ok(Value),
     /// The Edge execution was a success but the workflow continues (to the given body and the given edge in that body, in fact). It also contains the timings it took to do the last instruction.
-    Pending((usize, usize)),
+    Pending(ProgramCounter),
     /// The Edge execution was a disaster and something went wrong.
     Err(Error),
 }
@@ -181,7 +183,7 @@ enum EdgeResult {
 async fn preprocess_value<'p: 'async_recursion, P: VmPlugin>(
     global: &Arc<RwLock<P::GlobalState>>,
     local: &P::LocalState,
-    pc: (usize, usize),
+    pc: ProgramCounter,
     task: &TaskDef,
     at: &Location,
     value: &FullValue,
@@ -220,11 +222,11 @@ async fn preprocess_value<'p: 'async_recursion, P: VmPlugin>(
         Some(avail) => match avail {
             Some(avail) => avail.clone(),
             None => {
-                return Err(Error::UnplannedInput { edge: pc.1, task: task.name().into(), name });
+                return Err(Error::UnplannedInput { pc, task: task.name().into(), name });
             },
         },
         None => {
-            return Err(Error::UnknownInput { edge: pc.1, task: task.name().into(), name });
+            return Err(Error::UnknownInput { pc, task: task.name().into(), name });
         },
     };
 
@@ -240,7 +242,7 @@ async fn preprocess_value<'p: 'async_recursion, P: VmPlugin>(
             // Call the external transfer function
             // match P::preprocess(global, local, at, &name, how).await {
             //     Ok(access) => access,
-            //     Err(err)   => { return Err(Error::Custom{ edge: pc.1, err: Box::new(err) }); }
+            //     Err(err)   => { return Err(Error::Custom{ pc, err: Box::new(err) }); }
             // }
             let prof = ProfileScopeHandleOwned::from(prof);
             let global = global.clone();
@@ -248,7 +250,7 @@ async fn preprocess_value<'p: 'async_recursion, P: VmPlugin>(
             let at = at.clone();
             let name = name.clone();
             tokio::spawn(async move {
-                prof.nest_fut(format!("{}::preprocess()", type_name::<P>()), |scope| P::preprocess(global, local, at, name, how, scope)).await
+                prof.nest_fut(format!("{}::preprocess()", type_name::<P>()), |scope| P::preprocess(global, local, pc, at, name, how, scope)).await
             })
         },
     };
@@ -261,7 +263,7 @@ async fn preprocess_value<'p: 'async_recursion, P: VmPlugin>(
 /// Runs a single instruction, modifying the given stack and variable register.
 ///
 /// # Arguments
-/// - `edge`: The index of the edge we're executing (used for debugging purposes).
+/// - `pc`: The location of the edge we're executing (used for debugging purposes).
 /// - `idx`: The index of the instruction we're executing (used for debugging purposes).
 /// - `instr`: The EdgeInstr to execute.
 /// - `stack`: The Stack that represents temporary state for executing.
@@ -272,38 +274,38 @@ async fn preprocess_value<'p: 'async_recursion, P: VmPlugin>(
 ///
 /// # Errors
 /// This function may error if execution of the instruction failed. This is typically due to incorrect runtime typing.
-fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fstack: &mut FrameStack) -> Result<i64, Error> {
+fn exec_instr(pc: ProgramCounter, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fstack: &mut FrameStack) -> Result<i64, Error> {
     use EdgeInstr::*;
     let next: i64 = match instr {
         Cast { res_type } => {
             // Get the top value off the stack
             let value: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Any }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Any }),
             };
 
             // Attempt to cast it based on the value it is
             let value: Value = match value.cast(res_type, fstack.table()) {
                 Ok(value) => value,
                 Err(err) => {
-                    return Err(Error::CastError { edge, instr: idx, err });
+                    return Err(Error::CastError { pc, instr: idx, err });
                 },
             };
 
             // Push the value back
-            stack.push(value).to_instr(edge, idx)?;
+            stack.push(value).to_instr(pc, idx)?;
             1
         },
         Pop {} => {
             // Get the top value off the stack and discard it
             if stack.pop().is_none() {
-                return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Any });
+                return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Any });
             };
             1
         },
         PopMarker {} => {
             // Push a pop marker on top of the stack.
-            stack.push_pop_marker().to_instr(edge, idx)?;
+            stack.push_pop_marker().to_instr(pc, idx)?;
             1
         },
         DynamicPop {} => {
@@ -317,7 +319,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             let value: Value = match stack.pop() {
                 Some(value) => value,
                 None => {
-                    return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Boolean });
+                    return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Boolean });
                 },
             };
 
@@ -326,7 +328,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             let value: bool = match value.try_as_bool() {
                 Some(value) => value,
                 None => {
-                    return Err(Error::StackTypeError { edge, instr: Some(idx), got: value_type, expected: DataType::Boolean });
+                    return Err(Error::StackTypeError { pc, instr: Some(idx), got: value_type, expected: DataType::Boolean });
                 },
             };
 
@@ -338,7 +340,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             let value: Value = match stack.pop() {
                 Some(value) => value,
                 None => {
-                    return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Boolean });
+                    return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Boolean });
                 },
             };
 
@@ -347,7 +349,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             let value: bool = match value.try_as_bool() {
                 Some(value) => value,
                 None => {
-                    return Err(Error::StackTypeError { edge, instr: Some(idx), got: value_type, expected: DataType::Boolean });
+                    return Err(Error::StackTypeError { pc, instr: Some(idx), got: value_type, expected: DataType::Boolean });
                 },
             };
 
@@ -359,42 +361,42 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Get the top value off the stack
             let value: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
             // Get it as a boolean
             let value_type: DataType = value.data_type(fstack.table());
             let value: bool = match value.try_as_bool() {
                 Some(value) => value,
                 None => {
-                    return Err(Error::StackTypeError { edge, instr: Some(idx), got: value_type, expected: DataType::Boolean });
+                    return Err(Error::StackTypeError { pc, instr: Some(idx), got: value_type, expected: DataType::Boolean });
                 },
             };
 
             // Push the negated value back
-            stack.push(Value::Boolean { value: !value }).to_instr(edge, idx)?;
+            stack.push(Value::Boolean { value: !value }).to_instr(pc, idx)?;
             1
         },
         Neg {} => {
             // Get the top value off the stack
             let value: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
 
             // Get it as an integer or real value
             match value {
                 Value::Integer { value } => {
                     // Put the negated value back
-                    stack.push(Value::Integer { value: -value }).to_instr(edge, idx)?;
+                    stack.push(Value::Integer { value: -value }).to_instr(pc, idx)?;
                 },
                 Value::Real { value } => {
                     // Put the negated value back
-                    stack.push(Value::Real { value: -value }).to_instr(edge, idx)?;
+                    stack.push(Value::Real { value: -value }).to_instr(pc, idx)?;
                 },
 
                 // Yeah no not that one
                 value => {
-                    return Err(Error::StackTypeError { edge, instr: Some(idx), got: value.data_type(fstack.table()), expected: DataType::Numeric });
+                    return Err(Error::StackTypeError { pc, instr: Some(idx), got: value.data_type(fstack.table()), expected: DataType::Numeric });
                 },
             };
             1
@@ -404,46 +406,46 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Boolean }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Boolean }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Boolean }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Boolean }),
             };
             // Get them both as boolean values
             let (lhs_type, rhs_type): (DataType, DataType) = (lhs.data_type(fstack.table()), rhs.data_type(fstack.table()));
             let (lhs, rhs): (bool, bool) = match (lhs.try_as_bool(), rhs.try_as_bool()) {
                 (Some(lhs), Some(rhs)) => (lhs, rhs),
                 (_, _) => {
-                    return Err(Error::StackLhsRhsTypeError { edge, instr: idx, got: (lhs_type, rhs_type), expected: DataType::Boolean });
+                    return Err(Error::StackLhsRhsTypeError { pc, instr: idx, got: (lhs_type, rhs_type), expected: DataType::Boolean });
                 },
             };
 
             // Push the conjunction of the two on top again
-            stack.push(Value::Boolean { value: lhs && rhs }).to_instr(edge, idx)?;
+            stack.push(Value::Boolean { value: lhs && rhs }).to_instr(pc, idx)?;
             1
         },
         Or {} => {
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Boolean }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Boolean }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Boolean }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Boolean }),
             };
             // Get them both as boolean values
             let (lhs_type, rhs_type): (DataType, DataType) = (lhs.data_type(fstack.table()), rhs.data_type(fstack.table()));
             let (lhs, rhs): (bool, bool) = match (lhs.try_as_bool(), rhs.try_as_bool()) {
                 (Some(lhs), Some(rhs)) => (lhs, rhs),
                 (_, _) => {
-                    return Err(Error::StackLhsRhsTypeError { edge, instr: idx, got: (lhs_type, rhs_type), expected: DataType::Boolean });
+                    return Err(Error::StackLhsRhsTypeError { pc, instr: idx, got: (lhs_type, rhs_type), expected: DataType::Boolean });
                 },
             };
 
             // Push the disjunction of the two on top again
-            stack.push(Value::Boolean { value: lhs || rhs }).to_instr(edge, idx)?;
+            stack.push(Value::Boolean { value: lhs || rhs }).to_instr(pc, idx)?;
             1
         },
 
@@ -451,33 +453,33 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Addable }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Addable }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Addable }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Addable }),
             };
 
             // Get them both as either numeric _or_ string values
             match (lhs, rhs) {
                 (Value::Integer { value: lhs }, Value::Integer { value: rhs }) => {
                     // Put the added value back
-                    stack.push(Value::Integer { value: lhs + rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Integer { value: lhs + rhs }).to_instr(pc, idx)?;
                 },
                 (Value::Real { value: lhs }, Value::Real { value: rhs }) => {
                     // Put the added value back
-                    stack.push(Value::Real { value: lhs + rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Real { value: lhs + rhs }).to_instr(pc, idx)?;
                 },
                 (Value::String { value: mut lhs }, Value::String { value: rhs }) => {
                     // Put the concatenated value back
                     lhs.push_str(&rhs);
-                    stack.push(Value::String { value: lhs }).to_instr(edge, idx)?;
+                    stack.push(Value::String { value: lhs }).to_instr(pc, idx)?;
                 },
 
                 // Yeah no not that one
                 (lhs, rhs) => {
                     return Err(Error::StackLhsRhsTypeError {
-                        edge,
+                        pc,
                         instr: idx,
                         got: (lhs.data_type(fstack.table()), rhs.data_type(fstack.table())),
                         expected: DataType::Addable,
@@ -490,28 +492,28 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
 
             // Get them both as either numeric _or_ string values
             match (lhs, rhs) {
                 (Value::Integer { value: lhs }, Value::Integer { value: rhs }) => {
                     // Put the subtracted value back
-                    stack.push(Value::Integer { value: lhs - rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Integer { value: lhs - rhs }).to_instr(pc, idx)?;
                 },
                 (Value::Real { value: lhs }, Value::Real { value: rhs }) => {
                     // Put the subtracted value back
-                    stack.push(Value::Real { value: lhs - rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Real { value: lhs - rhs }).to_instr(pc, idx)?;
                 },
 
                 // Yeah no not that one
                 (lhs, rhs) => {
                     return Err(Error::StackLhsRhsTypeError {
-                        edge,
+                        pc,
                         instr: idx,
                         got: (lhs.data_type(fstack.table()), rhs.data_type(fstack.table())),
                         expected: DataType::Numeric,
@@ -524,28 +526,28 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
 
             // Get them both as either numeric _or_ string values
             match (lhs, rhs) {
                 (Value::Integer { value: lhs }, Value::Integer { value: rhs }) => {
                     // Put the multiplied value back
-                    stack.push(Value::Integer { value: lhs * rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Integer { value: lhs * rhs }).to_instr(pc, idx)?;
                 },
                 (Value::Real { value: lhs }, Value::Real { value: rhs }) => {
                     // Put the multiplied value back
-                    stack.push(Value::Real { value: lhs * rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Real { value: lhs * rhs }).to_instr(pc, idx)?;
                 },
 
                 // Yeah no not that one
                 (lhs, rhs) => {
                     return Err(Error::StackLhsRhsTypeError {
-                        edge,
+                        pc,
                         instr: idx,
                         got: (lhs.data_type(fstack.table()), rhs.data_type(fstack.table())),
                         expected: DataType::Numeric,
@@ -558,28 +560,28 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
 
             // Get them both as either numeric _or_ string values
             match (lhs, rhs) {
                 (Value::Integer { value: lhs }, Value::Integer { value: rhs }) => {
                     // Put the divided value back
-                    stack.push(Value::Integer { value: lhs / rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Integer { value: lhs / rhs }).to_instr(pc, idx)?;
                 },
                 (Value::Real { value: lhs }, Value::Real { value: rhs }) => {
                     // Put the divided value back
-                    stack.push(Value::Real { value: lhs / rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Real { value: lhs / rhs }).to_instr(pc, idx)?;
                 },
 
                 // Yeah no not that one
                 (lhs, rhs) => {
                     return Err(Error::StackLhsRhsTypeError {
-                        edge,
+                        pc,
                         instr: idx,
                         got: (lhs.data_type(fstack.table()), rhs.data_type(fstack.table())),
                         expected: DataType::Numeric,
@@ -592,23 +594,23 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Integer }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Integer }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Integer }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Integer }),
             };
             // Get them both as integer values
             let (lhs_type, rhs_type): (DataType, DataType) = (lhs.data_type(fstack.table()), rhs.data_type(fstack.table()));
             let (lhs, rhs): (i64, i64) = match (lhs.try_as_int(), rhs.try_as_int()) {
                 (Some(lhs), Some(rhs)) => (lhs, rhs),
                 (_, _) => {
-                    return Err(Error::StackLhsRhsTypeError { edge, instr: idx, got: (lhs_type, rhs_type), expected: DataType::Integer });
+                    return Err(Error::StackLhsRhsTypeError { pc, instr: idx, got: (lhs_type, rhs_type), expected: DataType::Integer });
                 },
             };
 
             // Push the modulo of the two on top again
-            stack.push(Value::Integer { value: lhs % rhs }).to_instr(edge, idx)?;
+            stack.push(Value::Integer { value: lhs % rhs }).to_instr(pc, idx)?;
             1
         },
 
@@ -616,58 +618,58 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
 
             // Simply push if they are the same
-            stack.push(Value::Boolean { value: lhs == rhs }).to_instr(edge, idx)?;
+            stack.push(Value::Boolean { value: lhs == rhs }).to_instr(pc, idx)?;
             1
         },
         Ne {} => {
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
 
             // Simply push if they are not the same
-            stack.push(Value::Boolean { value: lhs != rhs }).to_instr(edge, idx)?;
+            stack.push(Value::Boolean { value: lhs != rhs }).to_instr(pc, idx)?;
             1
         },
         Lt {} => {
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
 
             // Get them both as numeric values
             match (lhs, rhs) {
                 (Value::Integer { value: lhs }, Value::Integer { value: rhs }) => {
                     // Put the subtracted value back
-                    stack.push(Value::Boolean { value: lhs < rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Boolean { value: lhs < rhs }).to_instr(pc, idx)?;
                 },
                 (Value::Real { value: lhs }, Value::Real { value: rhs }) => {
                     // Put the subtracted value back
-                    stack.push(Value::Boolean { value: lhs < rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Boolean { value: lhs < rhs }).to_instr(pc, idx)?;
                 },
 
                 // Yeah no not that one
                 (lhs, rhs) => {
                     return Err(Error::StackLhsRhsTypeError {
-                        edge,
+                        pc,
                         instr: idx,
                         got: (lhs.data_type(fstack.table()), rhs.data_type(fstack.table())),
                         expected: DataType::Numeric,
@@ -680,28 +682,28 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
 
             // Get them both as numeric values
             match (lhs, rhs) {
                 (Value::Integer { value: lhs }, Value::Integer { value: rhs }) => {
                     // Put the subtracted value back
-                    stack.push(Value::Boolean { value: lhs <= rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Boolean { value: lhs <= rhs }).to_instr(pc, idx)?;
                 },
                 (Value::Real { value: lhs }, Value::Real { value: rhs }) => {
                     // Put the subtracted value back
-                    stack.push(Value::Boolean { value: lhs <= rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Boolean { value: lhs <= rhs }).to_instr(pc, idx)?;
                 },
 
                 // Yeah no not that one
                 (lhs, rhs) => {
                     return Err(Error::StackLhsRhsTypeError {
-                        edge,
+                        pc,
                         instr: idx,
                         got: (lhs.data_type(fstack.table()), rhs.data_type(fstack.table())),
                         expected: DataType::Numeric,
@@ -714,28 +716,28 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
 
             // Get them both as numeric values
             match (lhs, rhs) {
                 (Value::Integer { value: lhs }, Value::Integer { value: rhs }) => {
                     // Put the subtracted value back
-                    stack.push(Value::Boolean { value: lhs > rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Boolean { value: lhs > rhs }).to_instr(pc, idx)?;
                 },
                 (Value::Real { value: lhs }, Value::Real { value: rhs }) => {
                     // Put the subtracted value back
-                    stack.push(Value::Boolean { value: lhs > rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Boolean { value: lhs > rhs }).to_instr(pc, idx)?;
                 },
 
                 // Yeah no not that one
                 (lhs, rhs) => {
                     return Err(Error::StackLhsRhsTypeError {
-                        edge,
+                        pc,
                         instr: idx,
                         got: (lhs.data_type(fstack.table()), rhs.data_type(fstack.table())),
                         expected: DataType::Numeric,
@@ -748,28 +750,28 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             // Pop the lhs and rhs off the stack (reverse order)
             let rhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
             let lhs: Value = match stack.pop() {
                 Some(value) => value,
-                None => return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Numeric }),
+                None => return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Numeric }),
             };
 
             // Get them both as numeric values
             match (lhs, rhs) {
                 (Value::Integer { value: lhs }, Value::Integer { value: rhs }) => {
                     // Put the subtracted value back
-                    stack.push(Value::Boolean { value: lhs >= rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Boolean { value: lhs >= rhs }).to_instr(pc, idx)?;
                 },
                 (Value::Real { value: lhs }, Value::Real { value: rhs }) => {
                     // Put the subtracted value back
-                    stack.push(Value::Boolean { value: lhs >= rhs }).to_instr(edge, idx)?;
+                    stack.push(Value::Boolean { value: lhs >= rhs }).to_instr(pc, idx)?;
                 },
 
                 // Yeah no not that one
                 (lhs, rhs) => {
                     return Err(Error::StackLhsRhsTypeError {
-                        edge,
+                        pc,
                         instr: idx,
                         got: (lhs.data_type(fstack.table()), rhs.data_type(fstack.table())),
                         expected: DataType::Numeric,
@@ -789,7 +791,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
                 let value: Value = match stack.pop() {
                     Some(value) => value,
                     None => {
-                        return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: res_type });
+                        return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: res_type });
                     },
                 };
 
@@ -797,7 +799,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
                 if let DataType::Any = &res_type {
                     res_type = value.data_type(fstack.table());
                 } else if res_type != value.data_type(fstack.table()) {
-                    return Err(Error::ArrayTypeError { edge, instr: idx, got: value.data_type(fstack.table()), expected: res_type });
+                    return Err(Error::ArrayTypeError { pc, instr: idx, got: value.data_type(fstack.table()), expected: res_type });
                 }
 
                 // Add the element
@@ -807,7 +809,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             elems.reverse();
 
             // Create the array and push it back
-            stack.push(Value::Array { values: elems }).to_instr(edge, idx)?;
+            stack.push(Value::Array { values: elems }).to_instr(pc, idx)?;
             1
         },
         ArrayIndex { res_type } => {
@@ -815,7 +817,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             let index: Value = match stack.pop() {
                 Some(index) => index,
                 None => {
-                    return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Integer });
+                    return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Integer });
                 },
             };
             // as an integer
@@ -823,7 +825,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             let index: i64 = match index.try_as_int() {
                 Some(index) => index,
                 None => {
-                    return Err(Error::StackTypeError { edge, instr: Some(idx), got: index_type, expected: DataType::Integer });
+                    return Err(Error::StackTypeError { pc, instr: Some(idx), got: index_type, expected: DataType::Integer });
                 },
             };
 
@@ -831,11 +833,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             let arr: Value = match stack.pop() {
                 Some(arr) => arr,
                 None => {
-                    return Err(Error::EmptyStackError {
-                        edge,
-                        instr: Some(idx),
-                        expected: DataType::Array { elem_type: Box::new(res_type.clone()) },
-                    });
+                    return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Array { elem_type: Box::new(res_type.clone()) } });
                 },
             };
             // as an array of values but indexed correctly
@@ -844,7 +842,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
                 Some(arr) => arr,
                 None => {
                     return Err(Error::StackTypeError {
-                        edge,
+                        pc,
                         instr: Some(idx),
                         got: arr_type,
                         expected: DataType::Array { elem_type: Box::new(res_type.clone()) },
@@ -854,11 +852,11 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
 
             // Now index the array and push that element back
             if index < 0 || index as usize >= arr.len() {
-                return Err(Error::ArrIdxOutOfBoundsError { edge, instr: idx, got: index, max: arr.len() });
+                return Err(Error::ArrIdxOutOfBoundsError { pc, instr: idx, got: index, max: arr.len() });
             }
 
             // Finally, push that element back and return
-            stack.push(arr.swap_remove(index as usize)).to_instr(edge, idx)?;
+            stack.push(arr.swap_remove(index as usize)).to_instr(pc, idx)?;
             1
         },
         Instance { def } => {
@@ -872,7 +870,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
                     Some(value) => value,
                     None => {
                         return Err(Error::EmptyStackError {
-                            edge,
+                            pc,
                             instr: Some(idx),
                             expected: class.props[class.props.len() - 1 - i].data_type.clone(),
                         });
@@ -882,7 +880,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
                 // Make sure this is of the correct type
                 if !value.data_type(fstack.table()).allowed_by(&class.props[class.props.len() - 1 - i].data_type) {
                     return Err(Error::InstanceTypeError {
-                        edge,
+                        pc,
                         instr: idx,
                         got: value.data_type(fstack.table()),
                         class: class.name.clone(),
@@ -903,11 +901,11 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
 
             // Push an instance with those values - unless it's a specific builtin
             if class.name == BuiltinClasses::Data.name() {
-                stack.push(Value::Data { name: values.remove("name").unwrap().try_as_string().unwrap() }).to_instr(edge, idx)?;
+                stack.push(Value::Data { name: values.remove("name").unwrap().try_as_string().unwrap() }).to_instr(pc, idx)?;
             } else if class.name == BuiltinClasses::IntermediateResult.name() {
-                stack.push(Value::IntermediateResult { name: values.remove("name").unwrap().try_as_string().unwrap() }).to_instr(edge, idx)?;
+                stack.push(Value::IntermediateResult { name: values.remove("name").unwrap().try_as_string().unwrap() }).to_instr(pc, idx)?;
             } else {
-                stack.push(Value::Instance { values, def: *def }).to_instr(edge, idx)?;
+                stack.push(Value::Instance { values, def: *def }).to_instr(pc, idx)?;
             }
             1
         },
@@ -916,7 +914,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             let value: Value = match stack.pop() {
                 Some(value) => value,
                 None => {
-                    return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: DataType::Class { name: format!("withField={field}") } });
+                    return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: DataType::Class { name: format!("withField={field}") } });
                 },
             };
             // as an instance
@@ -925,7 +923,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
                 Some(value) => value,
                 None => {
                     return Err(Error::StackTypeError {
-                        edge,
+                        pc,
                         instr: Some(idx),
                         got: value_type,
                         expected: DataType::Class { name: format!("withField={field}") },
@@ -949,7 +947,7 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
                         Some(res) => res,
                         None => {
                             return Err(Error::ProjUnknownFieldError {
-                                edge,
+                                pc,
                                 instr: idx,
                                 class: fstack.table().class(def).name.clone(),
                                 field: field.clone(),
@@ -960,21 +958,21 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             };
 
             // Push it
-            stack.push(value).to_instr(edge, idx)?;
+            stack.push(value).to_instr(pc, idx)?;
             1
         },
 
         VarDec { def } => {
             // Simply declare it
             if let Err(err) = fstack.declare(*def) {
-                return Err(Error::VarDecError { edge, instr: idx, err });
+                return Err(Error::VarDecError { pc, instr: idx, err });
             }
             1
         },
         VarUndec { def } => {
             // Simply undeclare it
             if let Err(err) = fstack.undeclare(*def) {
-                return Err(Error::VarUndecError { edge, instr: idx, err });
+                return Err(Error::VarUndecError { pc, instr: idx, err });
             }
             1
         },
@@ -983,12 +981,12 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             let value: Value = match fstack.get(*def) {
                 Ok(value) => value.clone(),
                 Err(err) => {
-                    return Err(Error::VarGetError { edge, instr: idx, err });
+                    return Err(Error::VarGetError { pc, instr: idx, err });
                 },
             };
 
             // Push it
-            stack.push(value).to_instr(edge, idx)?;
+            stack.push(value).to_instr(pc, idx)?;
             1
         },
         VarSet { def } => {
@@ -996,40 +994,40 @@ fn exec_instr(edge: usize, idx: usize, instr: &EdgeInstr, stack: &mut Stack, fst
             let value: Value = match stack.pop() {
                 Some(value) => value,
                 None => {
-                    return Err(Error::EmptyStackError { edge, instr: Some(idx), expected: fstack.table().var(*def).data_type.clone() });
+                    return Err(Error::EmptyStackError { pc, instr: Some(idx), expected: fstack.table().var(*def).data_type.clone() });
                 },
             };
 
             // Set it in the register, done
             if let Err(err) = fstack.set(*def, value) {
-                return Err(Error::VarSetError { edge, instr: idx, err });
+                return Err(Error::VarSetError { pc, instr: idx, err });
             };
             1
         },
 
         Boolean { value } => {
             // Push a boolean with the given value
-            stack.push(Value::Boolean { value: *value }).to_instr(edge, idx)?;
+            stack.push(Value::Boolean { value: *value }).to_instr(pc, idx)?;
             1
         },
         Integer { value } => {
             // Push an integer with the given value
-            stack.push(Value::Integer { value: *value }).to_instr(edge, idx)?;
+            stack.push(Value::Integer { value: *value }).to_instr(pc, idx)?;
             1
         },
         Real { value } => {
             // Push a real with the given value
-            stack.push(Value::Real { value: *value }).to_instr(edge, idx)?;
+            stack.push(Value::Real { value: *value }).to_instr(pc, idx)?;
             1
         },
         String { value } => {
             // Push a string with the given value
-            stack.push(Value::String { value: value.clone() }).to_instr(edge, idx)?;
+            stack.push(Value::String { value: value.clone() }).to_instr(pc, idx)?;
             1
         },
         Function { def } => {
             // Push a function with the given definition
-            stack.push(Value::Function { def: *def }).to_instr(edge, idx)?;
+            stack.push(Value::Function { def: *def }).to_instr(pc, idx)?;
             1
         },
     };
@@ -1051,7 +1049,7 @@ pub struct Thread<G: CustomGlobalState, L: CustomLocalState> {
     funcs: Arc<HashMap<usize, Vec<Edge>>>,
 
     /// The 'program counter' of this thread. It first indexed the correct body (`usize::MAX` for main, or else the index of the function), and then the offset within that body.
-    pc: (usize, usize),
+    pc: ProgramCounter,
 
     /// The stack which we use for temporary values.
     stack:  Stack,
@@ -1085,7 +1083,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
             graph: workflow.graph.clone(),
             funcs: workflow.funcs.clone(),
 
-            pc: (usize::MAX, 0),
+            pc: ProgramCounter::start(),
 
             stack:  Stack::new(2048),
             fstack: FrameStack::new(512, workflow.table.clone()),
@@ -1108,7 +1106,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
             graph: workflow.graph.clone(),
             funcs: workflow.funcs.clone(),
 
-            pc: (usize::MAX, 0),
+            pc: ProgramCounter::start(),
 
             stack:  Stack::new(2048),
             fstack: state.fstack,
@@ -1128,7 +1126,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
     /// # Returns
     /// A new Thread that is partly cloned of this one.
     #[inline]
-    pub fn fork(&self, offset: (usize, usize)) -> Self {
+    pub fn fork(&self, offset: ProgramCounter) -> Self {
         Self {
             graph: self.graph.clone(),
             funcs: self.funcs.clone(),
@@ -1165,21 +1163,25 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
     ///
     /// # Errors
     /// This function may error if the program counter is out-of-bounds.
-    fn get_edge(&self, pc: (usize, usize)) -> Result<&Edge, Error> {
-        if pc.0 == usize::MAX {
+    fn get_edge(&self, pc: ProgramCounter) -> Result<&Edge, Error> {
+        if pc.func_id.is_main() {
             // Assert the index is within range
-            if pc.1 < self.graph.len() {
-                Ok(&self.graph[pc.1])
+            if pc.edge_idx < self.graph.len() {
+                Ok(&self.graph[pc.edge_idx])
             } else {
-                Err(Error::PcOutOfBounds { func: pc.0, edges: self.graph.len(), got: pc.1 })
+                Err(Error::PcOutOfBounds { func: pc.func_id, edges: self.graph.len(), got: pc.edge_idx })
             }
         } else {
             // Assert the function is within range
-            if let Some(edges) = self.funcs.get(&pc.0) {
+            if let Some(edges) = self.funcs.get(&pc.func_id.id()) {
                 // Assert the index is within range
-                if pc.1 < edges.len() { Ok(&edges[pc.1]) } else { Err(Error::PcOutOfBounds { func: pc.0, edges: edges.len(), got: pc.1 }) }
+                if pc.edge_idx < edges.len() {
+                    Ok(&edges[pc.edge_idx])
+                } else {
+                    Err(Error::PcOutOfBounds { func: pc.func_id, edges: edges.len(), got: pc.edge_idx })
+                }
             } else {
-                Err(Error::UnknownFunction { func: pc.0 })
+                Err(Error::UnknownFunction { func: pc.func_id })
             }
         }
     }
@@ -1187,7 +1189,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
     /// Executes a single edge, modifying the given stacks and variable register.
     ///
     /// # Arguments
-    /// - `pc`: Points to the current edge to execute (as a `(body, offset)` pair).
+    /// - `pc`: Points to the current edge to execute (as a [`ProgramCounter``]).
     /// - `plugins`: An object implementing various parts of task execution that are dependent on the actual setup (i.e., offline VS instance).
     /// - `prof`: A ProfileScopeHandleOwned that is used to provide more details about the execution times of a single edge. Note that this is _not_ user-relevant, only debug/framework-relevant.
     ///
@@ -1196,34 +1198,34 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
     ///
     /// # Errors
     /// This function may error if execution of the edge failed. This is typically due to incorrect runtime typing or due to failure to perform an external function call.
-    async fn exec_edge<P: VmPlugin<GlobalState = G, LocalState = L>>(&mut self, pc: (usize, usize), prof: ProfileScopeHandleOwned) -> EdgeResult {
+    async fn exec_edge<P: VmPlugin<GlobalState = G, LocalState = L>>(&mut self, pc: ProgramCounter, prof: ProfileScopeHandleOwned) -> EdgeResult {
         // We can early stop if the program counter is out-of-bounds
-        if pc.0 == usize::MAX {
-            if pc.1 >= self.graph.len() {
-                debug!("Nothing to do (main, PC {} >= #edges {})", pc.1, self.graph.len());
+        if pc.func_id.is_main() {
+            if pc.edge_idx >= self.graph.len() {
+                debug!("Nothing to do (main, PC {} >= #edges {})", pc.edge_idx, self.graph.len());
                 // We didn't really execute anything, so no timing taken
                 return EdgeResult::Ok(Value::Void);
             }
         } else {
-            let f: &[Edge] = self.funcs.get(&pc.0).unwrap_or_else(|| panic!("Failed to find function with index '{}'", pc.0));
-            if pc.1 >= f.len() {
-                debug!("Nothing to do ({}, PC {} >= #edges {})", pc.0, pc.1, f.len());
+            let f: &[Edge] = self.funcs.get(&pc.func_id.id()).unwrap_or_else(|| panic!("Failed to find function with index '{}'", pc.func_id.id()));
+            if pc.edge_idx >= f.len() {
+                debug!("Nothing to do ({}, PC {} >= #edges {})", pc.func_id.id(), pc.edge_idx, f.len());
                 // We didn't really execute anything, so no timing taken
                 return EdgeResult::Ok(Value::Void);
             }
         }
 
         // Get the edge based on the index
-        let edge: &Edge = if pc.0 == usize::MAX {
-            &self.graph[pc.1]
+        let edge: &Edge = if pc.func_id.is_main() {
+            &self.graph[pc.edge_idx]
         } else {
-            &self.funcs.get(&pc.0).unwrap_or_else(|| panic!("Failed to find function with index '{}'", pc.0))[pc.1]
+            &self.funcs.get(&pc.func_id.id()).unwrap_or_else(|| panic!("Failed to find function with index '{}'", pc.func_id.id()))[pc.edge_idx]
         };
-        dbg_node!("{}) Executing Edge: {:?}", if pc.0 == usize::MAX { "<Main>" } else { &self.fstack.table().func(pc.0).name }, edge);
+        dbg_node!("{pc}) Executing Edge: {edge:?}");
 
         // Match on the specific edge
         use Edge::*;
-        let next: (usize, usize) = match edge {
+        let next: ProgramCounter = match edge {
             Node { task: task_id, at, input, result, next, .. } => {
                 // Resolve the task
                 let task: &TaskDef = self.fstack.table().task(*task_id);
@@ -1243,11 +1245,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                             let value: Value = match self.stack.pop() {
                                 Some(value) => value,
                                 None => {
-                                    return EdgeResult::Err(Error::EmptyStackError {
-                                        edge:     pc.1,
-                                        instr:    None,
-                                        expected: function.args[i].clone(),
-                                    });
+                                    return EdgeResult::Err(Error::EmptyStackError { pc, instr: None, expected: function.args[i].clone() });
                                 },
                             };
 
@@ -1255,10 +1253,10 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                             let value_type: DataType = value.data_type(self.fstack.table());
                             if !value_type.allowed_by(&function.args[i]) {
                                 return EdgeResult::Err(Error::FunctionTypeError {
-                                    edge:     pc.1,
-                                    name:     task.name().into(),
-                                    arg:      i,
-                                    got:      value_type,
+                                    pc,
+                                    name: task.name().into(),
+                                    arg: i,
+                                    got: value_type,
                                     expected: function.args[i].clone(),
                                 });
                             }
@@ -1271,7 +1269,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                         let at: &Location = match at {
                             Some(at) => at,
                             None => {
-                                return EdgeResult::Err(Error::UnresolvedLocation { edge: pc.1, name: function.name.clone() });
+                                return EdgeResult::Err(Error::UnresolvedLocation { pc, name: function.name.clone() });
                             },
                         };
                         retr.stop();
@@ -1301,11 +1299,11 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                         data.insert(name, access);
                                     },
                                     Err(err) => {
-                                        return EdgeResult::Err(Error::Custom { edge: pc.1, err: Box::new(err) });
+                                        return EdgeResult::Err(Error::Custom { pc, err: Box::new(err) });
                                     },
                                 },
                                 Err(err) => {
-                                    return EdgeResult::Err(Error::Custom { edge: pc.1, err: Box::new(err) });
+                                    return EdgeResult::Err(Error::Custom { pc, err: Box::new(err) });
                                 },
                             }
                         }
@@ -1335,7 +1333,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                         {
                             Ok(res) => res.map(|v| v.into_value(self.fstack.table())),
                             Err(err) => {
-                                return EdgeResult::Err(Error::Custom { edge: pc.1, err: Box::new(err) });
+                                return EdgeResult::Err(Error::Custom { pc, err: Box::new(err) });
                             },
                         };
 
@@ -1350,7 +1348,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                 })
                                 .await
                             {
-                                return EdgeResult::Err(Error::Custom { edge: pc.1, err: Box::new(err) });
+                                return EdgeResult::Err(Error::Custom { pc, err: Box::new(err) });
                             }
 
                             // Return the new, intermediate result
@@ -1363,23 +1361,15 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                             // Verification
                             let res_type: DataType = res.data_type(self.fstack.table());
                             if res_type != function.ret {
-                                return EdgeResult::Err(Error::ReturnTypeError {
-                                    edge:     pc.1,
-                                    got:      res_type,
-                                    expected: function.ret.clone(),
-                                });
+                                return EdgeResult::Err(Error::ReturnTypeError { pc, got: res_type, expected: function.ret.clone() });
                             }
 
                             // If we have it anyway, might as well push it onto the stack
                             if let Err(err) = self.stack.push(res) {
-                                return EdgeResult::Err(Error::StackError { edge: pc.1, instr: None, err });
+                                return EdgeResult::Err(Error::StackError { pc, instr: None, err });
                             }
                         } else if function.ret != DataType::Void {
-                            return EdgeResult::Err(Error::ReturnTypeError {
-                                edge:     pc.1,
-                                got:      DataType::Void,
-                                expected: function.ret.clone(),
-                            });
+                            return EdgeResult::Err(Error::ReturnTypeError { pc, got: DataType::Void, expected: function.ret.clone() });
                         }
                     },
 
@@ -1389,7 +1379,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                 }
 
                 // Move to the next edge
-                (pc.0, *next)
+                pc.jump(*next)
             },
             Linear { instrs, next } => {
                 // Run the instructions (as long as they don't crash)
@@ -1398,7 +1388,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                     // It looks a bit funky, but we simply add the relative offset after every constrution to the edge-local program counter
                     instr_pc = (instr_pc as i64
                         + match prof.time_func(format!("instruction {instr_pc}"), || {
-                            exec_instr(pc.1, instr_pc, &instrs[instr_pc], &mut self.stack, &mut self.fstack)
+                            exec_instr(pc, instr_pc, &instrs[instr_pc], &mut self.stack, &mut self.fstack)
                         }) {
                             Ok(next) => next,
                             Err(err) => {
@@ -1408,7 +1398,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                 }
 
                 // Move to the next edge
-                (pc.0, *next)
+                pc.jump(*next)
             },
             Stop {} => {
                 // Done no value
@@ -1420,7 +1410,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                 let value: Value = match self.stack.pop() {
                     Some(value) => value,
                     None => {
-                        return EdgeResult::Err(Error::EmptyStackError { edge: pc.1, instr: None, expected: DataType::Boolean });
+                        return EdgeResult::Err(Error::EmptyStackError { pc, instr: None, expected: DataType::Boolean });
                     },
                 };
                 // as boolean
@@ -1428,21 +1418,16 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                 let value: bool = match value.try_as_bool() {
                     Some(value) => value,
                     None => {
-                        return EdgeResult::Err(Error::StackTypeError {
-                            edge:     pc.1,
-                            instr:    None,
-                            got:      value_type,
-                            expected: DataType::Boolean,
-                        });
+                        return EdgeResult::Err(Error::StackTypeError { pc, instr: None, got: value_type, expected: DataType::Boolean });
                     },
                 };
 
                 // Branch appropriately
                 if value {
-                    (pc.0, *true_next)
+                    pc.jump(*true_next)
                 } else {
                     match false_next {
-                        Some(false_next) => (pc.0, *false_next),
+                        Some(false_next) => pc.jump(*false_next),
                         None => {
                             return EdgeResult::Ok(Value::Void);
                         },
@@ -1455,7 +1440,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                 self.threads.reserve(branches.len());
                 for (i, b) in branches.iter().enumerate() {
                     // Fork the thread for that branch
-                    let thread: Self = self.fork((pc.0, *b));
+                    let thread: Self = self.fork(pc.jump(*b));
                     let prof = prof.clone();
 
                     // Schedule its running on the runtime (`spawn`)
@@ -1463,7 +1448,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                 }
 
                 // Mark those threads to wait for, and then move to the join
-                (pc.0, *merge)
+                pc.jump(*merge)
             },
             Join { merge, next } => {
                 // Await the threads first (if any)
@@ -1480,7 +1465,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                             },
                         },
                         Err(err) => {
-                            return EdgeResult::Err(Error::SpawnError { edge: pc.1, err });
+                            return EdgeResult::Err(Error::SpawnError { pc, err });
                         },
                     }
                 }
@@ -1519,10 +1504,10 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                             Value::Real { value: 0.0 }
                         } else {
                             return EdgeResult::Err(Error::IllegalBranchType {
-                                edge:     pc.1,
-                                branch:   0,
-                                merge:    *merge,
-                                got:      result_type,
+                                pc,
+                                branch: 0,
+                                merge: *merge,
+                                got: result_type,
                                 expected: DataType::Numeric,
                             });
                         };
@@ -1535,9 +1520,9 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                         *value += new_value;
                                     } else {
                                         return EdgeResult::Err(Error::BranchTypeError {
-                                            edge:     pc.1,
-                                            branch:   i,
-                                            got:      r.data_type(self.fstack.table()),
+                                            pc,
+                                            branch: i,
+                                            got: r.data_type(self.fstack.table()),
                                             expected: result.data_type(self.fstack.table()),
                                         });
                                     }
@@ -1547,9 +1532,9 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                         *value += new_value;
                                     } else {
                                         return EdgeResult::Err(Error::BranchTypeError {
-                                            edge:     pc.1,
-                                            branch:   i,
-                                            got:      r.data_type(self.fstack.table()),
+                                            pc,
+                                            branch: i,
+                                            got: r.data_type(self.fstack.table()),
                                             expected: result.data_type(self.fstack.table()),
                                         });
                                     }
@@ -1577,10 +1562,10 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                             Value::Real { value: 0.0 }
                         } else {
                             return EdgeResult::Err(Error::IllegalBranchType {
-                                edge:     pc.1,
-                                branch:   0,
-                                merge:    *merge,
-                                got:      result_type,
+                                pc,
+                                branch: 0,
+                                merge: *merge,
+                                got: result_type,
                                 expected: DataType::Numeric,
                             });
                         };
@@ -1593,9 +1578,9 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                         *value *= new_value;
                                     } else {
                                         return EdgeResult::Err(Error::BranchTypeError {
-                                            edge:     pc.1,
-                                            branch:   i,
-                                            got:      r.data_type(self.fstack.table()),
+                                            pc,
+                                            branch: i,
+                                            got: r.data_type(self.fstack.table()),
                                             expected: result.data_type(self.fstack.table()),
                                         });
                                     }
@@ -1605,9 +1590,9 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                         *value *= new_value;
                                     } else {
                                         return EdgeResult::Err(Error::BranchTypeError {
-                                            edge:     pc.1,
-                                            branch:   i,
-                                            got:      r.data_type(self.fstack.table()),
+                                            pc,
+                                            branch: i,
+                                            got: r.data_type(self.fstack.table()),
                                             expected: result.data_type(self.fstack.table()),
                                         });
                                     }
@@ -1636,10 +1621,10 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                             Value::Real { value: f64::NEG_INFINITY }
                         } else {
                             return EdgeResult::Err(Error::IllegalBranchType {
-                                edge:     pc.1,
-                                branch:   0,
-                                merge:    *merge,
-                                got:      result_type,
+                                pc,
+                                branch: 0,
+                                merge: *merge,
+                                got: result_type,
                                 expected: DataType::Numeric,
                             });
                         };
@@ -1654,9 +1639,9 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                         }
                                     } else {
                                         return EdgeResult::Err(Error::BranchTypeError {
-                                            edge:     pc.1,
-                                            branch:   i,
-                                            got:      r.data_type(self.fstack.table()),
+                                            pc,
+                                            branch: i,
+                                            got: r.data_type(self.fstack.table()),
                                             expected: result.data_type(self.fstack.table()),
                                         });
                                     }
@@ -1668,9 +1653,9 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                         }
                                     } else {
                                         return EdgeResult::Err(Error::BranchTypeError {
-                                            edge:     pc.1,
-                                            branch:   i,
-                                            got:      r.data_type(self.fstack.table()),
+                                            pc,
+                                            branch: i,
+                                            got: r.data_type(self.fstack.table()),
                                             expected: result.data_type(self.fstack.table()),
                                         });
                                     }
@@ -1698,10 +1683,10 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                             Value::Real { value: f64::INFINITY }
                         } else {
                             return EdgeResult::Err(Error::IllegalBranchType {
-                                edge:     pc.1,
-                                branch:   0,
-                                merge:    *merge,
-                                got:      result_type,
+                                pc,
+                                branch: 0,
+                                merge: *merge,
+                                got: result_type,
                                 expected: DataType::Numeric,
                             });
                         };
@@ -1716,9 +1701,9 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                         }
                                     } else {
                                         return EdgeResult::Err(Error::BranchTypeError {
-                                            edge:     pc.1,
-                                            branch:   i,
-                                            got:      r.data_type(self.fstack.table()),
+                                            pc,
+                                            branch: i,
+                                            got: r.data_type(self.fstack.table()),
                                             expected: result.data_type(self.fstack.table()),
                                         });
                                     }
@@ -1730,9 +1715,9 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                         }
                                     } else {
                                         return EdgeResult::Err(Error::BranchTypeError {
-                                            edge:     pc.1,
-                                            branch:   i,
-                                            got:      r.data_type(self.fstack.table()),
+                                            pc,
+                                            branch: i,
+                                            got: r.data_type(self.fstack.table()),
                                             expected: result.data_type(self.fstack.table()),
                                         });
                                     }
@@ -1761,12 +1746,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                 // Verify it's correctly typed
                                 let r_type: DataType = r.data_type(self.fstack.table());
                                 if elem_type != &r_type {
-                                    return EdgeResult::Err(Error::BranchTypeError {
-                                        edge:     pc.1,
-                                        branch:   i,
-                                        got:      r_type,
-                                        expected: elem_type.clone(),
-                                    });
+                                    return EdgeResult::Err(Error::BranchTypeError { pc, branch: i, got: r_type, expected: elem_type.clone() });
                                 }
 
                                 // Add it to the list
@@ -1776,10 +1756,10 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                                 let r_type: DataType = r.data_type(self.fstack.table());
                                 if r_type == DataType::Void {
                                     return EdgeResult::Err(Error::IllegalBranchType {
-                                        edge:     pc.1,
-                                        branch:   i,
-                                        merge:    *merge,
-                                        got:      DataType::Void,
+                                        pc,
+                                        branch: i,
+                                        merge: *merge,
+                                        got: DataType::Void,
                                         expected: DataType::NonVoid,
                                     });
                                 }
@@ -1798,22 +1778,23 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                 // We can now push that onto the stack, then go to next
                 if let Some(result) = result {
                     if let Err(err) = self.stack.push(result) {
-                        return EdgeResult::Err(Error::StackError { edge: pc.1, instr: None, err });
+                        return EdgeResult::Err(Error::StackError { pc, instr: None, err });
                     }
                 }
-                (pc.0, *next)
+                pc.jump(*next)
             },
 
             Loop { cond, .. } => {
                 // The thing is built in such a way we can just run the condition and be happy
-                (pc.0, *cond)
+                // EDIT: Yeah so this was not a good idea xZ only place in the entire codebase where this is convenient...
+                pc.jump(*cond)
             },
 
             Call { input: _, result: _, next } => {
                 // Get the top value off the stack
                 let value: Value = match self.stack.pop() {
                     Some(value) => value,
-                    None => return EdgeResult::Err(Error::EmptyStackError { edge: pc.1, instr: None, expected: DataType::Numeric }),
+                    None => return EdgeResult::Err(Error::EmptyStackError { pc, instr: None, expected: DataType::Numeric }),
                 };
                 // Get it as a function index
                 let def: usize = match value {
@@ -1824,15 +1805,15 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                         if let Err(err) =
                             self.stack.insert(stack_len - (self.fstack.table().func(fdef).args.len() - 1), Value::Instance { values, def: cdef })
                         {
-                            return EdgeResult::Err(Error::StackError { edge: pc.1, instr: None, err });
+                            return EdgeResult::Err(Error::StackError { pc, instr: None, err });
                         };
                         fdef
                     },
                     value => {
                         return EdgeResult::Err(Error::StackTypeError {
-                            edge:     pc.1,
-                            instr:    None,
-                            got:      value.data_type(self.fstack.table()),
+                            pc,
+                            instr: None,
+                            got: value.data_type(self.fstack.table()),
                             expected: DataType::Callable,
                         });
                     },
@@ -1846,10 +1827,10 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                     let v_type: DataType = v.data_type(self.fstack.table());
                     if !v_type.allowed_by(&sig.args[i]) {
                         return EdgeResult::Err(Error::FunctionTypeError {
-                            edge:     pc.1,
-                            name:     sig.name.clone(),
-                            arg:      i,
-                            got:      v_type,
+                            pc,
+                            name: sig.name.clone(),
+                            arg: i,
+                            got: v_type,
                             expected: sig.args[i].clone(),
                         });
                     }
@@ -1863,11 +1844,11 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                         .nest_fut(format!("{}::stdout(false)", type_name::<P>()), |scope| P::stdout(&self.global, &self.local, &text, false, scope))
                         .await
                     {
-                        return EdgeResult::Err(Error::Custom { edge: pc.1, err: Box::new(err) });
+                        return EdgeResult::Err(Error::Custom { pc, err: Box::new(err) });
                     }
 
                     // Done, go to the next immediately
-                    (pc.0, *next)
+                    pc.jump(*next)
                 } else if sig.name == BuiltinFunctions::PrintLn.name() {
                     // We have one variable that is a string; so print it
                     let text: String = self.stack.pop().unwrap().try_as_string().unwrap();
@@ -1875,22 +1856,22 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                         .nest_fut(format!("{}::stdout(true)", type_name::<P>()), |scope| P::stdout(&self.global, &self.local, &text, true, scope))
                         .await
                     {
-                        return EdgeResult::Err(Error::Custom { edge: pc.1, err: Box::new(err) });
+                        return EdgeResult::Err(Error::Custom { pc, err: Box::new(err) });
                     }
 
                     // Done, go to the next immediately
-                    (pc.0, *next)
+                    pc.jump(*next)
                 } else if sig.name == BuiltinFunctions::Len.name() {
                     // Fetch the array
                     let array: Vec<Value> = self.stack.pop().unwrap().try_as_array().unwrap();
 
                     // Push the length back onto the stack
                     if let Err(err) = self.stack.push(Value::Integer { value: array.len() as i64 }) {
-                        return EdgeResult::Err(Error::StackError { edge: pc.1, instr: None, err });
+                        return EdgeResult::Err(Error::StackError { pc, instr: None, err });
                     }
 
                     // We can then go to the next one immediately
-                    (pc.0, *next)
+                    pc.jump(*next)
                 } else if sig.name == BuiltinFunctions::CommitResult.name() {
                     // Fetch the arguments
                     let res_name: String = self.stack.pop().unwrap().try_as_intermediate_result().unwrap();
@@ -1900,7 +1881,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                     let loc: &String = match self.fstack.table().results.get(&res_name) {
                         Some(loc) => loc,
                         None => {
-                            return EdgeResult::Err(Error::UnknownResult { edge: pc.1, name: res_name });
+                            return EdgeResult::Err(Error::UnknownResult { pc, name: res_name });
                         },
                     };
 
@@ -1912,49 +1893,49 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                         })
                         .await
                     {
-                        return EdgeResult::Err(Error::Custom { edge: pc.1, err: Box::new(err) });
+                        return EdgeResult::Err(Error::Custom { pc, err: Box::new(err) });
                     };
 
                     // Push the resulting data onto the stack
                     if let Err(err) = self.stack.push(Value::Data { name: data_name }) {
-                        return EdgeResult::Err(Error::StackError { edge: pc.1, instr: None, err });
+                        return EdgeResult::Err(Error::StackError { pc, instr: None, err });
                     }
 
                     // We can then go to the next one immediately
-                    (pc.0, *next)
+                    pc.jump(*next)
                 } else {
                     // Push the return address onto the frame stack and then go to the correct function
-                    if let Err(err) = self.fstack.push(def, (pc.0, *next)) {
-                        return EdgeResult::Err(Error::FrameStackPushError { edge: pc.1, err });
+                    if let Err(err) = self.fstack.push(def, pc.jump(*next)) {
+                        return EdgeResult::Err(Error::FrameStackPushError { pc, err });
                     }
-                    (def, 0)
+                    pc.call(def)
                 }
             },
             Return { result: _ } => {
                 // Attempt to pop the top frame off the frame stack
-                let (ret, ret_type): ((usize, usize), DataType) = match self.fstack.pop() {
+                let (ret, ret_type): (ProgramCounter, DataType) = match self.fstack.pop() {
                     Ok(res) => res,
                     Err(err) => {
-                        return EdgeResult::Err(Error::FrameStackPopError { edge: pc.1, err });
+                        return EdgeResult::Err(Error::FrameStackPopError { pc, err });
                     },
                 };
 
                 // Check if the top value on the stack has this value
-                if ret != (usize::MAX, usize::MAX) {
+                if ret != ProgramCounter::new(FunctionId::Main, usize::MAX) {
                     // If there is something to return, verify it did
                     if !ret_type.is_void() {
                         // Peek the top value
                         let value: &Value = match self.stack.peek() {
                             Some(value) => value,
                             None => {
-                                return EdgeResult::Err(Error::EmptyStackError { edge: pc.1, instr: None, expected: ret_type });
+                                return EdgeResult::Err(Error::EmptyStackError { pc, instr: None, expected: ret_type });
                             },
                         };
 
                         // Compare its data type
                         let value_type: DataType = value.data_type(self.fstack.table());
                         if !value_type.allowed_by(&ret_type) {
-                            return EdgeResult::Err(Error::ReturnTypeError { edge: pc.1, got: value_type, expected: ret_type });
+                            return EdgeResult::Err(Error::ReturnTypeError { pc, got: value_type, expected: ret_type });
                         }
                     }
 
@@ -1990,15 +1971,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
             loop {
                 // Run the edge
                 self.pc = match prof
-                    .nest_fut(
-                        format!(
-                            "{:?} ({}:{})",
-                            self.get_edge(self.pc)?.variant(),
-                            if self.pc.0 < usize::MAX { format!("{}", self.pc.0) } else { "<main>".into() },
-                            self.pc.1
-                        ),
-                        |scope| self.exec_edge::<P>(self.pc, scope.into()),
-                    )
+                    .nest_fut(format!("{:?} ({})", self.get_edge(self.pc)?.variant(), self.pc), |scope| self.exec_edge::<P>(self.pc, scope.into()))
                     .await
                 {
                     // Either quit or continue, noting down the time taken
@@ -2041,15 +2014,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
             loop {
                 // Run the edge
                 self.pc = match prof
-                    .nest_fut(
-                        format!(
-                            "{:?} ({}:{})",
-                            self.get_edge(self.pc)?.variant(),
-                            if self.pc.0 < usize::MAX { format!("{}", self.pc.0) } else { "<main>".into() },
-                            self.pc.1
-                        ),
-                        |scope| self.exec_edge::<P>(self.pc, scope.into()),
-                    )
+                    .nest_fut(format!("{:?} ({})", self.get_edge(self.pc)?.variant(), self.pc), |scope| self.exec_edge::<P>(self.pc, scope.into()))
                     .await
                 {
                     // Either quit or continue, noting down the time taken
