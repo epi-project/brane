@@ -4,7 +4,7 @@
 //  Created:
 //    16 Jan 2024, 09:59:53
 //  Last edited:
-//    16 Jan 2024, 15:02:54
+//    16 Jan 2024, 15:08:41
 //  Auto updated?
 //    Yes
 //
@@ -151,7 +151,7 @@ impl ProgramCounter {
     #[inline]
     #[must_use]
     #[track_caller]
-    pub fn call(&self, func: impl Into<FunctionId>) -> Self { Self { func_id: func.into(), edge_idx: 0 } }
+    pub fn call(func: impl Into<FunctionId>) -> Self { Self { func_id: func.into(), edge_idx: 0 } }
 
     /// Updates this program counter such that it points to the start of the given function.
     ///

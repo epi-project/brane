@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 09:25:11
 //  Last edited:
-//    05 Jan 2024, 14:35:04
+//    16 Jan 2024, 15:12:11
 //  Auto updated?
 //    Yes
 //
@@ -18,6 +18,7 @@ use std::io::Write;
 use crate::ast::{Edge, EdgeInstr, FunctionDef, SymTable, TaskDef, Workflow};
 use crate::data_type::DataType;
 pub use crate::errors::AstError as Error;
+use crate::func_id::FunctionId;
 
 
 /***** MACROS ******/
@@ -498,7 +499,7 @@ fn pass_edge_instr(writer: &mut impl Write, instr: &EdgeInstr, table: &SymTable)
             )?;
         },
         Function { def } => {
-            write!(writer, "{} {}", instr, table.func(*def).name)?;
+            write!(writer, "{} {}", instr, table.func(FunctionId::Func(*def)).name)?;
         },
 
         // Any other instruction is just printing it without any value

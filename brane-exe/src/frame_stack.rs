@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 10:45:50
 //  Last edited:
-//    16 Jan 2024, 11:34:32
+//    16 Jan 2024, 15:23:14
 //  Auto updated?
 //    Yes
 //
@@ -141,7 +141,8 @@ impl FrameStack {
         match self.data.pop() {
             Some(frame) => {
                 // Get the return type (if any)
-                let ret_type: DataType = if frame.def < usize::MAX { self.table.func(frame.def).ret.clone() } else { DataType::Any };
+                let ret_type: DataType =
+                    if frame.def < usize::MAX { self.table.func(FunctionId::Func(frame.def)).ret.clone() } else { DataType::Any };
 
                 // Return the next pointer after having popped the scope
                 Ok((frame.ret, ret_type))
@@ -177,7 +178,7 @@ impl FrameStack {
         Ok(())
     }
 
-    /// DUndclares a variable with the given index, effectively brining it back to uninitialized status.
+    /// Undclares a variable with the given index, effectively brining it back to uninitialized status.
     ///
     /// # Arguments
     /// - `def`: The variable to undeclare.
@@ -229,14 +230,15 @@ impl FrameStack {
         }
 
         // Search the frames (in reverse order)
-        if let Some(old_val) = self.data.first_mut().and_then(|f| f.vars.get_mut(&def)) {
-            *old_val = Some(value);
-        } else {
-            return Err(Error::UndeclaredVariable { name: var.name.clone() });
+        for f in self.data.iter_mut().rev() {
+            if let Some(v) = f.vars.get_mut(&def) {
+                *v = Some(value);
+                return Ok(());
+            }
         }
 
-        // Done
-        Ok(())
+        // We never found
+        Err(Error::UndeclaredVariable { name: self.table.var(def).name.clone() })
     }
 
     /// Gets the value of the variable with the given index.
@@ -268,7 +270,7 @@ impl FrameStack {
         }
 
         // We never found
-        Err(Error::VariableNotInScope { name: self.table.var(def).name.clone() })
+        Err(Error::UndeclaredVariable { name: self.table.var(def).name.clone() })
     }
 
     /// Returns the total capacity of the FrameStack. Using any more than this will result in overflows.

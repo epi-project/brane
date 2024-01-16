@@ -4,7 +4,7 @@
 //  Created:
 //    09 Sep 2022, 13:23:41
 //  Last edited:
-//    16 Jan 2024, 11:34:39
+//    16 Jan 2024, 15:13:54
 //  Auto updated?
 //    Yes
 //
@@ -938,7 +938,7 @@ fn exec_instr(pc: ProgramCounter, idx: usize, instr: &EdgeInstr, stack: &mut Sta
                     // Try as function instead
                     let mut res: Option<Value> = None;
                     for m in &fstack.table().class(def).methods {
-                        if &fstack.table().func(*m).name == field {
+                        if &fstack.table().func(FunctionId::Func(*m)).name == field {
                             res = Some(Value::Method { values, cdef: def, fdef: *m });
                             break;
                         }
@@ -1803,7 +1803,10 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                         // Insert the instance as a stack value, and only then proceed to call
                         let stack_len: usize = self.stack.len();
                         if let Err(err) =
-                            self.stack.insert(stack_len - (self.fstack.table().func(fdef).args.len() - 1), Value::Instance { values, def: cdef })
+                            self.stack.insert(stack_len - (self.fstack.table().func(FunctionId::Func(fdef)).args.len() - 1), Value::Instance {
+                                values,
+                                def: cdef,
+                            })
                         {
                             return EdgeResult::Err(Error::StackError { pc, instr: None, err });
                         };
@@ -1819,7 +1822,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                     },
                 };
                 // Resolve the function index
-                let sig: &FunctionDef = self.fstack.table().func(def);
+                let sig: &FunctionDef = self.fstack.table().func(FunctionId::Func(def));
 
                 // Double-check the correct values are on the stack
                 let stack_len: usize = self.stack.len();
@@ -1908,7 +1911,7 @@ impl<G: CustomGlobalState, L: CustomLocalState> Thread<G, L> {
                     if let Err(err) = self.fstack.push(def, pc.jump(*next)) {
                         return EdgeResult::Err(Error::FrameStackPushError { pc, err });
                     }
-                    pc.call(def)
+                    ProgramCounter::call(def)
                 }
             },
             Return { result: _ } => {

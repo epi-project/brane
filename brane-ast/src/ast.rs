@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    16 Jan 2024, 11:35:15
+//    16 Jan 2024, 15:11:48
 //  Auto updated?
 //    Yes
 //
@@ -34,11 +34,14 @@ use specifications::version::Version;
 
 use crate::data_type::DataType;
 use crate::errors::DataNameDeserializeError;
+use crate::func_id::FunctionId;
 use crate::locations::{Location, Locations};
 
 
 /***** CONSTANTS *****/
 lazy_static!(
+    /// A static FunctionDef for main.
+    pub static ref MAIN_FUNC: FunctionDef = FunctionDef { name: "<main>".into(), args: vec![], ret: DataType::Void };
     /// A static FunctionDef for the Transfer.
     pub static ref TRANSFER_FUNC: FunctionDef = FunctionDef{ name: "transfer".into(), args: vec![ DataType::Data, DataType::Data ], ret: DataType::Void };
 );
@@ -288,11 +291,17 @@ impl SymTable {
     /// # Panics
     /// This function may panic if `id` is out-of-bounds.
     #[inline]
-    pub fn func(&self, id: usize) -> &FunctionDef {
-        if id >= self.funcs.len() {
-            panic!("Given function ID '{}' is out-of-bounds for SymTable with {} functions", id, self.funcs.len());
+    pub fn func(&self, id: FunctionId) -> &FunctionDef {
+        match id {
+            FunctionId::Main => &MAIN_FUNC,
+            FunctionId::Func(id) => {
+                if id < self.funcs.len() {
+                    &self.funcs[id]
+                } else {
+                    panic!("Given function ID '{}' is out-of-bounds for SymTable with {} functions", id, self.funcs.len());
+                }
+            },
         }
-        &self.funcs[id]
     }
 
     /// Returns the task with the given index, if any.
