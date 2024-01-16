@@ -4,7 +4,7 @@
 //  Created:
 //    16 Jan 2024, 09:59:53
 //  Last edited:
-//    16 Jan 2024, 14:46:47
+//    16 Jan 2024, 14:58:52
 //  Auto updated?
 //    Yes
 //
@@ -13,7 +13,7 @@
 //
 
 use std::error::Error;
-use std::fmt::{Display, Formatter, Result as FResult};
+use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::ops::{Add, AddAssign};
 use std::str::FromStr;
 
@@ -52,33 +52,6 @@ impl Error for ProgramCounterParseError {
             MissingColon { .. } => None,
             InvalidFunctionId { err } => err.source(),
             InvalidIdx { err, .. } => Some(err),
-        }
-    }
-}
-
-
-
-
-
-/***** FORMATTERS *****/
-/// A static formatter for a [`ProgramCounter`] that shows it with resolved function names.
-#[derive(Clone, Debug)]
-pub struct ProgramCounterFormatter<'s> {
-    /// The [`ProgramCounter`] to format.
-    pc: ProgramCounter,
-    /// The [`SymTable`] to resolve the functions with.
-    symtable: &'s SymTable,
-}
-impl<'s> Display for ProgramCounterFormatter<'s> {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        // Match on the function ID first
-        match self.pc.func_id {
-            FunctionId::Main => write!(f, "<main>:{}", self.pc.edge_idx),
-            FunctionId::Func(id) => match self.symtable.funcs.get(id) {
-                Some(def) => write!(f, "{}:{}", def.name, self.pc.edge_idx),
-                None => write!(f, "{}:{}", id, self.pc.edge_idx),
-            },
         }
     }
 }
@@ -205,7 +178,16 @@ impl ProgramCounter {
     /// # Returns
     /// A [`ProgramCounterFormatter`] that does the actual formatting as it implements [`Display`].
     #[inline]
-    pub fn resolved<'s>(&'_ self, symtable: &'s SymTable) -> ProgramCounterFormatter<'s> { ProgramCounterFormatter { pc: *self, symtable } }
+    pub fn resolved(&self, symtable: &SymTable) -> ResolvedProgramCounter {
+        // Check if we can find a name
+        let name: Option<String> = match self.func_id {
+            FunctionId::Func(id) => symtable.funcs.get(id).map(|def| def.name.clone()),
+            FunctionId::Main => None,
+        };
+
+        // Build the serialization with it
+        ResolvedProgramCounter { func_id: self.func_id, func_name: name, edge_idx: self.edge_idx }
+    }
 }
 impl Display for ProgramCounter {
     #[inline]
@@ -320,4 +302,70 @@ impl From<&ProgramCounter> for ProgramCounter {
 impl From<&mut ProgramCounter> for ProgramCounter {
     #[inline]
     fn from(value: &mut Self) -> Self { *value }
+}
+
+
+
+/// A less usable counterpart to the [`ProgramCounter`] that can be used in errors as pretty serializations of one.
+#[derive(Clone)]
+pub struct ResolvedProgramCounter {
+    /// The function ID of the function currently being executed.
+    func_id:   FunctionId,
+    /// The name of the function we're wrapping, if it is known.
+    func_name: Option<String>,
+    /// The edge that we're executing in that function.
+    edge_idx:  usize,
+}
+impl ResolvedProgramCounter {
+    /// Returns the identifier of the function to which this ProgramCounter points.
+    ///
+    /// # Returns
+    /// A [`FunctionId`] describing the function.
+    #[inline]
+    #[must_use]
+    pub const fn func_id(&self) -> FunctionId { self.func_id }
+
+    /// Returns the name of the function to which this ProgramCounter points.
+    ///
+    /// # Returns
+    /// A [`String`] reference describing the function.
+    #[inline]
+    #[must_use]
+    pub const fn func_name(&self) -> Option<&String> { self.func_name.as_ref() }
+
+    /// Returns the index of the edge within the function to which this ProgramCounter points.
+    ///
+    /// # Returns
+    /// A [`usize`] that is the current edge's index.
+    #[inline]
+    #[must_use]
+    pub const fn edge_idx(&self) -> usize { self.edge_idx }
+
+    /// Returns a usable [`ProgramCounter`] from this ResolvedProgramCounter.
+    ///
+    /// # Returns
+    /// A [`ProgramCounter`] that can be practically used in code.
+    #[inline]
+    #[must_use]
+    pub const fn to_pc(&self) -> ProgramCounter { ProgramCounter { func_id: self.func_id, edge_idx: self.edge_idx } }
+}
+impl Debug for ResolvedProgramCounter {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        // Show as the function ID
+        write!(
+            f,
+            "{}{}:{}",
+            self.func_id,
+            if let Some(func_name) = &self.func_name { format!(" ({func_name})") } else { String::new() },
+            self.edge_idx
+        )
+    }
+}
+impl Display for ResolvedProgramCounter {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        // Show the name
+        write!(f, "{}:{}", if let Some(func_name) = &self.func_name { func_name.clone() } else { self.func_id.to_string() }, self.edge_idx)
+    }
 }
