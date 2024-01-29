@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 17:27:52
 //  Last edited:
-//    15 Jan 2024, 12:56:29
+//    29 Jan 2024, 16:42:00
 //  Auto updated?
 //    Yes
 //
@@ -401,6 +401,10 @@ pub enum GenerateNodeSubcommand {
         /// The location ID of this node.
         #[clap(name = "LOCATION_ID", help = "The location identifier (location ID) of this node.")]
         location_id: String,
+
+        /// List of use-cases to take into account.
+        #[clap(long, help = "A list of use-case registries to take into account.")]
+        use_cases: Vec<Pair<String, '=', Address>>,
 
         /// Custom backend file path.
         #[clap(

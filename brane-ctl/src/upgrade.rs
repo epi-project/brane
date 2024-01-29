@@ -4,7 +4,7 @@
 //  Created:
 //    03 Jul 2023, 13:01:31
 //  Last edited:
-//    15 Jan 2024, 13:01:41
+//    29 Jan 2024, 16:47:32
 //  Auto updated?
 //    Yes
 //
@@ -21,6 +21,7 @@ use std::fs::{self, DirEntry};
 use std::path::{Path, PathBuf};
 use std::str::FromStr as _;
 
+use brane_cfg::node::WorkerUsecase;
 use brane_shr::input::input;
 use console::style;
 use log::{debug, info, warn};
@@ -441,6 +442,8 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
 
                     v1_0_0::NodeKindConfig::Worker(worker) => NodeSpecificConfig::Worker(WorkerConfig {
                         name: worker.location_id,
+
+                        usecases: HashMap::from([("central".into(), WorkerUsecase { api: Address::from_str(hostname).unwrap() })]),
 
                         paths: WorkerPaths {
                             certs:    cfg.paths.certs,

@@ -4,7 +4,7 @@
 //  Created:
 //    22 Nov 2022, 11:19:22
 //  Last edited:
-//    15 Jan 2024, 13:23:36
+//    29 Jan 2024, 16:45:45
 //  Auto updated?
 //    Yes
 //
@@ -302,6 +302,7 @@ fn prepare_host(node_config: &NodeConfig) -> Result<(), Error> {
             // Extract the paths we're interested in
             let WorkerConfig {
                 name: _,
+                usecases: _,
                 paths:
                     WorkerPaths {
                         certs: _,

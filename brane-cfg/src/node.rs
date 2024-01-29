@@ -4,7 +4,7 @@
 //  Created:
 //    28 Feb 2023, 10:01:27
 //  Last edited:
-//    15 Jan 2024, 12:52:44
+//    29 Jan 2024, 16:37:57
 //  Auto updated?
 //    Yes
 //
@@ -400,10 +400,23 @@ pub struct WorkerConfig {
     #[serde(alias = "location_id")]
     pub name: String,
 
+    /// Defines the use case registries for this node.
+    ///
+    /// This is used to resolve the location of a remote registry, for example, based on what use-case we're working for.
+    #[serde(alias = "use_cases")]
+    pub usecases: HashMap<String, WorkerUsecase>,
     /// Defines the paths for this node.
     pub paths:    WorkerPaths,
     /// Defines the services for this node.
     pub services: WorkerServices,
+}
+
+/// Defines everything we need to know based on a use-case identifier.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct WorkerUsecase {
+    /// The location of the generic registry for this use-case.
+    #[serde(alias = "registry")]
+    pub api: Address,
 }
 
 /// Defines the paths for the worker node.

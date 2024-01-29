@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:47
 //  Last edited:
-//    15 Jan 2024, 12:55:13
+//    29 Jan 2024, 16:42:47
 //  Auto updated?
 //    Yes
 //
@@ -28,7 +28,7 @@ use brane_cfg::info::Info as _;
 use brane_cfg::infra::{InfraFile, InfraLocation};
 use brane_cfg::node::{
     self, CentralConfig, CentralPaths, CentralServices, ExternalService, KafkaService, NodeConfig, NodeSpecificConfig, PrivateOrExternalService,
-    PrivateService, ProxyPaths, ProxyServices, PublicService, WorkerConfig, WorkerPaths, WorkerServices,
+    PrivateService, ProxyPaths, ProxyServices, PublicService, WorkerConfig, WorkerPaths, WorkerServices, WorkerUsecase,
 };
 use brane_cfg::proxy::{self, ForwardConfig};
 use brane_shr::fs::{download_file_async, set_executable, DownloadSecurity};
@@ -713,6 +713,7 @@ pub fn node(
         GenerateNodeSubcommand::Worker {
             location_id,
             hostname,
+            use_cases,
             backend,
             policy_database,
             policy_deliberation_secret,
@@ -779,6 +780,8 @@ pub fn node(
 
                 node: NodeSpecificConfig::Worker(WorkerConfig {
                     name: location_id,
+
+                    usecases: use_cases.into_iter().map(|p| (p.0, WorkerUsecase { api: p.1 })).collect(),
 
                     paths: WorkerPaths {
                         certs:    canonicalize(certs)?,
