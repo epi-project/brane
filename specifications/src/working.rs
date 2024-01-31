@@ -4,7 +4,7 @@
 //  Created:
 //    06 Jan 2023, 15:01:17
 //  Last edited:
-//    31 Jan 2024, 11:41:20
+//    31 Jan 2024, 16:00:57
 //  Auto updated?
 //    Yes
 //
@@ -232,6 +232,30 @@ pub enum TaskStatus {
 
 
 /***** MESSAGES *****/
+/// Request for checking workflow validity with the worker's checker.
+#[derive(Clone, Message)]
+pub struct CheckRequest {
+    /// Some identifier relating to the worker which use-case (registry) is being used.
+    #[prost(tag = "1", required, string)]
+    pub use_case: String,
+    /// The workflow that should be checked.
+    #[prost(tag = "2", required, string)]
+    pub workflow: String,
+}
+
+/// The reply sent by the worker while a task has executing.
+#[derive(Clone, Message)]
+pub struct CheckReply {
+    /// Whether the checker approved or denied
+    #[prost(tag = "1", required, bool)]
+    pub verdict: bool,
+    /// If `verdict` is false, then this _may_ denote a list of reasons for denying it.
+    #[prost(tag = "2", repeated, string)]
+    pub reasons: Vec<String>,
+}
+
+
+
 /// Request for preprocessing a given dataset.
 #[derive(Clone, Message)]
 pub struct PreprocessRequest {
@@ -374,6 +398,28 @@ impl JobServiceClient {
         Ok(Self { client: GrpcClient::new(conn) })
     }
 
+    /// Send a request to validate a workflow to the connected endpoint.
+    ///
+    /// # Arguments
+    /// - `request`: The [`CheckRequest`] to send to the endpoint.
+    ///
+    /// # Returns
+    /// The [`CheckReply`] the endpoint returns.
+    ///
+    /// # Errors
+    /// This function errors if either we failed to send the request or the endpoint itself failed to process it.
+    pub async fn check(&mut self, request: impl tonic::IntoRequest<CheckRequest>) -> Result<Response<CheckReply>, Status> {
+        // Assert the client is ready to get the party started
+        if let Err(err) = self.client.ready().await {
+            return Err(Status::new(Code::Unknown, format!("Service was not ready: {err}")));
+        }
+
+        // Set the default stuff
+        let codec: ProstCodec<_, _> = ProstCodec::default();
+        let path: http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/Check");
+        self.client.unary(request.into_request(), path, codec).await
+    }
+
     /// Send a PreprocessRequest to the connected endpoint.
     ///
     /// # Arguments
@@ -453,6 +499,18 @@ pub trait JobService: 'static + Send + Sync {
 
 
 
+    /// Handle for when a [`CheckRequest`] comes in.
+    ///
+    /// # Arguments
+    /// - `request`: The (`tonic::Request`-wrapped) PreprocessRequest containing the relevant details.
+    ///
+    /// # Returns
+    /// A PreprocessReply for this request, wrapped in a `tonic::Response`.
+    ///
+    /// # Errors
+    /// This function may error (i.e., send back a `tonic::Status`) whenever it fails.
+    async fn check(&self, request: Request<CheckRequest>) -> Result<Response<CheckReply>, Status>;
+
     /// Handle for when a PreprocessRequest comes in.
     ///
     /// # Arguments
@@ -524,6 +582,32 @@ where
 
     fn call(&mut self, req: http::Request<B>) -> Self::Future {
         match req.uri().path() {
+            // Incoming CheckRequest
+            "/job.JobService/Check" => {
+                /// Helper struct for the given JobService that focusses specifically on this request.
+                struct CheckSvc<T>(Arc<T>);
+                impl<T: JobService> UnaryService<CheckRequest> for CheckSvc<T> {
+                    type Future = BoxFuture<Response<Self::Response>, Status>;
+                    type Response = CheckReply;
+
+                    fn call(&mut self, req: Request<CheckRequest>) -> Self::Future {
+                        // Return the service function as the future to run
+                        let service = self.0.clone();
+                        let fut = async move { (*service).check(req).await };
+                        Box::pin(fut)
+                    }
+                }
+
+                // Create a future that creates the service
+                let service = self.service.clone();
+                Box::pin(async move {
+                    let method: CheckSvc<T> = CheckSvc(service);
+                    let codec: ProstCodec<_, _> = ProstCodec::default();
+                    let mut grpc: GrpcServer<ProstCodec<_, _>> = GrpcServer::new(codec);
+                    Ok(grpc.unary(method, req).await)
+                })
+            },
+
             // Incoming PreprocessRequest
             "/job.JobService/Preprocess" => {
                 /// Helper struct for the given JobService that focusses specifically on this request.

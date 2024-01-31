@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    31 Jan 2024, 11:39:40
+//    31 Jan 2024, 16:21:57
 //  Auto updated?
 //    Yes
 //
@@ -27,8 +27,9 @@ use brane_ast::ast::{ComputeTaskDef, Edge, SymTable, TaskDef};
 use brane_ast::locations::Locations;
 use brane_ast::Workflow;
 use brane_cfg::info::Info as _;
-use brane_cfg::infra::InfraFile;
+use brane_cfg::infra::{InfraFile, InfraLocation};
 use brane_cfg::node::{CentralConfig, NodeConfig};
+use brane_prx::client::ProxyClient;
 use brane_shr::kafka::{ensure_topics, restore_committed_offsets};
 use brane_tsk::api::get_data_index;
 use brane_tsk::errors::PlanError;
@@ -51,6 +52,7 @@ use specifications::data::{AccessKind, AvailabilityKind, DataIndex, DataName, Pr
 use specifications::package::Capability;
 use specifications::planning::{PlanningCommand, PlanningStatus, PlanningStatusKind, PlanningUpdate};
 use specifications::profiling::ProfileReport;
+use specifications::working::{CheckReply, CheckRequest, JobServiceClient};
 use tokio::signal::unix::{signal, Signal, SignalKind};
 use tokio_stream::StreamExt as _;
 
@@ -561,6 +563,60 @@ fn plan_deferred(
 
 
 
+/// Contacts a checker of a domain to see if it's OK with the current workflow.
+///
+/// # Arguments
+/// - `proxy`: A [`ProxyClient`] that we use to connect to the checker.
+/// - `splan`: An (already serialized) planned [`Workflow`] to validate.
+/// - `location`: The name of the location on which we're resolving (used for debugging purposes only).
+/// - `info`: The addresses where we find this location.
+///
+/// # Errors
+/// This function errors if either we field to access any of the checkers, or they denied the workflow.
+async fn validate_workflow_with(proxy: &ProxyClient, splan: &str, location: &str, info: &InfraLocation) -> Result<(), PlanError> {
+    debug!("Consulting checker of '{location}' for plan validity...");
+
+    let message: CheckRequest = CheckRequest {
+        // NOTE: For now, we hardcode the central orchestrator as only "use-case" (registry)
+        use_case: "central".into(),
+        workflow: splan.into(),
+    };
+
+    // Create the client
+    let mut client: JobServiceClient = match proxy.connect_to_job(info.delegate.to_string()).await {
+        Ok(result) => match result {
+            Ok(client) => client,
+            Err(err) => {
+                return Err(PlanError::GrpcConnectError { endpoint: info.delegate.clone(), err });
+            },
+        },
+        Err(err) => {
+            return Err(PlanError::ProxyError { err: Box::new(err) });
+        },
+    };
+
+    // Send the request to the job node
+    let response: tonic::Response<CheckReply> = match client.check(message).await {
+        Ok(response) => response,
+        Err(err) => {
+            return Err(PlanError::GrpcRequestError { what: "CheckRequest", endpoint: info.delegate.clone(), err });
+        },
+    };
+    let result: CheckReply = response.into_inner();
+
+    // Examine if it was OK
+    if !result.verdict {
+        debug!("Checker of '{location}' DENIES plan");
+        return Err(PlanError::CheckerDenied { domain: location.into(), reasons: result.reasons });
+    }
+
+    // Otherwise, OK!
+    debug!("Checker of '{location}' ALLOWS plan");
+    Ok(())
+}
+
+
+
 
 
 /***** HELPERS *****/
@@ -630,6 +686,9 @@ pub async fn planner_server(
         return Err(PlanError::KafkaOffsetsError { err });
     }
 
+    // Create a client to the relevant proxy thing
+    let proxy: Arc<ProxyClient> = Arc::new(ProxyClient::new(&central_config.services.prx.address()));
+
     // The state of previously planned workflow snippets per-instance.
     #[allow(clippy::type_complexity)]
     let results: Arc<Mutex<HashMap<String, (Instant, HashMap<String, String>)>>> = Arc::new(Mutex::new(HashMap::new()));
@@ -670,6 +729,7 @@ pub async fn planner_server(
                     let owned_message: OwnedMessage = borrowed_message.detach();
                     let producer: Arc<FutureProducer> = producer.clone();
                     let node_config_path: PathBuf = node_config_path.clone();
+                    let proxy: Arc<ProxyClient> = proxy.clone();
                     let results: Arc<Mutex<_>> = results.clone();
 
                     // Do the rest in a future that takes ownership of the clones
@@ -908,6 +968,34 @@ pub async fn planner_server(
                                 },
                             };
                             ser.stop();
+
+                            // Check with the checker(s) if this plan is OK!
+                            debug!("Consulting {} checkers with plan validity...", infra.len());
+                            let val = report.nest("Policy validation");
+                            for (location, info) in infra.iter() {
+                                if let Err(err) = val
+                                    .time_fut(
+                                        format!("Domain '{}' ({})", location, info.registry),
+                                        validate_workflow_with(&proxy, &splan, location, info),
+                                    )
+                                    .await
+                                {
+                                    error!("{}", trace!(("Failed to consult checker of domain '{location}'"), err));
+                                    if let Err(err) = send_update(
+                                        producer.clone(),
+                                        &central.services.plr.res,
+                                        &cmd.app_id,
+                                        &cmd.task_id,
+                                        PlanningStatus::Error(format!("Failed to consult checker of domain '{location}'")),
+                                    )
+                                    .await
+                                    {
+                                        error!("Failed to update client that planning has failed: {}", err);
+                                    }
+                                    return Ok(());
+                                }
+                            }
+                            val.finish();
 
                             // Send the result
                             if let Err(err) =

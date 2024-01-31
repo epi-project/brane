@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    31 Jan 2024, 12:08:12
+//    31 Jan 2024, 16:33:50
 //  Auto updated?
 //    Yes
 //
@@ -138,6 +138,15 @@ pub enum PlanError {
     KafkaStreamError { err: rdkafka::error::KafkaError },
     /// Failed to serialize the internal workflow.
     WorkflowSerializeError { err: serde_json::Error },
+
+    /// Failed to a checker to validate the workflow
+    GrpcConnectError { endpoint: Address, err: specifications::working::JobServiceError },
+    /// Failed to connect to the proxy service
+    ProxyError { err: Box<dyn 'static + Send + Error> },
+    /// Failed to submit the gRPC request to validate a workflow.
+    GrpcRequestError { what: &'static str, endpoint: Address, err: tonic::Status },
+    /// One of the checkers denied everything :/
+    CheckerDenied { domain: Location, reasons: Vec<String> },
 }
 impl Display for PlanError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -234,6 +243,19 @@ impl Display for PlanError {
             KafkaOffsetsError { .. } => write!(f, "Failed to restore committed offsets to Kafka consumer"),
             KafkaStreamError { .. } => write!(f, "Failed to listen for incoming Kafka events"),
             WorkflowSerializeError { .. } => write!(f, "Failed to serialize workflow"),
+
+            GrpcConnectError { endpoint, .. } => write!(f, "Failed to create gRPC connection to `brane-job` service at '{endpoint}'"),
+            ProxyError { .. } => write!(f, "Failed to use `brane-prx` service"),
+            GrpcRequestError { what, endpoint, .. } => write!(f, "Failed to send {what} over gRPC connection to `brane-job` service at '{endpoint}'"),
+            CheckerDenied { domain, reasons } => write!(
+                f,
+                "Checker of domain '{domain}' denied plan{}",
+                if !reasons.is_empty() {
+                    format!("\n\nReasons:\n{}", reasons.iter().map(|r| format!("  - {r}\n")).collect::<String>())
+                } else {
+                    String::new()
+                }
+            ),
         }
     }
 }
@@ -269,6 +291,11 @@ impl Error for PlanError {
             KafkaOffsetsError { err } => Some(err),
             KafkaStreamError { err } => Some(err),
             WorkflowSerializeError { err } => Some(err),
+
+            GrpcConnectError { err, .. } => Some(err),
+            ProxyError { err } => Some(&**err),
+            GrpcRequestError { err, .. } => Some(err),
+            CheckerDenied { .. } => None,
         }
     }
 }

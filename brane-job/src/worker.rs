@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    31 Jan 2024, 14:56:15
+//    31 Jan 2024, 16:42:31
 //  Auto updated?
 //    Yes
 //
@@ -64,8 +64,8 @@ use specifications::profiling::{ProfileReport, ProfileScopeHandle};
 use specifications::registering::DownloadAssetRequest;
 use specifications::version::Version;
 use specifications::working::{
-    CommitReply, CommitRequest, ExecuteReply, ExecuteRequest, JobService, PreprocessKind, PreprocessReply, PreprocessRequest, TaskStatus,
-    TransferRegistryTar,
+    CheckReply, CheckRequest, CommitReply, CommitRequest, ExecuteReply, ExecuteRequest, JobService, PreprocessKind, PreprocessReply,
+    PreprocessRequest, TaskStatus, TransferRegistryTar,
 };
 use tokio::fs as tfs;
 use tokio::io::AsyncWriteExt;
@@ -191,7 +191,7 @@ impl error::Error for Error {
 
 
 /***** HELPER STRUCTURES *****/
-/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `ExecuteRequest`-struct.
+/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `ExecuteTaskRequest`-struct.
 ///
 /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -204,6 +204,19 @@ struct PolicyExecuteRequest {
     pub workflow: Workflow,
     /// The ID (i.e., program counter) of the call that we want to authorize.
     pub task_id:  ProgramCounter,
+}
+
+/// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `WorkflowValidationRequest`-struct.
+///
+/// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct PolicyValidateRequest {
+    /// Some identifier that allows the policy reasoner to assume a different context.
+    ///
+    /// Note that not any identifier is accepted. Which are depends on which plugins used.
+    pub use_case: String,
+    /// Workflow definition
+    pub workflow: Workflow,
 }
 
 
@@ -1609,6 +1622,129 @@ impl WorkerServer {
 #[tonic::async_trait]
 impl JobService for WorkerServer {
     type ExecuteStream = ReceiverStream<Result<ExecuteReply, Status>>;
+
+    async fn check(&self, request: Request<CheckRequest>) -> Result<Response<CheckReply>, Status> {
+        let CheckRequest { use_case, workflow } = request.into_inner();
+        debug!("Receiving check request for use-case '{use_case}'");
+        info!("Consulting checker to find out workflow validity...");
+
+        // Load the worker config from the node config to setup the profiler
+        let worker_cfg: WorkerConfig = match NodeConfig::from_path(&self.node_config_path) {
+            Ok(node_config) => match node_config.node.try_into_worker() {
+                Some(node) => node,
+                None => {
+                    error!("Provided a non-worker `node.yml` file; please change to include worker services");
+                    return Err(Status::internal("An internal error occurred"));
+                },
+            },
+            Err(err) => {
+                error!("{}", trace!(("Could not load `node.yml` file '{}'", self.node_config_path.display()), err));
+                return Err(Status::internal("An internal error occurred"));
+            },
+        };
+        let report = ProfileReport::auto_reporting_file("brane-job WorkerServer::check", format!("brane-job_{}_check", worker_cfg.name));
+
+        // Attempt to parse the workflow
+        let par = report.time("Parsing");
+        let workflow: Workflow = match serde_json::from_str(&workflow) {
+            Ok(workflow) => workflow,
+            Err(err) => {
+                error!("{}", trace!(("Failed to deserialize workflow"), err));
+                debug!("Workflow:\n{}\n{}\n{}\n", (0..80).map(|_| '-').collect::<String>(), workflow, (0..80).map(|_| '-').collect::<String>());
+                return Err(Status::invalid_argument(format!("{}", trace!(("Failed to deserialize workflow"), err))));
+            },
+        };
+        par.stop();
+
+        // Alrighty tighty, let's begin by building the request for the checker
+        let send = report.time("Checker request");
+        debug!("Constructing checker request...");
+        let body: PolicyValidateRequest = PolicyValidateRequest { use_case: use_case.into(), workflow: workflow.clone() };
+
+        // Next, generate a JWT to inject in the request
+        let jwt: String = match specifications::policy::generate_policy_token(
+            if let Some(user) = &*workflow.user { user.as_str() } else { "UNKNOWN" },
+            &worker_cfg.name,
+            Duration::from_secs(60),
+            &worker_cfg.paths.policy_deliberation_secret,
+        ) {
+            Ok(token) => token,
+            Err(err) => {
+                let err = AuthorizeError::TokenGenerate { secret: worker_cfg.paths.policy_deliberation_secret.clone(), err };
+                error!("{}", err.trace());
+                return Err(Status::internal("An internal error occurred"));
+            },
+        };
+
+        // Prepare the request to send
+        let client: reqwest::Client = match reqwest::Client::builder().build() {
+            Ok(client) => client,
+            Err(err) => {
+                let err = AuthorizeError::ClientBuild { err };
+                error!("{}", err.trace());
+                return Err(Status::internal("An internal error occurred"));
+            },
+        };
+        let addr: String = format!("{}/v1/deliberation/execute-workflow", worker_cfg.services.chk.address);
+        let req: reqwest::Request =
+            match client.request(reqwest::Method::POST, &addr).header(header::AUTHORIZATION, format!("Bearer {jwt}")).json(&body).build() {
+                Ok(req) => req,
+                Err(err) => {
+                    let err = AuthorizeError::ExecuteRequestBuild { addr, err };
+                    error!("{}", err.trace());
+                    return Err(Status::internal("An internal error occurred"));
+                },
+            };
+
+        // Send it
+        debug!("Sending request to '{addr}'...");
+        let res: reqwest::Response = match client.execute(req).await {
+            Ok(res) => res,
+            Err(err) => {
+                let err = AuthorizeError::ExecuteRequestSend { addr, err };
+                error!("{}", err.trace());
+                return Err(Status::internal("An internal error occurred"));
+            },
+        };
+
+        // Match on the status code to find if it's OK
+        debug!("Waiting for checker response...");
+        if !res.status().is_success() {
+            let err = AuthorizeError::ExecuteRequestFailure { addr, code: res.status(), err: res.text().await.ok() };
+            error!("{}", err.trace());
+            return Err(Status::internal("An internal error occurred"));
+        }
+        let res: String = match res.text().await {
+            Ok(res) => res,
+            Err(err) => {
+                let err = AuthorizeError::ExecuteBodyDownload { addr, err };
+                error!("{}", err.trace());
+                return Err(Status::internal("An internal error occurred"));
+            },
+        };
+        let res: Verdict = match serde_json::from_str(&res) {
+            Ok(res) => res,
+            Err(err) => {
+                let err = AuthorizeError::ExecuteBodyDeserialize { addr, raw: res, err };
+                error!("{}", err.trace());
+                return Err(Status::internal("An internal error occurred"));
+            },
+        };
+        send.stop();
+
+        // Now match the checker's response
+        match res {
+            Verdict::Allow(_) => {
+                info!("Checker ALLOWED execution of workflow");
+                Ok(Response::new(CheckReply { verdict: true, reasons: vec![] }))
+            },
+
+            Verdict::Deny(deny) => {
+                info!("Checker DENIED execution of workflow");
+                Ok(Response::new(CheckReply { verdict: false, reasons: deny.reasons_for_denial.unwrap_or_else(Vec::new) }))
+            },
+        }
+    }
 
     async fn preprocess(&self, request: Request<PreprocessRequest>) -> Result<Response<PreprocessReply>, Status> {
         let PreprocessRequest { use_case, kind, workflow, pc } = request.into_inner();
