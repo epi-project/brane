@@ -4,7 +4,7 @@
 //  Created:
 //    26 Aug 2022, 18:01:09
 //  Last edited:
-//    16 Jan 2024, 11:34:23
+//    31 Jan 2024, 11:36:09
 //  Auto updated?
 //    Yes
 //
@@ -16,11 +16,11 @@ use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::PathBuf;
 
-use brane_ast::ast::DataName;
 use brane_ast::func_id::FunctionId;
 use brane_ast::{DataType, MergeStrategy};
 use console::style;
 use enum_debug::EnumDebug as _;
+use specifications::data::DataName;
 use specifications::version::Version;
 
 use crate::pc::ProgramCounter;

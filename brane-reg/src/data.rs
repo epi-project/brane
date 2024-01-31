@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 15:40:40
 //  Last edited:
-//    16 Jan 2024, 17:32:47
+//    31 Jan 2024, 14:55:04
 //  Auto updated?
 //    Yes
 //
@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use brane_ast::ast::{DataName, Edge};
+use brane_ast::ast::Edge;
 use brane_ast::func_id::FunctionId;
 use brane_ast::Workflow;
 use brane_cfg::certs::extract_client_name;
@@ -35,7 +35,7 @@ use log::{debug, error, info};
 use reqwest::header;
 use rustls::Certificate;
 use serde::{Deserialize, Serialize};
-use specifications::data::{AccessKind, AssetInfo};
+use specifications::data::{AccessKind, AssetInfo, DataName};
 use specifications::profiling::ProfileReport;
 use specifications::registering::DownloadAssetRequest;
 use tempfile::TempDir;
@@ -58,6 +58,7 @@ use crate::store::Store;
 ///
 /// # Arguments
 /// - `worker_cfg`: The configuration for this node's environment. For us, contains if and where we should proxy the request through and where we may find the checker.
+/// - `use_case`: A string denoting which use-case (registry) we're using.
 /// - `workflow`: The workflow to check.
 /// - `client_name`: The name as which the client is authenticated. Will be matched with the indicated task.
 /// - `data_name`: The name of the dataset they are trying to access.
@@ -70,6 +71,7 @@ use crate::store::Store;
 /// This function errors if we failed to ask the checker. Clearly, that should be treated as permission denied.
 pub async fn assert_data_permission(
     worker_cfg: &WorkerConfig,
+    use_case: &str,
     workflow: &Workflow,
     client_name: &str,
     data_name: DataName,
@@ -147,7 +149,8 @@ pub async fn assert_data_permission(
 
     // Alrighty tighty, let's begin by building the request for the checker
     debug!("Constructing checker request...");
-    let body: AccessDataRequest = AccessDataRequest { workflow: workflow.clone(), data_id: data_name.name().into(), task_id: call };
+    let body: AccessDataRequest =
+        AccessDataRequest { use_case: use_case.into(), workflow: workflow.clone(), data_id: data_name.name().into(), task_id: call };
 
     // Next, generate a JWT to inject in the request
     let jwt: String = match specifications::policy::generate_policy_token(
@@ -221,6 +224,7 @@ pub async fn assert_data_permission(
 ///
 /// # Arguments
 /// - `worker_cfg`: The configuration for this node's environment. For us, contains if and where we should proxy the request through and where we may find the checker.
+/// - `use_case`: A string denoting which use-case (registry) we're using.
 /// - `workflow`: The workflow to check.
 /// - `client_name`: The name as which the client is authenticated. Will be matched with the indicated task.
 /// - `data_name`: The name of the dataset they are trying to access.
@@ -234,12 +238,13 @@ pub async fn assert_data_permission(
 #[inline]
 pub async fn assert_result_permission(
     worker_cfg: &WorkerConfig,
+    use_case: &str,
     workflow: &Workflow,
     client_name: &str,
     data_name: DataName,
     call: Option<ProgramCounter>,
 ) -> Result<bool, AuthorizeError> {
-    assert_data_permission(worker_cfg, workflow, client_name, data_name, call).await
+    assert_data_permission(worker_cfg, use_case, workflow, client_name, data_name, call).await
 }
 
 
@@ -252,6 +257,11 @@ pub async fn assert_result_permission(
 /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
 #[derive(Serialize, Deserialize)]
 pub struct AccessDataRequest {
+    /// Some identifier that allows the policy reasoner to assume a different context.
+    ///
+    /// Note that not any identifier is accepted. Which are depends on which plugins used.
+    pub use_case: String,
+    /// The workflow given as context.
     pub workflow: Workflow,
     /// Identifier for the requested dataset
     pub data_id:  String,
@@ -430,11 +440,12 @@ pub async fn download_data(
     body: DownloadAssetRequest,
     context: Arc<Context>,
 ) -> Result<impl Reply, Rejection> {
+    let DownloadAssetRequest { use_case, workflow, task: _ } = body;
     info!("Handling GET on `/data/download/{}` (i.e., download dataset)...", name);
 
     // Parse if a valid workflow is given
-    debug!("Parsing workflow in request body...\n\nWorkflow:\n{}\n", BlockFormatter::new(serde_json::to_string_pretty(&body.workflow).unwrap()));
-    let workflow: Workflow = match serde_json::from_value(body.workflow) {
+    debug!("Parsing workflow in request body...\n\nWorkflow:\n{}\n", BlockFormatter::new(serde_json::to_string_pretty(&workflow).unwrap()));
+    let workflow: Workflow = match serde_json::from_value(workflow) {
         Ok(wf) => wf,
         Err(err) => {
             debug!("{}", trace!(("Given request has an invalid workflow"), err));
@@ -502,6 +513,7 @@ pub async fn download_data(
     // Before we continue, assert that this dataset may be downloaded by this person (uh-oh, how we gon' do that)
     match assert_data_permission(
         &worker_config,
+        &use_case,
         &workflow,
         &client_name,
         DataName::Data(name.clone()),
@@ -623,11 +635,12 @@ pub async fn download_result(
     body: DownloadAssetRequest,
     context: Arc<Context>,
 ) -> Result<impl Reply, Rejection> {
+    let DownloadAssetRequest { use_case, workflow, task: _ } = body;
     info!("Handling GET on `/results/download/{}` (i.e., download intermediate result)...", name);
 
     // Parse if a valid workflow is given
-    debug!("Parsing workflow in request body...\n\nWorkflow:\n{}\n", BlockFormatter::new(serde_json::to_string_pretty(&body.workflow).unwrap()));
-    let workflow: Workflow = match serde_json::from_value(body.workflow) {
+    debug!("Parsing workflow in request body...\n\nWorkflow:\n{}\n", BlockFormatter::new(serde_json::to_string_pretty(&workflow).unwrap()));
+    let workflow: Workflow = match serde_json::from_value(workflow) {
         Ok(wf) => wf,
         Err(err) => {
             debug!("{}", trace!(("Given request has an invalid workflow"), err));
@@ -697,6 +710,7 @@ pub async fn download_result(
     // Before we continue, assert that this dataset may be downloaded by this person (uh-oh, how we gon' do that)
     match assert_result_permission(
         &worker_config,
+        &use_case,
         &workflow,
         &client_name,
         DataName::IntermediateResult(name.clone()),

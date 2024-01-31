@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    16 Jan 2024, 11:50:43
+//    31 Jan 2024, 12:08:12
 //  Auto updated?
 //    Yes
 //
@@ -18,7 +18,6 @@ use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::PathBuf;
 
 use bollard::ClientVersion;
-use brane_ast::ast::DataName;
 use brane_ast::func_id::FunctionId;
 use brane_ast::locations::{Location, Locations};
 use brane_exe::pc::ProgramCounter;
@@ -27,6 +26,7 @@ use enum_debug::EnumDebug as _;
 use reqwest::StatusCode;
 use specifications::address::Address;
 use specifications::container::Image;
+use specifications::data::DataName;
 use specifications::driving::ExecuteReply;
 use specifications::package::Capability;
 use specifications::planning::PlanningStatusKind;
@@ -314,6 +314,8 @@ pub enum PreprocessError {
     IdentityFileError { path: PathBuf, err: reqwest::Error },
     /// Failed to parse a certificate.
     CertificateError { path: PathBuf, err: reqwest::Error },
+    /// Failed to resolve a location identifier to a registry address.
+    LocationResolve { id: String, err: crate::caches::DomainRegistryCacheError },
     /// A directory was not a directory but a file.
     DirNotADirError { what: &'static str, path: PathBuf },
     /// A directory what not a directory because it didn't exist.
@@ -372,6 +374,7 @@ impl Display for PreprocessError {
             FileReadError { what, path, .. } => write!(f, "Failed to read {} file '{}'", what, path.display()),
             IdentityFileError { path, .. } => write!(f, "Failed to parse identity file '{}'", path.display()),
             CertificateError { path, .. } => write!(f, "Failed to parse certificate '{}'", path.display()),
+            LocationResolve { id, .. } => write!(f, "Failed to resolve location ID '{id}' to a local registry address"),
             DirNotADirError { what, path } => write!(f, "{} directory '{}' is not a directory", what.capitalize(), path.display()),
             DirNotExistsError { what, path } => write!(f, "{} directory '{}' doesn't exist", what.capitalize(), path.display()),
             DirRemoveError { what, path, .. } => write!(f, "Failed to remove {} directory '{}'", what, path.display()),
@@ -416,6 +419,7 @@ impl Error for PreprocessError {
             FileReadError { err, .. } => Some(err),
             IdentityFileError { err, .. } => Some(err),
             CertificateError { err, .. } => Some(err),
+            LocationResolve { err, .. } => Some(err),
             DirNotADirError { .. } => None,
             DirNotExistsError { .. } => None,
             DirRemoveError { err, .. } => Some(err),

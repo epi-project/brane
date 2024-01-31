@@ -4,7 +4,7 @@
 //  Created:
 //    27 Oct 2022, 10:14:26
 //  Last edited:
-//    16 Jan 2024, 11:54:13
+//    31 Jan 2024, 14:22:36
 //  Auto updated?
 //    Yes
 //
@@ -19,7 +19,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use async_trait::async_trait;
-use brane_ast::ast::DataName;
 use brane_ast::func_id::FunctionId;
 use brane_ast::locations::Location;
 use brane_ast::Workflow;
@@ -36,7 +35,7 @@ use enum_debug::EnumDebug as _;
 use log::{debug, info, warn};
 use serde_json_any_key::MapIterToJson;
 use specifications::address::Address;
-use specifications::data::{AccessKind, PreprocessKind};
+use specifications::data::{AccessKind, DataName, PreprocessKind};
 use specifications::profiling::ProfileScopeHandle;
 use specifications::{driving as driving_grpc, working as working_grpc};
 use tokio::sync::mpsc::Sender;
@@ -124,8 +123,11 @@ impl VmPlugin for InstancePlugin {
         debug!("Sending preprocess request to job node '{}'...", delegate_address);
         let job = prof.time(format!("on {delegate_address}"));
         let message: working_grpc::PreprocessRequest = working_grpc::PreprocessRequest {
-            data: Some(name.into()),
+            // NOTE: For now, we hardcode the central orchestrator as only "use-case" (registry)
+            use_case: "central".into(),
+
             kind: Some(preprocess.into()),
+
             workflow,
             pc: Some(specifications::working::ProgramCounter {
                 func_id:  if let FunctionId::Func(id) = pc.func_id { id as u64 } else { u64::MAX },
@@ -185,7 +187,7 @@ impl VmPlugin for InstancePlugin {
 
         // Resolve the location to an address (and get the proxy and the workflow while we have a lock anyway)
         let disk = prof.time("File loading");
-        let (proxy, api_address, delegate_address, workflow): (Arc<ProxyClient>, Address, Address, String) = {
+        let (proxy, delegate_address, workflow): (Arc<ProxyClient>, Address, String) = {
             let state: RwLockReadGuard<GlobalState> = global.read().unwrap();
             let node_config: NodeConfig = match NodeConfig::from_path(&state.node_config_path) {
                 Ok(config) => config,
@@ -205,8 +207,6 @@ impl VmPlugin for InstancePlugin {
             // Resolve to an address and return that with the other addresses
             (
                 state.proxy.clone(),
-                // NOTE: We grab the external address, since this address is only forwarded to the job service on the worker node
-                node_config.node.central().services.api.external_address.clone(),
                 match infra.get(info.location) {
                     Some(info) => info.delegate.clone(),
                     None => {
@@ -222,7 +222,8 @@ impl VmPlugin for InstancePlugin {
         debug!("Sending execute request to job node '{}'...", delegate_address);
         let job = prof.time(format!("on {delegate_address}"));
         let message: working_grpc::ExecuteRequest = working_grpc::ExecuteRequest {
-            api: api_address.serialize().to_string(),
+            // NOTE: For now, we hardcode the central orchestrator as only "use-case" (registry)
+            use_case: "central".into(),
 
             workflow,
             call_pc: specifications::working::ProgramCounter {

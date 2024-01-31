@@ -4,7 +4,7 @@
 //  Created:
 //    26 Aug 2022, 18:26:40
 //  Last edited:
-//    16 Jan 2024, 11:15:28
+//    31 Jan 2024, 11:36:19
 //  Auto updated?
 //    Yes
 //
@@ -18,9 +18,9 @@ use std::error::Error;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
-use brane_ast::ast::{DataName, SymTable};
+use brane_ast::ast::SymTable;
 use brane_ast::locations::Location;
-use specifications::data::{AccessKind, PreprocessKind};
+use specifications::data::{AccessKind, DataName, PreprocessKind};
 use specifications::package::Capability;
 use specifications::profiling::ProfileScopeHandle;
 use specifications::version::Version;

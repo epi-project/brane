@@ -4,7 +4,7 @@
 //  Created:
 //    10 Aug 2022, 14:00:59
 //  Last edited:
-//    12 Dec 2023, 16:39:52
+//    31 Jan 2024, 11:30:40
 //  Auto updated?
 //    Yes
 //
@@ -880,6 +880,15 @@ pub enum Data {
     Data(String),
     /// It's an intermediate result (with the given name)
     IntermediateResult(String),
+}
+impl From<Data> for specifications::data::DataName {
+    #[inline]
+    fn from(value: Data) -> Self {
+        match value {
+            Data::Data(name) => Self::Data(name),
+            Data::IntermediateResult(name) => Self::IntermediateResult(name),
+        }
+    }
 }
 
 

@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    03 Jan 2024, 14:33:06
+//    31 Jan 2024, 11:39:40
 //  Auto updated?
 //    Yes
 //
@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use async_recursion::async_recursion;
-use brane_ast::ast::{ComputeTaskDef, DataName, Edge, SymTable, TaskDef};
+use brane_ast::ast::{ComputeTaskDef, Edge, SymTable, TaskDef};
 use brane_ast::locations::Locations;
 use brane_ast::Workflow;
 use brane_cfg::info::Info as _;
@@ -47,7 +47,7 @@ use rdkafka::util::Timeout;
 use rdkafka::{ClientConfig, Message};
 use reqwest::Response;
 use specifications::address::Address;
-use specifications::data::{AccessKind, AvailabilityKind, DataIndex, PreprocessKind};
+use specifications::data::{AccessKind, AvailabilityKind, DataIndex, DataName, PreprocessKind};
 use specifications::package::Capability;
 use specifications::planning::{PlanningCommand, PlanningStatus, PlanningStatusKind, PlanningUpdate};
 use specifications::profiling::ProfileReport;
@@ -244,45 +244,37 @@ async fn plan_edges(
                 // For all dataset/intermediate result inputs, we check if these are available on the planned location.
                 for (name, avail) in input {
                     match name {
-                        DataName::Data(name) => {
-                            if let Some(info) = dindex.get(name) {
+                        DataName::Data(dname) => {
+                            if let Some(info) = dindex.get(dname) {
                                 // Check if it is local or remote
                                 if let Some(access) = info.access.get(location) {
-                                    debug!("Input dataset '{}' is locally available", name);
+                                    debug!("Input dataset '{}' is locally available", dname);
                                     *avail = Some(AvailabilityKind::Available { how: access.clone() });
                                 } else {
                                     // Select one of the other locations it's available (for now, random?)
                                     if info.access.is_empty() {
-                                        return Err(PlanError::DatasetUnavailable { name: name.clone(), locs: vec![] });
+                                        return Err(PlanError::DatasetUnavailable { name: dname.clone(), locs: vec![] });
                                     }
                                     let mut rng = rand::thread_rng();
                                     let location: &str = info.access.keys().choose(&mut rng).unwrap();
 
-                                    // Get the registry of that location
-                                    let registry: &Address = &infra
-                                        .get(location)
-                                        .unwrap_or_else(|| panic!("DataIndex advertises location '{}', but that location is unknown", location))
-                                        .registry;
-                                    let address: String = format!("{registry}/data/download/{name}");
-                                    debug!("Input dataset '{}' will be transferred in from '{}'", name, address);
-
                                     // That's the location where to pull the dataset from
                                     *avail = Some(AvailabilityKind::Unavailable {
-                                        how: PreprocessKind::TransferRegistryTar { location: location.into(), address },
+                                        how: PreprocessKind::TransferRegistryTar { location: location.into(), dataname: name.clone() },
                                     });
                                 }
                             } else {
-                                return Err(PlanError::UnknownDataset { name: name.clone() });
+                                return Err(PlanError::UnknownDataset { name: dname.clone() });
                             }
                         },
 
-                        DataName::IntermediateResult(name) => {
+                        DataName::IntermediateResult(iname) => {
                             // It has to be declared before
-                            if let Some(loc) = table.results.get(name) {
+                            if let Some(loc) = table.results.get(iname) {
                                 // Match on whether it is available locally or not
                                 if location == loc {
-                                    debug!("Input intermediate result '{}' is locally available", name);
-                                    *avail = Some(AvailabilityKind::Available { how: AccessKind::File { path: PathBuf::from(name) } });
+                                    debug!("Input intermediate result '{}' is locally available", iname);
+                                    *avail = Some(AvailabilityKind::Available { how: AccessKind::File { path: PathBuf::from(iname) } });
                                 } else {
                                     // Find the remote location in the infra file
                                     let registry: &Address = &infra
@@ -291,18 +283,18 @@ async fn plan_edges(
                                         .registry;
 
                                     // Compute the registry access method
-                                    let address: String = format!("{registry}/results/download/{name}");
-                                    debug!("Input intermediate result '{}' will be transferred in from '{}'", name, address);
+                                    let address: String = format!("{registry}/results/download/{iname}");
+                                    debug!("Input intermediate result '{}' will be transferred in from '{}'", iname, address);
 
                                     // That's the location where to pull the dataset from
                                     *avail = Some(AvailabilityKind::Unavailable {
-                                        how: PreprocessKind::TransferRegistryTar { location: loc.clone(), address },
+                                        how: PreprocessKind::TransferRegistryTar { location: loc.clone(), dataname: name.clone() },
                                     });
                                 }
                             } else if !deferred {
-                                return Err(PlanError::UnknownIntermediateResult { name: name.clone() });
+                                return Err(PlanError::UnknownIntermediateResult { name: iname.clone() });
                             } else {
-                                debug!("Cannot determine value of intermediate result '{}' yet; it might be declared later (deferred)", name);
+                                debug!("Cannot determine value of intermediate result '{}' yet; it might be declared later (deferred)", iname);
                             }
                         },
                     }
@@ -447,16 +439,16 @@ fn plan_deferred(
                     }
 
                     // Get the name of the result
-                    if let DataName::IntermediateResult(name) = name {
+                    if let DataName::IntermediateResult(iname) = name {
                         // Extract the planned location
                         let location: &str = at.as_ref().unwrap();
 
                         // It has to be declared before
-                        if let Some(loc) = table.results.get(name) {
+                        if let Some(loc) = table.results.get(iname) {
                             // Match on whether it is available locally or not
                             if location == loc {
-                                debug!("Input intermediate result '{}' is locally available", name);
-                                *avail = Some(AvailabilityKind::Available { how: AccessKind::File { path: PathBuf::from(name) } });
+                                debug!("Input intermediate result '{}' is locally available", iname);
+                                *avail = Some(AvailabilityKind::Available { how: AccessKind::File { path: PathBuf::from(iname) } });
                             } else {
                                 // Find the remote location in the infra file
                                 let registry: &Address = &infra
@@ -465,17 +457,17 @@ fn plan_deferred(
                                     .registry;
 
                                 // Compute the registry access method
-                                let address: String = format!("{registry}/results/download/{name}");
-                                debug!("Input intermediate result '{}' will be transferred in from '{}'", name, address);
+                                let address: String = format!("{registry}/results/download/{iname}");
+                                debug!("Input intermediate result '{}' will be transferred in from '{}'", iname, address);
 
                                 // That's the location where to pull the dataset from
                                 *avail = Some(AvailabilityKind::Unavailable {
-                                    how: PreprocessKind::TransferRegistryTar { location: loc.clone(), address },
+                                    how: PreprocessKind::TransferRegistryTar { location: loc.clone(), dataname: name.clone() },
                                 });
                             }
                         } else {
                             // No more second chances
-                            return Err(PlanError::UnknownIntermediateResult { name: name.clone() });
+                            return Err(PlanError::UnknownIntermediateResult { name: iname.clone() });
                         }
                     } else {
                         panic!("Should never see an unresolved Data in the workflow");

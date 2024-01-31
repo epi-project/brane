@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    16 Jan 2024, 17:23:50
+//    31 Jan 2024, 14:56:15
 //  Auto updated?
 //    Yes
 //
@@ -15,9 +15,9 @@
 //
 
 use std::collections::{HashMap, HashSet};
-// use std::error;
+use std::error;
 use std::ffi::OsStr;
-// use std::fmt::{Display, Formatter, Result as FResult};
+use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,19 +25,20 @@ use std::time::Duration;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
 use bollard::API_DEFAULT_VERSION;
-use brane_ast::ast::{ComputeTaskDef, DataName, TaskDef};
+use brane_ast::ast::{ComputeTaskDef, TaskDef};
 use brane_ast::func_id::FunctionId;
 use brane_ast::locations::Location;
 use brane_ast::Workflow;
 use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::info::Info as _;
-use brane_cfg::node::{NodeConfig, WorkerConfig};
+use brane_cfg::node::{NodeConfig, NodeSpecificConfig, WorkerConfig};
 use brane_exe::pc::ProgramCounter;
 use brane_exe::FullValue;
 use brane_prx::client::ProxyClient;
 use brane_prx::spec::NewPathRequestTlsOptions;
 use brane_shr::formatters::BlockFormatter;
 use brane_shr::fs::{copy_dir_recursively_async, unarchive_async};
+use brane_tsk::caches::DomainRegistryCache;
 use brane_tsk::docker::{self, ClientVersion, DockerOptions, ExecuteInfo, ImageSource, Network};
 use brane_tsk::errors::{AuthorizeError, CommitError, ExecuteError, PreprocessError};
 use brane_tsk::spec::JobStatus;
@@ -54,9 +55,10 @@ use hyper::header;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json_any_key::json_to_map;
+use specifications::address::Address;
 // use brane_tsk::k8s::{self, K8sOptions};
 use specifications::container::{Image, VolumeBind};
-use specifications::data::{AccessKind, AssetInfo};
+use specifications::data::{AccessKind, AssetInfo, DataName};
 use specifications::package::{Capability, PackageIndex, PackageInfo, PackageKind};
 use specifications::profiling::{ProfileReport, ProfileScopeHandle};
 use specifications::registering::DownloadAssetRequest;
@@ -155,6 +157,35 @@ async fn update_client(tx: &Sender<Result<ExecuteReply, Status>>, status: JobSta
 //     }
 // }
 
+/// Defines errors occuring from the [`JobServer`] itself.
+#[derive(Debug)]
+pub enum Error {
+    /// Failed to load the node.yml file from disk
+    NodeConfigLoad { path: PathBuf, err: brane_cfg::info::YamlError },
+    /// The given node.yml file was not of the correct kind.
+    NodeConfigWrongKind { path: PathBuf, got: String, expected: String },
+}
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use Error::*;
+        match self {
+            NodeConfigLoad { path, .. } => write!(f, "Failed to load node config file '{}'", path.display()),
+            NodeConfigWrongKind { path, got, expected } => {
+                write!(f, "Given node config file '{}' is of the wrong kind; got a {} config, expected a {} config", path.display(), got, expected)
+            },
+        }
+    }
+}
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        use Error::*;
+        match self {
+            NodeConfigLoad { err, .. } => Some(err),
+            NodeConfigWrongKind { .. } => None,
+        }
+    }
+}
+
 
 
 
@@ -165,57 +196,15 @@ async fn update_client(tx: &Sender<Result<ExecuteReply, Status>>, status: JobSta
 /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct PolicyExecuteRequest {
+    /// Some identifier that allows the policy reasoner to assume a different context.
+    ///
+    /// Note that not any identifier is accepted. Which are depends on which plugins used.
+    pub use_case: String,
     /// The workflow that is being examined.
     pub workflow: Workflow,
     /// The ID (i.e., program counter) of the call that we want to authorize.
     pub task_id:  ProgramCounter,
 }
-
-// /// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `Verdict`-struct.
-// ///
-// /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// #[serde(tag = "verdict")]
-// enum Verdict {
-//     // Checker says yes
-//     #[serde(rename = "allow")]
-//     Allow(DeliberationAllowResponse),
-//     // Checker says no
-//     #[serde(rename = "deny")]
-//     Deny(DeliberationDenyResponse),
-// }
-
-// /// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationResponse`-struct.
-// ///
-// /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// struct DeliberationResponse {
-//     verdict_reference: String,
-// }
-
-// /// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationAllowResponse`-struct.
-// ///
-// /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// struct DeliberationAllowResponse {
-//     #[serde(flatten)]
-//     shared:    DeliberationResponse,
-//     /// Signature by the checker
-//     signature: String,
-// }
-
-// /// Manual copy of the [policy-reasoner](https://github.com/epi-project/policy-reasoner)'s `DeliberationDenyResponse`-struct.
-// ///
-// /// This is necessary because, when we pull the dependency directly, we get conflicts because that repository depends on the git version of this repository, meaning its notion of a Workflow is always (practically) outdated.
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// struct DeliberationDenyResponse {
-//     #[serde(flatten)]
-//     shared: DeliberationResponse,
-//     /// A optional list that contains the reasons that the request is denied.
-//     /// Only present if the request is denied and it only contains reasons
-//     /// the checker wants to share.
-//     reasons_for_denial: Option<Vec<String>>,
-// }
 
 
 
@@ -319,13 +308,14 @@ impl TaskInfo {
 /// Function that preprocesses the given tar by downloading it to the local machine and extracting it.
 ///
 /// # Arguments
+/// - `location_cache`: A cache that is used to efficiently resolve location IDs to registry addresses.
 /// - `worker_cfg`: The configuration for this node's environment. For us, contains the path where we may find certificates and where to download data & result files to.
 /// - `proxy`: The proxy client we use to proxy the data transfer.
+/// - `use_case`: A string denoting which use-case (registry) we're using.
 /// - `pc`: The ProgramCounter of the edge that provides context for this preprocessing. If omitted, should be interpreted as that the context is retrieving the workflow result instead.
 /// - `workflow`: A [`Workflow`] that is given as context to the registry.
 /// - `location`: The location to download the tarball from.
-/// - `address`: The address to download the tarball from.
-/// - `data_name`: The type of the data (i.e., Data or IntermediateResult) combined with its identifier.
+/// - `dataname`: The name of the dataset to preprocess.
 /// - `prof`: A ProfileScope to provide more detailled information about the time it takes to preprocess a TAR-file.
 ///
 /// # Returns
@@ -334,18 +324,27 @@ impl TaskInfo {
 /// # Errors
 /// This function can error for literally a million reasons - but they mostly relate to IO (file access, request success etc).
 async fn preprocess_transfer_tar_local(
+    location_cache: &DomainRegistryCache,
     worker_cfg: &WorkerConfig,
     proxy: Arc<ProxyClient>,
+    use_case: &str,
     pc: Option<ProgramCounter>,
     workflow: Workflow,
     location: Location,
-    address: impl AsRef<str>,
-    data_name: DataName,
+    dataname: DataName,
     prof: ProfileScopeHandle<'_>,
 ) -> Result<AccessKind, PreprocessError> {
     debug!("Preprocessing by executing a data transfer");
-    let address: &str = address.as_ref();
-    debug!("Downloading from {} ({}) to local machine", location, address);
+    debug!("Downloading '{location}' from '{dataname}' to local machine");
+
+
+
+    // Resolve the address from the API, if not in the cache
+    debug!("Resolving location ID '{location}' to registry...");
+    let address: Address = match prof.time_fut("location resolution", location_cache.get(&location)).await {
+        Ok(addr) => addr,
+        Err(err) => return Err(PreprocessError::LocationResolve { id: location, err }),
+    };
 
 
 
@@ -379,7 +378,7 @@ async fn preprocess_transfer_tar_local(
     }
 
     // Also compute the final file path
-    let (tar_path, data_path): (PathBuf, PathBuf) = match &data_name {
+    let (tar_path, data_path): (PathBuf, PathBuf) = match &dataname {
         DataName::Data(name) => {
             // Make sure the data path exists but is clean
             let data_path: PathBuf = temp_data_path.join(name);
@@ -419,8 +418,10 @@ async fn preprocess_transfer_tar_local(
     // Send a reqwest
     debug!("Sending download request...");
     let download = prof.time("Downloading");
+    let url: String = format!("{}/{}/download/{}", address, if dataname.is_data() { "data" } else { "results" }, dataname.name());
     let res = match proxy
-        .get_with_body(address, Some(NewPathRequestTlsOptions { location: location.clone(), use_client_auth: true }), &DownloadAssetRequest {
+        .get_with_body(&url, Some(NewPathRequestTlsOptions { location: location.clone(), use_client_auth: true }), &DownloadAssetRequest {
+            use_case: use_case.into(),
             workflow: serde_json::to_value(&workflow).unwrap(),
             task:     pc.map(|pc| (if let FunctionId::Func(id) = pc.func_id { Some(id as u64) } else { None }, pc.edge_idx as u64)),
         })
@@ -429,7 +430,7 @@ async fn preprocess_transfer_tar_local(
         Ok(result) => match result {
             Ok(res) => res,
             Err(err) => {
-                return Err(PreprocessError::DownloadRequestError { address: address.into(), err });
+                return Err(PreprocessError::DownloadRequestError { address: url, err });
             },
         },
         Err(err) => {
@@ -437,7 +438,7 @@ async fn preprocess_transfer_tar_local(
         },
     };
     if !res.status().is_success() {
-        return Err(PreprocessError::DownloadRequestFailure { address: address.into(), code: res.status(), message: res.text().await.ok() });
+        return Err(PreprocessError::DownloadRequestFailure { address: url, code: res.status(), message: res.text().await.ok() });
     }
 
 
@@ -457,7 +458,7 @@ async fn preprocess_transfer_tar_local(
             let mut chunk: Bytes = match chunk {
                 Ok(chunk) => chunk,
                 Err(err) => {
-                    return Err(PreprocessError::DownloadStreamError { address: address.into(), err });
+                    return Err(PreprocessError::DownloadStreamError { address: url, err });
                 },
             };
 
@@ -510,13 +511,14 @@ async fn preprocess_transfer_tar_local(
 /// Function that preprocesses by downloading the given tar and extracting it.
 ///
 /// # Arguments
+/// - `location_cache`: A cache that is used to efficiently resolve location IDs to registry addresses.
 /// - `worker_cfg`: The configuration for this node's environment. For us, contains the path where we may find certificates and where to download data & result files to.
 /// - `proxy`: The proxy client we use to proxy the data transfer.
+/// - `use_case`: A string denoting which use-case (registry) we're using.
 /// - `pc`: The ProgramCounter of the edge that provides context for this preprocessing. If omitted, should be interpreted as that the context is retrieving the workflow result instead.
 /// - `workflow`: A [`Workflow`] that is given as context to the registry.
 /// - `location`: The location to download the tarball from.
-/// - `address`: The address to download the tarball from.
-/// - `data_name`: The type of the data (i.e., Data or IntermediateResult) combined with its identifier.
+/// - `dataname`: The name of the dataset to download.
 /// - `prof`: A ProfileScope to provide more detailled information about the time it takes to preprocess a TAR-file.
 ///
 /// # Returns
@@ -525,13 +527,14 @@ async fn preprocess_transfer_tar_local(
 /// # Errors
 /// This function can error for literally a million reasons - but they mostly relate to IO (file access, request success etc).
 pub async fn preprocess_transfer_tar(
+    location_cache: &DomainRegistryCache,
     worker_cfg: &WorkerConfig,
     proxy: Arc<ProxyClient>,
+    use_case: &str,
     pc: Option<ProgramCounter>,
     workflow: Workflow,
     location: Location,
-    address: impl AsRef<str>,
-    data_name: DataName,
+    dataname: DataName,
     prof: ProfileScopeHandle<'_>,
 ) -> Result<AccessKind, PreprocessError> {
     debug!("Preprocessing tar...");
@@ -548,7 +551,7 @@ pub async fn preprocess_transfer_tar(
     match backend.method {
         Credentials::Local { .. } => {
             // Download the container locally
-            preprocess_transfer_tar_local(worker_cfg, proxy, pc, workflow, location, address, data_name, prof).await
+            preprocess_transfer_tar_local(location_cache, worker_cfg, proxy, use_case, pc, workflow, location, dataname, prof).await
         },
 
         Credentials::Ssh { .. } => Err(PreprocessError::UnsupportedBackend { what: "SSH" }),
@@ -575,6 +578,7 @@ pub async fn preprocess_transfer_tar(
 ///
 /// # Arguments
 /// - `worker_cfg`: The configuration for this node's environment. For us, contains if and where we should proxy the request through and where we may find the checker.
+/// - `use_case`: A string denoting which use-case (registry) we're using.
 /// - `workflow`: The workflow to check.
 /// - `call`: A program counter that identifies which call in the workflow we'll be checkin'.
 ///
@@ -583,12 +587,17 @@ pub async fn preprocess_transfer_tar(
 ///
 /// # Errors
 /// This function errors if we failed to reach the checker, or the checker itself crashed.
-async fn assert_task_permission(worker_cfg: &WorkerConfig, workflow: &Workflow, call: ProgramCounter) -> Result<bool, AuthorizeError> {
+async fn assert_task_permission(
+    worker_cfg: &WorkerConfig,
+    use_case: &str,
+    workflow: &Workflow,
+    call: ProgramCounter,
+) -> Result<bool, AuthorizeError> {
     info!("Checking task '{}' execution permission with checker '{}'...", call, worker_cfg.services.chk.address);
 
     // Alrighty tighty, let's begin by building the request for the checker
     debug!("Constructing checker request...");
-    let body: PolicyExecuteRequest = PolicyExecuteRequest { workflow: workflow.clone(), task_id: call };
+    let body: PolicyExecuteRequest = PolicyExecuteRequest { use_case: use_case.into(), workflow: workflow.clone(), task_id: call };
 
     // Next, generate a JWT to inject in the request
     let jwt: String = match specifications::policy::generate_policy_token(
@@ -1152,6 +1161,7 @@ async fn execute_task_local(
 /// - `worker_cfg`: The configuration for this node's environment. For us, contains the location ID of this location and where to find data & intermediate results.
 /// - `proxy`: The proxy client we use to proxy the data transfer.
 /// - `tx`: The channel to transmit stuff back to the client on.
+/// - `use_case`: A string denoting which use-case (registry) we're using.
 /// - `workflow`: The Workflow that we're executing. Useful for communicating with the eFLINT backend.
 /// - `cinfo`: The ControlNodeInfo that specifies where to find services over at the control node.
 /// - `tinfo`: The TaskInfo that describes the task itself to execute.
@@ -1168,6 +1178,7 @@ async fn execute_task(
     worker_cfg: &WorkerConfig,
     proxy: Arc<ProxyClient>,
     tx: Sender<Result<ExecuteReply, Status>>,
+    use_case: &str,
     workflow: Workflow,
     cinfo: ControlNodeInfo,
     tinfo: TaskInfo,
@@ -1238,7 +1249,7 @@ async fn execute_task(
         let _auth = prof.time("Authorization");
 
         // First: make sure that the workflow is allowed by the checker
-        match assert_task_permission(worker_cfg, &workflow, tinfo.pc).await {
+        match assert_task_permission(worker_cfg, use_case, &workflow, tinfo.pc).await {
             Ok(true) => {
                 debug!("Checker accepted incoming workflow");
                 if let Err(err) = update_client(&tx, JobStatus::Authorized).await {
@@ -1547,7 +1558,11 @@ pub struct WorkerServer {
     keep_containers:  bool,
 
     /// The proxy client to connect to the proxy service with.
-    proxy: Arc<ProxyClient>,
+    proxy:      Arc<ProxyClient>,
+    /// The cache that is responsible for learning location ID -> registry mappings.
+    ///
+    /// They are mapped by use-case ID.
+    registries: Arc<HashMap<String, DomainRegistryCache>>,
 }
 
 impl WorkerServer {
@@ -1560,9 +1575,34 @@ impl WorkerServer {
     ///
     /// # Returns
     /// A new JobHandler instance.
+    ///
+    /// # Errors
+    /// This function could error if it failed to load the node config file at `node_config_path`.
     #[inline]
-    pub fn new(node_config_path: impl Into<PathBuf>, keep_containers: bool, proxy: Arc<ProxyClient>) -> Self {
-        Self { node_config_path: node_config_path.into(), keep_containers, proxy }
+    pub fn new(node_config_path: impl Into<PathBuf>, keep_containers: bool, proxy: Arc<ProxyClient>) -> Result<Self, Error> {
+        // Read the node config to construct a map of caches
+        let node_config_path: PathBuf = node_config_path.into();
+        let node: NodeConfig = match NodeConfig::from_path(&node_config_path) {
+            Ok(node) => node,
+            Err(err) => return Err(Error::NodeConfigLoad { path: node_config_path, err }),
+        };
+        let worker: WorkerConfig = match node.node {
+            NodeSpecificConfig::Worker(worker) => worker,
+            kind => {
+                return Err(Error::NodeConfigWrongKind {
+                    path:     node_config_path,
+                    got:      kind.variant().to_string(),
+                    expected: "Worker".into(),
+                });
+            },
+        };
+
+        // Build a map to do the thing
+        let registries: HashMap<String, DomainRegistryCache> =
+            worker.usecases.into_iter().map(|(usecase, reg)| (usecase, DomainRegistryCache::new(reg.api))).collect();
+
+        // OK, return self
+        Ok(Self { node_config_path: node_config_path.into(), keep_containers, proxy, registries: Arc::new(registries) })
     }
 }
 
@@ -1571,8 +1611,8 @@ impl JobService for WorkerServer {
     type ExecuteStream = ReceiverStream<Result<ExecuteReply, Status>>;
 
     async fn preprocess(&self, request: Request<PreprocessRequest>) -> Result<Response<PreprocessReply>, Status> {
-        let PreprocessRequest { data, kind, workflow, pc } = request.into_inner();
-        debug!("Receiving preprocess request");
+        let PreprocessRequest { use_case, kind, workflow, pc } = request.into_inner();
+        debug!("Receiving preprocess request for use-case '{use_case}'");
 
         // Load the location ID from the node config
         let location_id: String = match NodeConfig::from_path(&self.node_config_path) {
@@ -1593,18 +1633,18 @@ impl JobService for WorkerServer {
         let report = ProfileReport::auto_reporting_file("brane-job WorkerServer::preprocess", format!("brane-job_{location_id}_preprocess"));
         let _total = report.time("Total");
 
-        // Fetch the data kind
-        let data_name: DataName = match data {
-            Some(name) => name.into(),
-            None => {
-                debug!("Incoming request has invalid data name (dropping it)");
-                return Err(Status::invalid_argument("Unknown data name"));
-            },
-        };
-
         // Parse the preprocess kind
         match kind {
-            Some(PreprocessKind::TransferRegistryTar(TransferRegistryTar { location, address })) => {
+            Some(PreprocessKind::TransferRegistryTar(TransferRegistryTar { location, dataname })) => {
+                // Unwrap the dataname, first
+                let dataname: DataName = match dataname {
+                    Some(dataname) => dataname.into(),
+                    None => {
+                        error!("Failed to parse dataname in incoming request");
+                        return Err(Status::invalid_argument(format!("Invalid request: could not parse dataname")));
+                    },
+                };
+
                 // Load the node config file
                 let disk = report.time("File loading");
                 let node_config: NodeConfig = match NodeConfig::from_path(&self.node_config_path) {
@@ -1635,12 +1675,23 @@ impl JobService for WorkerServer {
                     },
                 };
 
+                // Resolve the use-case
+                let registries: &DomainRegistryCache = match self.registries.get(&use_case) {
+                    Some(regs) => regs,
+                    None => {
+                        debug!("Received unknown use-case identifier '{use_case}'");
+                        return Err(Status::invalid_argument("Invalid use-case"));
+                    },
+                };
+
                 // Run the function that way
                 let access: AccessKind = match report
                     .nest_fut("TransferTar preprocessing", |scope| {
                         preprocess_transfer_tar(
+                            registries,
                             &worker,
                             self.proxy.clone(),
+                            &use_case,
                             pc.map(|pc| {
                                 ProgramCounter::new(
                                     if pc.func_id == u64::MAX { FunctionId::Main } else { FunctionId::Func(pc.func_id as usize) },
@@ -1649,8 +1700,7 @@ impl JobService for WorkerServer {
                             }),
                             workflow,
                             location,
-                            address,
-                            data_name,
+                            dataname,
                             scope,
                         )
                     })
@@ -1687,7 +1737,7 @@ impl JobService for WorkerServer {
     }
 
     async fn execute(&self, request: Request<ExecuteRequest>) -> Result<Response<Self::ExecuteStream>, Status> {
-        let request = request.into_inner();
+        let ExecuteRequest { use_case, workflow, call_pc, task_def, input, result, args } = request.into_inner();
         debug!("Receiving execute request");
 
         // Load the location ID from the node config
@@ -1715,16 +1765,11 @@ impl JobService for WorkerServer {
 
         // Attempt to parse the workflow
         let par = overhead.time("Parsing");
-        let workflow: Workflow = match serde_json::from_str(&request.workflow) {
+        let workflow: Workflow = match serde_json::from_str(&workflow) {
             Ok(workflow) => workflow,
             Err(err) => {
                 error!("{}", trace!(("Failed to deserialize workflow"), err));
-                debug!(
-                    "Workflow:\n{}\n{}\n{}\n",
-                    (0..80).map(|_| '-').collect::<String>(),
-                    request.workflow,
-                    (0..80).map(|_| '-').collect::<String>()
-                );
+                debug!("Workflow:\n{}\n{}\n{}\n", (0..80).map(|_| '-').collect::<String>(), workflow, (0..80).map(|_| '-').collect::<String>());
                 if let Err(err) = tx.send(Err(Status::invalid_argument(format!("{}", trace!(("Failed to deserialize workflow"), err))))).await {
                     error!("{}", err.trace());
                 }
@@ -1733,12 +1778,12 @@ impl JobService for WorkerServer {
         };
 
         // Fetch the task ID
-        if request.task_def as usize >= workflow.table.tasks.len() {
-            error!("Given task ID '{}' is out-of-bounds for workflow with {} tasks", request.task_def, workflow.table.tasks.len());
+        if task_def as usize >= workflow.table.tasks.len() {
+            error!("Given task ID '{}' is out-of-bounds for workflow with {} tasks", task_def, workflow.table.tasks.len());
             if let Err(err) = tx
                 .send(Err(Status::invalid_argument(format!(
                     "Given task ID '{}' is out-of-bounds for workflow with {} tasks",
-                    request.task_def,
+                    task_def,
                     workflow.table.tasks.len()
                 ))))
                 .await
@@ -1747,14 +1792,14 @@ impl JobService for WorkerServer {
             }
             return Ok(Response::new(ReceiverStream::new(rx)));
         }
-        let task: &ComputeTaskDef = match &workflow.table.tasks[request.task_def as usize] {
+        let task: &ComputeTaskDef = match &workflow.table.tasks[task_def as usize] {
             TaskDef::Compute(def) => def,
             _ => {
-                error!("A task of type '{}' is not yet supported", workflow.table.tasks[request.task_def as usize].variant());
+                error!("A task of type '{}' is not yet supported", workflow.table.tasks[task_def as usize].variant());
                 if let Err(err) = tx
                     .send(Err(Status::invalid_argument(format!(
                         "A task of type '{}' is not yet supported",
-                        workflow.table.tasks[request.task_def as usize].variant()
+                        workflow.table.tasks[task_def as usize].variant()
                     ))))
                     .await
                 {
@@ -1765,11 +1810,11 @@ impl JobService for WorkerServer {
         };
 
         // Attempt to parse the input
-        let input: HashMap<DataName, AccessKind> = match json_to_map(&request.input) {
+        let input: HashMap<DataName, AccessKind> = match json_to_map(&input) {
             Ok(input) => input,
             Err(err) => {
-                error!("{}", trace!(("Failed to deserialize input '{}'", request.input), err));
-                if let Err(err) = tx.send(Err(Status::invalid_argument(format!("Failed to deserialize input '{}': {}", request.input, err)))).await {
+                error!("{}", trace!(("Failed to deserialize input '{}'", input), err));
+                if let Err(err) = tx.send(Err(Status::invalid_argument(format!("Failed to deserialize input '{}': {}", input, err)))).await {
                     error!("{}", err.trace());
                 }
                 return Ok(Response::new(ReceiverStream::new(rx)));
@@ -1777,12 +1822,11 @@ impl JobService for WorkerServer {
         };
 
         // Attempt to parse the arguments
-        let args: HashMap<String, FullValue> = match serde_json::from_str(&request.args) {
+        let args: HashMap<String, FullValue> = match serde_json::from_str(&args) {
             Ok(args) => args,
             Err(err) => {
-                error!("{}", trace!(("Failed to deserialize arguments '{}'", request.args), err));
-                if let Err(err) = tx.send(Err(Status::invalid_argument(format!("Failed to deserialize arguments '{}': {}", request.args, err)))).await
-                {
+                error!("{}", trace!(("Failed to deserialize arguments '{args}'"), err));
+                if let Err(err) = tx.send(Err(Status::invalid_argument(format!("Failed to deserialize arguments '{args}': {err}")))).await {
                     error!("{}", err.trace());
                 }
                 return Ok(Response::new(ReceiverStream::new(rx)));
@@ -1808,18 +1852,27 @@ impl JobService for WorkerServer {
         };
         disk.stop();
 
+        // Fetch the use-case's API address
+        let api: &Address = match worker.usecases.get(&use_case) {
+            Some(usecase) => &usecase.api,
+            None => {
+                debug!("Received unknown use-case identifier '{use_case}'");
+                return Err(Status::invalid_argument("Invalid use-case"));
+            },
+        };
+
         // Collect some request data into ControlNodeInfo's and TaskInfo's.
-        let cinfo: ControlNodeInfo = ControlNodeInfo::new(request.api);
+        let cinfo: ControlNodeInfo = ControlNodeInfo::new(api.to_string());
         let tinfo: TaskInfo = TaskInfo::new(
             task.function.name.clone(),
             ProgramCounter::new(
-                if request.call_pc.func_id == u64::MAX { FunctionId::Main } else { FunctionId::Func(request.call_pc.func_id as usize) },
-                request.call_pc.edge_idx as usize,
+                if call_pc.func_id == u64::MAX { FunctionId::Main } else { FunctionId::Func(call_pc.func_id as usize) },
+                call_pc.edge_idx as usize,
             ),
             task.package.clone(),
             task.version,
             input,
-            request.result,
+            result,
             args,
             task.requirements.clone(),
         );
@@ -1831,7 +1884,7 @@ impl JobService for WorkerServer {
         let proxy: Arc<ProxyClient> = self.proxy.clone();
         tokio::spawn(async move {
             let worker: WorkerConfig = worker;
-            report.nest_fut("execution", |scope| execute_task(&worker, proxy, tx, workflow, cinfo, tinfo, keep_containers, scope)).await
+            report.nest_fut("execution", |scope| execute_task(&worker, proxy, tx, &use_case, workflow, cinfo, tinfo, keep_containers, scope)).await
         });
 
         // Return the stream so the user can get updates

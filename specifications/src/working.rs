@@ -4,7 +4,7 @@
 //  Created:
 //    06 Jan 2023, 15:01:17
 //  Last edited:
-//    16 Jan 2024, 11:39:10
+//    31 Jan 2024, 11:41:20
 //  Auto updated?
 //    Yes
 //
@@ -13,6 +13,7 @@
 //!   worker.
 //
 
+use std::convert::TryFrom;
 use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::sync::Arc;
@@ -31,6 +32,22 @@ pub use JobServiceError as Error;
 
 
 /***** ERRORS *****/
+/// Defines the errors occurring when juggling [`PreprocessKind`]s.
+#[derive(Debug)]
+pub enum PreprocessKindConvertError {
+    /// The given [`specifications::working::PreprocessKind`] did not have a successfully parsed `dataname`-field.
+    NoDataName,
+}
+impl Display for PreprocessKindConvertError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use PreprocessKindConvertError::*;
+        match self {
+            NoDataName => write!(f, "Missing 'dataname' in given gRPC version of PreprocessKind"),
+        }
+    }
+}
+impl error::Error for PreprocessKindConvertError {}
+
 /// Defines the errors occuring in the JobServiceClient or JobServiceServer.
 #[derive(Debug)]
 pub enum JobServiceError {
@@ -88,6 +105,25 @@ pub enum DataName {
     IntermediateResult(String),
 }
 
+impl From<crate::data::DataName> for DataName {
+    #[inline]
+    fn from(value: crate::data::DataName) -> Self {
+        match value {
+            crate::data::DataName::Data(name) => DataName::Data(name),
+            crate::data::DataName::IntermediateResult(name) => DataName::IntermediateResult(name),
+        }
+    }
+}
+impl From<DataName> for crate::data::DataName {
+    #[inline]
+    fn from(value: DataName) -> Self {
+        match value {
+            DataName::Data(name) => Self::Data(name),
+            DataName::IntermediateResult(name) => Self::IntermediateResult(name),
+        }
+    }
+}
+
 
 
 /// Auxillary message that implements the fields for a TransferRegistryTar PreprocessKind.
@@ -96,9 +132,9 @@ pub struct TransferRegistryTar {
     /// The location where the address is from.
     #[prost(tag = "1", required, string)]
     pub location: String,
-    /// The address + path that, once it receives a GET-request with credentials and such, downloads the referenced dataset.
-    #[prost(tag = "2", required, string)]
-    pub address:  String,
+    /// The name of the dataset that we aim to retrieve.
+    #[prost(tags = "2,3", oneof = "DataName")]
+    pub dataname: Option<DataName>,
 }
 
 /// Auxillary enum that defines the possible kinds of datasets.
@@ -108,42 +144,28 @@ pub enum PreprocessKind {
     #[prost(tag = "3", message)]
     TransferRegistryTar(TransferRegistryTar),
 }
-
 impl From<crate::data::PreprocessKind> for PreprocessKind {
     #[inline]
     fn from(value: crate::data::PreprocessKind) -> Self {
         match value {
-            crate::data::PreprocessKind::TransferRegistryTar { location, address } => {
-                Self::TransferRegistryTar(TransferRegistryTar { location, address })
+            crate::data::PreprocessKind::TransferRegistryTar { location, dataname } => {
+                Self::TransferRegistryTar(TransferRegistryTar { location, dataname: Some(dataname.into()) })
             },
         }
     }
 }
-impl From<&crate::data::PreprocessKind> for PreprocessKind {
+impl TryFrom<PreprocessKind> for crate::data::PreprocessKind {
+    type Error = PreprocessKindConvertError;
+
     #[inline]
-    fn from(value: &crate::data::PreprocessKind) -> Self { Self::from(value.clone()) }
-}
-impl From<&mut crate::data::PreprocessKind> for PreprocessKind {
-    #[inline]
-    fn from(value: &mut crate::data::PreprocessKind) -> Self { Self::from(value.clone()) }
-}
-impl From<PreprocessKind> for crate::data::PreprocessKind {
-    #[inline]
-    fn from(value: PreprocessKind) -> Self {
+    fn try_from(value: PreprocessKind) -> Result<Self, Self::Error> {
         match value {
-            PreprocessKind::TransferRegistryTar(TransferRegistryTar { location, address }) => {
-                crate::data::PreprocessKind::TransferRegistryTar { location, address }
+            PreprocessKind::TransferRegistryTar(TransferRegistryTar { location, dataname }) => match dataname {
+                Some(dataname) => Ok(crate::data::PreprocessKind::TransferRegistryTar { location, dataname: dataname.into() }),
+                None => Err(PreprocessKindConvertError::NoDataName),
             },
         }
     }
-}
-impl From<&PreprocessKind> for crate::data::PreprocessKind {
-    #[inline]
-    fn from(value: &PreprocessKind) -> Self { Self::from(value.clone()) }
-}
-impl From<&mut PreprocessKind> for crate::data::PreprocessKind {
-    #[inline]
-    fn from(value: &mut PreprocessKind) -> Self { Self::from(value.clone()) }
 }
 
 
@@ -213,18 +235,22 @@ pub enum TaskStatus {
 /// Request for preprocessing a given dataset.
 #[derive(Clone, Message)]
 pub struct PreprocessRequest {
-    /// The dataset's name (and kind)
-    #[prost(tags = "1,2", oneof = "DataName")]
-    pub data: Option<DataName>,
+    /// Some identifier relating to the worker which use-case (registry) is being used.
+    #[prost(tag = "1", required, string)]
+    pub use_case: String,
+
+    // /// The dataset's name (and kind)
+    // #[prost(tags = "2,3", oneof = "DataName")]
+    // pub data: Option<DataName>,
     /// The type of preprocessing that will need to happen.
-    #[prost(tags = "3", oneof = "PreprocessKind")]
+    #[prost(tags = "2", oneof = "PreprocessKind")]
     pub kind: Option<PreprocessKind>,
 
     /// The workflow provided as context of the data transfer.
-    #[prost(tag = "4", required, string)]
+    #[prost(tag = "3", required, string)]
     pub workflow: String,
     /// The function in which we do the call.
-    #[prost(tag = "5", message)]
+    #[prost(tag = "4", message)]
     pub pc: Option<ProgramCounter>,
 }
 
@@ -252,9 +278,9 @@ pub struct PreprocessReply {
 /// Request for executing a task on some domain.
 #[derive(Clone, Message)]
 pub struct ExecuteRequest {
-    /// The location of the API service where information may be retrieved from.
+    /// Some identifier relating to the worker which use-case (registry) is being used.
     #[prost(tag = "1", required, string)]
-    pub api: String,
+    pub use_case: String,
 
     /// The workflow of which the task to execute is a part.
     #[prost(tag = "2", required, string)]

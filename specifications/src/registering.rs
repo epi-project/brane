@@ -4,7 +4,7 @@
 //  Created:
 //    15 Jan 2024, 14:32:30
 //  Last edited:
-//    16 Jan 2024, 11:45:57
+//    31 Jan 2024, 14:54:04
 //  Auto updated?
 //    Yes
 //
@@ -21,6 +21,8 @@ use serde_json::Value;
 /// Defines the input in the body of a request to download an asset.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DownloadAssetRequest {
+    /// The use-case for which we're checking (determines which API registry to use).
+    pub use_case: String,
     /// The workflow that we're checking.
     ///
     /// Note that we leave it open, as this would require importing `brane-ast` (and that would be a cycling dependency).

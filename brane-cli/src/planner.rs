@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 16:40:21
 //  Last edited:
-//    07 Nov 2023, 16:32:06
+//    31 Jan 2024, 14:47:01
 //  Auto updated?
 //    Yes
 //
@@ -18,13 +18,13 @@ use std::mem;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use brane_ast::ast::{DataName, Edge, SymTable};
+use brane_ast::ast::{Edge, SymTable};
 use brane_ast::Workflow;
 use brane_tsk::errors::PlanError;
 use brane_tsk::spec::{Planner, LOCALHOST};
 use log::debug;
 use parking_lot::Mutex;
-use specifications::data::{AccessKind, AvailabilityKind, DataIndex};
+use specifications::data::{AccessKind, AvailabilityKind, DataIndex, DataName};
 
 
 /***** HELPER FUNCTIONS *****/

@@ -71,7 +71,7 @@ RUN unzip /policy-reasoner.zip && mv /epi-project-policy-reasoner* /policy-reaso
 WORKDIR /policy-reasoner
 RUN --mount=type=cache,id=cargoidx,target=/usr/local/cargo/registry \
     --mount=type=cache,id=reasonercache,target=/policy-reasoner/target \
-    cargo build --release \
+    cargo build --release --features brane-api-resolver \
  && cp ./target/release/policy-reasoner /brane-chk
 
 # If ever run, run a shell
@@ -215,7 +215,6 @@ RUN chmod +x /eflint-server
 
 # Copy some config from the build stage
 COPY --from=build-policy-reasoner /policy-reasoner/examples/config/jwt_resolver.yaml /examples/config/jwt_resolver.yaml
-RUN mkdir -p /examples/eflint_reasonerconn && echo '{ "users": [], "locations": [], "datasets": [], "functions": [] }' > /examples/eflint_reasonerconn/example-state.json
 
 # Copy `policy-reasoner` from build stage
 COPY --from=build-policy-reasoner /brane-chk /brane-chk

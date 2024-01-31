@@ -4,7 +4,7 @@
 //  Created:
 //    18 Oct 2022, 13:47:17
 //  Last edited:
-//    03 Jan 2024, 14:45:09
+//    31 Jan 2024, 13:51:31
 //  Auto updated?
 //    Yes
 //
@@ -96,7 +96,13 @@ async fn main() {
     // let xenon_endpoint = utilities::ensure_http_schema(&opts.xenon, !opts.debug)?;
 
     // Start the JobHandler
-    let server = WorkerServer::new(opts.node_config_path, opts.keep_containers, Arc::new(ProxyClient::new(worker.services.prx.address())));
+    let server = match WorkerServer::new(opts.node_config_path, opts.keep_containers, Arc::new(ProxyClient::new(worker.services.prx.address()))) {
+        Ok(svr) => svr,
+        Err(err) => {
+            error!("{}", trace!(("Failed to create WorkerServer"), err));
+            std::process::exit(1);
+        },
+    };
 
     // Start gRPC server with callback service.
     debug!("gRPC server ready to serve on '{}'", worker.services.job.bind);

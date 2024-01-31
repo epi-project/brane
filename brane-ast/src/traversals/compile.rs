@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 11:32:04
 //  Last edited:
-//    12 Dec 2023, 16:02:03
+//    31 Jan 2024, 11:35:39
 //  Auto updated?
 //    Yes
 //
@@ -24,6 +24,7 @@ use brane_dsl::spec::MergeStrategy;
 use brane_dsl::symbol_table::{FunctionEntry, VarEntry};
 use enum_debug::EnumDebug as _;
 use log::warn;
+use specifications::data::DataName;
 
 use crate::ast;
 use crate::ast_unresolved::UnresolvedWorkflow;
@@ -418,7 +419,7 @@ fn pass_stmt(stmt: dsl::Stmt, edges: &mut EdgeBuffer, f_edges: &mut HashMap<usiz
             }
 
             // End the branch instead of writing a Return
-            edges.write_stop(ast::Edge::Return { result: output.iter().map(|data| ast::DataName::from(data.clone())).collect() });
+            edges.write_stop(ast::Edge::Return { result: output.iter().map(|data| DataName::from(data.clone())).collect() });
         },
 
         If { cond, consequent, alternative, .. } => {
@@ -600,7 +601,7 @@ fn pass_expr(expr: dsl::Expr, edges: &mut EdgeBuffer, _table: &TableState) {
                 // It's a local call; replace with a Call edge
                 edges.write(ast::Edge::Call {
                     input:  input.into_iter().map(|d| d.into()).collect(),
-                    result: result.iter().map(|data| ast::DataName::from(data.clone())).collect(),
+                    result: result.iter().map(|data| DataName::from(data.clone())).collect(),
                     next:   usize::MAX,
                 });
             }

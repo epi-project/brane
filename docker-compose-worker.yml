@@ -34,7 +34,7 @@ services:
     - "0.0.0.0:${CHK_PORT}:${CHK_PORT}"
     restart: always
     environment:
-      - ADDRESS=0.0.0.0:${CHK_PORT}
+    - ADDRESS=0.0.0.0:${CHK_PORT}
     volumes:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${POLICY_DB}:/data/policy.db

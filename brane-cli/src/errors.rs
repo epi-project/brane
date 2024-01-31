@@ -4,7 +4,7 @@
 //  Created:
 //    17 Feb 2022, 10:27:28
 //  Last edited:
-//    09 Jan 2024, 12:00:32
+//    31 Jan 2024, 14:38:20
 //  Auto updated?
 //    Yes
 //
@@ -1356,33 +1356,33 @@ impl Display for RunError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use RunError::*;
         match self {
-            WriteError { err } => write!(f, "Failed to write to the given formatter: {err}"),
+            WriteError { .. } => write!(f, "Failed to write to the given formatter"),
 
-            LocalPackageIndexError { err } => write!(f, "Failed to fetch local package index: {err}"),
-            LocalDataIndexError { err } => write!(f, "Failed to fetch local data index: {err}"),
-            PackagesDirError { err } => write!(f, "Failed to get packages directory: {err}"),
-            DatasetsDirError { err } => write!(f, "Failed to get datasets directory: {err}"),
-            ResultsDirCreateError { err } => write!(f, "Failed to create new temporary directory as an intermediate result directory: {err}"),
+            LocalPackageIndexError { .. } => write!(f, "Failed to fetch local package index"),
+            LocalDataIndexError { .. } => write!(f, "Failed to fetch local data index"),
+            PackagesDirError { .. } => write!(f, "Failed to get packages directory"),
+            DatasetsDirError { .. } => write!(f, "Failed to get datasets directory"),
+            ResultsDirCreateError { .. } => write!(f, "Failed to create new temporary directory as an intermediate result directory"),
 
             InstanceInfoError { err } => write!(f, "{err}"),
-            ActiveInstanceReadError { err } => write!(f, "Failed to read active instance link: {err}"),
-            InstancePathError { name, err } => write!(f, "Could not get path of instance '{name}': {err}"),
-            RemotePackageIndexError { address, err } => write!(f, "Failed to fetch remote package index from '{address}': {err}"),
-            RemoteDataIndexError { address, err } => write!(f, "Failed to fetch remote data index from '{address}': {err}"),
-            RemoteDelegatesError { address, err } => write!(f, "Failed to fetch delegates map from '{address}': {err}"),
-            ClientConnectError { address, err } => write!(f, "Could not connect to remote Brane instance '{address}': {err}"),
-            AppIdError { address, raw, err } => write!(f, "Could not parse '{raw}' send by remote '{address}' as an application ID: {err}"),
-            SessionCreateError { address, err } => {
-                write!(f, "Could not create new session with remote Brane instance '{address}': remote returned status: {err}")
+            ActiveInstanceReadError { .. } => write!(f, "Failed to read active instance link"),
+            InstancePathError { name, .. } => write!(f, "Could not get path of instance '{name}'"),
+            RemotePackageIndexError { address, .. } => write!(f, "Failed to fetch remote package index from '{address}'"),
+            RemoteDataIndexError { address, .. } => write!(f, "Failed to fetch remote data index from '{address}'"),
+            RemoteDelegatesError { address, .. } => write!(f, "Failed to fetch delegates map from '{address}'"),
+            ClientConnectError { address, .. } => write!(f, "Could not connect to remote Brane instance '{address}'"),
+            AppIdError { address, raw, .. } => write!(f, "Could not parse '{raw}' send by remote '{address}' as an application ID"),
+            SessionCreateError { address, .. } => {
+                write!(f, "Could not create new session with remote Brane instance '{address}': remote returned status")
             },
 
             CompileError { .. } => write!(f, "Compilation of workflow failed (see output above)"),
-            WorkflowSerializeError { err } => write!(f, "Failed to serialize the compiled workflow: {err}"),
-            CommandRequestError { address, err } => {
-                write!(f, "Could not run command on remote Brane instance '{address}': request failed: remote returned status: {err}")
+            WorkflowSerializeError { .. } => write!(f, "Failed to serialize the compiled workflow"),
+            CommandRequestError { address, .. } => {
+                write!(f, "Could not run command on remote Brane instance '{address}': request failed: remote returned status")
             },
-            ValueParseError { address, raw, err } => write!(f, "Could not parse '{raw}' sent by remote '{address}' as a value: {err}"),
-            ExecError { err } => write!(f, "Failed to run workflow: {err}"),
+            ValueParseError { address, raw, .. } => write!(f, "Could not parse '{raw}' sent by remote '{address}' as a value"),
+            ExecError { .. } => write!(f, "Failed to run workflow"),
 
             UnknownDataset { name } => write!(f, "Unknown dataset '{name}'"),
             UnavailableDataset { name, locs } => write!(
@@ -1395,15 +1395,52 @@ impl Display for RunError {
                     String::new()
                 }
             ),
-            DataDownloadError { err } => write!(f, "Failed to download remote dataset: {err}"),
+            DataDownloadError { .. } => write!(f, "Failed to download remote dataset"),
 
-            StdinReadError { err } => write!(f, "Failed to read source from stdin: {err}"),
-            FileReadError { path, err } => write!(f, "Failed to read source from file '{}': {}", path.display(), err),
+            StdinReadError { .. } => write!(f, "Failed to read source from stdin"),
+            FileReadError { path, .. } => write!(f, "Failed to read source from file '{}'", path.display()),
             LoginFileError { err } => write!(f, "{err}"),
         }
     }
 }
-impl Error for RunError {}
+impl Error for RunError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use RunError::*;
+        match self {
+            WriteError { err } => Some(err),
+
+            LocalPackageIndexError { err } => Some(err),
+            LocalDataIndexError { err } => Some(err),
+            PackagesDirError { err } => Some(err),
+            DatasetsDirError { err } => Some(err),
+            ResultsDirCreateError { err } => Some(err),
+
+            InstanceInfoError { err } => err.source(),
+            ActiveInstanceReadError { err } => Some(err),
+            InstancePathError { err, .. } => Some(err),
+            RemotePackageIndexError { err, .. } => Some(err),
+            RemoteDataIndexError { err, .. } => Some(err),
+            RemoteDelegatesError { err, .. } => Some(err),
+            ClientConnectError { err, .. } => Some(err),
+            AppIdError { err, .. } => Some(err),
+            SessionCreateError { err, .. } => Some(err),
+
+            CompileError { .. } => None,
+            WorkflowSerializeError { err } => Some(err),
+            CommandRequestError { err, .. } => Some(err),
+            ValueParseError { err, .. } => Some(err),
+            ExecError { err } => Some(&**err),
+
+            UnknownDataset { .. } => None,
+            UnavailableDataset { .. } => None,
+            DataDownloadError { err } => Some(err),
+
+            StdinReadError { err } => Some(err),
+            FileReadError { err, .. } => Some(err),
+            LoginFileError { err } => err.source(),
+        }
+    }
+}
 impl From<std::io::Error> for RunError {
     #[inline]
     fn from(value: std::io::Error) -> Self { RunError::WriteError { err: value } }

@@ -4,7 +4,7 @@
 //  Created:
 //    13 Sep 2022, 16:43:11
 //  Last edited:
-//    16 Jan 2024, 11:30:41
+//    31 Jan 2024, 11:36:37
 //  Auto updated?
 //    Yes
 //
@@ -18,11 +18,11 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use async_trait::async_trait;
-use brane_ast::ast::{DataName, Edge, SymTable};
+use brane_ast::ast::{Edge, SymTable};
 use brane_ast::locations::Location;
 use brane_ast::{DataType, Workflow};
 use log::info;
-use specifications::data::{AccessKind, AvailabilityKind};
+use specifications::data::{AccessKind, AvailabilityKind, DataName};
 use specifications::profiling::ProfileScopeHandle;
 
 pub use crate::errors::DummyVmError as Error;
