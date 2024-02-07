@@ -4,7 +4,7 @@
 //  Created:
 //    06 Jan 2023, 15:01:17
 //  Last edited:
-//    31 Jan 2024, 16:00:57
+//    06 Feb 2024, 14:38:07
 //  Auto updated?
 //    Yes
 //
@@ -234,7 +234,7 @@ pub enum TaskStatus {
 /***** MESSAGES *****/
 /// Request for checking workflow validity with the worker's checker.
 #[derive(Clone, Message)]
-pub struct CheckRequest {
+pub struct CheckWorkflowRequest {
     /// Some identifier relating to the worker which use-case (registry) is being used.
     #[prost(tag = "1", required, string)]
     pub use_case: String,
@@ -243,7 +243,21 @@ pub struct CheckRequest {
     pub workflow: String,
 }
 
-/// The reply sent by the worker while a task has executing.
+/// Request for checking workflow validity with the worker's checker.
+#[derive(Clone, Message)]
+pub struct CheckTaskRequest {
+    /// Some identifier relating to the worker which use-case (registry) is being used.
+    #[prost(tag = "1", required, string)]
+    pub use_case: String,
+    /// The workflow that should be checked.
+    #[prost(tag = "2", required, string)]
+    pub workflow: String,
+    /// A pointer to the task in the `workflow` that should be specifically permitted.
+    #[prost(tag = "3", required, string)]
+    pub task_id:  String,
+}
+
+/// The reply sent by the worker if a workflow- or task is permitted (i.e., as response to [`CheckWorkflowRequest`] or [`CheckTaskRequest`]).
 #[derive(Clone, Message)]
 pub struct CheckReply {
     /// Whether the checker approved or denied
@@ -401,14 +415,14 @@ impl JobServiceClient {
     /// Send a request to validate a workflow to the connected endpoint.
     ///
     /// # Arguments
-    /// - `request`: The [`CheckRequest`] to send to the endpoint.
+    /// - `request`: The [`CheckWorkflowRequest`] to send to the endpoint.
     ///
     /// # Returns
     /// The [`CheckReply`] the endpoint returns.
     ///
     /// # Errors
     /// This function errors if either we failed to send the request or the endpoint itself failed to process it.
-    pub async fn check(&mut self, request: impl tonic::IntoRequest<CheckRequest>) -> Result<Response<CheckReply>, Status> {
+    pub async fn check_workflow(&mut self, request: impl tonic::IntoRequest<CheckWorkflowRequest>) -> Result<Response<CheckReply>, Status> {
         // Assert the client is ready to get the party started
         if let Err(err) = self.client.ready().await {
             return Err(Status::new(Code::Unknown, format!("Service was not ready: {err}")));
@@ -416,7 +430,29 @@ impl JobServiceClient {
 
         // Set the default stuff
         let codec: ProstCodec<_, _> = ProstCodec::default();
-        let path: http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/Check");
+        let path: http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/CheckWorkflow");
+        self.client.unary(request.into_request(), path, codec).await
+    }
+
+    /// Send a request to validate a task in a workflow to the connected endpoint.
+    ///
+    /// # Arguments
+    /// - `request`: The [`CheckTaskRequest`] to send to the endpoint.
+    ///
+    /// # Returns
+    /// The [`CheckReply`] the endpoint returns.
+    ///
+    /// # Errors
+    /// This function errors if either we failed to send the request or the endpoint itself failed to process it.
+    pub async fn check_task(&mut self, request: impl tonic::IntoRequest<CheckTaskRequest>) -> Result<Response<CheckReply>, Status> {
+        // Assert the client is ready to get the party started
+        if let Err(err) = self.client.ready().await {
+            return Err(Status::new(Code::Unknown, format!("Service was not ready: {err}")));
+        }
+
+        // Set the default stuff
+        let codec: ProstCodec<_, _> = ProstCodec::default();
+        let path: http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/CheckTask");
         self.client.unary(request.into_request(), path, codec).await
     }
 
@@ -499,17 +535,29 @@ pub trait JobService: 'static + Send + Sync {
 
 
 
-    /// Handle for when a [`CheckRequest`] comes in.
+    /// Handle for when a [`CheckWorkflowRequest`] comes in.
     ///
     /// # Arguments
-    /// - `request`: The (`tonic::Request`-wrapped) PreprocessRequest containing the relevant details.
+    /// - `request`: The ([`tonic::Request`]-wrapped) [`CheckWorkflowRequest`] containing the relevant details.
     ///
     /// # Returns
-    /// A PreprocessReply for this request, wrapped in a `tonic::Response`.
+    /// A [`CheckReply`] for this request, wrapped in a [`tonic::Response`].
     ///
     /// # Errors
     /// This function may error (i.e., send back a `tonic::Status`) whenever it fails.
-    async fn check(&self, request: Request<CheckRequest>) -> Result<Response<CheckReply>, Status>;
+    async fn check_workflow(&self, request: Request<CheckWorkflowRequest>) -> Result<Response<CheckReply>, Status>;
+
+    /// Handle for when a [`CheckTaskRequest`] comes in.
+    ///
+    /// # Arguments
+    /// - `request`: The ([`tonic::Request`]-wrapped) [`CheckTaskRequest`] containing the relevant details.
+    ///
+    /// # Returns
+    /// A [`CheckReply`] for this request, wrapped in a [`tonic::Response`].
+    ///
+    /// # Errors
+    /// This function may error (i.e., send back a `tonic::Status`) whenever it fails.
+    async fn check_task(&self, request: Request<CheckTaskRequest>) -> Result<Response<CheckReply>, Status>;
 
     /// Handle for when a PreprocessRequest comes in.
     ///
@@ -583,17 +631,17 @@ where
     fn call(&mut self, req: http::Request<B>) -> Self::Future {
         match req.uri().path() {
             // Incoming CheckRequest
-            "/job.JobService/Check" => {
+            "/job.JobService/CheckWorkflow" => {
                 /// Helper struct for the given JobService that focusses specifically on this request.
-                struct CheckSvc<T>(Arc<T>);
-                impl<T: JobService> UnaryService<CheckRequest> for CheckSvc<T> {
+                struct CheckWorkflowSvc<T>(Arc<T>);
+                impl<T: JobService> UnaryService<CheckWorkflowRequest> for CheckWorkflowSvc<T> {
                     type Future = BoxFuture<Response<Self::Response>, Status>;
                     type Response = CheckReply;
 
-                    fn call(&mut self, req: Request<CheckRequest>) -> Self::Future {
+                    fn call(&mut self, req: Request<CheckWorkflowRequest>) -> Self::Future {
                         // Return the service function as the future to run
                         let service = self.0.clone();
-                        let fut = async move { (*service).check(req).await };
+                        let fut = async move { (*service).check_workflow(req).await };
                         Box::pin(fut)
                     }
                 }
@@ -601,7 +649,33 @@ where
                 // Create a future that creates the service
                 let service = self.service.clone();
                 Box::pin(async move {
-                    let method: CheckSvc<T> = CheckSvc(service);
+                    let method: CheckWorkflowSvc<T> = CheckWorkflowSvc(service);
+                    let codec: ProstCodec<_, _> = ProstCodec::default();
+                    let mut grpc: GrpcServer<ProstCodec<_, _>> = GrpcServer::new(codec);
+                    Ok(grpc.unary(method, req).await)
+                })
+            },
+
+            // Incoming CheckRequest
+            "/job.JobService/CheckTask" => {
+                /// Helper struct for the given JobService that focusses specifically on this request.
+                struct CheckTaskSvc<T>(Arc<T>);
+                impl<T: JobService> UnaryService<CheckTaskRequest> for CheckTaskSvc<T> {
+                    type Future = BoxFuture<Response<Self::Response>, Status>;
+                    type Response = CheckReply;
+
+                    fn call(&mut self, req: Request<CheckTaskRequest>) -> Self::Future {
+                        // Return the service function as the future to run
+                        let service = self.0.clone();
+                        let fut = async move { (*service).check_task(req).await };
+                        Box::pin(fut)
+                    }
+                }
+
+                // Create a future that creates the service
+                let service = self.service.clone();
+                Box::pin(async move {
+                    let method: CheckTaskSvc<T> = CheckTaskSvc(service);
                     let codec: ProstCodec<_, _> = ProstCodec::default();
                     let mut grpc: GrpcServer<ProstCodec<_, _>> = GrpcServer::new(codec);
                     Ok(grpc.unary(method, req).await)

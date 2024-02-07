@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 15:40:40
 //  Last edited:
-//    31 Jan 2024, 14:55:04
+//    07 Feb 2024, 14:19:12
 //  Auto updated?
 //    Yes
 //
@@ -35,6 +35,7 @@ use log::{debug, error, info};
 use reqwest::header;
 use rustls::Certificate;
 use serde::{Deserialize, Serialize};
+use specifications::checking::DELIBERATION_API_TRANSFER_DATA;
 use specifications::data::{AccessKind, AssetInfo, DataName};
 use specifications::profiling::ProfileReport;
 use specifications::registering::DownloadAssetRequest;
@@ -65,18 +66,18 @@ use crate::store::Store;
 /// - `call`: A program counter that identifies for which call in the workflow we're doing this request (if any).
 ///
 /// # Returns
-/// Whether permission is given or not.
+/// Whether permission is given or not. It is given as an [`Option`] that, when [`None`], means permission is given; else, it carries a list of reasons why not (if shared by the checker).
 ///
 /// # Errors
 /// This function errors if we failed to ask the checker. Clearly, that should be treated as permission denied.
-pub async fn assert_data_permission(
+pub async fn assert_asset_permission(
     worker_cfg: &WorkerConfig,
     use_case: &str,
     workflow: &Workflow,
     client_name: &str,
     data_name: DataName,
     call: Option<ProgramCounter>,
-) -> Result<bool, AuthorizeError> {
+) -> Result<Option<Vec<String>>, AuthorizeError> {
     info!(
         "Checking data access of '{}'{} permission with checker '{}'...",
         data_name,
@@ -168,9 +169,9 @@ pub async fn assert_data_permission(
         Ok(client) => client,
         Err(err) => return Err(AuthorizeError::ClientBuild { err }),
     };
-    let addr: String = format!("{}/v1/deliberation/access-data", worker_cfg.services.chk.address);
+    let addr: String = format!("{}/{}", worker_cfg.services.chk.address, DELIBERATION_API_TRANSFER_DATA.1);
     let req: reqwest::Request =
-        match client.request(reqwest::Method::POST, &addr).header(header::AUTHORIZATION, format!("Bearer {jwt}")).json(&body).build() {
+        match client.request(DELIBERATION_API_TRANSFER_DATA.0, &addr).header(header::AUTHORIZATION, format!("Bearer {jwt}")).json(&body).build() {
             Ok(req) => req,
             Err(err) => return Err(AuthorizeError::ExecuteRequestBuild { addr, err }),
         };
@@ -206,45 +207,18 @@ pub async fn assert_data_permission(
                 data_name,
                 if let Some(call) = call { format!(" (in the context of {})", call) } else { String::new() },
             );
-            Ok(true)
+            Ok(None)
         },
 
-        Verdict::Deny(_) => {
+        Verdict::Deny(verdict) => {
             info!(
                 "Checker DENIED data access of '{}'{}",
                 data_name,
                 if let Some(call) = call { format!(" (in the context of {})", call) } else { String::new() },
             );
-            Ok(false)
+            Ok(Some(verdict.reasons_for_denial.unwrap_or_else(Vec::new)))
         },
     }
-}
-
-/// Runs the do-be-done intermediate result transfer by the checker to assess if we're allowed to do it.
-///
-/// # Arguments
-/// - `worker_cfg`: The configuration for this node's environment. For us, contains if and where we should proxy the request through and where we may find the checker.
-/// - `use_case`: A string denoting which use-case (registry) we're using.
-/// - `workflow`: The workflow to check.
-/// - `client_name`: The name as which the client is authenticated. Will be matched with the indicated task.
-/// - `data_name`: The name of the dataset they are trying to access.
-/// - `call`: A program counter that identifies for which call in the workflow we're doing this request (if any).
-///
-/// # Returns
-/// Whether permission is given or not.
-///
-/// # Errors
-/// This function errors if we failed to ask the checker. Clearly, that should be treated as permission denied.
-#[inline]
-pub async fn assert_result_permission(
-    worker_cfg: &WorkerConfig,
-    use_case: &str,
-    workflow: &Workflow,
-    client_name: &str,
-    data_name: DataName,
-    call: Option<ProgramCounter>,
-) -> Result<bool, AuthorizeError> {
-    assert_data_permission(worker_cfg, use_case, workflow, client_name, data_name, call).await
 }
 
 
@@ -511,7 +485,7 @@ pub async fn download_data(
     };
 
     // Before we continue, assert that this dataset may be downloaded by this person (uh-oh, how we gon' do that)
-    match assert_data_permission(
+    match assert_asset_permission(
         &worker_config,
         &use_case,
         &workflow,
@@ -521,12 +495,15 @@ pub async fn download_data(
     )
     .await
     {
-        Ok(true) => {
+        Ok(None) => {
             info!("Checker authorized download of dataset '{}' by '{}'", info.name, client_name);
         },
 
-        Ok(false) => {
+        Ok(Some(reasons)) => {
             info!("Checker denied download of dataset '{}' by '{}'", info.name, client_name);
+            if !reasons.is_empty() {
+                debug!("Reasons:\n{}\n", reasons.into_iter().map(|r| format!(" - {r}")).collect::<Vec<String>>().join("\n"));
+            }
             return Ok(reply::with_status(Response::new(Body::empty()), StatusCode::FORBIDDEN));
         },
         Err(err) => {
@@ -708,7 +685,7 @@ pub async fn download_result(
     };
 
     // Before we continue, assert that this dataset may be downloaded by this person (uh-oh, how we gon' do that)
-    match assert_result_permission(
+    match assert_asset_permission(
         &worker_config,
         &use_case,
         &workflow,
@@ -718,12 +695,15 @@ pub async fn download_result(
     )
     .await
     {
-        Ok(true) => {
+        Ok(None) => {
             info!("Checker authorized download of intermediate result '{}' by '{}'", name, client_name);
         },
 
-        Ok(false) => {
+        Ok(Some(reasons)) => {
             info!("Checker denied download of intermediate result '{}' by '{}'", name, client_name);
+            if !reasons.is_empty() {
+                debug!("Reasons:\n{}\n", reasons.into_iter().map(|r| format!(" - {r}")).collect::<Vec<String>>().join("\n"));
+            }
             return Ok(reply::with_status(Response::new(Body::empty()), StatusCode::FORBIDDEN));
         },
         Err(err) => {

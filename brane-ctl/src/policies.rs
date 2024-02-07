@@ -4,7 +4,7 @@
 //  Created:
 //    10 Jan 2024, 15:57:54
 //  Last edited:
-//    12 Jan 2024, 15:17:26
+//    07 Feb 2024, 12:05:45
 //  Auto updated?
 //    Yes
 //
@@ -32,6 +32,7 @@ use rand::Rng;
 use reqwest::{Client, Request, Response, StatusCode};
 use serde_json::value::RawValue;
 use specifications::address::{Address, AddressOpt};
+use specifications::checking::{POLICY_API_ADD_VERSION, POLICY_API_GET_ACTIVE_VERSION, POLICY_API_LIST_POLICIES, POLICY_API_SET_ACTIVE_VERSION};
 use srv::models::{AddPolicyPostModel, PolicyContentPostModel, SetVersionPostModel};
 use tokio::fs::{self as tfs, File as TFile};
 
@@ -287,10 +288,10 @@ async fn get_versions_on_checker(address: &Address, token: &str) -> Result<Vec<P
     info!("Retrieving policies on checker '{address}'");
 
     // Prepare the request
-    let url: String = format!("http://{address}/v1/policies/versions");
+    let url: String = format!("http://{}/{}", address, POLICY_API_LIST_POLICIES.1);
     debug!("Building GET-request to '{url}'...");
     let client: Client = Client::new();
-    let req: Request = match client.get(&url).bearer_auth(token).build() {
+    let req: Request = match client.request(POLICY_API_LIST_POLICIES.0, &url).bearer_auth(token).build() {
         Ok(req) => req,
         Err(err) => return Err(Error::RequestBuild { kind: "GET", addr: url, err }),
     };
@@ -336,10 +337,10 @@ async fn get_active_version_on_checker(address: &Address, token: &str) -> Result
     info!("Retrieving active policy of checker '{address}'");
 
     // Prepare the request
-    let url: String = format!("http://{address}/v1/policies/active");
+    let url: String = format!("http://{}/{}", address, POLICY_API_GET_ACTIVE_VERSION.1);
     debug!("Building GET-request to '{url}'...");
     let client: Client = Client::new();
-    let req: Request = match client.get(&url).bearer_auth(token).build() {
+    let req: Request = match client.request(POLICY_API_GET_ACTIVE_VERSION.0, &url).bearer_auth(token).build() {
         Ok(req) => req,
         Err(err) => return Err(Error::RequestBuild { kind: "GET", addr: url, err }),
     };
@@ -507,10 +508,10 @@ pub async fn activate(node_config_path: PathBuf, version: Option<i64>, address: 
     debug!("Activating policy version {version}");
 
     // Now build the request and send it
-    let url: String = format!("http://{address}/v1/policies/active");
+    let url: String = format!("http://{}/{}", address, POLICY_API_SET_ACTIVE_VERSION.1);
     debug!("Building PUT-request to '{url}'...");
     let client: Client = Client::new();
-    let req: Request = match client.put(&url).bearer_auth(token).json(&SetVersionPostModel { version }).build() {
+    let req: Request = match client.request(POLICY_API_SET_ACTIVE_VERSION.0, &url).bearer_auth(token).json(&SetVersionPostModel { version }).build() {
         Ok(req) => req,
         Err(err) => return Err(Error::RequestBuild { kind: "GET", addr: url, err }),
     };
@@ -652,7 +653,7 @@ pub async fn add(
     };
 
     // Finally, construct a request for the checker
-    let url: String = format!("http://{}/v1/policies", address);
+    let url: String = format!("http://{}/{}", address, POLICY_API_ADD_VERSION.1);
     debug!("Building POST-request to '{url}'...");
     let client: Client = Client::new();
     let contents: AddPolicyPostModel = AddPolicyPostModel {
@@ -660,7 +661,7 @@ pub async fn add(
         description: None,
         content: vec![PolicyContentPostModel { reasoner: target_reasoner.id(), reasoner_version: target_reasoner.version(), content: json }],
     };
-    let req: Request = match client.post(&url).bearer_auth(token).json(&contents).build() {
+    let req: Request = match client.request(POLICY_API_ADD_VERSION.0, &url).bearer_auth(token).json(&contents).build() {
         Ok(req) => req,
         Err(err) => return Err(Error::RequestBuild { kind: "POST", addr: url, err }),
     };

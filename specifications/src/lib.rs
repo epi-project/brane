@@ -4,7 +4,7 @@
 //  Created:
 //    07 Jun 2023, 16:22:04
 //  Last edited:
-//    15 Jan 2024, 14:32:49
+//    07 Feb 2024, 11:55:02
 //  Auto updated?
 //    Yes
 //
@@ -18,6 +18,7 @@
 // Declare submodules
 pub mod address;
 pub mod arch;
+pub mod checking;
 pub mod common;
 pub mod container;
 pub mod data;

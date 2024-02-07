@@ -4,7 +4,7 @@
 //  Created:
 //    30 Aug 2022, 11:55:49
 //  Last edited:
-//    31 Jan 2024, 11:34:54
+//    06 Feb 2024, 11:38:29
 //  Auto updated?
 //    Yes
 //
@@ -24,6 +24,8 @@ use std::sync::Arc;
 
 use brane_dsl::spec::MergeStrategy;
 use enum_debug::EnumDebug;
+use rand::distributions::Alphanumeric;
+use rand::Rng as _;
 use serde::de::{self, Deserializer, Visitor};
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
@@ -49,10 +51,27 @@ lazy_static!(
 
 
 
+/***** HELPER FUNCTIONS *****/
+/// Generates a random workflow ID.
+///
+/// # Returns
+/// A string of the form `workflow-XXXXXXXX`, where `XXXXXXXX` are eight random alphanumeric characters.
+#[inline]
+fn generate_random_workflow_id() -> String {
+    format!("workflow-{}", rand::thread_rng().sample_iter(Alphanumeric).take(8).map(char::from).collect::<String>())
+}
+
+
+
+
+
 /***** TOPLEVEL *****/
 /// Defines a Workflow, which is meant to be an 'executable but reasonable' graph.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Workflow {
+    /// Some ID of this workflow.
+    pub id: String,
+
     /// The global symbol / definition table. This specific table is also affectionally referred to as the "Workflow table".
     pub table:    Arc<SymTable>,
     /// Toplevel metadata
@@ -70,6 +89,7 @@ impl Workflow {
     /// Constructor for the Workflow that initializes it to the given contents.
     ///
     /// # Arguments
+    /// - `id`: Some identifier for this workflow.
     /// - `table`: The DefTable that contains the definitions in this workflow.
     /// - `graph`: The main edges that compose this Workflow.
     /// - `funcs`: Auxillary edges that provide a kind of function-like paradigm to the edges.
@@ -77,12 +97,26 @@ impl Workflow {
     /// # Returns
     /// A new Workflow instance.
     #[inline]
-    pub fn new(table: SymTable, graph: Vec<Edge>, funcs: HashMap<usize, Vec<Edge>>) -> Self {
-        Self {
-            table:    Arc::new(table),
-            metadata: Arc::new(HashSet::new()),
-            user:     Arc::new(None),
+    pub fn new(id: String, table: SymTable, graph: Vec<Edge>, funcs: HashMap<usize, Vec<Edge>>) -> Self {
+        Self { id, table: Arc::new(table), metadata: Arc::new(HashSet::new()), user: Arc::new(None), graph: Arc::new(graph), funcs: Arc::new(funcs) }
+    }
 
+    /// Constructor for the Workflow that initializes it to the given contents, but generates a random ID.
+    ///
+    /// # Arguments
+    /// - `table`: The DefTable that contains the definitions in this workflow.
+    /// - `graph`: The main edges that compose this Workflow.
+    /// - `funcs`: Auxillary edges that provide a kind of function-like paradigm to the edges.
+    ///
+    /// # Returns
+    /// A new Workflow instance with a random ID.
+    #[inline]
+    pub fn with_random_id(table: SymTable, graph: Vec<Edge>, funcs: HashMap<usize, Vec<Edge>>) -> Self {
+        Self {
+            id: generate_random_workflow_id(),
+            table: Arc::new(table),
+            metadata: Arc::new(HashSet::new()),
+            user: Arc::new(None),
             graph: Arc::new(graph),
             funcs: Arc::new(funcs),
         }
@@ -127,6 +161,8 @@ impl Default for Workflow {
     #[inline]
     fn default() -> Self {
         Self {
+            id: generate_random_workflow_id(),
+
             table:    Arc::new(SymTable::new()),
             metadata: Arc::new(HashSet::new()),
             user:     Arc::new(None),

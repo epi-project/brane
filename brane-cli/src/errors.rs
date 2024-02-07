@@ -4,7 +4,7 @@
 //  Created:
 //    17 Feb 2022, 10:27:28
 //  Last edited:
-//    31 Jan 2024, 14:38:20
+//    06 Feb 2024, 11:34:04
 //  Auto updated?
 //    Yes
 //
@@ -19,6 +19,7 @@ use std::path::PathBuf;
 use brane_shr::errors::ErrorTrace as _;
 use brane_shr::formatters::{BlockFormatter, PrettyListFormatter};
 use reqwest::StatusCode;
+use specifications::address::Address;
 use specifications::container::{ContainerInfoError, Image, LocalContainerInfoError};
 use specifications::package::{PackageInfoError, PackageKindError};
 use specifications::version::{ParseError as VersionParseError, Version};
@@ -42,6 +43,8 @@ pub enum CliError {
     BuildError { err: BuildError },
     /// Errors that occur when managing certificates.
     CertsError { err: CertsError },
+    /// Errors that occur when validating workflow against policy.
+    CheckError { err: CheckError },
     /// Errors that occur during any of the data(-related) command(s)
     DataError { err: DataError },
     /// Errors that occur during the import command
@@ -83,20 +86,21 @@ impl Display for CliError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use CliError::*;
         match self {
-            BuildError { err } => write!(f, "{}", err.trace()),
-            CertsError { err } => write!(f, "{}", err.trace()),
-            DataError { err } => write!(f, "{}", err.trace()),
-            ImportError { err } => write!(f, "{}", err.trace()),
-            InstanceError { err } => write!(f, "{}", err.trace()),
-            PackageError { err } => write!(f, "{}", err.trace()),
-            RegistryError { err } => write!(f, "{}", err.trace()),
-            ReplError { err } => write!(f, "{}", err.trace()),
-            RunError { err } => write!(f, "{}", err.trace()),
-            TestError { err } => write!(f, "{}", err.trace()),
-            VerifyError { err } => write!(f, "{}", err.trace()),
-            VersionError { err } => write!(f, "{}", err.trace()),
-            UpgradeError { err } => write!(f, "{}", err.trace()),
-            UtilError { err } => write!(f, "{}", err.trace()),
+            BuildError { err } => write!(f, "{err}"),
+            CertsError { err } => write!(f, "{err}"),
+            CheckError { err } => write!(f, "{err}"),
+            DataError { err } => write!(f, "{err}"),
+            ImportError { err } => write!(f, "{err}"),
+            InstanceError { err } => write!(f, "{err}"),
+            PackageError { err } => write!(f, "{err}"),
+            RegistryError { err } => write!(f, "{err}"),
+            ReplError { err } => write!(f, "{err}"),
+            RunError { err } => write!(f, "{err}"),
+            TestError { err } => write!(f, "{err}"),
+            VerifyError { err } => write!(f, "{err}"),
+            VersionError { err } => write!(f, "{err}"),
+            UpgradeError { err } => write!(f, "{err}"),
+            UtilError { err } => write!(f, "{err}"),
             OtherError { err } => write!(f, "{err}"),
 
             PackageFileCanonicalizeError { path, .. } => write!(f, "Could not resolve package file path '{}'", path.display()),
@@ -110,21 +114,22 @@ impl Error for CliError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use CliError::*;
         match self {
-            BuildError { .. } => None,
-            CertsError { .. } => None,
-            DataError { .. } => None,
-            ImportError { .. } => None,
-            InstanceError { .. } => None,
-            PackageError { .. } => None,
-            RegistryError { .. } => None,
-            ReplError { .. } => None,
-            RunError { .. } => None,
-            TestError { .. } => None,
-            VerifyError { .. } => None,
-            VersionError { .. } => None,
-            UpgradeError { .. } => None,
-            UtilError { .. } => None,
-            OtherError { .. } => None,
+            BuildError { err } => err.source(),
+            CertsError { err } => err.source(),
+            CheckError { err } => err.source(),
+            DataError { err } => err.source(),
+            ImportError { err } => err.source(),
+            InstanceError { err } => err.source(),
+            PackageError { err } => err.source(),
+            RegistryError { err } => err.source(),
+            ReplError { err } => err.source(),
+            RunError { err } => err.source(),
+            TestError { err } => err.source(),
+            VerifyError { err } => err.source(),
+            VersionError { err } => err.source(),
+            UpgradeError { err } => err.source(),
+            UtilError { err } => err.source(),
+            OtherError { err } => err.source(),
 
             PackageFileCanonicalizeError { err, .. } => Some(err),
             WorkdirCanonicalizeError { err, .. } => Some(err),
@@ -605,6 +610,67 @@ impl Error for CertsError {
             InstancesDirError { err } => Some(err),
             DirReadError { err, .. } => Some(err),
             DirEntryReadError { err, .. } => Some(err),
+        }
+    }
+}
+
+
+
+/// Defines errors originating from the `brane check`-subcommand.
+#[derive(Debug)]
+pub enum CheckError {
+    /// Failed to load the active instance info file.
+    ActiveInstanceInfoLoad { err: InstanceError },
+    /// The compile step from `brane_ast` failed.
+    AstCompile { input: String },
+    /// Failed to retrieve the data index.
+    DataIndexRetrieve { url: String, err: brane_tsk::api::Error },
+    /// The Driver failed to check.
+    DriverCheck { address: Address, err: tonic::Status },
+    /// Failed to connect to the driver.
+    DriverConnect { address: Address, err: specifications::driving::DriverServiceError },
+    /// Failed to read the input from the given file.
+    InputFileRead { path: PathBuf, err: std::io::Error },
+    /// Failed to read the input from stdin.
+    InputStdinRead { err: std::io::Error },
+    /// Failed to retrieve the package index.
+    PackageIndexRetrieve { url: String, err: brane_tsk::api::Error },
+    /// Failed to compile a given workflow.
+    WorkflowCompile { input: String, err: Box<Self> },
+    /// Failed to serialize the compiled workflow.
+    WorkflowSerialize { input: String, err: serde_json::Error },
+}
+impl Display for CheckError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use CheckError::*;
+        match self {
+            ActiveInstanceInfoLoad { .. } => write!(f, "Failed to get currently active instance"),
+            AstCompile { input } => write!(f, "Failed to compile workflow '{input}' (see output above)"),
+            DataIndexRetrieve { url, .. } => write!(f, "Failed to retrieve data index from '{url}'"),
+            DriverCheck { address, .. } => write!(f, "Failed to send CheckRequest to driver '{address}'"),
+            DriverConnect { address, .. } => write!(f, "Failed to connect to driver '{address}'"),
+            InputFileRead { path, .. } => write!(f, "Failed to read input file '{}'", path.display()),
+            InputStdinRead { .. } => write!(f, "Failed to read input from stdin"),
+            PackageIndexRetrieve { url, .. } => write!(f, "Failed to retrieve package index from '{url}'"),
+            WorkflowCompile { input, .. } => write!(f, "Failed to compile workflow '{input}'"),
+            WorkflowSerialize { input, .. } => write!(f, "Failed to serialize workflow '{input}'"),
+        }
+    }
+}
+impl Error for CheckError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use CheckError::*;
+        match self {
+            ActiveInstanceInfoLoad { err } => Some(err),
+            AstCompile { .. } => None,
+            DataIndexRetrieve { err, .. } => Some(err),
+            DriverCheck { err, .. } => Some(err),
+            DriverConnect { err, .. } => Some(err),
+            InputFileRead { err, .. } => Some(err),
+            InputStdinRead { err } => Some(err),
+            PackageIndexRetrieve { err, .. } => Some(err),
+            WorkflowCompile { err, .. } => Some(err),
+            WorkflowSerialize { err, .. } => Some(err),
         }
     }
 }

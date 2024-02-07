@@ -4,7 +4,7 @@
 //  Created:
 //    31 Aug 2022, 09:25:11
 //  Last edited:
-//    16 Jan 2024, 15:12:11
+//    06 Feb 2024, 11:38:47
 //  Auto updated?
 //    Yes
 //
@@ -526,9 +526,9 @@ fn pass_edge_instr(writer: &mut impl Write, instr: &EdgeInstr, table: &SymTable)
 /// # Errors
 /// This pass may error if we failed to write to the given writer.
 pub fn do_traversal(root: &Workflow, mut writer: impl Write) -> Result<(), Vec<Error>> {
-    let Workflow { table, metadata, user, graph, funcs } = root;
+    let Workflow { id, table, metadata, user, graph, funcs } = root;
 
-    if let Err(err) = writeln!(&mut writer, "Workflow {{") {
+    if let Err(err) = writeln!(&mut writer, "Workflow '{id}' {{") {
         return Err(vec![Error::WriteError { err }]);
     };
 

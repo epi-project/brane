@@ -18,6 +18,8 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
   - If you give `TEST_FILES=<file1>[,<file2>[...]]`, then only the given files are tested instead of all in the `tests` folder. The files are matched by name, and then specifically an `end_of()`-call.
 - Integration with the [policy reasoner effort](https://github.com/epi-project/policy-reasoner):
   - Part of this is:
+    - Adding `brane check` to validate workflow against all checkers without running anything.
+      - Note, this is currently imperfect, as checkers answer questions with pre-workflow state. This means that they may assume they won't have a dataset, while they would have while executing the workflow. To fix, needs some kind of hypothetical state specification to either `brane-api` or the `policy-reasoner`.
     - Adding `branectl generate policy_db` to initialize the policy database file.
     - Adding `branectl generate policy_secret` to initialize a JWK set to use for API endpoint authentication in the policy reasoner.
     - Adding `branectl generate policy_token` to initialize a JWT based on the given JWK set.

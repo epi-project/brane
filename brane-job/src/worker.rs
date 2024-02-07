@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    31 Jan 2024, 16:42:31
+//    07 Feb 2024, 15:30:58
 //  Auto updated?
 //    Yes
 //
@@ -19,6 +19,7 @@ use std::error;
 use std::ffi::OsStr;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::path::{Path, PathBuf};
+use std::str::FromStr as _;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -53,10 +54,12 @@ use hyper::body::Bytes;
 use hyper::header;
 // use kube::config::Kubeconfig;
 use log::{debug, error, info, warn};
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json_any_key::json_to_map;
 use specifications::address::Address;
 // use brane_tsk::k8s::{self, K8sOptions};
+use specifications::checking::{DELIBERATION_API_EXECUTE_TASK, DELIBERATION_API_WORKFLOW};
 use specifications::container::{Image, VolumeBind};
 use specifications::data::{AccessKind, AssetInfo, DataName};
 use specifications::package::{Capability, PackageIndex, PackageInfo, PackageKind};
@@ -64,8 +67,8 @@ use specifications::profiling::{ProfileReport, ProfileScopeHandle};
 use specifications::registering::DownloadAssetRequest;
 use specifications::version::Version;
 use specifications::working::{
-    CheckReply, CheckRequest, CommitReply, CommitRequest, ExecuteReply, ExecuteRequest, JobService, PreprocessKind, PreprocessReply,
-    PreprocessRequest, TaskStatus, TransferRegistryTar,
+    CheckReply, CheckTaskRequest, CheckWorkflowRequest, CommitReply, CommitRequest, ExecuteReply, ExecuteRequest, JobService, PreprocessKind,
+    PreprocessReply, PreprocessRequest, TaskStatus, TransferRegistryTar,
 };
 use tokio::fs as tfs;
 use tokio::io::AsyncWriteExt;
@@ -628,9 +631,9 @@ async fn assert_task_permission(
         Ok(client) => client,
         Err(err) => return Err(AuthorizeError::ClientBuild { err }),
     };
-    let addr: String = format!("{}/v1/deliberation/execute-task", worker_cfg.services.chk.address);
+    let addr: String = format!("{}/{}", worker_cfg.services.chk.address, DELIBERATION_API_EXECUTE_TASK.1);
     let req: reqwest::Request =
-        match client.request(reqwest::Method::POST, &addr).header(header::AUTHORIZATION, format!("Bearer {jwt}")).json(&body).build() {
+        match client.request(DELIBERATION_API_EXECUTE_TASK.0, &addr).header(header::AUTHORIZATION, format!("Bearer {jwt}")).json(&body).build() {
             Ok(req) => req,
             Err(err) => return Err(AuthorizeError::ExecuteRequestBuild { addr, err }),
         };
@@ -668,6 +671,176 @@ async fn assert_task_permission(
         Verdict::Deny(_) => {
             info!("Checker DENIED execution of task {}", call);
             Ok(false)
+        },
+    }
+}
+
+/// Abstracts over the kinds of questions this worker handles ~ workflow-global validation requests or task-specific.
+///
+/// # Arguments
+/// -` node_config_path`: The path to a `node.yml` file that defines the environment (such as checker location).
+/// - `request`: The body of the request, which is either a [`CheckWorkflowRequest`] or a [`CheckTaskRequest`].
+///
+/// # Returns
+/// A [`CheckReply`] containing the checker's response (wrapped in a [`tonic::Response`]).
+///
+/// # Errors
+/// This function may error if we failed to read the `node.yml` file or if we failed to contact the checker.
+async fn check_workflow_or_task(node_config_path: &Path, request: CheckRequest) -> Result<Response<CheckReply>, Status> {
+    let (use_case, workflow, task_id): (String, String, Option<String>) = match request {
+        CheckRequest::Workflow(CheckWorkflowRequest { use_case, workflow }) => (use_case, workflow, None),
+        CheckRequest::Task(CheckTaskRequest { use_case, workflow, task_id }) => (use_case, workflow, Some(task_id)),
+    };
+    debug!("Consulting checker to find validity for use-case '{use_case}'");
+
+    // Load the worker config from the node config to setup the profiler
+    let worker_cfg: WorkerConfig = match NodeConfig::from_path(node_config_path) {
+        Ok(node_config) => match node_config.node.try_into_worker() {
+            Some(node) => node,
+            None => {
+                error!("Provided a non-worker `node.yml` file; please change to include worker services");
+                return Err(Status::internal("An internal error occurred"));
+            },
+        },
+        Err(err) => {
+            error!("{}", trace!(("Could not load `node.yml` file '{}'", node_config_path.display()), err));
+            return Err(Status::internal("An internal error occurred"));
+        },
+    };
+    let report =
+        ProfileReport::auto_reporting_file("brane-job WorkerServer::check-workflow", format!("brane-job_{}_check-workflow", worker_cfg.name));
+
+    // Attempt to parse the workflow
+    let par = report.time("Parsing");
+    let workflow: Workflow = match serde_json::from_str(&workflow) {
+        Ok(workflow) => workflow,
+        Err(err) => {
+            error!("{}", trace!(("Failed to deserialize workflow"), err));
+            debug!("Workflow:\n{}\n{}\n{}\n", (0..80).map(|_| '-').collect::<String>(), workflow, (0..80).map(|_| '-').collect::<String>());
+            return Err(Status::invalid_argument(format!("{}", trace!(("Failed to deserialize workflow"), err))));
+        },
+    };
+    par.stop();
+
+    // Alrighty tighty, let's begin by building the request for the checker
+    let send = report.time("Checker request");
+    debug!("Constructing checker request...");
+    let (method, url, body): (Method, String, String) = if let Some(task_id) = task_id {
+        // Parse the task ID as a ProgramCounter
+        let pc: ProgramCounter = match ProgramCounter::from_str(&task_id) {
+            Ok(pc) => pc,
+            Err(err) => {
+                debug!("{}", trace!(("Failed to parse '{task_id}' as program counter"), err));
+                return Err(Status::invalid_argument(format!("{}", trace!(("Failed to parse '{task_id}' as program counter"), err))));
+            },
+        };
+
+        // It's a task request
+        (
+            DELIBERATION_API_EXECUTE_TASK.0,
+            format!("{}/{}", worker_cfg.services.chk.address, DELIBERATION_API_EXECUTE_TASK.1),
+            match serde_json::to_string(&PolicyExecuteRequest { use_case: use_case.clone(), workflow: workflow.clone(), task_id: pc }) {
+                Ok(req) => req,
+                Err(err) => {
+                    error!("{}", trace!(("Could not deserialize PolicyExecuteRequest"), err));
+                    return Err(Status::internal("An internal error occurred"));
+                },
+            },
+        )
+    } else {
+        // It's a workflow request
+        (
+            DELIBERATION_API_WORKFLOW.0,
+            format!("{}/{}", worker_cfg.services.chk.address, DELIBERATION_API_WORKFLOW.1),
+            match serde_json::to_string(&PolicyValidateRequest { use_case: use_case.clone(), workflow: workflow.clone() }) {
+                Ok(req) => req,
+                Err(err) => {
+                    error!("{}", trace!(("Could not deserialize PolicyExecuteRequest"), err));
+                    return Err(Status::internal("An internal error occurred"));
+                },
+            },
+        )
+    };
+
+    // Next, generate a JWT to inject in the request
+    let jwt: String = match specifications::policy::generate_policy_token(
+        if let Some(user) = &*workflow.user { user.as_str() } else { "UNKNOWN" },
+        &worker_cfg.name,
+        Duration::from_secs(60),
+        &worker_cfg.paths.policy_deliberation_secret,
+    ) {
+        Ok(token) => token,
+        Err(err) => {
+            let err = AuthorizeError::TokenGenerate { secret: worker_cfg.paths.policy_deliberation_secret.clone(), err };
+            error!("{}", err.trace());
+            return Err(Status::internal("An internal error occurred"));
+        },
+    };
+
+    // Prepare the request to send
+    let client: reqwest::Client = match reqwest::Client::builder().build() {
+        Ok(client) => client,
+        Err(err) => {
+            let err = AuthorizeError::ClientBuild { err };
+            error!("{}", err.trace());
+            return Err(Status::internal("An internal error occurred"));
+        },
+    };
+    let req: reqwest::Request = match client.request(method, &url).header(header::AUTHORIZATION, format!("Bearer {jwt}")).body(body).build() {
+        Ok(req) => req,
+        Err(err) => {
+            let err = AuthorizeError::ExecuteRequestBuild { addr: url, err };
+            error!("{}", err.trace());
+            return Err(Status::internal("An internal error occurred"));
+        },
+    };
+
+    // Send it
+    debug!("Sending request to '{url}'...");
+    let res: reqwest::Response = match client.execute(req).await {
+        Ok(res) => res,
+        Err(err) => {
+            let err = AuthorizeError::ExecuteRequestSend { addr: url, err };
+            error!("{}", err.trace());
+            return Err(Status::internal("An internal error occurred"));
+        },
+    };
+
+    // Match on the status code to find if it's OK
+    debug!("Waiting for checker response...");
+    if !res.status().is_success() {
+        let err = AuthorizeError::ExecuteRequestFailure { addr: url, code: res.status(), err: res.text().await.ok() };
+        error!("{}", err.trace());
+        return Err(Status::internal("An internal error occurred"));
+    }
+    let res: String = match res.text().await {
+        Ok(res) => res,
+        Err(err) => {
+            let err = AuthorizeError::ExecuteBodyDownload { addr: url, err };
+            error!("{}", err.trace());
+            return Err(Status::internal("An internal error occurred"));
+        },
+    };
+    let res: Verdict = match serde_json::from_str(&res) {
+        Ok(res) => res,
+        Err(err) => {
+            let err = AuthorizeError::ExecuteBodyDeserialize { addr: url, raw: res, err };
+            error!("{}", err.trace());
+            return Err(Status::internal("An internal error occurred"));
+        },
+    };
+    send.stop();
+
+    // Now match the checker's response
+    match res {
+        Verdict::Allow(_) => {
+            info!("Checker ALLOWED execution of workflow");
+            Ok(Response::new(CheckReply { verdict: true, reasons: vec![] }))
+        },
+
+        Verdict::Deny(deny) => {
+            info!("Checker DENIED execution of workflow");
+            Ok(Response::new(CheckReply { verdict: false, reasons: deny.reasons_for_denial.unwrap_or_else(Vec::new) }))
         },
     }
 }
@@ -1561,6 +1734,19 @@ async fn commit_result(
 
 
 
+/***** HELPERS *****/
+/// Abstracts over either a workflow validation request ([`CheckWorkflowRequest`]) or task validation request ([`CheckTaskRequest`]).
+enum CheckRequest {
+    /// It's a workflow validation request
+    Workflow(CheckWorkflowRequest),
+    /// It's a task validation request
+    Task(CheckTaskRequest),
+}
+
+
+
+
+
 /***** LIBRARY *****/
 /// Defines a server for incoming worker requests.
 #[derive(Clone, Debug)]
@@ -1623,127 +1809,18 @@ impl WorkerServer {
 impl JobService for WorkerServer {
     type ExecuteStream = ReceiverStream<Result<ExecuteReply, Status>>;
 
-    async fn check(&self, request: Request<CheckRequest>) -> Result<Response<CheckReply>, Status> {
-        let CheckRequest { use_case, workflow } = request.into_inner();
-        debug!("Receiving check request for use-case '{use_case}'");
-        info!("Consulting checker to find out workflow validity...");
+    async fn check_workflow(&self, request: Request<CheckWorkflowRequest>) -> Result<Response<CheckReply>, Status> {
+        info!("Receiving check request for workflow validity...");
 
-        // Load the worker config from the node config to setup the profiler
-        let worker_cfg: WorkerConfig = match NodeConfig::from_path(&self.node_config_path) {
-            Ok(node_config) => match node_config.node.try_into_worker() {
-                Some(node) => node,
-                None => {
-                    error!("Provided a non-worker `node.yml` file; please change to include worker services");
-                    return Err(Status::internal("An internal error occurred"));
-                },
-            },
-            Err(err) => {
-                error!("{}", trace!(("Could not load `node.yml` file '{}'", self.node_config_path.display()), err));
-                return Err(Status::internal("An internal error occurred"));
-            },
-        };
-        let report = ProfileReport::auto_reporting_file("brane-job WorkerServer::check", format!("brane-job_{}_check", worker_cfg.name));
+        // Pass to the abstracted version
+        check_workflow_or_task(&self.node_config_path, CheckRequest::Workflow(request.into_inner())).await
+    }
 
-        // Attempt to parse the workflow
-        let par = report.time("Parsing");
-        let workflow: Workflow = match serde_json::from_str(&workflow) {
-            Ok(workflow) => workflow,
-            Err(err) => {
-                error!("{}", trace!(("Failed to deserialize workflow"), err));
-                debug!("Workflow:\n{}\n{}\n{}\n", (0..80).map(|_| '-').collect::<String>(), workflow, (0..80).map(|_| '-').collect::<String>());
-                return Err(Status::invalid_argument(format!("{}", trace!(("Failed to deserialize workflow"), err))));
-            },
-        };
-        par.stop();
+    async fn check_task(&self, request: Request<CheckTaskRequest>) -> Result<Response<CheckReply>, Status> {
+        info!("Receiving check request for task validity...");
 
-        // Alrighty tighty, let's begin by building the request for the checker
-        let send = report.time("Checker request");
-        debug!("Constructing checker request...");
-        let body: PolicyValidateRequest = PolicyValidateRequest { use_case: use_case.into(), workflow: workflow.clone() };
-
-        // Next, generate a JWT to inject in the request
-        let jwt: String = match specifications::policy::generate_policy_token(
-            if let Some(user) = &*workflow.user { user.as_str() } else { "UNKNOWN" },
-            &worker_cfg.name,
-            Duration::from_secs(60),
-            &worker_cfg.paths.policy_deliberation_secret,
-        ) {
-            Ok(token) => token,
-            Err(err) => {
-                let err = AuthorizeError::TokenGenerate { secret: worker_cfg.paths.policy_deliberation_secret.clone(), err };
-                error!("{}", err.trace());
-                return Err(Status::internal("An internal error occurred"));
-            },
-        };
-
-        // Prepare the request to send
-        let client: reqwest::Client = match reqwest::Client::builder().build() {
-            Ok(client) => client,
-            Err(err) => {
-                let err = AuthorizeError::ClientBuild { err };
-                error!("{}", err.trace());
-                return Err(Status::internal("An internal error occurred"));
-            },
-        };
-        let addr: String = format!("{}/v1/deliberation/execute-workflow", worker_cfg.services.chk.address);
-        let req: reqwest::Request =
-            match client.request(reqwest::Method::POST, &addr).header(header::AUTHORIZATION, format!("Bearer {jwt}")).json(&body).build() {
-                Ok(req) => req,
-                Err(err) => {
-                    let err = AuthorizeError::ExecuteRequestBuild { addr, err };
-                    error!("{}", err.trace());
-                    return Err(Status::internal("An internal error occurred"));
-                },
-            };
-
-        // Send it
-        debug!("Sending request to '{addr}'...");
-        let res: reqwest::Response = match client.execute(req).await {
-            Ok(res) => res,
-            Err(err) => {
-                let err = AuthorizeError::ExecuteRequestSend { addr, err };
-                error!("{}", err.trace());
-                return Err(Status::internal("An internal error occurred"));
-            },
-        };
-
-        // Match on the status code to find if it's OK
-        debug!("Waiting for checker response...");
-        if !res.status().is_success() {
-            let err = AuthorizeError::ExecuteRequestFailure { addr, code: res.status(), err: res.text().await.ok() };
-            error!("{}", err.trace());
-            return Err(Status::internal("An internal error occurred"));
-        }
-        let res: String = match res.text().await {
-            Ok(res) => res,
-            Err(err) => {
-                let err = AuthorizeError::ExecuteBodyDownload { addr, err };
-                error!("{}", err.trace());
-                return Err(Status::internal("An internal error occurred"));
-            },
-        };
-        let res: Verdict = match serde_json::from_str(&res) {
-            Ok(res) => res,
-            Err(err) => {
-                let err = AuthorizeError::ExecuteBodyDeserialize { addr, raw: res, err };
-                error!("{}", err.trace());
-                return Err(Status::internal("An internal error occurred"));
-            },
-        };
-        send.stop();
-
-        // Now match the checker's response
-        match res {
-            Verdict::Allow(_) => {
-                info!("Checker ALLOWED execution of workflow");
-                Ok(Response::new(CheckReply { verdict: true, reasons: vec![] }))
-            },
-
-            Verdict::Deny(deny) => {
-                info!("Checker DENIED execution of workflow");
-                Ok(Response::new(CheckReply { verdict: false, reasons: deny.reasons_for_denial.unwrap_or_else(Vec::new) }))
-            },
-        }
+        // Pass to the abstracted version
+        check_workflow_or_task(&self.node_config_path, CheckRequest::Task(request.into_inner())).await
     }
 
     async fn preprocess(&self, request: Request<PreprocessRequest>) -> Result<Response<PreprocessReply>, Status> {

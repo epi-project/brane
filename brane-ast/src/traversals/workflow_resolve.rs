@@ -4,7 +4,7 @@
 //  Created:
 //    05 Sep 2022, 17:36:21
 //  Last edited:
-//    12 Dec 2023, 16:01:52
+//    06 Feb 2024, 11:36:49
 //  Auto updated?
 //    Yes
 //
@@ -569,7 +569,7 @@ pub fn do_traversal(state: &mut CompileState, mut root: UnresolvedWorkflow) -> R
 
     // Done; create the workflow and return it
     // Note: don't forget to transfer metadata before doing so
-    let mut wf: Workflow = Workflow::new(table, graph, funcs);
+    let mut wf: Workflow = Workflow::with_random_id(table, graph, funcs);
     wf.metadata = root.metadata;
     Ok(wf)
 }

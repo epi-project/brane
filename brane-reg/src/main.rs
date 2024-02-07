@@ -4,7 +4,7 @@
 //  Created:
 //    26 Sep 2022, 15:11:44
 //  Last edited:
-//    16 Jan 2024, 17:28:39
+//    07 Feb 2024, 14:42:42
 //  Auto updated?
 //    Yes
 //
@@ -19,7 +19,7 @@ use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, WorkerConfig};
 use brane_reg::server::serve_with_auth;
 use brane_reg::spec::Context;
-use brane_reg::{data, health, infra, version};
+use brane_reg::{check, data, health, infra, version};
 use clap::Parser;
 use dotenvy::dotenv;
 use error_trace::{trace, ErrorTrace as _};
@@ -117,6 +117,22 @@ async fn main() {
         .and(warp::body::json())
         .and(context.clone())
         .and_then(data::download_result);
+    let check_data = warp::get()
+        .and(warp::path("data"))
+        .and(warp::path("check"))
+        .and(warp::path::param())
+        .and(warp::path::end())
+        .and(warp::body::json())
+        .and(context.clone())
+        .and_then(check::check_data);
+    let check_result = warp::get()
+        .and(warp::path("results"))
+        .and(warp::path("check"))
+        .and(warp::path::param())
+        .and(warp::path::end())
+        .and(warp::body::json())
+        .and(context.clone())
+        .and_then(check::check_result);
     let infra_capabilities = warp::get()
         .and(warp::path("infra"))
         .and(warp::path("capabilities"))
@@ -125,7 +141,15 @@ async fn main() {
         .and_then(infra::get_capabilities);
     let version = warp::path("version").and(warp::path::end()).and_then(version::get);
     let health = warp::path("health").and(warp::path::end()).and_then(health::get);
-    let filter = list_assets.or(get_asset).or(download_asset).or(download_result).or(infra_capabilities).or(version).or(health);
+    let filter = list_assets
+        .or(get_asset)
+        .or(download_asset)
+        .or(download_result)
+        .or(check_data)
+        .or(check_result)
+        .or(infra_capabilities)
+        .or(version)
+        .or(health);
 
     // Extract the things we need from the config
     let worker: &WorkerConfig = match node_config.node.try_worker() {

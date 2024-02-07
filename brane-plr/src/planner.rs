@@ -4,7 +4,7 @@
 //  Created:
 //    25 Oct 2022, 11:35:00
 //  Last edited:
-//    31 Jan 2024, 16:21:57
+//    06 Feb 2024, 14:57:13
 //  Auto updated?
 //    Yes
 //
@@ -52,7 +52,7 @@ use specifications::data::{AccessKind, AvailabilityKind, DataIndex, DataName, Pr
 use specifications::package::Capability;
 use specifications::planning::{PlanningCommand, PlanningStatus, PlanningStatusKind, PlanningUpdate};
 use specifications::profiling::ProfileReport;
-use specifications::working::{CheckReply, CheckRequest, JobServiceClient};
+use specifications::working::{CheckReply, CheckWorkflowRequest, JobServiceClient};
 use tokio::signal::unix::{signal, Signal, SignalKind};
 use tokio_stream::StreamExt as _;
 
@@ -576,7 +576,7 @@ fn plan_deferred(
 async fn validate_workflow_with(proxy: &ProxyClient, splan: &str, location: &str, info: &InfraLocation) -> Result<(), PlanError> {
     debug!("Consulting checker of '{location}' for plan validity...");
 
-    let message: CheckRequest = CheckRequest {
+    let message: CheckWorkflowRequest = CheckWorkflowRequest {
         // NOTE: For now, we hardcode the central orchestrator as only "use-case" (registry)
         use_case: "central".into(),
         workflow: splan.into(),
@@ -596,7 +596,7 @@ async fn validate_workflow_with(proxy: &ProxyClient, splan: &str, location: &str
     };
 
     // Send the request to the job node
-    let response: tonic::Response<CheckReply> = match client.check(message).await {
+    let response: tonic::Response<CheckReply> = match client.check_workflow(message).await {
         Ok(response) => response,
         Err(err) => {
             return Err(PlanError::GrpcRequestError { what: "CheckRequest", endpoint: info.delegate.clone(), err });

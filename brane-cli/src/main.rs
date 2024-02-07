@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    08 Jan 2024, 19:15:04
+//    06 Feb 2024, 11:27:51
 //  Auto updated?
 //    Yes
 //
@@ -22,7 +22,7 @@ use std::str::FromStr;
 use anyhow::Result;
 use brane_cli::errors::{CliError, ImportError};
 use brane_cli::spec::{Hostname, VersionFix, API_DEFAULT_VERSION};
-use brane_cli::{build_ecu, build_oas, certs, data, instance, packages, registry, repl, run, test, upgrade, verify, version};
+use brane_cli::{build_ecu, build_oas, certs, check, data, instance, packages, registry, repl, run, test, upgrade, verify, version};
 use brane_dsl::Language;
 use brane_shr::fs::DownloadSecurity;
 use brane_tsk::docker::{ClientVersion, DockerOptions};
@@ -85,6 +85,21 @@ enum SubCommand {
         // We subcommand further
         #[clap(subcommand)]
         subcommand: CertsSubcommand,
+    },
+
+    #[clap(
+        name = "check",
+        about = "Checks a workflow against the policy in the current remote instance. You can think of this as using `brane run --remote`, except \
+                 that the Workflow won't be executed - only policy is checked."
+    )]
+    Check {
+        #[clap(name = "FILE", help = "Path to the file to run. Use '-' to run from stdin instead.")]
+        file:   String,
+        #[clap(short, long, action, help = "Use Bakery instead of BraneScript")]
+        bakery: bool,
+
+        #[clap(long, help = "If given, shows profile times if they are available.")]
+        profile: bool,
     },
 
     #[clap(name = "data", about = "Data-related commands.")]
@@ -851,6 +866,11 @@ async fn run(options: Cli) -> Result<(), CliError> {
                     }
                 },
             }
+        },
+        Check { file, bakery, profile } => {
+            if let Err(err) = check::handle(file, if bakery { Language::Bakery } else { Language::BraneScript }, profile).await {
+                return Err(CliError::CheckError { err });
+            };
         },
         Data { subcommand } => {
             // Match again
