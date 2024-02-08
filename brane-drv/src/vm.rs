@@ -4,7 +4,7 @@
 //  Created:
 //    27 Oct 2022, 10:14:26
 //  Last edited:
-//    31 Jan 2024, 14:22:36
+//    08 Feb 2024, 16:55:25
 //  Auto updated?
 //    Yes
 //
@@ -24,7 +24,7 @@ use brane_ast::locations::Location;
 use brane_ast::Workflow;
 use brane_cfg::info::Info as _;
 use brane_cfg::infra::InfraFile;
-use brane_cfg::node::NodeConfig;
+use brane_cfg::node::{CentralConfig, NodeConfig, NodeSpecificConfig};
 use brane_exe::pc::ProgramCounter;
 use brane_exe::spec::{TaskInfo, VmPlugin};
 use brane_exe::{Error as VmError, FullValue, RunState, Vm};
@@ -90,23 +90,9 @@ impl VmPlugin for InstancePlugin {
         let (proxy, delegate_address, workflow): (Arc<ProxyClient>, Address, String) = {
             // Load the node config file to get the path to...
             let state: RwLockReadGuard<GlobalState> = global.read().unwrap();
-            let node_config: NodeConfig = match NodeConfig::from_path(&state.node_config_path) {
-                Ok(config) => config,
-                Err(err) => {
-                    return Err(PreprocessError::NodeConfigReadError { path: state.node_config_path.clone(), err });
-                },
-            };
-
-            // ...the infrastructure file
-            let infra: InfraFile = match InfraFile::from_path(&node_config.node.central().paths.infra) {
-                Ok(infra) => infra,
-                Err(err) => {
-                    return Err(PreprocessError::InfraReadError { path: node_config.node.central().paths.infra.clone(), err });
-                },
-            };
 
             // Resolve to an address
-            match infra.get(&loc) {
+            match state.infra.as_ref().unwrap().get(&loc) {
                 Some(info) => (
                     state.proxy.clone(),
                     info.delegate.clone(),
@@ -189,25 +175,11 @@ impl VmPlugin for InstancePlugin {
         let disk = prof.time("File loading");
         let (proxy, delegate_address, workflow): (Arc<ProxyClient>, Address, String) = {
             let state: RwLockReadGuard<GlobalState> = global.read().unwrap();
-            let node_config: NodeConfig = match NodeConfig::from_path(&state.node_config_path) {
-                Ok(config) => config,
-                Err(err) => {
-                    return Err(ExecuteError::NodeConfigReadError { path: state.node_config_path.clone(), err });
-                },
-            };
-
-            // ...the infrastructure file
-            let infra: InfraFile = match InfraFile::from_path(&node_config.node.central().paths.infra) {
-                Ok(infra) => infra,
-                Err(err) => {
-                    return Err(ExecuteError::InfraReadError { path: node_config.node.central().paths.infra.clone(), err });
-                },
-            };
 
             // Resolve to an address and return that with the other addresses
             (
                 state.proxy.clone(),
-                match infra.get(info.location) {
+                match state.infra.as_ref().unwrap().get(info.location) {
                     Some(info) => info.delegate.clone(),
                     None => {
                         return Err(ExecuteError::UnknownLocationError { loc: info.location.clone() });
@@ -270,9 +242,9 @@ impl VmPlugin for InstancePlugin {
                 Ok(Some(reply)) => {
                     // Create a JobStatus based on the given ExecuteStatus
                     let status: JobStatus = match JobStatus::from_status(
-                        match working_grpc::TaskStatus::from_i32(reply.status) {
-                            Some(status) => status,
-                            None => {
+                        match working_grpc::TaskStatus::try_from(reply.status) {
+                            Ok(status) => status,
+                            Err(_) => {
                                 warn!("Unknown job status '{}' (skipping message)", reply.status);
                                 continue;
                             },
@@ -484,23 +456,9 @@ impl VmPlugin for InstancePlugin {
         let disk = prof.time("File loading");
         let (proxy, delegate_address): (Arc<ProxyClient>, Address) = {
             let state: RwLockReadGuard<GlobalState> = global.read().unwrap();
-            let node_config: NodeConfig = match NodeConfig::from_path(&state.node_config_path) {
-                Ok(config) => config,
-                Err(err) => {
-                    return Err(CommitError::NodeConfigReadError { path: state.node_config_path.clone(), err });
-                },
-            };
-
-            // ...the infrastructure file
-            let infra: InfraFile = match InfraFile::from_path(&node_config.node.central().paths.infra) {
-                Ok(infra) => infra,
-                Err(err) => {
-                    return Err(CommitError::InfraReadError { path: node_config.node.central().paths.infra.clone(), err });
-                },
-            };
 
             // Resolve to an address
-            match infra.get(loc) {
+            match state.infra.as_ref().unwrap().get(loc) {
                 Some(info) => (state.proxy.clone(), info.delegate.clone()),
                 None => {
                     return Err(CommitError::UnknownLocationError { loc: loc.clone() });
@@ -549,9 +507,6 @@ impl VmPlugin for InstancePlugin {
 pub struct InstanceVm {
     /// The runtime state for the VM
     state: RunState<GlobalState>,
-
-    /// The planner that we use for planning.
-    planner: Arc<InstancePlanner>,
 }
 
 impl InstanceVm {
@@ -566,12 +521,10 @@ impl InstanceVm {
     /// # Returns
     /// A new InstanceVm instance.
     #[inline]
-    pub fn new(node_config_path: impl Into<PathBuf>, app_id: AppId, proxy: Arc<ProxyClient>, planner: Arc<InstancePlanner>) -> Self {
+    pub fn new(node_config_path: impl Into<PathBuf>, app_id: AppId, proxy: Arc<ProxyClient>) -> Self {
         Self {
             // InfraPath::new(&node_config.node.central().paths.infra, &node_config.node.central().paths.secrets)
-            state: Self::new_state(GlobalState { node_config_path: node_config_path.into(), app_id, proxy, workflow: None, tx: None }),
-
-            planner,
+            state: Self::new_state(GlobalState { node_config_path: node_config_path.into(), app_id, proxy, infra: None, workflow: None, tx: None }),
         }
     }
 
@@ -594,9 +547,49 @@ impl InstanceVm {
         workflow: Workflow,
         prof: ProfileScopeHandle<'_>,
     ) -> (Self, Result<FullValue, Error>) {
+        // Step 0: Load files
+        let plr_addr: Address = {
+            let mut global = self.state.global.write().unwrap();
+
+            debug!("Loading node config file '{}'...", global.node_config_path.display());
+            let central_cfg: CentralConfig = match NodeConfig::from_path(&global.node_config_path) {
+                Ok(cfg) => match cfg.node {
+                    NodeSpecificConfig::Central(central) => central,
+                    NodeSpecificConfig::Worker(_) | NodeSpecificConfig::Proxy(_) => {
+                        let path: PathBuf = global.node_config_path.clone();
+                        drop(global);
+                        return (self, Err(Error::IllegalNodeConfig { path, got: cfg.node.variant().to_string() }));
+                    },
+                },
+                Err(err) => {
+                    let path: PathBuf = global.node_config_path.clone();
+                    drop(global);
+                    return (self, Err(Error::NodeConfigLoad { path, err }));
+                },
+            };
+
+            debug!("Loading infra file '{}'...", central_cfg.paths.infra.display());
+            let infra: InfraFile = match InfraFile::from_path(&central_cfg.paths.infra) {
+                Ok(infra) => infra,
+                Err(err) => {
+                    let path: PathBuf = global.node_config_path.clone();
+                    drop(global);
+                    return (self, Err(Error::InfraFileLoad { path, err }));
+                },
+            };
+
+            // Inject the info into the state
+            global.infra = Some(infra);
+
+            // Done
+            central_cfg.services.plr.address
+        };
+
+
+
         // Step 1: Plan
         debug!("Planning workflow on Kafka planner...");
-        let plan: Workflow = match prof.nest_fut("planning (brane-drv)", |scope| self.planner.plan(id, workflow, scope)).await {
+        let plan: Workflow = match prof.nest_fut("planning (brane-drv)", |scope| InstancePlanner::plan(&plr_addr, id, workflow, scope)).await {
             Ok(plan) => plan,
             Err(err) => {
                 return (self, Err(Error::PlanError { err }));

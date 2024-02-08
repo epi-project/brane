@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2022, 11:59:58
 //  Last edited:
-//    16 Jan 2024, 16:11:04
+//    08 Feb 2024, 17:08:36
 //  Auto updated?
 //    Yes
 //
@@ -19,7 +19,6 @@ use std::time::Duration;
 use brane_cfg::info::Info as _;
 use brane_cfg::node::{CentralConfig, NodeConfig};
 use brane_drv::handler::DriverHandler;
-use brane_drv::planner::InstancePlanner;
 use brane_prx::client::ProxyClient;
 use clap::Parser;
 use dotenvy::dotenv;
@@ -91,21 +90,8 @@ async fn main() {
         },
     };
 
-    // Create our side of the planner, and launch its event monitor
-    let planner: Arc<InstancePlanner> = match InstancePlanner::new(central.clone()) {
-        Ok(planner) => Arc::new(planner),
-        Err(err) => {
-            error!("Failed to create InstancePlanner: {}", err);
-            std::process::exit(1);
-        },
-    };
-    if let Err(err) = planner.start_event_monitor(&opts.group_id).await {
-        error!("Failed to start InstancePlanner event monitor: {}", err);
-        std::process::exit(1);
-    }
-
     // Start the DriverHandler
-    let handler = DriverHandler::new(&opts.node_config_path, Arc::new(ProxyClient::new(central.services.prx.address())), planner.clone());
+    let handler = DriverHandler::new(&opts.node_config_path, Arc::new(ProxyClient::new(central.services.prx.address())));
 
     // Start gRPC server with callback service.
     debug!("gRPC server ready to serve on '{}'", central.services.drv.bind);

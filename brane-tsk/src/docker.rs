@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2022, 14:57:17
 //  Last edited:
-//    31 Jan 2024, 11:37:05
+//    08 Feb 2024, 15:15:18
 //  Auto updated?
 //    Yes
 //
@@ -28,7 +28,7 @@ use brane_exe::FullValue;
 use enum_debug::EnumDebug;
 use futures_util::stream::TryStreamExt as _;
 use futures_util::StreamExt as _;
-use hyper::Body;
+use hyper::body::Body;
 use log::debug;
 use serde::de::{Deserializer, Visitor};
 use serde::ser::Serializer;

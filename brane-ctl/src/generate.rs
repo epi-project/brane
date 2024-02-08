@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:47
 //  Last edited:
-//    29 Jan 2024, 16:42:47
+//    08 Feb 2024, 16:11:46
 //  Auto updated?
 //    Yes
 //
@@ -27,8 +27,8 @@ use brane_cfg::backend::{BackendFile, Credentials};
 use brane_cfg::info::Info as _;
 use brane_cfg::infra::{InfraFile, InfraLocation};
 use brane_cfg::node::{
-    self, CentralConfig, CentralPaths, CentralServices, ExternalService, KafkaService, NodeConfig, NodeSpecificConfig, PrivateOrExternalService,
-    PrivateService, ProxyPaths, ProxyServices, PublicService, WorkerConfig, WorkerPaths, WorkerServices, WorkerUsecase,
+    self, CentralConfig, CentralPaths, CentralServices, ExternalService, NodeConfig, NodeSpecificConfig, PrivateOrExternalService, PrivateService,
+    ProxyPaths, ProxyServices, PublicService, WorkerConfig, WorkerPaths, WorkerServices, WorkerUsecase,
 };
 use brane_cfg::proxy::{self, ForwardConfig};
 use brane_shr::fs::{download_file_async, set_executable, DownloadSecurity};
@@ -628,8 +628,7 @@ pub fn node(
             prx_port,
             api_port,
             drv_port,
-            plr_cmd_topic,
-            plr_res_topic,
+            plr_port,
         } => {
             // Remove any scheme, paths, ports, whatever from the hostname
             let mut hostname: &str = &hostname;
@@ -678,7 +677,11 @@ pub fn node(
 
                             external_address: Address::Hostname(format!("grpc://{hostname}"), drv_port),
                         },
-                        plr: KafkaService { name: plr_name, cmd: plr_cmd_topic, res: plr_res_topic },
+                        plr: PrivateService {
+                            name:    plr_name.clone(),
+                            bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), plr_port).into(),
+                            address: Address::Hostname(format!("http://{plr_name}"), plr_port),
+                        },
                         prx: if let Some(address) = external_proxy {
                             PrivateOrExternalService::External(ExternalService { address })
                         } else {
@@ -689,20 +692,10 @@ pub fn node(
                             })
                         },
 
-                        aux_scylla:    PrivateService {
+                        aux_scylla: PrivateService {
                             name:    "aux-scylla".into(),
                             bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 9042).into(),
                             address: Address::Hostname("aux-scylla".into(), 9042),
-                        },
-                        aux_kafka:     PrivateService {
-                            name:    "aux-kafka".into(),
-                            bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 9092).into(),
-                            address: Address::Hostname("aux-kafka".into(), 9092),
-                        },
-                        aux_zookeeper: PrivateService {
-                            name:    "aux-zookeeper".into(),
-                            bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 65535).into(),
-                            address: Address::Hostname("aux-zookeeper".into(), 65535),
                         },
                     },
                 }),

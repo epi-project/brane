@@ -16,35 +16,6 @@ services:
     - kompose.service.type=nodeport
     - kompose.service.nodeport.port=9042
 
-  # Handles events and callbacks throughout the framework
-  aux-kafka:
-    image: aux-kafka:${BRANE_VERSION:-latest}
-    # ports:
-    # - "127.0.0.1:9092:9092"
-    restart: always
-    environment:
-      ZOOKEEPER_HOST: aux-zookeeper
-      ZOOKEEPER_PORT: 2181
-    labels:
-    - kompose.service.type=nodeport
-    - kompose.service.nodeport.port=9092
-
-  # Zookeeper for Kafka
-  aux-zookeeper:
-    image: aux-zookeeper:${BRANE_VERSION:-latest}
-    restart: always
-
-  # # Xenon scheduler, which allows the framework to act as its own domain-local scheduler
-  # brane-xenon:
-  #   image: aux-xenon:${BRANE_VERSION:-latest}
-  #   # ports:
-  #   #   - "127.0.0.1:50054:50054"
-  #   command: -v
-  #   restart: always
-  #   labels:
-  #   - kompose.service.type=nodeport
-  #   - kompose.service.nodeport.port=50054
-
 
 
   ###########
@@ -95,7 +66,6 @@ services:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${INFRA}:${INFRA}
     depends_on:
-    - aux-kafka
     - brane-prx
     - brane-api
     labels:
@@ -123,13 +93,10 @@ services:
   brane-plr:
     image: brane-plr:${BRANE_VERSION:-latest}
     container_name: ${PLR_NAME:-brane-plr}
-    command: --debug
     restart: always
     volumes:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${INFRA}:${INFRA}
-    depends_on:
-    - aux-kafka
 
 networks:
   default:

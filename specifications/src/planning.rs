@@ -4,7 +4,7 @@
 //  Created:
 //    28 Sep 2022, 10:33:37
 //  Last edited:
-//    07 Nov 2023, 16:45:53
+//    08 Feb 2024, 17:24:07
 //  Auto updated?
 //    Yes
 //
@@ -13,81 +13,36 @@
 //!   <-> `brane-plr` interaction.
 //
 
-use prost::{Enumeration, Message};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 
 /***** NETWORKING *****/
 /// Defines a message that carries an _unplanned_ workflow. It is destined to be intercepted by the planner.
-#[derive(Clone, Message)]
-pub struct PlanningCommand {
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PlanningRequest {
     /// Defines the app (=workflow) ID that matches this snippet to a global workflow.
-    #[prost(tag = "1", string)]
     pub app_id:   String,
-    /// Defines the correlation ID of the task within the workflow.
-    #[prost(tag = "2", string)]
-    pub task_id:  String,
     /// The raw workflow, as JSON, that is sent around. It may be expected that there is usually at least one task that does not have a location annotated.
-    #[prost(tag = "3", string)]
-    pub workflow: String,
+    ///
+    /// Note that, to avoid cyclic dependency on `brane-ast`, we define it as an abstract JSON [`Value`].
+    pub workflow: Value,
 }
 
-
-
-/// Defines the current status of planning (and thus also its result).
-#[derive(Clone, Copy, Debug, Enumeration)]
-pub enum PlanningStatusKind {
-    /// A planner has picked up the request.
-    Started = 0,
-
-    /// The plan has succeeded
-    Success = 1,
-    /// Planning has failed due to not being able to find a plan that brings everyone consent.
-    Failed = 2,
-    /// Planning has failed because some error has occurred.
-    Error = 3,
+/// Defines the reply of the planning request in the happy path.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PlanningReply {
+    /// The workflow after planning.
+    ///
+    /// Note that, to avoid cyclic dependency on `brane-ast`, we define it as an abstract JSON [`Value`].
+    pub plan: Value,
 }
 
-/// Defines whatever we need to know about the planning result.
-#[derive(Clone, Message)]
-pub struct PlanningUpdate {
-    /// Defines the current state of the planning.
-    #[prost(tag = "1", enumeration = "PlanningStatusKind")]
-    pub kind:    i32,
-    /// Defines the app (=workflow) ID that matches this snippet to a global workflow.
-    #[prost(tag = "2", string)]
-    pub app_id:  String,
-    /// Defines the correlation ID of the task within the workflow.
-    #[prost(tag = "3", string)]
-    pub task_id: String,
-
-    /// Defines an additional string that provides additional information. Specifically, if the `kind` is:
-    /// - `PlanningStatusKind::Started`, then this _may_ contains the address (or name, or some other identifier) of the planner that started planning the workflow.
-    /// - `PlanningStatusKind::Success`, then this contains a Workflow that is guaranteed to have every task annotated with a location.
-    /// - `PlanningStatusKind::Failed`, then this _may_ contain some yet-to-be-specified information to help formulating new plans (or with some reason - idk yet).
-    /// - `PlanningStatusKind::Error`, then this string describes what went wrong.
-    /// For any other value, this field is ignored.
-    #[prost(tag = "4", optional, string)]
-    pub result: Option<String>,
-}
-
-
-
-
-
-/***** STORAGE *****/
-/// Defines a more convienient way of interacting with the last-updated status of a planner.
-#[derive(Clone, Debug)]
-pub enum PlanningStatus {
-    /// Planning has not happened yet.
-    None,
-
-    /// Planning has started by the (optionally specified) planner.
-    Started(Option<String>),
-
-    /// Planning has completed successfully, and this contains the (unparsed) Workflow result.
-    Success(String),
-    /// Planning has failed due to no valid plan being possible. A possible reason for failure may be given.
-    Failed(Option<String>),
-    /// Planning has failed due to a (given) error.
-    Error(String),
+/// Defines the reply of the planner if a checker denied the request.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PlanningDeniedReply {
+    /// The domain that denied.
+    pub domain:  String,
+    /// A list of reasons given by the domain. May be empty.
+    pub reasons: Vec<String>,
 }

@@ -4,7 +4,7 @@
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    12 Jan 2024, 15:01:46
+//    08 Feb 2024, 15:01:55
 //  Auto updated?
 //    Yes
 //
@@ -115,7 +115,7 @@ enum CtlSubcommand {
             global = true,
             help = "If given, will use downloaded .tar files of the auxillary images instead of pulling them from DockerHub. Essentially, this will \
                     change the default value of all auxillary image paths to 'Path<$IMG_DIR/aux-SVC.tar>', where 'SVC' is the specific service \
-                    (e.g., 'scylla'). For more information, see the '--aux-scylla', '--aux-kafka' and '--aux-zookeeper' flags."
+                    (e.g., 'scylla'). For more information, see the '--aux-scylla' flag."
         )]
         local_aux:   bool,
         /// Whether to skip importing images or not.

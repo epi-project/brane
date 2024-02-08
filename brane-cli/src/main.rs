@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    06 Feb 2024, 11:27:51
+//    08 Feb 2024, 17:15:18
 //  Auto updated?
 //    Yes
 //
@@ -97,6 +97,9 @@ enum SubCommand {
         file:   String,
         #[clap(short, long, action, help = "Use Bakery instead of BraneScript")]
         bakery: bool,
+
+        #[clap(short, long, help = "If given, uses the given user as end user of a workflow instead of the one in the instance file.")]
+        user: Option<String>,
 
         #[clap(long, help = "If given, shows profile times if they are available.")]
         profile: bool,
@@ -867,8 +870,8 @@ async fn run(options: Cli) -> Result<(), CliError> {
                 },
             }
         },
-        Check { file, bakery, profile } => {
-            if let Err(err) = check::handle(file, if bakery { Language::Bakery } else { Language::BraneScript }, profile).await {
+        Check { file, bakery, user, profile } => {
+            if let Err(err) = check::handle(file, if bakery { Language::Bakery } else { Language::BraneScript }, user, profile).await {
                 return Err(CliError::CheckError { err });
             };
         },

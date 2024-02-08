@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:27:26
 //  Last edited:
-//    31 Jan 2024, 16:33:50
+//    08 Feb 2024, 16:47:05
 //  Auto updated?
 //    Yes
 //
@@ -24,12 +24,12 @@ use brane_exe::pc::ProgramCounter;
 use brane_shr::formatters::{BlockFormatter, Capitalizeable};
 use enum_debug::EnumDebug as _;
 use reqwest::StatusCode;
+use serde_json::Value;
 use specifications::address::Address;
 use specifications::container::Image;
 use specifications::data::DataName;
 use specifications::driving::ExecuteReply;
 use specifications::package::Capability;
-use specifications::planning::PlanningStatusKind;
 use specifications::version::Version;
 // The TaskReply is here for legacy reasons; bad name
 use specifications::working::{ExecuteReply as TaskReply, TaskStatus};
@@ -112,32 +112,22 @@ pub enum PlanError {
     IntermediateResultUnavailable { name: String, locs: Vec<String> },
 
     // Instance-only
-    /// Failed to encode the planning update to send.
-    UpdateEncodeError { correlation_id: String, kind: PlanningStatusKind, err: prost::EncodeError },
-    /// Failed to send the update on a Kafka channel.
-    KafkaSendError { correlation_id: String, topic: String, err: rdkafka::error::KafkaError },
-
-    /// The planner didn't respond that it started planning in time.
-    PlanningTimeout { correlation_id: String, timeout: u128 },
-    /// Failed to parse the result of the planning session.
-    PlanParseError { correlation_id: String, raw: String, err: serde_json::Error },
-    /// The planner failed for some reason (possibly defined). This is different from an error in that we typically expect these to happen.
-    PlanningFailed { correlation_id: String, reason: Option<String> },
-    /// The planner errored for some reason. This is different from a failure in that this indicates bad configuration or some service being down.
-    PlanningError { correlation_id: String, err: String },
-
-    /// The planner failed to ensure certain topics existed.
-    KafkaTopicError { brokers: String, topics: Vec<String>, err: brane_shr::kafka::Error },
-    /// Failed to create a Kafka producer.
-    KafkaProducerError { err: rdkafka::error::KafkaError },
-    /// Failed to create a Kafka consumer.
-    KafkaConsumerError { err: rdkafka::error::KafkaError },
-    /// Failed to restore the offsets to the Kafka consumer.
-    KafkaOffsetsError { err: brane_shr::kafka::Error },
-    /// Failed to listen for incoming Kafka events.
-    KafkaStreamError { err: rdkafka::error::KafkaError },
     /// Failed to serialize the internal workflow.
-    WorkflowSerializeError { err: serde_json::Error },
+    WorkflowSerialize { id: String, err: serde_json::Error },
+    /// Failed to serialize the [`PlanningRequest`](specifications::planning::PlanningRequest).
+    PlanningRequestSerialize { id: String, err: serde_json::Error },
+    /// Failed to create a request to plan at the planner.
+    PlanningRequest { id: String, url: String, err: reqwest::Error },
+    /// Failed to send a request to plan at the planner.
+    PlanningRequestSend { id: String, url: String, err: reqwest::Error },
+    /// The server failed to plan.
+    PlanningFailure { id: String, url: String, code: StatusCode, response: Option<String> },
+    /// Failed to download the server's response.
+    PlanningResponseDownload { id: String, url: String, err: reqwest::Error },
+    /// failed to parse the server's response.
+    PlanningResponseParse { id: String, url: String, raw: String, err: serde_json::Error },
+    /// Failed to parse the server's returned plan.
+    PlanningPlanParse { id: String, url: String, raw: Value, err: serde_json::Error },
 
     /// Failed to a checker to validate the workflow
     GrpcConnectError { endpoint: Address, err: specifications::working::JobServiceError },
@@ -208,41 +198,29 @@ impl Display for PlanError {
                 }
             ),
 
-            UpdateEncodeError { correlation_id, kind, .. } => {
-                write!(f, "Failed to encode status update '{kind:?}' for a planning session with ID '{correlation_id}'")
-            },
-            KafkaSendError { correlation_id, topic, .. } => {
-                write!(f, "Failed to send status update on Kafka topic '{topic}' for a planning session with ID '{correlation_id}'")
-            },
-
-            PlanningTimeout { correlation_id, timeout } => write!(
+            WorkflowSerialize { id, .. } => write!(f, "Failed to serialize workflow '{id}'"),
+            PlanningRequestSerialize { id, .. } => write!(f, "Failed to serialize planning request for workflow '{id}'"),
+            PlanningRequest { id, url, .. } => write!(f, "Failed to create request to plan workflow '{id}' for '{url}'"),
+            PlanningRequestSend { id, url, .. } => write!(f, "Failed to send request to plan workflow '{id}' to '{url}'"),
+            PlanningFailure { id, url, code, response } => write!(
                 f,
-                "The planner didn't start planning workflow with ID '{}' in time (timed out after {} seconds)",
-                correlation_id,
-                timeout / 1000
+                "Planner failed to plan workflow '{}' (server at '{url}' returned {} ({})){}",
+                id,
+                code.as_u16(),
+                code.canonical_reason().unwrap_or("???"),
+                if let Some(res) = response { format!("\n\nResponse:\n{}\n", BlockFormatter::new(res)) } else { String::new() }
             ),
-            PlanParseError { correlation_id, raw, .. } => {
-                write!(f, "Failed to parse planning result of workflow with ID '{}'\n\n{}\n", correlation_id, BlockFormatter::new(raw))
+            PlanningResponseDownload { id, url, .. } => write!(f, "Failed to download response from '{url}' for workflow '{id}'"),
+            PlanningResponseParse { id, url, raw, .. } => {
+                write!(f, "Failed to parse response from '{}' to planning workflow '{}'\n\nResponse:\n{}\n", url, id, BlockFormatter::new(raw))
             },
-            PlanningFailed { correlation_id, reason } => write!(
+            PlanningPlanParse { id, url, raw, .. } => write!(
                 f,
-                "Failed to plan workflow with ID '{}'{}",
-                correlation_id,
-                if let Some(reason) = reason { format!(": {reason}") } else { String::new() }
+                "Failed to parse plan returned by '{}' to plan workflow '{}'\n\nPlan:\n{}\n",
+                url,
+                id,
+                BlockFormatter::new(format!("{:?}", raw))
             ),
-            PlanningError { correlation_id, err } => write!(f, "Encountered an error while planning workflow with ID '{correlation_id}': {err}"),
-
-            KafkaTopicError { brokers, topics, .. } => write!(
-                f,
-                "Failed to ensure Kafka topics {} on brokers '{}'",
-                topics.iter().map(|t| format!("'{t}'")).collect::<Vec<String>>().join(", "),
-                brokers
-            ),
-            KafkaProducerError { .. } => write!(f, "Failed to create Kafka producer"),
-            KafkaConsumerError { .. } => write!(f, "Failed to create Kafka consumer"),
-            KafkaOffsetsError { .. } => write!(f, "Failed to restore committed offsets to Kafka consumer"),
-            KafkaStreamError { .. } => write!(f, "Failed to listen for incoming Kafka events"),
-            WorkflowSerializeError { .. } => write!(f, "Failed to serialize workflow"),
 
             GrpcConnectError { endpoint, .. } => write!(f, "Failed to create gRPC connection to `brane-job` service at '{endpoint}'"),
             ProxyError { .. } => write!(f, "Failed to use `brane-prx` service"),
@@ -277,20 +255,14 @@ impl Error for PlanError {
             DatasetUnavailable { .. } => None,
             IntermediateResultUnavailable { .. } => None,
 
-            UpdateEncodeError { err, .. } => Some(err),
-            KafkaSendError { err, .. } => Some(err),
-
-            PlanningTimeout { .. } => None,
-            PlanParseError { err, .. } => Some(err),
-            PlanningFailed { .. } => None,
-            PlanningError { .. } => None,
-
-            KafkaTopicError { err, .. } => Some(err),
-            KafkaProducerError { err } => Some(err),
-            KafkaConsumerError { err } => Some(err),
-            KafkaOffsetsError { err } => Some(err),
-            KafkaStreamError { err } => Some(err),
-            WorkflowSerializeError { err } => Some(err),
+            WorkflowSerialize { err, .. } => Some(err),
+            PlanningRequestSerialize { err, .. } => Some(err),
+            PlanningRequest { err, .. } => Some(err),
+            PlanningRequestSend { err, .. } => Some(err),
+            PlanningFailure { .. } => None,
+            PlanningResponseDownload { err, .. } => Some(err),
+            PlanningResponseParse { err, .. } => Some(err),
+            PlanningPlanParse { err, .. } => Some(err),
 
             GrpcConnectError { err, .. } => Some(err),
             ProxyError { err } => Some(&**err),

@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 17:27:52
 //  Last edited:
-//    29 Jan 2024, 16:42:00
+//    08 Feb 2024, 17:08:25
 //  Auto updated?
 //    Yes
 //
@@ -377,19 +377,15 @@ pub enum GenerateNodeSubcommand {
         /// The port of the API service.
         #[clap(short, long, default_value = "50051", help = "The port on which the API service is available.")]
         api_port: u16,
+        /// The port of the planner service.
+        #[clap(short, long, default_value = "50052", help = "The port on which the planner service is available.")]
+        plr_port: u16,
         /// The port of the driver service.
         #[clap(short, long, default_value = "50053", help = "The port on which the driver service is available.")]
         drv_port: u16,
         /// The port of the proxy service.
         #[clap(short, long, default_value = "50050", help = "The port on which the proxy service is available.")]
         prx_port: u16,
-
-        /// The topic for planner commands.
-        #[clap(long, default_value = "plr-cmd", help = "The Kafka topic used to submit planner commands on.")]
-        plr_cmd_topic: String,
-        /// The topic for planner results.
-        #[clap(long, default_value = "plr-res", help = "The Kafka topic used to emit planner results on.")]
-        plr_res_topic: String,
     },
 
     /// Starts a worker node.
@@ -682,37 +678,7 @@ pub enum StartSubcommand {
                     Default: 'Registry<scylladb/scylla:4.6.3>', unless '--local-aux' is given. In that case, 'Path<$IMG_DIR/aux-scylla.tar>' is \
                     used as default instead."
         )]
-        aux_scylla:    Option<ImageSource>,
-        /// The path (or other source) to the `aux-kafka` service.
-        #[clap(
-            short = 'k',
-            long,
-            help = "The image to load for the aux-kafka service. If it's a path that exists, will attempt to load that file; otherwise, assumes \
-                    it's an image name in a remote registry. You can wrap your names in either `Path<...>` or `Registry<...>` if it matters. \
-                    Default: 'Registry<ubuntu/kafka:3.1-22.04_beta>', unless '--local-aux' is given. In that case, 'Path<$IMG_DIR/aux-kafka.tar>' \
-                    is used as default instead."
-        )]
-        aux_kafka:     Option<ImageSource>,
-        /// The path (or other source) to the `aux-zookeeper` service.
-        #[clap(
-            short = 'z',
-            long,
-            help = "The image to load for the aux-zookeeper service. If it's a path that exists, will attempt to load that file; otherwise, assumes \
-                    it's an image name in a remote registry. You can wrap your names in either `Path<...>` or `Registry<...>` if it matters. \
-                    Default: 'Registry<ubuntu/zookeeper:3.1-22.04_beta>', unless '--local-aux' is given. In that case, \
-                    'Path<$IMG_DIR/aux-zookeeper.tar>' is used as default instead."
-        )]
-        aux_zookeeper: Option<ImageSource>,
-        /// The path (or other source) to the `aux-xenon` service.
-        #[clap(
-            short = 'm',
-            long,
-            default_value = "Path<$IMG_DIR/aux-xenon.tar>",
-            help = "The image to load for the aux-xenon service. If it's a path that exists, will attempt to load that file; otherwise, assumes \
-                    it's an image name in a remote registry. You can wrap your names in either `Path<...>` or `Registry<...>` if it matters. \
-                    Finally, use '$IMG_DIR' to reference the value indicated by '--image-dir'."
-        )]
-        aux_xenon:     ImageSource,
+        aux_scylla: Option<ImageSource>,
 
         /// The path (or other source) to the `brane-prx` service.
         #[clap(

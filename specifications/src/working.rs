@@ -4,7 +4,7 @@
 //  Created:
 //    06 Jan 2023, 15:01:17
 //  Last edited:
-//    06 Feb 2024, 14:38:07
+//    08 Feb 2024, 17:01:41
 //  Auto updated?
 //    Yes
 //
@@ -19,14 +19,14 @@ use std::fmt::{Display, Formatter, Result as FResult};
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::Stream;
 use prost::{Enumeration, Message, Oneof};
 use tonic::body::{empty_body, BoxBody};
 use tonic::client::Grpc as GrpcClient;
 use tonic::codec::{ProstCodec, Streaming};
-use tonic::codegen::futures_core::Stream;
 use tonic::codegen::{http, Body, BoxFuture, Context, Poll, Service, StdError};
-use tonic::server::{Grpc as GrpcServer, ServerStreamingService, UnaryService};
-use tonic::transport::{Channel, Endpoint, NamedService};
+use tonic::server::{Grpc as GrpcServer, NamedService, ServerStreamingService, UnaryService};
+use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Response, Status};
 pub use JobServiceError as Error;
 

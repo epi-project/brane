@@ -4,7 +4,7 @@
 //  Created:
 //    03 Jul 2023, 13:01:31
 //  Last edited:
-//    29 Jan 2024, 16:47:32
+//    08 Feb 2024, 16:11:27
 //  Auto updated?
 //    Yes
 //
@@ -313,8 +313,8 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
     use std::net::{Ipv4Addr, SocketAddrV4};
 
     use brane_cfg::node::{
-        CentralConfig, CentralPaths, CentralServices, KafkaService, NodeConfig, NodeSpecificConfig, PrivateOrExternalService, PrivateService,
-        PublicService, WorkerConfig, WorkerPaths, WorkerServices,
+        CentralConfig, CentralPaths, CentralServices, NodeConfig, NodeSpecificConfig, PrivateOrExternalService, PrivateService, PublicService,
+        WorkerConfig, WorkerPaths, WorkerServices,
     };
     use brane_cfg::proxy::{ForwardConfig, ProxyConfig, ProxyProtocol};
     use specifications::address::Address;
@@ -384,10 +384,6 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
                 let node: NodeSpecificConfig = match cfg.node {
                     v1_0_0::NodeKindConfig::Central(central) => {
                         // Extract some service info
-                        let kafka: v1_0_0::Address = central.services.brokers.first().cloned().unwrap_or_else(|| {
-                            warn!("No brokers specified; assuming 'aux-kafka:9092'");
-                            v1_0_0::Address::Hostname("aux-kafka".into(), 9092)
-                        });
                         NodeSpecificConfig::Central(CentralConfig {
                             paths: CentralPaths {
                                 certs:    cfg.paths.certs,
@@ -410,31 +406,18 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
                                     bind: central.ports.drv,
                                     external_address: Address::Hostname(format!("grpc://{hostname}"), central.ports.drv.port()),
                                 },
-                                plr: KafkaService {
-                                    name: central.names.plr,
-                                    cmd:  central.topics.planner_command,
-                                    res:  central.topics.planner_results,
-                                },
+                                #[allow(unreachable_code)]
+                                plr: PrivateService { name: central.names.plr, address: unimplemented!(), bind: unimplemented!() },
                                 prx: PrivateOrExternalService::Private(PrivateService {
                                     address: Address::Hostname(format!("http://{}", cfg.names.prx), cfg.ports.prx.port()),
                                     name:    cfg.names.prx,
                                     bind:    cfg.ports.prx,
                                 }),
 
-                                aux_scylla:    PrivateService {
+                                aux_scylla: PrivateService {
                                     name:    "aux-scylla".into(),
                                     address: Address::from_str(&central.services.scylla.to_string()).unwrap(),
                                     bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), central.services.scylla.port()).into(),
-                                },
-                                aux_kafka:     PrivateService {
-                                    name:    "aux-kafka".into(),
-                                    address: Address::from_str(&kafka.to_string()).unwrap(),
-                                    bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), kafka.port()).into(),
-                                },
-                                aux_zookeeper: PrivateService {
-                                    name:    "aux-zookeeper".into(),
-                                    address: Address::Hostname("http://aux-zookeeper".into(), 9042),
-                                    bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 9042).into(),
                                 },
                             },
                         })

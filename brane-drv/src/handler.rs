@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:18:11
 //  Last edited:
-//    06 Feb 2024, 14:57:52
+//    08 Feb 2024, 17:28:51
 //  Auto updated?
 //    Yes
 //
@@ -23,6 +23,7 @@ use brane_cfg::infra::InfraFile;
 use brane_cfg::node::{CentralConfig, NodeConfig, NodeSpecificConfig};
 use brane_exe::FullValue;
 use brane_prx::client::ProxyClient;
+use brane_tsk::errors::PlanError;
 use brane_tsk::spec::AppId;
 use dashmap::DashMap;
 use enum_debug::EnumDebug as _;
@@ -101,8 +102,6 @@ pub struct DriverHandler {
     node_config_path: PathBuf,
     /// The ProxyClient that we use to connect to/through `brane-prx`.
     proxy: Arc<ProxyClient>,
-    /// The planner we use to plan stuff.
-    planner: Arc<InstancePlanner>,
 
     /// Current sessions and active VMs. Note that this only concerns states if connected via a REPL-session; any in-statement state (i.e., calling nodes) is handled by virtue of the VM being implemented as `async`.
     sessions: Arc<DashMap<AppId, (InstanceVm, Instant)>>,
@@ -119,13 +118,13 @@ impl DriverHandler {
     /// # Returns
     /// A new DriverHandler instance.
     #[inline]
-    pub fn new(node_config_path: impl Into<PathBuf>, proxy: Arc<ProxyClient>, planner: Arc<InstancePlanner>) -> Self {
+    pub fn new(node_config_path: impl Into<PathBuf>, proxy: Arc<ProxyClient>) -> Self {
         // Create the new sessions list with its Garbage Collector (GC)
         let sessions: Arc<DashMap<AppId, (InstanceVm, Instant)>> = Arc::new(DashMap::new());
         tokio::spawn(gc::sessions(Arc::downgrade(&sessions)));
 
         // Now use that as this handler's sessions
-        Self { node_config_path: node_config_path.into(), proxy, planner, sessions }
+        Self { node_config_path: node_config_path.into(), proxy, sessions }
     }
 }
 
@@ -149,10 +148,7 @@ impl DriverService for DriverHandler {
 
         // Create a new VM for this session
         let app_id: AppId = AppId::generate();
-        self.sessions.insert(
-            app_id.clone(),
-            (InstanceVm::new(&self.node_config_path, app_id.clone(), self.proxy.clone(), self.planner.clone()), Instant::now()),
-        );
+        self.sessions.insert(app_id.clone(), (InstanceVm::new(&self.node_config_path, app_id.clone(), self.proxy.clone()), Instant::now()));
 
         // Now return the ID to the user for future reference
         debug!("Created new session '{}'", app_id);
@@ -213,6 +209,27 @@ impl DriverService for DriverHandler {
             },
         };
         overhead.stop();
+
+        // Plan the workflow first
+        debug!("Planning workflow on instance `brane-plr`...");
+        let wf_id: String = workflow.id.clone();
+        let workflow: Workflow =
+            match InstancePlanner::plan(&central_cfg.services.plr.address, AppId::generate(), workflow, report.nest("Planning")).await {
+                Ok(wf) => wf,
+                Err(PlanError::CheckerDenied { domain, reasons }) => {
+                    debug!("Checker denied workflow during planning already");
+                    return Ok(Response::new(CheckReply {
+                        verdict: false,
+                        who: Some(domain),
+                        reasons,
+                        profile: serde_json::to_string(report.scope()).ok(),
+                    }));
+                },
+                Err(err) => {
+                    error!("{}", trace!(("Failed to plan workflow '{wf_id}'"), err));
+                    return Err(Status::internal("An internal error has occurred"));
+                },
+            };
 
         // Generate futures for handling everything
         debug!("Generating requests for workflow '{}'...", workflow.id);

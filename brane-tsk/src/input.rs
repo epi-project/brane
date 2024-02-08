@@ -1,32 +1,30 @@
 //  INPUT.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    22 May 2023, 13:13:51
 //  Last edited:
-//    02 Oct 2023, 17:13:55
+//    08 Feb 2024, 15:16:20
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Queries functions that are useful for value inputs.
-// 
+//
 
 use std::collections::HashMap;
 use std::error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::str::FromStr;
 
+use brane_ast::ast::{ClassDef, VarDef};
+use brane_ast::spec::BuiltinClasses;
+use brane_ast::DataType;
+use brane_exe::FullValue;
 use console::{style, Term};
 use dialoguer::theme::ColorfulTheme;
-use dialoguer::Confirm;
-use dialoguer::{Input as Prompt, Select};
+use dialoguer::{Confirm, Input as Prompt, Select};
 use log::debug;
-
-use brane_ast::DataType;
-use brane_ast::spec::BuiltinClasses;
-use brane_ast::ast::{ClassDef, VarDef};
-use brane_exe::FullValue;
 use specifications::data::DataIndex;
 use specifications::package::PackageInfo;
 use specifications::version::Version;
@@ -42,21 +40,21 @@ pub enum Error {
     UndefinedClass { name: String, version: Version, class: String },
 
     /// Failed to query the user for the function they like to run.
-    FunctionQueryError { err: std::io::Error },
+    FunctionQueryError { err: dialoguer::Error },
     /// Failed to ask the user a yes/no R U sure question.
-    YesNoQueryError { err: std::io::Error },
+    YesNoQueryError { err: dialoguer::Error },
     /// Failed to query a value of the given type.
-    ValueQueryError { res_type: &'static str, err: std::io::Error },
+    ValueQueryError { res_type: &'static str, err: dialoguer::Error },
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use Error::*;
         match self {
             PackageDefinesBuiltin { name, version, builtin } => write!(f, "Package {name}:{version} overwrites builtin class '{builtin}'"),
-            UndefinedClass { name, version, class }          => write!(f, "Package {name}:{version} references undefined class '{class}'"),
+            UndefinedClass { name, version, class } => write!(f, "Package {name}:{version} references undefined class '{class}'"),
 
-            FunctionQueryError { .. }        => write!(f, "Failed to query for package function"),
-            YesNoQueryError { .. }           => write!(f, "Failed to query for confirmaiton"),
+            FunctionQueryError { .. } => write!(f, "Failed to query for package function"),
+            YesNoQueryError { .. } => write!(f, "Failed to query for confirmaiton"),
             ValueQueryError { res_type, .. } => write!(f, "Failed to query for {res_type} value"),
         }
     }
@@ -66,10 +64,10 @@ impl error::Error for Error {
         use Error::*;
         match self {
             PackageDefinesBuiltin { .. } => None,
-            UndefinedClass { .. }        => None,
+            UndefinedClass { .. } => None,
 
-            FunctionQueryError { err }  => Some(err),
-            YesNoQueryError { err }     => Some(err),
+            FunctionQueryError { err } => Some(err),
+            YesNoQueryError { err } => Some(err),
             ValueQueryError { err, .. } => Some(err),
         }
     }
@@ -81,16 +79,16 @@ impl error::Error for Error {
 
 /***** LIBRARY *****/
 /// Prompts the user for input before testing the package.
-/// 
+///
 /// Basically asks their shirt off their body in what function they want to execute and which values to execute it with.
-/// 
+///
 /// # Arguments
 /// - `dindex`: The [`DataIndex`] that represents possible datasets to choose from if the given function requires any.
 /// - `package`: The [`PackageInfo`] file that contains the package information of the package we are querying for.
-/// 
+///
 /// # Returns
 /// The name of the chosen function and a map of values for the function to run with.
-/// 
+///
 /// # Errors
 /// This function errors if querying the user failed. Additionally, if their package re-exports builtins, that's considered a grave grime and they will be shot too.
 pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result<(String, HashMap<String, FullValue>), Error> {
@@ -99,41 +97,42 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
     function_list.sort();
 
     // Insert missing builtins in the map
-    let mut types: HashMap<String, ClassDef> = package.types.iter().map(|t| (t.0.clone(), ClassDef {
-        name    : t.1.name.clone(),
-        package : Some(package.name.clone()),
-        version : Some(package.version),
+    let mut types: HashMap<String, ClassDef> = package
+        .types
+        .iter()
+        .map(|t| {
+            (t.0.clone(), ClassDef {
+                name:    t.1.name.clone(),
+                package: Some(package.name.clone()),
+                version: Some(package.version),
 
-        props : t.1.properties.iter().map(|p| VarDef {
-            name      : p.name.clone(),
-            data_type : DataType::from(&p.data_type),
-        }).collect(),
-        methods : vec![]
-    })).collect();
-    for builtin in &[ BuiltinClasses::Data ] {
-        if let Some(old) = types.insert(builtin.name().into(), ClassDef{
-            name    : builtin.name().into(),
-            package : None,
-            version : None,
+                props:   t.1.properties.iter().map(|p| VarDef { name: p.name.clone(), data_type: DataType::from(&p.data_type) }).collect(),
+                methods: vec![],
+            })
+        })
+        .collect();
+    for builtin in &[BuiltinClasses::Data] {
+        if let Some(old) = types.insert(builtin.name().into(), ClassDef {
+            name:    builtin.name().into(),
+            package: None,
+            version: None,
 
-            props   : builtin.props().into_iter().map(|p| p.into()).collect(),
+            props:   builtin.props().into_iter().map(|p| p.into()).collect(),
             // We don't care for methods anyway
-            methods : vec![],
+            methods: vec![],
         }) {
-            return Err(Error::PackageDefinesBuiltin{ name: package.name.clone(), version: package.version, builtin: old.name });
+            return Err(Error::PackageDefinesBuiltin { name: package.name.clone(), version: package.version, builtin: old.name });
         }
     }
 
     // Query the user about which of the functions they'd like
-    let index = match Select::with_theme(&ColorfulTheme::default())
-        .with_prompt("The function the execute")
-        .default(0)
-        .items(&function_list[..])
-        .interact()
-    {
-        Ok(index) => index,
-        Err(err)  => { return Err(Error::FunctionQueryError { err }); }
-    };
+    let index =
+        match Select::with_theme(&ColorfulTheme::default()).with_prompt("The function the execute").default(0).items(&function_list[..]).interact() {
+            Ok(index) => index,
+            Err(err) => {
+                return Err(Error::FunctionQueryError { err });
+            },
+        };
     let function_name = &function_list[index];
     let function = &package.functions[function_name];
 
@@ -143,7 +142,16 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
         println!("\nPlease provide input for the chosen function:\n");
         for p in &function.parameters {
             // Prompt for that data type
-            let value: FullValue = prompt_for_param(data_index, package, format!("{} [{}]", p.name, p.data_type), &p.name, DataType::from(&p.data_type), p.optional.unwrap_or(false), None, &types)?;
+            let value: FullValue = prompt_for_param(
+                data_index,
+                package,
+                format!("{} [{}]", p.name, p.data_type),
+                &p.name,
+                DataType::from(&p.data_type),
+                p.optional.unwrap_or(false),
+                None,
+                &types,
+            )?;
             args.insert(p.name.clone(), value);
         }
     }
@@ -155,7 +163,7 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
 }
 
 /// Prompts the user to enter the value for a single function argument.
-/// 
+///
 /// # Arguments
 /// - `dindex`: The [`DataIndex`] that represents possible datasets to choose from.
 /// - `package`: A [`PackageInfo`] that represents the package we are querying for.
@@ -165,14 +173,23 @@ pub fn prompt_for_input(data_index: &DataIndex, package: &PackageInfo) -> Result
 /// - `optional`: Whether this parameter is optional or not.
 /// - `default`: If any, the default value to provide the user with.
 /// - `types`: The list of ClassDefs that we use to resolve custom typenames.
-/// 
+///
 /// # Returns
 /// The queried-for value.
-/// 
+///
 /// # Errors
 /// This function errors if querying the user failed.
 #[allow(clippy::too_many_arguments)]
-fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl AsRef<str>, name: impl AsRef<str>, data_type: DataType, optional: bool, default: Option<FullValue>, types: &HashMap<String, ClassDef>) -> Result<FullValue, Error> {
+fn prompt_for_param(
+    data_index: &DataIndex,
+    package: &PackageInfo,
+    what: impl AsRef<str>,
+    name: impl AsRef<str>,
+    data_type: DataType,
+    optional: bool,
+    default: Option<FullValue>,
+    types: &HashMap<String, ClassDef>,
+) -> Result<FullValue, Error> {
     let what: &str = what.as_ref();
     let name: &str = name.as_ref();
 
@@ -204,18 +221,27 @@ fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl As
             FullValue::String(prompt(what, optional, default)?)
         },
 
-        Array{ elem_type } => {
+        Array { elem_type } => {
             // If there is a default, we are forced to ask it beforehand.
             if let Some(default) = default {
                 // Ensure the default has the correct value
-                if default.data_type() != (DataType::Array{ elem_type: elem_type.clone() }) { panic!("{} cannot have a value of type {} as default value", DataType::Array{ elem_type }, default.data_type()); }
+                if default.data_type() != (DataType::Array { elem_type: elem_type.clone() }) {
+                    panic!("{} cannot have a value of type {} as default value", DataType::Array { elem_type }, default.data_type());
+                }
 
                 // Prompt the user to use it
                 if match Confirm::new()
-                    .with_prompt(format!("{} has a default value: {}; would you like to use that?", style(name).bold().cyan(), style(format!("{default}")).bold()))
-                    .interact() {
+                    .with_prompt(format!(
+                        "{} has a default value: {}; would you like to use that?",
+                        style(name).bold().cyan(),
+                        style(format!("{default}")).bold()
+                    ))
+                    .interact()
+                {
                     Ok(use_default) => use_default,
-                    Err(err)        => { return Err(Error::YesNoQueryError{ err }); },
+                    Err(err) => {
+                        return Err(Error::YesNoQueryError { err });
+                    },
                 } {
                     return Ok(default);
                 }
@@ -225,15 +251,24 @@ fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl As
             let mut values: Vec<FullValue> = Vec::with_capacity(16);
             loop {
                 // Query the user
-                let res = prompt_for_param(data_index, package, format!("{} [{}] <element {}>", name, elem_type, values.len()), name, *elem_type.clone(), false, None, types)?;
+                let res = prompt_for_param(
+                    data_index,
+                    package,
+                    format!("{} [{}] <element {}>", name, elem_type, values.len()),
+                    name,
+                    *elem_type.clone(),
+                    false,
+                    None,
+                    types,
+                )?;
                 values.push(res);
 
                 // Ask if they want to ask more
-                if !match Confirm::new()
-                    .with_prompt("Add more elements?")
-                    .interact() {
+                if !match Confirm::new().with_prompt("Add more elements?").interact() {
                     Ok(cont) => cont,
-                    Err(err) => { return Err(Error::YesNoQueryError{ err }); },
+                    Err(err) => {
+                        return Err(Error::YesNoQueryError { err });
+                    },
                 } {
                     break;
                 }
@@ -242,18 +277,27 @@ fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl As
             // Done
             FullValue::Array(values)
         },
-        Class{ name: c_name } => {
+        Class { name: c_name } => {
             // If there is a default, we are forced to ask it beforehand.
             if let Some(default) = default {
                 // Ensure the default has the correct value
-                if default.data_type() != (DataType::Class{ name: c_name.clone() }) { panic!("{} cannot have a value of type {} as default value", DataType::Class{ name: c_name }, default.data_type()); }
+                if default.data_type() != (DataType::Class { name: c_name.clone() }) {
+                    panic!("{} cannot have a value of type {} as default value", DataType::Class { name: c_name }, default.data_type());
+                }
 
                 // Prompt the user to use it
                 if match Confirm::new()
-                    .with_prompt(format!("{} has a default value: {}; would you like to use that?", style(name).bold().cyan(), style(format!("{default}")).bold()))
-                    .interact() {
+                    .with_prompt(format!(
+                        "{} has a default value: {}; would you like to use that?",
+                        style(name).bold().cyan(),
+                        style(format!("{default}")).bold()
+                    ))
+                    .interact()
+                {
                     Ok(use_default) => use_default,
-                    Err(err)        => { return Err(Error::YesNoQueryError{ err }); },
+                    Err(err) => {
+                        return Err(Error::YesNoQueryError { err });
+                    },
                 } {
                     return Ok(default);
                 }
@@ -262,7 +306,9 @@ fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl As
             // Resolve the class
             let def: &ClassDef = match types.get(&c_name) {
                 Some(def) => def,
-                None      => {  return Err(Error::UndefinedClass{ name: package.name.clone(), version: package.version, class: c_name }); },
+                None => {
+                    return Err(Error::UndefinedClass { name: package.name.clone(), version: package.version, class: c_name });
+                },
             };
 
             // Sort the properties of said class alphabetically
@@ -272,7 +318,16 @@ fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl As
             // Query for them in-order
             let mut values: HashMap<std::string::String, FullValue> = HashMap::with_capacity(props.len());
             for p in props {
-                let res = prompt_for_param(data_index, package, format!("{} [{}] <field {}::{}>", name, p.data_type, c_name, p.name), name, p.data_type.clone(), false, None, types)?;
+                let res = prompt_for_param(
+                    data_index,
+                    package,
+                    format!("{} [{}] <field {}::{}>", name, p.data_type, c_name, p.name),
+                    name,
+                    p.data_type.clone(),
+                    false,
+                    None,
+                    types,
+                )?;
                 values.insert(p.name.clone(), res);
             }
 
@@ -286,16 +341,14 @@ fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl As
 
             // Prepare the prompt with beautiful themes and such
             let colorful = ColorfulTheme::default();
-            let mut prompt = Select::with_theme(&colorful);
-            prompt
-                .items(&items)
-                .with_prompt(what)
-                .default(0usize);
+            let prompt = Select::with_theme(&colorful).items(&items).with_prompt(what).default(0usize);
 
             // Done
             let res: std::string::String = match prompt.interact_on_opt(&Term::stderr()) {
-                Ok(res)  => res.map(|i| items[i].to_string()).unwrap_or_else(|| items[0].to_string()),
-                Err(err) => { return Err(Error::ValueQueryError{ res_type: std::any::type_name::<std::string::String>(), err }); },
+                Ok(res) => res.map(|i| items[i].to_string()).unwrap_or_else(|| items[0].to_string()),
+                Err(err) => {
+                    return Err(Error::ValueQueryError { res_type: std::any::type_name::<std::string::String>(), err });
+                },
             };
 
             // The prompt is what we need
@@ -305,7 +358,9 @@ fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl As
         Void => FullValue::Void,
 
         // The rest we don't do
-        _ => { panic!("Cannot query values for parameter '{}' of type {}", name, data_type); }
+        _ => {
+            panic!("Cannot query values for parameter '{}' of type {}", name, data_type);
+        },
     };
 
     // Done
@@ -313,18 +368,18 @@ fn prompt_for_param(data_index: &DataIndex, package: &PackageInfo, what: impl As
 }
 
 /// Prompts the user for a value of the given type.
-/// 
+///
 /// # Generic arguments
 /// - `T`: The general type to query for.
-/// 
+///
 /// # Arguments
 /// - `what`: The prompt to present the user with.
 /// - `optional`: Whether this parameter is optional or not.
 /// - `default`: If any, the default value to provide the user with.
-/// 
+///
 /// # Returns
 /// The queried-for result.
-/// 
+///
 /// # Errors
 /// This function errors if we could not query for the given prompt.
 fn prompt<T>(what: impl AsRef<str>, optional: bool, default: Option<T>) -> Result<T, Error>
@@ -334,20 +389,16 @@ where
 {
     // Prepare the prompt with beautiful themes and such
     let colorful = ColorfulTheme::default();
-    let mut prompt = Prompt::with_theme(&colorful);
-    prompt
-        .with_prompt(what.as_ref())
-        .allow_empty(optional);
+    let mut prompt = Prompt::with_theme(&colorful).with_prompt(what.as_ref()).allow_empty(optional);
 
     // Also add a default if that's given
     if let Some(default) = default {
-        prompt.default(default);
+        prompt = prompt.default(default);
     }
 
     // Alright hit it
     match prompt.interact() {
-        Ok(res)  => Ok(res),
-        Err(err) => Err(Error::ValueQueryError{ res_type: std::any::type_name::<T>(), err }),
+        Ok(res) => Ok(res),
+        Err(err) => Err(Error::ValueQueryError { res_type: std::any::type_name::<T>(), err }),
     }
 }
-

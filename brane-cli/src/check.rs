@@ -4,7 +4,7 @@
 //  Created:
 //    02 Feb 2024, 11:08:20
 //  Last edited:
-//    06 Feb 2024, 11:27:41
+//    08 Feb 2024, 17:18:29
 //  Auto updated?
 //    Yes
 //
@@ -14,6 +14,7 @@
 //
 
 use std::io::Read;
+use std::sync::Arc;
 use std::{fs, io};
 
 use brane_ast::{CompileResult, Workflow};
@@ -38,6 +39,7 @@ use crate::instance::InstanceInfo;
 /// - `input`: Some description of where the input comes from (used for debugging).
 /// - `source`: The raw source text.
 /// - `language`: The [`Language`] as which to parse the `source` text.
+/// - `user`: An override to set the end user of the workflow result instead of hte instance one.
 ///
 /// # Returns
 /// A compiled [`Workflow`].
@@ -46,7 +48,7 @@ use crate::instance::InstanceInfo;
 ///
 /// # Errors
 /// This function errors if we failed to get remote packages/datasets, or if the input was not valid BraneScript/Bakery.
-async fn compile(instance: &InstanceInfo, input: &str, source: String, language: Language) -> Result<Workflow, Error> {
+async fn compile(instance: &InstanceInfo, input: &str, source: String, language: Language, user: Option<String>) -> Result<Workflow, Error> {
     // Read the package index from the remote first
     let url: String = format!("{}/graphql", instance.api);
     debug!("Retrieving package index from '{url}'");
@@ -69,11 +71,16 @@ async fn compile(instance: &InstanceInfo, input: &str, source: String, language:
 
     // Hit the Brane compiler
     match brane_ast::compile_program(source.as_bytes(), &pindex, &dindex, &ParserOptions::new(language)) {
-        CompileResult::Workflow(wf, warns) => {
+        CompileResult::Workflow(mut wf, warns) => {
             // Emit the warnings before continuing
             for warn in warns {
                 warn.prettyprint(input, &source);
             }
+
+            // Inject a user
+            wf.user = Arc::new(Some(user.unwrap_or_else(|| instance.user.clone())));
+
+            // OK
             Ok(wf)
         },
         CompileResult::Err(errs) => {
@@ -103,11 +110,12 @@ async fn compile(instance: &InstanceInfo, input: &str, source: String, language:
 /// # Arguments
 /// - `file`: The path to the file to load as input. `-` means stdin.
 /// - `language`: The [`Language`] of the input file.
+/// - `user`: An override for the user in the instance file, if any.
 /// - `profile`: If true, show profile timings of the request if available.
 ///
 /// # Errors
 /// This function errors if we failed to perform the check.
-pub async fn handle(file: String, language: Language, profile: bool) -> Result<(), Error> {
+pub async fn handle(file: String, language: Language, user: Option<String>, profile: bool) -> Result<(), Error> {
     info!("Handling 'brane check {}'", if file == "-" { "<stdin>" } else { file.as_str() });
 
 
@@ -144,11 +152,11 @@ pub async fn handle(file: String, language: Language, profile: bool) -> Result<(
 
     // Attempt to compile the input
     debug!("Compiling source text to Brane WIR...");
-    let workflow: Workflow = match prof.time_fut("Workflow compilation", compile(&instance, &input, source, language)).await {
+    let workflow: Workflow = match prof.time_fut("Workflow compilation", compile(&instance, &input, source, language, user)).await {
         Ok(wf) => wf,
         Err(err) => return Err(Error::WorkflowCompile { input, err: Box::new(err) }),
     };
-    let workflow: String = match prof.time_func("Workflow serialization", || serde_json::to_string(&workflow)) {
+    let sworkflow: String = match prof.time_func("Workflow serialization", || serde_json::to_string(&workflow)) {
         Ok(swf) => swf,
         Err(err) => return Err(Error::WorkflowSerialize { input, err }),
     };
@@ -165,7 +173,7 @@ pub async fn handle(file: String, language: Language, profile: bool) -> Result<(
 
     // Send the request
     debug!("Sending check request to driver '{}' and awaiting response...", instance.drv);
-    let res: CheckReply = match client.check(CheckRequest { workflow }).await {
+    let res: CheckReply = match client.check(CheckRequest { workflow: sworkflow }).await {
         Ok(res) => res.into_inner(),
         Err(err) => return Err(Error::DriverCheck { address: instance.drv, err }),
     };
@@ -198,9 +206,9 @@ pub async fn handle(file: String, language: Language, profile: bool) -> Result<(
 
     // Consider the verdict
     if res.verdict {
-        println!("Workflow {} was {} by all domains", style("").bold().cyan(), style("accepted").bold().green());
+        println!("Workflow {} was {} by all domains", style(&workflow.id).bold().cyan(), style("accepted").bold().green());
     } else {
-        println!("Workflow {} was {} by at least one domains", style("").bold().cyan(), style("rejected").bold().red());
+        println!("Workflow {} was {} by at least one domain", style("").bold().cyan(), style("rejected").bold().red());
 
         if let Some(who) = res.who {
             println!(" > Checker of domain {} rejected workflow", style(who).bold().cyan());

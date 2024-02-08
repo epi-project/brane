@@ -4,7 +4,7 @@
 //  Created:
 //    22 Nov 2022, 11:19:22
 //  Last edited:
-//    29 Jan 2024, 16:45:45
+//    08 Feb 2024, 16:12:09
 //  Auto updated?
 //    Yes
 //
@@ -293,7 +293,7 @@ fn prepare_host(node_config: &NodeConfig) -> Result<(), Error> {
             // Nothing to do for a central (yet)
             let CentralConfig {
                 paths: CentralPaths { certs: _, packages: _, infra: _, proxy: _ },
-                services: CentralServices { api: _, drv: _, plr: _, prx: _, aux_scylla: _, aux_kafka: _, aux_zookeeper: _ },
+                services: CentralServices { api: _, drv: _, plr: _, prx: _, aux_scylla: _ },
             } = central;
             Ok(())
         },
@@ -561,7 +561,7 @@ fn construct_envs(version: &Version, node_config_path: &Path, node_config: &Node
         NodeSpecificConfig::Central(node) => {
             // Now we do a little ugly something, but we unpack the paths and ports here so that we get compile errors if we add more later on
             let CentralPaths { certs, packages, infra, proxy } = &node.paths;
-            let CentralServices { api, drv, plr, prx, aux_scylla: _, aux_kafka: _, aux_zookeeper: _ } = &node.services;
+            let CentralServices { api, drv, plr, prx, aux_scylla: _ } = &node.services;
 
             // Add the environment variables, which are basically just central-specific paths and ports to mount in the compose file
             res.extend([
@@ -793,7 +793,7 @@ pub async fn start(
 
     // Match on the command
     match command {
-        StartSubcommand::Central { aux_scylla, aux_kafka, aux_zookeeper, aux_xenon: _, brane_prx, brane_api, brane_drv, brane_plr } => {
+        StartSubcommand::Central { aux_scylla, brane_prx, brane_api, brane_drv, brane_plr } => {
             // Assert we are building the correct one
             if node_config.node.kind() != NodeKind::Central {
                 return Err(Error::UnmatchedNodeKind { got: NodeKind::Central, expected: node_config.node.kind() });
@@ -814,11 +814,6 @@ pub async fn start(
             if !opts.skip_import {
                 let mut images: HashMap<&'static str, ImageSource> = HashMap::from([
                     ("aux-scylla", resolve_aux_svc(aux_scylla, opts.local_aux, "scylla", &opts.image_dir, "scylladb/scylla:4.6.3")),
-                    ("aux-kafka", resolve_aux_svc(aux_kafka, opts.local_aux, "kafka", &opts.image_dir, "ubuntu/kafka:3.1-22.04_beta")),
-                    (
-                        "aux-zookeeper",
-                        resolve_aux_svc(aux_zookeeper, opts.local_aux, "zookeeper", &opts.image_dir, "ubuntu/zookeeper:3.1-22.04_beta"),
-                    ),
                     // ("aux-xenon", resolve_image_dir(aux_xenon, &opts.image_dir)),
                     ("brane-api", resolve_image_dir(brane_api, &opts.image_dir)),
                     ("brane-drv", resolve_image_dir(brane_drv, &opts.image_dir)),

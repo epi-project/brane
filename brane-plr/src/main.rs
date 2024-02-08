@@ -4,7 +4,7 @@
 //  Created:
 //    17 Oct 2022, 17:27:16
 //  Last edited:
-//    03 Jan 2024, 14:25:26
+//    08 Feb 2024, 17:12:35
 //  Auto updated?
 //    Yes
 //
@@ -26,14 +26,24 @@
 //!   Entrypoint to the `brane-plr` service.
 //
 
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use brane_cfg::info::Info as _;
 use brane_cfg::node::{CentralConfig, NodeConfig};
-use brane_plr::planner::planner_server;
+use brane_plr::context::Context;
+use brane_plr::planner;
+use brane_prx::client::ProxyClient;
 use clap::Parser;
 use dotenvy::dotenv;
-use log::{debug, error, info, LevelFilter};
+use error_trace::trace;
+use humanlog::{DebugMode, HumanLogger};
+use log::{debug, error, info, warn};
+use parking_lot::Mutex;
+use tokio::signal::unix::{signal, Signal, SignalKind};
+use warp::Filter as _;
 
 
 /***** ARGUMENTS *****/
@@ -41,10 +51,8 @@ use log::{debug, error, info, LevelFilter};
 #[clap(version = env!("CARGO_PKG_VERSION"))]
 struct Opts {
     /// Print debug info
-    #[clap(short, long, action, help = "If given, prints additional logging information.", env = "DEBUG")]
-    debug:    bool,
-    #[clap(short, long, default_value = "brane-drv", help = "The group ID of this service's consumer")]
-    group_id: String,
+    #[clap(short, long, action, help = "If given, prints additional logging information.", env = "TRACE")]
+    trace: bool,
 
     /// Node environment metadata store.
     #[clap(
@@ -70,12 +78,8 @@ async fn main() {
     let opts = Opts::parse();
 
     // Configure the logger.
-    let mut logger = env_logger::builder();
-    logger.format_module_path(false);
-    if opts.debug {
-        logger.filter_level(LevelFilter::Debug).init();
-    } else {
-        logger.filter_level(LevelFilter::Info).init();
+    if let Err(err) = HumanLogger::terminal(if opts.trace { DebugMode::Full } else { DebugMode::Debug }).init() {
+        eprintln!("WARNING: Failed to setup logger: {err} (no logging for this session)");
     }
     info!("Initializing brane-plr v{}...", env!("CARGO_PKG_VERSION"));
 
@@ -88,7 +92,7 @@ async fn main() {
             std::process::exit(1);
         },
     };
-    let config: CentralConfig = match node_config.node.try_into_central() {
+    let central_cfg: CentralConfig = match node_config.node.try_into_central() {
         Some(config) => config,
         None => {
             error!("Presented with a non-central `node.yml` file (please adapt it to provide properties for a central node)");
@@ -96,11 +100,52 @@ async fn main() {
         },
     };
 
-    // We simply start a new planner, which takes over this function
-    if let Err(err) = planner_server(opts.node_config_path, config, opts.group_id).await {
-        error!("Failed to run InstancePlanner server: {}", err);
-        std::process::exit(1);
-    }
+    // Create a context for the handler(s)
+    let context: Arc<Context> = {
+        // Create a client to the relevant proxy thing
+        let proxy: ProxyClient = ProxyClient::new(&central_cfg.services.prx.address());
 
-    // We're done if the stream is done
+        // The state of previously planned workflow snippets per-instance.
+        let state: Mutex<HashMap<String, (Instant, HashMap<String, String>)>> = Mutex::new(HashMap::new());
+
+        // Build the context
+        Arc::new(Context { node_config_path: opts.node_config_path, proxy, state })
+    };
+
+    // Next, create the warp server
+    let plan = warp::post()
+        .and(warp::path("plan"))
+        .and(warp::path::end())
+        .and(warp::any().map(move || context.clone()))
+        .and(warp::body::json())
+        .and_then(planner::handle);
+    let paths = plan;
+
+    // Launch it
+    match warp::serve(paths).try_bind_with_graceful_shutdown(central_cfg.services.plr.bind, async {
+        // Register a SIGTERM handler to be Docker-friendly
+        let mut handler: Signal = match signal(SignalKind::terminate()) {
+            Ok(handler) => handler,
+            Err(err) => {
+                error!("{}", trace!(("Failed to register SIGTERM signal handler"), err));
+                warn!("Service will NOT shutdown gracefully on SIGTERM");
+                loop {
+                    tokio::time::sleep(Duration::from_secs(24 * 3600)).await;
+                }
+            },
+        };
+
+        // Wait until we receive such a signal after which we terminate the server
+        handler.recv().await;
+        info!("Received SIGTERM, shutting down gracefully...");
+    }) {
+        Ok((addr, srv)) => {
+            info!("Now serving @ '{addr}'");
+            srv.await
+        },
+        Err(err) => {
+            error!("{}", trace!(("Failed to serve at '{}'", central_cfg.services.plr.bind), err));
+            std::process::exit(1);
+        },
+    }
 }

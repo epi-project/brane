@@ -4,7 +4,7 @@
 //  Created:
 //    28 Feb 2023, 10:01:27
 //  Last edited:
-//    29 Jan 2024, 16:37:57
+//    08 Feb 2024, 16:11:39
 //  Auto updated?
 //    Yes
 //
@@ -371,7 +371,7 @@ pub struct CentralServices {
     pub drv: PublicService,
     /// Describes the planner service.
     #[serde(alias = "planner")]
-    pub plr: KafkaService,
+    pub plr: PrivateService,
     /// Describes the proxy service.
     #[serde(alias = "proxy")]
     pub prx: PrivateOrExternalService,
@@ -379,16 +379,7 @@ pub struct CentralServices {
     // Auxillary services
     /// Describes the Scylla service.
     #[serde(alias = "scylla")]
-    pub aux_scylla:    PrivateService,
-    /// Describes the Kafka service.
-    #[serde(alias = "kafka")]
-    pub aux_kafka:     PrivateService,
-    /// Describes the Kafka Zookeeper service.
-    #[serde(alias = "zookeeper")]
-    pub aux_zookeeper: PrivateService,
-    // /// Describes the Xenon service.
-    // #[serde(alias = "xenon")]
-    // pub aux_xenon     : PrivateService,
+    pub aux_scylla: PrivateService,
 }
 
 
@@ -722,19 +713,6 @@ pub struct PrivateService {
     pub address: Address,
     /// Defines the port (and hostname) to which the Docker container will bind itself.
     pub bind:    SocketAddr,
-}
-
-/// Defines a service that is only reachable over Kafka.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct KafkaService {
-    /// Defines the name of the Docker container.
-    pub name: String,
-    /// The topic on which we can send commands to the service.
-    #[serde(alias = "command_topic")]
-    pub cmd:  String,
-    /// The topic on which we can receive results of the service.
-    #[serde(alias = "result_topic")]
-    pub res:  String,
 }
 
 /// Defines a service that we do not host, but only use.

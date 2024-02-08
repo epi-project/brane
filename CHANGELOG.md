@@ -19,7 +19,7 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
 - Integration with the [policy reasoner effort](https://github.com/epi-project/policy-reasoner):
   - Part of this is:
     - Adding `brane check` to validate workflow against all checkers without running anything.
-      - Note, this is currently imperfect, as checkers answer questions with pre-workflow state. This means that they may assume they won't have a dataset, while they would have while executing the workflow. To fix, needs some kind of hypothetical state specification to either `brane-api` or the `policy-reasoner`.
+      - Note, this is currently imperfect, as checkers answer questions with pre-workflow state. This means that they may assume they won't have a dataset, while they would have while executing the workflow as a result of a previous step. To fix, needs some kind of hypothetical state specification to either `brane-api` or the `policy-reasoner`.
     - Adding `branectl generate policy_db` to initialize the policy database file.
     - Adding `branectl generate policy_secret` to initialize a JWK set to use for API endpoint authentication in the policy reasoner.
     - Adding `branectl generate policy_token` to initialize a JWT based on the given JWK set.
@@ -44,6 +44,7 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
 - `brane-drv` and `brane-plr` are now using Rust 2021 instead of Rust 2018.
 - BraneScript syntax to remove the `on`-structs, and instead using `on`-, `loc`- or `location`-attributes \[**breaking change**\].
 - More error prints to use a trace (i.e., `Error::source()`) rather than endless colons.
+- `brane-drv` and `brane-plr` to communicate using HTTP instead of Kafka, finally. This allows us to finally get rid of `aux-kafka` and `aux-zookeeper` \[**breaking change**\].
 
 ### Fixed
 - The BraneScript compiler hanging in an infinite loop in some cases.

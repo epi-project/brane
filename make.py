@@ -5,7 +5,7 @@
 # Created:
 #   09 Jun 2022, 12:20:28
 # Last edited:
-#   03 Jan 2024, 13:34:59
+#   08 Feb 2024, 15:01:09
 # Auto updated?
 #   Yes
 #
@@ -34,7 +34,7 @@ import typing
 CENTRAL_SERVICES = [ "prx", "api", "drv", "plr" ]
 # List of auxillary services in the control part of an instance
 # At least, the ones we have to build.
-AUX_CENTRAL_SERVICES = [ "xenon" ]
+AUX_CENTRAL_SERVICES = []
 # List of services that live in a worker node in an instance
 WORKER_SERVICES = [ "prx", "job", "reg", "chk" ]
 # List of auxillary services in a worker node in an instance
