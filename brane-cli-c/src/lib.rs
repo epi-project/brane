@@ -4,7 +4,7 @@
 //  Created:
 //    14 Jun 2023, 17:38:09
 //  Last edited:
-//    08 Jan 2024, 10:23:45
+//    04 Mar 2024, 13:33:55
 //  Auto updated?
 //    Yes
 //
@@ -836,6 +836,36 @@ pub unsafe extern "C" fn workflow_free(workflow: *mut Workflow) {
     // Simply capture the box, then drop
     drop(Box::from_raw(workflow));
     cleanup_runtime();
+}
+
+
+
+/// Given a workflow, injects an end user into it.
+///
+/// # Arguments
+/// - `workflow`: The [`Workflow`] to inject into.
+/// - `user`: The name of the user to inject.
+///
+/// # Panics
+/// This function can panic if the given `workflow` is a NULL-pointer, or if the given `user` is not valid UTF-8/a NULL-pointer.
+#[no_mangle]
+pub unsafe extern "C" fn workflow_set_user(workflow: *mut Workflow, user: *const c_char) {
+    // Set the output to NULL
+    init_logger();
+    info!("Injecting user into workflow...");
+
+    // Unwrap the input workflow & user
+    let workflow: &mut Workflow = match workflow.as_mut() {
+        Some(wf) => wf,
+        None => {
+            panic!("Given Workflow is a NULL-pointer");
+        },
+    };
+    let user: &str = cstr_to_rust(user);
+
+    // Inject one into the other, done
+    workflow.user = Arc::new(Some(user.into()));
+    debug!("End-user is now set to '{user}'");
 }
 
 
