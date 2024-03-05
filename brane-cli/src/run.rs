@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    08 Jan 2024, 19:18:02
+//    05 Mar 2024, 11:40:08
 //  Auto updated?
 //    Yes
 //
@@ -310,7 +310,7 @@ pub async fn run_instance<O: Write, E: Write>(
             },
             Err(status) => {
                 // Did not receive the message properly
-                error!("{}", error_trace::trace!(("Status error"), StringError(status.message().into())));
+                return Err(Error::ExecError { err: Box::new(StringError(status.message().into())) });
             },
             Ok(None) => {
                 // Stream closed by the remote for some rason
