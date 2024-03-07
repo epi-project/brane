@@ -4,7 +4,7 @@
 //  Created:
 //    28 Feb 2023, 10:01:27
 //  Last edited:
-//    08 Feb 2024, 16:11:39
+//    07 Mar 2024, 09:52:57
 //  Auto updated?
 //    Yes
 //
@@ -73,6 +73,9 @@ impl FromStr for NodeKind {
 pub struct NodeConfig {
     /// Custom hostname <-> IP mappings to satisfy rustls
     pub hostnames: HashMap<String, IpAddr>,
+    /// The Docker Compose project name.
+    #[serde(alias = "project")]
+    pub namespace: String,
 
     /// Any node-specific config
     pub node: NodeSpecificConfig,

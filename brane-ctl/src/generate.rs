@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:47
 //  Last edited:
-//    08 Feb 2024, 16:11:46
+//    07 Mar 2024, 09:52:54
 //  Auto updated?
 //    Yes
 //
@@ -652,6 +652,7 @@ pub fn node(
             // Generate the config's contents
             NodeConfig {
                 hostnames: hosts,
+                namespace: "brane-central".into(),
 
                 node: NodeSpecificConfig::Central(CentralConfig {
                     paths: CentralPaths {
@@ -770,6 +771,7 @@ pub fn node(
             // Generate the config's contents
             NodeConfig {
                 hostnames: hosts,
+                namespace: format!("brane-worker-{location_id}"),
 
                 node: NodeSpecificConfig::Worker(WorkerConfig {
                     name: location_id,
@@ -848,6 +850,7 @@ pub fn node(
             // Populate the NodeConfig
             NodeConfig {
                 hostnames: hosts,
+                namespace: "brane-proxy".into(),
 
                 node: NodeSpecificConfig::Proxy(node::ProxyConfig {
                     paths: ProxyPaths { proxy: canonicalize(proxy)?, certs: canonicalize(certs)? },

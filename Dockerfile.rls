@@ -39,14 +39,12 @@ RUN --mount=type=cache,id=cargoidx,target=/usr/local/cargo/registry \
         --package brane-api \
         --package brane-drv \
         --package brane-job \
-        --package brane-log \
         --package brane-prx \
         --package brane-plr \
         --package brane-reg \
     && cp ./target/release/brane-api /brane-api \
     && cp ./target/release/brane-drv /brane-drv \
     && cp ./target/release/brane-job /brane-job \
-    && cp ./target/release/brane-log /brane-log \
     && cp ./target/release/brane-prx /brane-prx \
     && cp ./target/release/brane-plr /brane-plr \
     && cp ./target/release/brane-reg /brane-reg
@@ -77,6 +75,29 @@ RUN --mount=type=cache,id=cargoidx,target=/usr/local/cargo/registry \
 # If ever run, run a shell
 WORKDIR /
 ENTRYPOINT [ "/bin/bash" ]
+
+
+
+### This target does the eflint-server binary
+FROM ubuntu:22.04 AS build-eflint-server
+
+# Define build args
+ARG ARCH=amd64
+
+# Install deps
+RUN apt-get update && apt-get install -y \
+    git wget \
+ && rm -rf /var/lib/apt/lists/*
+
+# Install go
+RUN wget https://go.dev/dl/go1.22.1.linux-$ARCH.tar.gz -O - | tar -xvz
+
+# Fetch the repo & compile it
+RUN PATH="$PATH:/go/bin" \
+ && git clone https://github.com/epi-project/eflint-server-go /eflint-server-go \
+ && cd /eflint-server-go/cmd/eflint-server \
+ && go build . \
+ && mv ./eflint-server /eflint-server
 
 
 
@@ -210,8 +231,8 @@ RUN printf '#!/bin/bash\n# Startup script for the policy reasoner container\n\n#
  && chmod +x /startup.sh
 
 # Install the eFLINT JSON server
-ADD https://github.com/Olaf-Erkemeij/eflint-server/raw/bd3997df89441f13cbc82bd114223646df41540d/eflint-server /eflint-server
-RUN chmod +x /eflint-server
+# ADD https://github.com/Olaf-Erkemeij/eflint-server/raw/bd3997df89441f13cbc82bd114223646df41540d/eflint-server /eflint-server
+# RUN chmod +x /eflint-server
 
 # Copy some config from the build stage
 COPY --from=build-policy-reasoner /policy-reasoner/examples/config/jwt_resolver.yaml /examples/config/jwt_resolver.yaml
@@ -219,6 +240,9 @@ COPY --from=build-policy-reasoner /policy-reasoner/examples/config/jwt_resolver.
 # Copy `policy-reasoner` from build stage
 COPY --from=build-policy-reasoner /brane-chk /brane-chk
 RUN chmod +x /brane-chk
+
+# Copy `eflint-server` from build stage
+COPY --from=build-eflint-server /eflint-server /eflint-server
 
 # Run the compiler executable as base
 WORKDIR /

@@ -4,7 +4,7 @@
 //  Created:
 //    10 Jan 2024, 15:57:54
 //  Last edited:
-//    07 Feb 2024, 12:05:45
+//    06 Mar 2024, 14:06:05
 //  Auto updated?
 //    Yes
 //
@@ -31,8 +31,11 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use reqwest::{Client, Request, Response, StatusCode};
 use serde_json::value::RawValue;
+use serde_json::Value;
 use specifications::address::{Address, AddressOpt};
-use specifications::checking::{POLICY_API_ADD_VERSION, POLICY_API_GET_ACTIVE_VERSION, POLICY_API_LIST_POLICIES, POLICY_API_SET_ACTIVE_VERSION};
+use specifications::checking::{
+    POLICY_API_ADD_VERSION, POLICY_API_GET_ACTIVE_VERSION, POLICY_API_GET_VERSION, POLICY_API_LIST_POLICIES, POLICY_API_SET_ACTIVE_VERSION,
+};
 use srv::models::{AddPolicyPostModel, PolicyContentPostModel, SetVersionPostModel};
 use tokio::fs::{self as tfs, File as TFile};
 
@@ -61,6 +64,8 @@ pub enum Error {
     NodeConfigLoad { path: PathBuf, err: brane_cfg::info::YamlError },
     /// Found a policy on a checker without a version defined.
     PolicyWithoutVersion { addr: Address, which: String },
+    /// Failed to prompt the user for version selection.
+    PromptVersions { err: Box<Self> },
     /// Failed to build a request.
     RequestBuild { kind: &'static str, addr: String, err: reqwest::Error },
     /// A request failed for some reason.
@@ -81,6 +86,8 @@ pub enum Error {
     UnknownExtension { path: PathBuf, ext: String },
     /// The policy was given on stdout but no language was specified.
     UnspecifiedInputLanguage,
+    /// Failed to query the checker about a specific version.
+    VersionGetBody { addr: Address, version: i64, err: Box<Self> },
     /// Failed to query the user which version to select.
     VersionSelect { err: dialoguer::Error },
     /// Failed to get the versions on the remote checker.
@@ -111,6 +118,7 @@ impl Display for Error {
             },
             NodeConfigLoad { path, .. } => write!(f, "Failed to load node configuration file '{}'", path.display()),
             PolicyWithoutVersion { addr, which } => write!(f, "{which} policy return by checker '{addr}' has no version number set"),
+            PromptVersions { .. } => write!(f, "Failed to prompt the user (you!) to select a version"),
             RequestBuild { kind, addr, .. } => write!(f, "Failed to build new {kind}-request to '{addr}'"),
             RequestFailure { addr, code, response } => write!(
                 f,
@@ -139,6 +147,7 @@ impl Display for Error {
                 ext
             ),
             UnspecifiedInputLanguage => write!(f, "Cannot derive input language when giving input via stdin; manually specify it using '--language'"),
+            VersionGetBody { addr, version, .. } => write!(f, "Failed to get policy body of policy '{version}' stored in checker '{addr}'"),
             VersionSelect { .. } => write!(f, "Failed to ask you which version to make active"),
             VersionsGet { addr, .. } => write!(f, "Failed to get policy versions stored in checker '{addr}'"),
         }
@@ -157,6 +166,7 @@ impl error::Error for Error {
             NodeConfigIncompatible { .. } => None,
             NodeConfigLoad { err, .. } => Some(err),
             PolicyWithoutVersion { .. } => None,
+            PromptVersions { err } => Some(err),
             RequestBuild { err, .. } => Some(err),
             RequestFailure { .. } => None,
             RequestSend { err, .. } => Some(err),
@@ -167,6 +177,7 @@ impl error::Error for Error {
             TokenGenerate { err, .. } => Some(err),
             UnknownExtension { .. } => None,
             UnspecifiedInputLanguage => None,
+            VersionGetBody { err, .. } => Some(&**err),
             VersionSelect { err } => Some(err),
             VersionsGet { err, .. } => Some(&**err),
         }
@@ -273,6 +284,56 @@ fn resolve_addr_opt(node_config_path: impl AsRef<Path>, worker: &mut Option<Work
     Ok(Address::try_from(address).unwrap())
 }
 
+/// Helper function that pulls a specific version's body from a checker.
+///
+/// # Arguments
+/// - `address`: The address where the checker may be reached.
+/// - `token`: The token used for authenticating the checker.
+/// - `version`: The policy version to retrieve the body of.
+///
+/// # Returns
+/// The policy's body, as a parsed [`Policy`].
+///
+/// # Errors
+/// This function may error if we failed to reach the checker, failed to authenticate or failed to download/parse the result.
+async fn get_version_body_from_checker(address: &Address, token: &str, version: i64) -> Result<Policy, Error> {
+    info!("Retrieving policy '{version}' from checker '{address}'");
+
+    // Prepare the request
+    let url: String = format!("http://{}/{}", address, POLICY_API_GET_VERSION.1(version));
+    debug!("Building GET-request to '{url}'...");
+    let client: Client = Client::new();
+    let req: Request = match client.request(POLICY_API_GET_VERSION.0, &url).bearer_auth(token).build() {
+        Ok(req) => req,
+        Err(err) => return Err(Error::RequestBuild { kind: "GET", addr: url, err }),
+    };
+
+    // Send it
+    debug!("Sending request to '{url}'...");
+    let res: Response = match client.execute(req).await {
+        Ok(res) => res,
+        Err(err) => return Err(Error::RequestSend { kind: "GET", addr: url, err }),
+    };
+    debug!("Server responded with {}", res.status());
+    if !res.status().is_success() {
+        return Err(Error::RequestFailure { addr: url, code: res.status(), response: res.text().await.ok() });
+    }
+
+    // Attempt to parse the result as a list of policy versions
+    match res.text().await {
+        Ok(body) => {
+            // Log the full response first
+            debug!("Response:\n{}\n", BlockFormatter::new(&body));
+            // Parse it as a [`Policy`]
+            match serde_json::from_str(&body) {
+                Ok(body) => Ok(body),
+                Err(err) => Err(Error::ResponseDeserialize { addr: url, raw: body, err }),
+            }
+        },
+        Err(err) => Err(Error::ResponseDownload { addr: url, err }),
+    }
+}
+
 /// Helper function that pulls the versions in a checker.
 ///
 /// # Arguments
@@ -374,6 +435,80 @@ async fn get_active_version_on_checker(address: &Address, token: &str) -> Result
     }
 }
 
+/// Prompts the user to select one of the given list of versions.
+///
+/// # Arguments
+/// - `address`: The address (or some other identifier) of the checker/source we retrieved the policy from. Only used for debugging.
+/// - `active_version`: If there is any active version.
+/// - `versions`: The list of versions to select from.
+///
+/// # Returns
+/// An index into the given list, which is what the user selected. If `exit` is true, then this may return [`None`] when selected.
+///
+/// # Errors
+/// This function may error if we failed to query the user.
+fn prompt_user_version(
+    address: impl Into<Address>,
+    active_version: Option<i64>,
+    versions: &[PolicyVersion],
+    exit: bool,
+) -> Result<Option<usize>, Error> {
+    // Preprocess the versions into neat representations
+    let mut sversions: Vec<String> = Vec::with_capacity(versions.len() + 1);
+    for (i, version) in versions.iter().enumerate() {
+        // Discard it if it has no version
+        if version.version.is_none() {
+            return Err(Error::PolicyWithoutVersion { addr: address.into(), which: format!("{i}th") });
+        }
+
+        // See if it's selected to print either bold or not
+        let mut line: String = if version.version == active_version { style("Version ").bold().to_string() } else { "Version ".into() };
+        line.push_str(&style(version.version.unwrap()).bold().green().to_string());
+        if version.version == active_version {
+            line.push_str(
+                &style(format!(
+                    " (created at {}, by {})",
+                    version.created_at.format("%H:%M:%S %d-%m-%Y"),
+                    version.creator.as_ref().map(|c| c.as_str()).unwrap_or("<unknown>")
+                ))
+                .to_string(),
+            );
+        } else {
+            line.push_str(&format!(
+                " (created at {}, by {})",
+                version.created_at.format("%H:%M:%S %d-%m-%Y"),
+                version.creator.as_ref().map(|c| c.as_str()).unwrap_or("<unknown>")
+            ));
+        }
+
+        // Add the rendered line to the list
+        sversions.push(line);
+    }
+
+    // Add the exit button
+    if exit {
+        sversions.push("<exit>".into());
+    }
+
+    // Ask the user using dialoguer, then return that version
+    match dialoguer::Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("Which version do you want to make active?")
+        .items(&sversions)
+        .interact()
+    {
+        Ok(idx) => {
+            if !exit || idx < versions.len() {
+                // Exit wasn't selected
+                Ok(Some(idx))
+            } else {
+                // Exit was selected
+                Ok(None)
+            }
+        },
+        Err(err) => Err(Error::VersionSelect { err }),
+    }
+}
+
 
 
 
@@ -460,49 +595,12 @@ pub async fn activate(node_config_path: PathBuf, version: Option<i64>, address: 
             Err(err) => return Err(Error::ActiveVersionGet { addr: address, err: Box::new(err) }),
         };
 
-        // Preprocess the versions into neat representations
-        let mut sversions: Vec<String> = Vec::with_capacity(versions.len());
-        for (i, version) in versions.iter().enumerate() {
-            // Discard it if it has no version
-            if version.version.is_none() {
-                return Err(Error::PolicyWithoutVersion { addr: address, which: format!("{i}th") });
-            }
-
-            // See if it's selected to print either bold or not
-            let mut line: String = if version.version == active_version { style("Version ").bold().to_string() } else { "Version ".into() };
-            line.push_str(&style(version.version.unwrap()).bold().green().to_string());
-            if version.version == active_version {
-                line.push_str(
-                    &style(format!(
-                        " (created at {}, by {})",
-                        version.created_at.format("%H:%M:%S %d-%m-%Y"),
-                        version.creator.as_ref().map(|c| c.as_str()).unwrap_or("<unknown>")
-                    ))
-                    .to_string(),
-                );
-            } else {
-                line.push_str(&format!(
-                    " (created at {}, by {})",
-                    version.created_at.format("%H:%M:%S %d-%m-%Y"),
-                    version.creator.as_ref().map(|c| c.as_str()).unwrap_or("<unknown>")
-                ));
-            }
-
-            // Add the rendered line to the list
-            sversions.push(line);
-        }
-
-        // Ask the user using dialoguer, then return that version
-        let idx: usize = match dialoguer::Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Which version do you want to make active?")
-            .items(&sversions)
-            .interact()
-        {
-            Ok(idx) => idx,
-            Err(err) => return Err(Error::VersionSelect { err }),
+        // Prompt the user to select it
+        let idx: usize = match prompt_user_version(&address, active_version, &versions, false) {
+            Ok(Some(idx)) => idx,
+            Ok(None) => unreachable!(),
+            Err(err) => return Err(Error::PromptVersions { err: Box::new(err) }),
         };
-
-        // Done
         versions.swap_remove(idx).version.unwrap()
     };
     debug!("Activating policy version {version}");
@@ -559,6 +657,9 @@ pub async fn activate(node_config_path: PathBuf, version: Option<i64>, address: 
 /// - `language`: The language of the input.
 /// - `address`: The address on which to reach the checker. May be missing a port, to be resolved in the node.yml.
 /// - `token`: A token used for authentication with the remote checker. If omitted, will attempt to generate one based on the secret file in the node.yml file.
+///
+/// # Errors
+/// This function may error if we failed to read configs, read the input, contact the checker of if the checker errored.
 pub async fn add(
     node_config_path: PathBuf,
     input: String,
@@ -699,4 +800,54 @@ pub async fn add(
         if let Some(version) = body.version.version { format!(" as version {}", style(version).bold().green()) } else { String::new() }
     );
     Ok(())
+}
+
+
+
+/// Lists (and allows the inspection of) the policies on the node's checker.
+///
+/// # Arguments
+/// - `node_config_path`: The path to the node configuration file that determines which node we're working for.
+/// - `address`: The address on which to reach the checker. May be missing a port, to be resolved in the node.yml.
+/// - `token`: A token used for authentication with the remote checker. If omitted, will attempt to generate one based on the secret file in the node.yml file.
+///
+/// # Errors
+/// This function may error if we failed to read configs, read the input, contact the checker of if the checker errored.
+pub async fn list(node_config_path: PathBuf, address: AddressOpt, token: Option<String>) -> Result<(), Error> {
+    info!("Listing policy on checker of node defined by '{}'", node_config_path.display());
+
+    // See if we need to resolve the token & address
+    let mut worker: Option<WorkerConfig> = None;
+    let token: String = resolve_token(&node_config_path, &mut worker, token)?;
+    let address: Address = resolve_addr_opt(&node_config_path, &mut worker, address)?;
+
+    // Send the request to the reasoner to fetch the active versions
+    let mut versions: Vec<PolicyVersion> = match get_versions_on_checker(&address, &token).await {
+        Ok(versions) => versions,
+        Err(err) => return Err(Error::VersionsGet { addr: address, err: Box::new(err) }),
+    };
+    // Then fetch the already active version
+    let active_version: Option<i64> = match get_active_version_on_checker(&address, &token).await {
+        Ok(version) => version.map(|v| v.version.version).flatten(),
+        Err(err) => return Err(Error::ActiveVersionGet { addr: address, err: Box::new(err) }),
+    };
+
+    // Enter a loop where we let the user decide for themselves
+    loop {
+        // Display them to the user, with name, to select the policy they want to see more info about
+        let idx: usize = match prompt_user_version(&address, active_version, &versions, true) {
+            Ok(Some(idx)) => idx,
+            Ok(None) => break,
+            Err(err) => return Err(Error::PromptVersions { err: Box::new(err) }),
+        };
+        let version: i64 = versions.swap_remove(idx).version.unwrap();
+
+        // Attempt to pull this version from the remote
+        let version: Policy = match get_version_body_from_checker(&address, &token, version).await {
+            Ok(version) => version,
+            Err(err) => return Err(Error::VersionGetBody { addr: address, version, err: Box::new(err) }),
+        };
+    }
+
+    todo!();
 }

@@ -4,7 +4,7 @@
 //  Created:
 //    27 Oct 2022, 10:14:26
 //  Last edited:
-//    08 Feb 2024, 16:55:25
+//    07 Mar 2024, 12:01:10
 //  Auto updated?
 //    Yes
 //
@@ -37,6 +37,7 @@ use serde_json_any_key::MapIterToJson;
 use specifications::address::Address;
 use specifications::data::{AccessKind, DataName, PreprocessKind};
 use specifications::profiling::ProfileScopeHandle;
+use specifications::working::TransferRegistryTar;
 use specifications::{driving as driving_grpc, working as working_grpc};
 use tokio::sync::mpsc::Sender;
 use tonic::{Response, Status, Streaming};
@@ -105,6 +106,11 @@ impl VmPlugin for InstancePlugin {
         };
         disk.stop();
 
+        // Unpack the preprocesskind
+        let transfer: TransferRegistryTar = match preprocess {
+            PreprocessKind::TransferRegistryTar { location, dataname } => TransferRegistryTar { location, dataname: Some(dataname.into()) },
+        };
+
         // Prepare the request to send to the delegate node
         debug!("Sending preprocess request to job node '{}'...", delegate_address);
         let job = prof.time(format!("on {delegate_address}"));
@@ -112,7 +118,7 @@ impl VmPlugin for InstancePlugin {
             // NOTE: For now, we hardcode the central orchestrator as only "use-case" (registry)
             use_case: "central".into(),
 
-            kind: Some(preprocess.into()),
+            kind: transfer,
 
             workflow,
             pc: Some(specifications::working::ProgramCounter {

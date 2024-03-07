@@ -4,7 +4,7 @@
 //  Created:
 //    03 Jul 2023, 13:01:31
 //  Last edited:
-//    08 Feb 2024, 16:11:27
+//    07 Mar 2024, 09:54:40
 //  Auto updated?
 //    Yes
 //
@@ -472,8 +472,15 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
                     }),
                 };
 
+                // Generate the Docker Compose namespace
+                let namespace: String = match &node {
+                    NodeSpecificConfig::Central(_) => "brane-central".into(),
+                    NodeSpecificConfig::Worker(worker) => format!("brane-worker-{}", worker.name),
+                    NodeSpecificConfig::Proxy(_) => "brane-proxy".into(),
+                };
+
                 // Write to the config
-                Ok(NodeConfig { hostnames: cfg.hosts, node })
+                Ok(NodeConfig { namespace, hostnames: cfg.hosts, node })
             }))
         }),
     )];

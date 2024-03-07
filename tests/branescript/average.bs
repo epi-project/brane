@@ -1,0 +1,7 @@
+import average;
+
+#[on("Amy")]
+println(average(new Data { name := "numbers" }));
+
+#[on("Dan")]
+println(average(new Data { name := "numbers" }));

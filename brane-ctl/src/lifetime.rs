@@ -4,7 +4,7 @@
 //  Created:
 //    22 Nov 2022, 11:19:22
 //  Last edited:
-//    08 Feb 2024, 16:12:09
+//    07 Mar 2024, 09:55:58
 //  Auto updated?
 //    Yes
 //
@@ -829,7 +829,7 @@ pub async fn start(
             let envs: HashMap<&str, OsString> = construct_envs(&opts.version, &node_config_path, &node_config)?;
 
             // Launch the docker-compose command
-            run_compose(opts.compose_verbose, resolve_exe(exe)?, resolve_node(file, "central"), "brane-central", overridefile, envs)?;
+            run_compose(opts.compose_verbose, resolve_exe(exe)?, resolve_node(file, "central"), &node_config.namespace, overridefile, envs)?;
         },
 
         StartSubcommand::Worker { brane_prx, brane_chk, brane_reg, brane_job } => {
@@ -869,14 +869,7 @@ pub async fn start(
             let envs: HashMap<&str, OsString> = construct_envs(&opts.version, &node_config_path, &node_config)?;
 
             // Launch the docker-compose command
-            run_compose(
-                opts.compose_verbose,
-                resolve_exe(exe)?,
-                resolve_node(file, "worker"),
-                format!("brane-worker-{}", node_config.node.worker().name),
-                overridefile,
-                envs,
-            )?;
+            run_compose(opts.compose_verbose, resolve_exe(exe)?, resolve_node(file, "worker"), &node_config.namespace, overridefile, envs)?;
         },
 
         StartSubcommand::Proxy { brane_prx } => {
@@ -906,7 +899,7 @@ pub async fn start(
             let envs: HashMap<&str, OsString> = construct_envs(&opts.version, &node_config_path, &node_config)?;
 
             // Launch the docker-compose command
-            run_compose(opts.compose_verbose, resolve_exe(exe)?, resolve_node(file, "proxy"), "brane-proxy", overridefile, envs)?;
+            run_compose(opts.compose_verbose, resolve_exe(exe)?, resolve_node(file, "proxy"), &node_config.namespace, overridefile, envs)?;
         },
     }
 
@@ -963,11 +956,6 @@ pub fn stop(compose_verbose: bool, exe: impl AsRef<str>, file: Option<PathBuf>, 
         NodeKind::Worker => "worker",
         NodeKind::Proxy => "proxy",
     });
-    let pname: String = format!("brane-{}", match &node_config.node {
-        NodeSpecificConfig::Central(_) => "central".into(),
-        NodeSpecificConfig::Worker(node) => format!("worker-{}", node.name),
-        NodeSpecificConfig::Proxy(_) => "proxy".into(),
-    });
 
     // Now launch docker-compose
     let exe: (String, Vec<String>) = resolve_exe(exe)?;
@@ -976,7 +964,7 @@ pub fn stop(compose_verbose: bool, exe: impl AsRef<str>, file: Option<PathBuf>, 
     if compose_verbose {
         cmd.arg("--verbose");
     }
-    cmd.args(["-p", pname.as_str(), "-f"]);
+    cmd.args(["-p", node_config.namespace.as_str(), "-f"]);
     cmd.arg(file.as_os_str());
     cmd.args(["down"]);
     cmd.envs(envs);

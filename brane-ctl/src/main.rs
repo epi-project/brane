@@ -4,7 +4,7 @@
 //  Created:
 //    15 Nov 2022, 09:18:40
 //  Last edited:
-//    08 Feb 2024, 15:01:55
+//    06 Mar 2024, 10:57:48
 //  Auto updated?
 //    Yes
 //
@@ -631,6 +631,29 @@ enum PolicySubcommand {
         )]
         token:   Option<String>,
     },
+
+    #[clap(name = "list", about = "Lists (and allows the inspection of) the policies on the node's checker.")]
+    List {
+        /// Address on which to find the checker.
+        #[clap(
+            short,
+            long,
+            default_value = "localhost",
+            help = "The address on which to reach the checker service, given as '<HOSTNAME>[:<PORT>]'. If you omit the port, the one from the \
+                    `node.yml` file is read."
+        )]
+        address: AddressOpt,
+        /// The JWT to use to authenticate with the remote checker.
+        #[clap(
+            short,
+            long,
+            env,
+            help = "A JSON Web Token (JWT) to use to authenticate to the checker. If omitted, will use the one from the `policy_expert_secret` file \
+                    in the given `node.yml` when found. Note that you can also just set an environment variable named 'TOKEN' with the value if you \
+                    don't want to give it everytime."
+        )]
+        token:   Option<String>,
+    },
 }
 
 
@@ -812,6 +835,14 @@ async fn main() {
             PolicySubcommand::Add { input, language, address, token } => {
                 // Call the thing
                 if let Err(err) = policies::add(args.node_config, input, language, address, token).await {
+                    error!("{}", err.trace());
+                    std::process::exit(1);
+                }
+            },
+
+            PolicySubcommand::List { address, token } => {
+                // Call the thing
+                if let Err(err) = policies::list(args.node_config, address, token).await {
                     error!("{}", err.trace());
                     std::process::exit(1);
                 }

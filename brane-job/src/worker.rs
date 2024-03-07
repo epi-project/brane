@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    07 Feb 2024, 15:30:58
+//    07 Mar 2024, 11:59:55
 //  Auto updated?
 //    Yes
 //
@@ -1824,7 +1824,10 @@ impl JobService for WorkerServer {
     }
 
     async fn preprocess(&self, request: Request<PreprocessRequest>) -> Result<Response<PreprocessReply>, Status> {
-        let PreprocessRequest { use_case, kind, workflow, pc } = request.into_inner();
+        // let PreprocessRequest { use_case, kind, workflow, pc } = request.into_inner();
+        let req: PreprocessRequest = request.into_inner();
+        println!("{req:?}");
+        let PreprocessRequest { use_case, kind, workflow, pc } = req;
         debug!("Receiving preprocess request for use-case '{use_case}'");
 
         // Load the location ID from the node config
@@ -1847,106 +1850,107 @@ impl JobService for WorkerServer {
         let _total = report.time("Total");
 
         // Parse the preprocess kind
-        match kind {
-            Some(PreprocessKind::TransferRegistryTar(TransferRegistryTar { location, dataname })) => {
-                // Unwrap the dataname, first
-                let dataname: DataName = match dataname {
-                    Some(dataname) => dataname.into(),
-                    None => {
-                        error!("Failed to parse dataname in incoming request");
-                        return Err(Status::invalid_argument(format!("Invalid request: could not parse dataname")));
-                    },
-                };
-
-                // Load the node config file
-                let disk = report.time("File loading");
-                let node_config: NodeConfig = match NodeConfig::from_path(&self.node_config_path) {
-                    Ok(config) => config,
-                    Err(err) => {
-                        error!("{}", err.trace());
-                        return Err(Status::internal("An internal error occurred"));
-                    },
-                };
-                let worker: WorkerConfig = match node_config.node.try_into_worker() {
-                    Some(worker) => worker,
-                    None => {
-                        error!("Provided a non-worker `node.yml`; please provide one for a worker node");
-                        return Err(Status::internal("An internal error occurred"));
-                    },
-                };
-                disk.stop();
-
-                // Parse the workflow
-                let workflow: Workflow = match report.time_func("Workflow deserialization", || {
-                    // Attempt to deserialize
-                    serde_json::from_str(&workflow)
-                }) {
-                    Ok(wf) => wf,
-                    Err(err) => {
-                        debug!("{}", trace!(("Incoming workflow couldn't be deserialized"), err));
-                        return Err(Status::invalid_argument("Invalid workflow"));
-                    },
-                };
-
-                // Resolve the use-case
-                let registries: &DomainRegistryCache = match self.registries.get(&use_case) {
-                    Some(regs) => regs,
-                    None => {
-                        debug!("Received unknown use-case identifier '{use_case}'");
-                        return Err(Status::invalid_argument("Invalid use-case"));
-                    },
-                };
-
-                // Run the function that way
-                let access: AccessKind = match report
-                    .nest_fut("TransferTar preprocessing", |scope| {
-                        preprocess_transfer_tar(
-                            registries,
-                            &worker,
-                            self.proxy.clone(),
-                            &use_case,
-                            pc.map(|pc| {
-                                ProgramCounter::new(
-                                    if pc.func_id == u64::MAX { FunctionId::Main } else { FunctionId::Func(pc.func_id as usize) },
-                                    pc.edge_idx as usize,
-                                )
-                            }),
-                            workflow,
-                            location,
-                            dataname,
-                            scope,
-                        )
-                    })
-                    .await
-                {
-                    Ok(access) => access,
-                    Err(err) => {
-                        error!("{}", err.trace());
-                        return Err(Status::internal("An internal error occurred"));
-                    },
-                };
-
-                // Serialize the accesskind and return the reply
-                let ser = report.time("Serialization");
-                let saccess: String = match serde_json::to_string(&access) {
-                    Ok(saccess) => saccess,
-                    Err(err) => {
-                        error!("{}", PreprocessError::AccessKindSerializeError { err });
-                        return Err(Status::internal("An internal error occurred"));
-                    },
-                };
-                ser.stop();
-
-                // Done
-                debug!("File transfer complete.");
-                Ok(Response::new(PreprocessReply { access: saccess }))
-            },
-
+        // match kind {
+        //     Some(PreprocessKind::TransferRegistryTar(TransferRegistryTar { location, dataname })) => {
+        // Unwrap the dataname, first
+        let dataname: DataName = match kind.dataname {
+            Some(dataname) => dataname.into(),
             None => {
-                debug!("Incoming request has invalid preprocess kind (dropping it)");
-                Err(Status::invalid_argument("Unknown preprocesskind"))
+                error!("Failed to parse dataname in incoming request");
+                return Err(Status::invalid_argument(format!("Invalid request: could not parse dataname")));
             },
-        }
+        };
+
+        // Load the node config file
+        let disk = report.time("File loading");
+        let node_config: NodeConfig = match NodeConfig::from_path(&self.node_config_path) {
+            Ok(config) => config,
+            Err(err) => {
+                error!("{}", err.trace());
+                return Err(Status::internal("An internal error occurred"));
+            },
+        };
+        let worker: WorkerConfig = match node_config.node.try_into_worker() {
+            Some(worker) => worker,
+            None => {
+                error!("Provided a non-worker `node.yml`; please provide one for a worker node");
+                return Err(Status::internal("An internal error occurred"));
+            },
+        };
+        disk.stop();
+
+        // Parse the workflow
+        let workflow: Workflow = match report.time_func("Workflow deserialization", || {
+            // Attempt to deserialize
+            serde_json::from_str(&workflow)
+        }) {
+            Ok(wf) => wf,
+            Err(err) => {
+                debug!("{}", trace!(("Incoming workflow couldn't be deserialized"), err));
+                return Err(Status::invalid_argument("Invalid workflow"));
+            },
+        };
+
+        // Resolve the use-case
+        let registries: &DomainRegistryCache = match self.registries.get(&use_case) {
+            Some(regs) => regs,
+            None => {
+                debug!("Received unknown use-case identifier '{use_case}'");
+                return Err(Status::invalid_argument("Invalid use-case"));
+            },
+        };
+
+        // Run the function that way
+        let location: Location = kind.location;
+        let access: AccessKind = match report
+            .nest_fut("TransferTar preprocessing", |scope| {
+                preprocess_transfer_tar(
+                    registries,
+                    &worker,
+                    self.proxy.clone(),
+                    &use_case,
+                    pc.map(|pc| {
+                        ProgramCounter::new(
+                            if pc.func_id == u64::MAX { FunctionId::Main } else { FunctionId::Func(pc.func_id as usize) },
+                            pc.edge_idx as usize,
+                        )
+                    }),
+                    workflow,
+                    location,
+                    dataname,
+                    scope,
+                )
+            })
+            .await
+        {
+            Ok(access) => access,
+            Err(err) => {
+                error!("{}", err.trace());
+                return Err(Status::internal("An internal error occurred"));
+            },
+        };
+
+        // Serialize the accesskind and return the reply
+        let ser = report.time("Serialization");
+        let saccess: String = match serde_json::to_string(&access) {
+            Ok(saccess) => saccess,
+            Err(err) => {
+                error!("{}", PreprocessError::AccessKindSerializeError { err });
+                return Err(Status::internal("An internal error occurred"));
+            },
+        };
+        ser.stop();
+
+        // Done
+        debug!("File transfer complete.");
+        Ok(Response::new(PreprocessReply { access: saccess }))
+        //     },
+
+        //     None => {
+        //         debug!("Incoming request has invalid preprocess kind (dropping it)");
+        //         Err(Status::invalid_argument("Unknown preprocesskind"))
+        //     },
+        // }
     }
 
     async fn execute(&self, request: Request<ExecuteRequest>) -> Result<Response<Self::ExecuteStream>, Status> {

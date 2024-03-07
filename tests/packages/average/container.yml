@@ -1,0 +1,23 @@
+name: average
+version: 1.0.0
+kind: ecu
+
+dependencies:
+- python3
+
+files:
+- average.py
+
+entrypoint:
+  kind: task
+  exec: average.py
+
+actions:
+  average:
+    command:
+    input:
+    - name: dataset
+      type: IntermediateResult
+    output:
+    - name: output
+      type: real

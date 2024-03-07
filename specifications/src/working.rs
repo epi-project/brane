@@ -4,7 +4,7 @@
 //  Created:
 //    06 Jan 2023, 15:01:17
 //  Last edited:
-//    08 Feb 2024, 17:01:41
+//    07 Mar 2024, 11:58:09
 //  Auto updated?
 //    Yes
 //
@@ -98,10 +98,10 @@ impl error::Error for JobServiceError {}
 #[derive(Clone, Oneof)]
 pub enum DataName {
     /// The piece of data is a dataset.
-    #[prost(tag = "1", string)]
+    #[prost(tag = "2", string)]
     Data(String),
     /// The piece of data is an intermediate result.
-    #[prost(tag = "2", string)]
+    #[prost(tag = "3", string)]
     IntermediateResult(String),
 }
 
@@ -141,7 +141,7 @@ pub struct TransferRegistryTar {
 #[derive(Clone, Oneof)]
 pub enum PreprocessKind {
     /// We want to transfer it as a tar.gz from a local registry.
-    #[prost(tag = "3", message)]
+    #[prost(tag = "1", message)]
     TransferRegistryTar(TransferRegistryTar),
 }
 impl From<crate::data::PreprocessKind> for PreprocessKind {
@@ -281,8 +281,10 @@ pub struct PreprocessRequest {
     // #[prost(tags = "2,3", oneof = "DataName")]
     // pub data: Option<DataName>,
     /// The type of preprocessing that will need to happen.
-    #[prost(tags = "2", oneof = "PreprocessKind")]
-    pub kind: Option<PreprocessKind>,
+    // #[prost(tags = "2", oneof = "PreprocessKind")]
+    // pub kind: Option<PreprocessKind>,
+    #[prost(tag = "2", required, message)]
+    pub kind: TransferRegistryTar,
 
     /// The workflow provided as context of the data transfer.
     #[prost(tag = "3", required, string)]
