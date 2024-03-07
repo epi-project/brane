@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:42:57
 //  Last edited:
-//    05 Mar 2024, 11:40:08
+//    07 Mar 2024, 14:14:56
 //  Auto updated?
 //    Yes
 //
@@ -33,6 +33,7 @@ use specifications::data::{AccessKind, DataIndex, DataInfo};
 use specifications::driving::{CreateSessionRequest, DriverServiceClient, ExecuteRequest};
 use specifications::package::PackageIndex;
 use tempfile::{tempdir, TempDir};
+use tonic::Code;
 
 use crate::data;
 use crate::errors::OfflineVmError;
@@ -308,9 +309,9 @@ pub async fn run_instance<O: Write, E: Write>(
                     break;
                 }
             },
-            Err(status) => {
-                // Did not receive the message properly
-                return Err(Error::ExecError { err: Box::new(StringError(status.message().into())) });
+            Err(status) => match status.code() {
+                Code::PermissionDenied => return Err(Error::ExecDenied { err: Box::new(StringError(status.message().into())) }),
+                _ => return Err(Error::ExecError { err: Box::new(StringError(status.message().into())) }),
             },
             Ok(None) => {
                 // Stream closed by the remote for some rason

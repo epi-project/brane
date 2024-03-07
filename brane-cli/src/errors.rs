@@ -4,7 +4,7 @@
 //  Created:
 //    17 Feb 2022, 10:27:28
 //  Last edited:
-//    06 Feb 2024, 11:34:04
+//    07 Mar 2024, 14:16:08
 //  Auto updated?
 //    Yes
 //
@@ -1398,6 +1398,8 @@ pub enum RunError {
     CommandRequestError { address: String, err: tonic::Status },
     /// Failed to parse the value returned by the remote driver.
     ValueParseError { address: String, raw: String, err: serde_json::Error },
+    /// The workflow was denied by some checker.
+    ExecDenied { err: Box<dyn Error> },
     /// Failed to run the workflow
     ExecError { err: Box<dyn Error> },
 
@@ -1448,6 +1450,7 @@ impl Display for RunError {
                 write!(f, "Could not run command on remote Brane instance '{address}': request failed: remote returned status")
             },
             ValueParseError { address, raw, .. } => write!(f, "Could not parse '{raw}' sent by remote '{address}' as a value"),
+            ExecDenied { .. } => write!(f, "Workflow was denied"),
             ExecError { .. } => write!(f, "Failed to run workflow"),
 
             UnknownDataset { name } => write!(f, "Unknown dataset '{name}'"),
@@ -1495,6 +1498,7 @@ impl Error for RunError {
             WorkflowSerializeError { err } => Some(err),
             CommandRequestError { err, .. } => Some(err),
             ValueParseError { err, .. } => Some(err),
+            ExecDenied { err } => Some(&**err),
             ExecError { err } => Some(&**err),
 
             UnknownDataset { .. } => None,

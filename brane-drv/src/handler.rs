@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:18:11
 //  Last edited:
-//    08 Feb 2024, 17:28:51
+//    07 Mar 2024, 14:20:06
 //  Auto updated?
 //    Yes
 //
@@ -376,6 +376,19 @@ impl DriverService for DriverHandler {
                     if let Err(err) = tx.send(Ok(reply)).await {
                         error!("{}", trace!(("Failed to send workflow result back to client"), err));
                     }
+                },
+                Err(RemoteVmError::PlanError { err: PlanError::CheckerDenied { domain, reasons } }) => {
+                    fatal_err!(
+                        tx,
+                        Status::permission_denied(format!(
+                            "Checker of domain '{domain}' denied execution{}",
+                            if !reasons.is_empty() {
+                                format!("\n\nReasons:\n{}\n", reasons.iter().map(|r| format!(" - {r}")).collect::<Vec<String>>().join("\n"))
+                            } else {
+                                String::new()
+                            }
+                        ))
+                    );
                 },
                 Err(err) => {
                     fatal_err!(tx, Status::internal, err);
