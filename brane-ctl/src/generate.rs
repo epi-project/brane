@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:47
 //  Last edited:
-//    07 Mar 2024, 09:52:54
+//    11 Mar 2024, 15:47:05
 //  Auto updated?
 //    Yes
 //
@@ -1332,6 +1332,7 @@ pub async fn policy_database(fix_dirs: bool, path: PathBuf, branch: String) -> R
 
     // Next, fetch the migrations to run
     debug!("Retrieving up-to-date mitigations from 'https://github.com/epi-project/policy-reasoner ({branch})...");
+    // NOTE: We're not using `_dir`, but keep it to prevent the directory from being removed once the objects gets dropped
     let (_dir, migrations): (TempDir, FileBasedMigrations) = {
         // Prepare the input URL and output directory
         let url = format!("https://api.github.com/repos/epi-project/policy-reasoner/tarball/{branch}");
@@ -1370,6 +1371,7 @@ pub async fn policy_database(fix_dirs: bool, path: PathBuf, branch: String) -> R
     // Apply that with diesel
     {
         // Connect to the database
+        debug!("Applying migrations...");
         let mut conn: SqliteConnection = match SqliteConnection::establish(&path.display().to_string()) {
             Ok(conn) => conn,
             Err(err) => return Err(Error::DatabaseConnect { path, err }),
