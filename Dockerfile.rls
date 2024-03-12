@@ -65,6 +65,9 @@ ARG REASONER_BRANCH=main
 ADD "http://github.com/epi-project/policy-reasoner/zipball/${REASONER_BRANCH}/" /policy-reasoner.zip
 RUN unzip /policy-reasoner.zip && mv /epi-project-policy-reasoner* /policy-reasoner
 
+# Touch a `policy.db` into action to avoid the policy reasoner's `build.rs` building it for us (unnecessary)
+RUN mkdir -p /policy-reasoner/data && touch /policy-reasoner/data/policy.db
+
 # Compile it!
 WORKDIR /policy-reasoner
 RUN --mount=type=cache,id=cargoidx,target=/usr/local/cargo/registry \
