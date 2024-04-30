@@ -5,7 +5,7 @@
 # Created:
 #   09 Jun 2022, 12:20:28
 # Last edited:
-#   08 Feb 2024, 15:01:09
+#   30 Apr 2024, 10:46:16
 # Auto updated?
 #   Yes
 #
@@ -2975,7 +2975,7 @@ class ImageTarget(Target):
         mkdir = MakeDirCommand(os.path.dirname(destination))
 
         # Construct the build command
-        build = ShellCommand("docker", "build", "--output", f"type=docker,dest={destination}", "-f", self._dockerfile)
+        build = ShellCommand("docker", "buildx", "--output", f"type=docker,dest={destination}", "-f", self._dockerfile)
         if args.arch.is_given(): build.add("--platform", args.arch.to_docker())
         if self._target is not None: build.add("--target", self._target)
         for (name, value) in self._build_args.items():
