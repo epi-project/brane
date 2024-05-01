@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:40:47
 //  Last edited:
-//    11 Mar 2024, 15:47:05
+//    01 May 2024, 15:20:56
 //  Auto updated?
 //    Yes
 //
@@ -31,12 +31,11 @@ use brane_cfg::node::{
     ProxyPaths, ProxyServices, PublicService, WorkerConfig, WorkerPaths, WorkerServices, WorkerUsecase,
 };
 use brane_cfg::proxy::{self, ForwardConfig};
-use brane_shr::fs::{download_file_async, set_executable, DownloadSecurity};
-use console::{style, Style};
+use brane_shr::fs::{set_executable, DownloadSecurity};
+use console::style;
 use diesel::{Connection as _, SqliteConnection};
 use diesel_migrations::{FileBasedMigrations, MigrationHarness as _};
 use enum_debug::EnumDebug as _;
-use hex_literal::hex;
 use jsonwebtoken::jwk::{self, Jwk, JwkSet, KeyAlgorithm, OctetKeyParameters, OctetKeyType, PublicKeyUse};
 use log::{debug, info, warn};
 use rand::distributions::Alphanumeric;
@@ -53,12 +52,11 @@ use crate::spec::{GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNo
 use crate::utils::resolve_config_path;
 
 
-/***** CONSTANTS *****/
-/// Checksun for the `cfssl` executable.
-const CHECKSUM_CFSSL: [u8; 32] = hex!("16b42bfc592dc4d0ba1e51304f466cae7257edec13743384caf4106195ab6047");
-
-/// Checksun for the `cfssljson` executable.
-const CHECKSUM_CFSSLJSON: [u8; 32] = hex!("3b26c85877e2233684216ec658594be474954bc62b6f08780b369e234ccc67c9");
+/***** STATICS *****/
+/// The embedded `cfssl` binary, compiled and/or downloaded by `build.rs`.
+const CFSSL_BIN: &[u8] = include_bytes!(env!("CFSSL_PATH"));
+/// The embedded `cfssljson` binary, compiled and/or downloaded by `build.rs`.
+const CFSSLJSON_BIN: &[u8] = include_bytes!(env!("CFSSLJSON_PATH"));
 
 
 
@@ -355,6 +353,31 @@ fn generate_config(what: impl Display, config: impl Serialize, path: impl AsRef<
     if let Err(err) = write!(handle, "{sconfig}") {
         return Err(Error::FileWriteError { what: "config", path: path.into(), err });
     }
+    Ok(())
+}
+
+/// Extracts a cfssl(json) embedded binary to the given location.
+///
+/// # Arguments
+/// - `path`: The path to write the resulting binary to.
+/// - `cfssljson`: If true, extracts `cfssljson` instead of `cfssl`.
+///
+/// # Errors
+/// This function may error if we failed to write the binaries or make it executable.
+fn extract_cfssl(path: impl AsRef<Path>, cfssljson: bool) -> Result<(), Error> {
+    let path: &Path = path.as_ref();
+
+    // Attempt to write it
+    if let Err(err) = fs::write(path, if !cfssljson { CFSSL_BIN } else { CFSSLJSON_BIN }) {
+        return Err(Error::ExtractError { what: if !cfssljson { "cfssl" } else { "cfssljson" }, path: path.into(), err });
+    }
+
+    // Make the file executable
+    if let Err(err) = set_executable(path) {
+        return Err(Error::ExecutableError { err: Box::new(err) });
+    }
+
+    // Done
     Ok(())
 }
 
@@ -938,19 +961,8 @@ pub async fn certs(fix_dirs: bool, path: impl Into<PathBuf>, temp_dir: impl Into
         }
         debug!("'{}' already exists", cfssl_path.display());
     } else {
-        debug!("'{}' does not exist, downloading...", cfssl_path.display());
-
-        // Call our beautiful download function
-        let addr: &str = "http://github.com/cloudflare/cfssl/releases/download/v1.6.3/cfssl_1.6.3_linux_amd64";
-        if let Err(err) = download_file_async(addr, &cfssl_path, DownloadSecurity::checksum(&CHECKSUM_CFSSL), Some(Style::new().green().bold())).await
-        {
-            return Err(Error::DownloadError { source: addr.into(), target: cfssl_path, err: Box::new(err) });
-        }
-
-        // Make the file executable
-        if let Err(err) = set_executable(&cfssl_path) {
-            return Err(Error::ExecutableError { err: Box::new(err) });
-        }
+        debug!("'{}' does not exist, extracting...", cfssl_path.display());
+        extract_cfssl(&cfssl_path, false)?;
     }
 
     // Make sure the cfssljson binary is there
@@ -961,20 +973,8 @@ pub async fn certs(fix_dirs: bool, path: impl Into<PathBuf>, temp_dir: impl Into
         }
         debug!("'{}' already exists", cfssljson_path.display());
     } else {
-        debug!("'{}' does not exist, downloading...", cfssljson_path.display());
-
-        // Call our beautiful download function
-        let addr: &str = "http://github.com/cloudflare/cfssl/releases/download/v1.6.3/cfssljson_1.6.3_linux_amd64";
-        if let Err(err) =
-            download_file_async(addr, &cfssljson_path, DownloadSecurity::checksum(&CHECKSUM_CFSSLJSON), Some(Style::new().green().bold())).await
-        {
-            return Err(Error::DownloadError { source: addr.into(), target: cfssl_path, err: Box::new(err) });
-        }
-
-        // Make the file executable
-        if let Err(err) = set_executable(&cfssljson_path) {
-            return Err(Error::ExecutableError { err: Box::new(err) });
-        }
+        debug!("'{}' does not exist, extracting...", cfssljson_path.display());
+        extract_cfssl(&cfssljson_path, true)?;
     }
 
     // Now make sure the generic config JSON is there

@@ -35,6 +35,7 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
     - Changing a worker's `node.yml` to map use-case identifiers to central registries (`brane-api`) (see the `usecases`-field) \[**breaking change**\].
     - Removing `branectl generate policies` as the old file is no longer used \[**breaking change**\].
 - Graceful shutdown for instance services (`brane-api`, `brane-drv`, `brane-job`, `brane-plr`, `brane-reg`).
+- `branectl` now embeds `cfssl`/`cfssljson` binaries, either downloaded or compiled from source at compile time. The latter because 1.6.3 does not include ARM binaries by default.
 - Passing the `--debug` flag is now the default to the builtin `docker-compose-*.yml` files in `branectl`. If you want to revert to default behaviour, extract the compose file(s) first (`branectl extract compose ...`), change it accordingly, and then pass it during lifetime commands (e.g., `branectl start -f path/to/compose/file ...`).
 
 ### Changed
@@ -52,6 +53,7 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
 - The BraneScript compiler panicking on successive projections.
 - CI/CD in the repository by moving most of it to scripts which we _can_ test offline.
 - The WIR using platform-specific `usize::MAX` to detect the main function. This has been replaced with `FunctionId` (`brane-ast`) and `ProgramCounter` (`brane-exe`) \[**breaking change**\].
+- `make.py` relying on buildx being the default Docker builder.
 
 ## [3.0.0] - 2023-10-22
 ### Added

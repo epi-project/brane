@@ -709,6 +709,7 @@ dependencies = [
  "diesel_migrations",
  "dirs-2",
  "dotenvy",
+ "download",
  "eflint-to-json",
  "enum-debug",
  "error-trace",
@@ -1036,7 +1037,6 @@ dependencies = [
  "log",
  "num-derive 0.3.3",
  "num-traits",
- "rdkafka",
  "regex",
  "reqwest",
  "sha2",
@@ -1796,6 +1796,19 @@ name = "dotenvy"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
+
+[[package]]
+name = "download"
+version = "0.1.0"
+source = "git+https://github.com/Lut99/download-rs#ebba70884249fcfcb978eef74c57da16b593ac33"
+dependencies = [
+ "console",
+ "hex",
+ "indicatif",
+ "reqwest",
+ "sha2",
+ "url",
+]
 
 [[package]]
 name = "eflint-json"

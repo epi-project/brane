@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    15 Jan 2024, 13:23:20
+//    01 May 2024, 15:19:09
 //  Auto updated?
 //    Yes
 //
@@ -108,8 +108,8 @@ pub enum GenerateError {
     FileSerializeError { what: &'static str, path: PathBuf, err: serde_json::Error },
     /// Failed to deserialize & read an input file.
     FileDeserializeError { what: &'static str, path: PathBuf, err: serde_json::Error },
-    /// Failed to download a file.
-    DownloadError { source: String, target: PathBuf, err: Box<brane_shr::fs::Error> },
+    /// Failed to extract a file.
+    ExtractError { what: &'static str, path: PathBuf, err: std::io::Error },
     /// Failed to set a file to executable.
     ExecutableError { err: Box<brane_shr::fs::Error> },
 
@@ -182,7 +182,7 @@ impl Display for GenerateError {
             FileWriteError { what, path, .. } => write!(f, "Failed to write to {} file '{}'", what, path.display()),
             FileSerializeError { what, path, .. } => write!(f, "Failed to write JSON to {} file '{}'", what, path.display()),
             FileDeserializeError { what, path, .. } => write!(f, "Failed to read JSON from {} file '{}'", what, path.display()),
-            DownloadError { source, target, .. } => write!(f, "Failed to download '{}' to '{}'", source, target.display()),
+            ExtractError { what, path, .. } => write!(f, "Failed to extract embedded {}-binary to '{}'", what, path.display()),
             ExecutableError { .. } => write!(f, "Failed to make file executable"),
 
             FileMetadataError { what, path, .. } => write!(f, "Failed to get metadata of {} file '{}'", what, path.display()),
@@ -243,7 +243,7 @@ impl Error for GenerateError {
             FileWriteError { err, .. } => Some(err),
             FileSerializeError { err, .. } => Some(err),
             FileDeserializeError { err, .. } => Some(err),
-            DownloadError { err, .. } => Some(err),
+            ExtractError { err, .. } => Some(err),
             ExecutableError { err } => Some(err),
 
             FileMetadataError { err, .. } => Some(err),
