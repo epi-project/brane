@@ -3450,7 +3450,7 @@ for svc in CENTRAL_SERVICES + WORKER_SERVICES:
         )
 
     # Generate the service image build target
-    targets[f"{svc}-image"] = EitherTarget(f"{svc}-image-build",
+    targets[f"{svc}-image"] = EitherTarget(f"{svc}-image",
         "dev", {
             False : ImageTarget(f"{svc}-image-release",
                 "./Dockerfile.rls", f"./target/release/brane-{svc}.tar", target=f"brane-{svc}",
