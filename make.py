@@ -3759,6 +3759,10 @@ def build_target(target_name, args) -> int:
         This function acts as the 'main' function of the script.
     """
 
+    if target_name not in targets:
+        perror(f"Could not find target: {target_name}")
+        return 1
+
     # Do a warning
     if args.dry_run:
         pwarning("Simulating build only; no commands are actually run (due to '--dry-run')")
