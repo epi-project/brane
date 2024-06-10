@@ -1,6 +1,6 @@
 name: arithmetic
 version: 1.0.0
-kind: compute
+kind: ecu
 base: alpine
 
 entrypoint:
