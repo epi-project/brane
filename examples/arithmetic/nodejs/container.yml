@@ -12,7 +12,7 @@ dependencies:
   - npm
 
 install:
-  - npm install js-yaml
+  - npm install -g js-yaml
 
 files:
   - run.js
