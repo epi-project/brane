@@ -86,13 +86,11 @@ fn main() {
         for (url, checksum, is_cfssljson) in files {
             // Nothing to do if the file already exists
             let path: PathBuf = build_dir.join(if !is_cfssljson { "cfssl" } else { "cfssljson" });
-            if path.exists() {
-                continue;
-            }
-
-            // Run it using the download crate
-            if let Err(err) = download_file(url, &path, DownloadSecurity::all(&checksum), None) {
-                panic!("Failed to download file '{}' to '{}': {}", url, path.display(), err);
+            if !path.exists() {
+                // Run it using the download crate
+                if let Err(err) = download_file(url, &path, DownloadSecurity::all(&checksum), None) {
+                    panic!("Failed to download file '{}' to '{}': {}", url, path.display(), err);
+                }
             }
 
             // Report where it lives
