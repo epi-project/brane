@@ -4,7 +4,7 @@
 //  Created:
 //    18 Nov 2022, 14:36:55
 //  Last edited:
-//    02 Nov 2023, 11:20:01
+//    13 Jun 2024, 16:21:19
 //  Auto updated?
 //    Yes
 //
@@ -25,6 +25,7 @@ use brane_cc::spec::IndexLocation;
 use brane_dsl::Language;
 use clap::Parser;
 use dotenvy::dotenv;
+#[cfg(unix)]
 use expanduser::expanduser;
 use human_panic::setup_panic;
 use humanlog::{DebugMode, HumanLogger};
@@ -215,11 +216,15 @@ pub async fn compile_iter(
         },
 
         IndexLocation::Local(local) => {
-            // Resolve the tildes first
+            // Resolve the tildes first, but only on UNIX platforms that do this
+            #[cfg(unix)]
             let local: PathBuf = match expanduser(local.to_string_lossy()) {
                 Ok(local) => local,
                 Err(_) => local.clone(),
             };
+            #[cfg(not(unix))]
+            let local: PathBuf = local.clone();
+
             debug!("Fetching local package index from '{}'...", local.display());
             if !raw_assets {
                 match brane_tsk::local::get_package_index(local) {
@@ -248,11 +253,15 @@ pub async fn compile_iter(
         },
 
         IndexLocation::Local(local) => {
-            // Resolve the tildes first
+            // Resolve the tildes first, but only on UNIX platforms that do this
+            #[cfg(unix)]
             let local: PathBuf = match expanduser(local.to_string_lossy()) {
                 Ok(local) => local,
                 Err(_) => local.clone(),
             };
+            #[cfg(not(unix))]
+            let local: PathBuf = local.clone();
+
             debug!("Fetching local data index from '{}'...", local.display());
             if !raw_assets {
                 match brane_tsk::local::get_data_index(local) {

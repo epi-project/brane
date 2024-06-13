@@ -12,7 +12,6 @@ path = "src/main.rs"
 clap = { version = "4.0.24", features = ["derive","env"] }
 dotenvy = "0.15"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
-expanduser = "1.2.2"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
 human-panic = "1.0"
 log = "0.4"
@@ -25,6 +24,10 @@ brane-shr = { path = "../brane-shr" }
 brane-tsk = { path = "../brane-tsk" }
 serde_json = "1"
 specifications = { path = "../specifications" }
+
+
+[target.'cfg(unix)'.dependencies]
+expanduser = "1.2.2"
 
 
 # Hacky indeed but necessary to dodge OpenSSL linking, which we need to make cross-compilation _so_ much easier
