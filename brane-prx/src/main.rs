@@ -4,7 +4,7 @@
 //  Created:
 //    23 Nov 2022, 10:52:33
 //  Last edited:
-//    03 Jan 2024, 14:57:44
+//    14 Jun 2024, 15:14:24
 //  Auto updated?
 //    Yes
 //
@@ -78,7 +78,7 @@ async fn main() {
     let node_config: NodeConfig = match NodeConfig::from_path(&args.node_config_path) {
         Ok(config) => config,
         Err(err) => {
-            error!("Failed to load NodeConfig file: {}", err);
+            error!("{}", trace!(("Failed to load NodeConfig file"), err));
             std::process::exit(1);
         },
     };
@@ -105,7 +105,7 @@ async fn main() {
         match ProxyConfig::from_path(proxy_path) {
             Ok(config) => config,
             Err(err) => {
-                error!("Failed to load ProxyConfig file: {}", err);
+                error!("{}", trace!(("Failed to load ProxyConfig file"), err));
                 std::process::exit(1);
             },
         }
