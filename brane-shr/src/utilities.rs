@@ -4,7 +4,7 @@
 //  Created:
 //    18 Aug 2022, 14:58:16
 //  Last edited:
-//    08 Nov 2023, 14:06:22
+//    14 Jun 2024, 16:40:49
 //  Auto updated?
 //    Yes
 //
@@ -21,7 +21,7 @@ use humanlog::{DebugMode, HumanLogger};
 use log::{debug, warn};
 use regex::Regex;
 use specifications::container::ContainerInfo;
-use specifications::data::{DataIndex, DataInfo};
+use specifications::data::{AssetInfo, DataIndex, DataInfo};
 use specifications::package::{PackageIndex, PackageInfo};
 use tokio::runtime::{Builder, Runtime};
 use url::{Host, Url};
@@ -179,13 +179,13 @@ pub fn create_data_index_from(path: impl AsRef<Path>) -> DataIndex {
                 if let Some(ext) = entry.path().extension() {
                     if ext.to_str().unwrap_or("") == "yml" || ext.to_str().unwrap_or("") == "yaml" {
                         // Read it as a DataInfo
-                        let info: DataInfo = match DataInfo::from_path(entry.path()) {
+                        let info: AssetInfo = match AssetInfo::from_path(entry.path()) {
                             Ok(info) => info,
                             Err(err) => {
-                                panic!("Failed to read '{}' as DataInfo: {}", entry.path().display(), err);
+                                panic!("Failed to read '{}' as AssetInfo: {}", entry.path().display(), err);
                             },
                         };
-                        infos.push(info);
+                        infos.push(info.into());
                     }
                 }
             } else if entry.path().is_dir() {
