@@ -3,6 +3,7 @@ name = "brane-log"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2018"
+license = { workspace = true }
 
 [dependencies]
 anyhow = "1"

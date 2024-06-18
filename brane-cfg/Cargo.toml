@@ -3,6 +3,7 @@ name = "brane-cfg"
 version = { workspace = true }
 authors = ["Onno Valkering", "Tim Müller"]
 edition = "2018"
+license = { workspace = true }
 
 [dependencies]
 async-trait = "0.1"

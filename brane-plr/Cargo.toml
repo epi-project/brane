@@ -3,6 +3,7 @@ name = "brane-plr"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2021"
+license = { workspace = true }
 
 [dependencies]
 async-recursion = "1.0.0"

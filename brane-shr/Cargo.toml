@@ -2,6 +2,7 @@
 name = "brane-shr"
 version = { workspace = true }
 authors = { workspace = true }
+license = { workspace = true }
 edition = "2021"
 
 [dependencies]

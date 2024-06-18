@@ -2,6 +2,7 @@
 name = "specifications"
 version = { workspace = true }
 authors = { workspace = true }
+license = { workspace = true }
 edition = "2018"
 
 [dependencies]

@@ -3,6 +3,7 @@ name = "brane-cli"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2021"
+license = { workspace = true }
 
 [[bin]]
 name = "brane"
