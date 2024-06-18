@@ -5,11 +5,6 @@ edition = "2021"
 authors = [ "Tim Müller" ]
 
 
-[[example]]
-path = "./examples/cli.rs"
-name = "cli"
-
-
 [dependencies]
 async-trait = "0.1"
 base64 = "0.21"
