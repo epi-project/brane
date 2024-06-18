@@ -306,6 +306,7 @@ impl InstanceInfo {
 ///
 /// # Errors
 /// This function errors if we failed to generate any files, or if some check failed for this instance.
+#[allow(clippy::too_many_arguments)]
 pub async fn add(
     name: String,
     hostname: Hostname,
@@ -321,7 +322,7 @@ pub async fn add(
     // Assert the name is valid
     debug!("Asserting name validity...");
     for c in name.chars() {
-        if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_' && c != '.' && c != '-' {
+        if !c.is_ascii_lowercase() && !c.is_ascii_uppercase() && !c.is_ascii_digit() && c != '_' && c != '.' && c != '-' {
             return Err(Error::IllegalInstanceName { raw: name, illegal_char: c });
         }
     }

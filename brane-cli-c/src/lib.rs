@@ -849,6 +849,7 @@ pub unsafe extern "C" fn workflow_free(workflow: *mut Workflow) {
 /// # Panics
 /// This function can panic if the given `workflow` is a NULL-pointer, or if the given `user` is not valid UTF-8/a NULL-pointer.
 #[no_mangle]
+#[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn workflow_set_user(workflow: *mut Workflow, user: *const c_char) {
     // Set the output to NULL
     init_logger();
@@ -1060,7 +1061,7 @@ pub unsafe extern "C" fn compiler_compile(
     compiler.source.push('\n');
 
     // Compile that using `brane-ast`
-    serr.source = compiler.source.clone();
+    serr.source.clone_from(&compiler.source);
     let wf: Workflow = {
         // Acquire locks on the indices
         let pindex: MutexGuard<PackageIndex> = compiler.pindex.lock();

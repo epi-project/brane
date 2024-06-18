@@ -556,7 +556,7 @@ impl PackageIndex {
             if package.version >= latest_package.0 {
                 // It is; update the version to point to the latest version of this package
                 latest_package.0 = package.version;
-                latest_package.1 = key.clone();
+                latest_package.1.clone_from(key);
             }
         }
 

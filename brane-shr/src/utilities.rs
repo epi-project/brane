@@ -423,7 +423,6 @@ where
 
 
 /***** ADDRESS CHECKING *****/
-///
 pub fn ensure_http_schema<S>(url: S, secure: bool) -> Result<String, url::ParseError>
 where
     S: Into<String>,

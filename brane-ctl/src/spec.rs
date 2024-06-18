@@ -321,6 +321,7 @@ pub enum DownloadServicesSubcommand {
 
 /// A bit awkward here, but defines the generate subcommand for the node file. This basically defines the possible kinds of nodes to generate.
 #[derive(Debug, EnumDebug, Subcommand)]
+#[allow(clippy::large_enum_variant)] // We should only have one anyway
 pub enum GenerateNodeSubcommand {
     /// Starts a central node.
     #[clap(name = "central", about = "Generates a node.yml file for a central node with default values.")]
@@ -616,7 +617,7 @@ impl GenerateCertsSubcommand {
         match self {
             Server { location_id, hostname, .. } | Client { location_id, hostname, .. } => {
                 if hostname == "$LOCATION_ID" {
-                    *hostname = location_id.clone();
+                    hostname.clone_from(location_id);
                 }
             },
         }

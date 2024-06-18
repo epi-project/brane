@@ -180,7 +180,7 @@ async fn main() {
     let routes = data.or(packages.or(infra.or(health.or(version.or(graphql))))).with(warp::log("brane-api"));
 
     // Run the server
-    match warp::serve(routes).try_bind_with_graceful_shutdown(central.services.api.bind, async {
+    let handle = warp::serve(routes).try_bind_with_graceful_shutdown(central.services.api.bind, async {
         // Register a SIGTERM handler to be Docker-friendly
         let mut handler: Signal = match signal(SignalKind::terminate()) {
             Ok(handler) => handler,
@@ -196,7 +196,9 @@ async fn main() {
         // Wait until we receive such a signal after which we terminate the server
         handler.recv().await;
         info!("Received SIGTERM, shutting down gracefully...");
-    }) {
+    });
+
+    match handle {
         Ok((addr, srv)) => {
             info!("Now serving @ '{addr}'");
             srv.await
@@ -208,7 +210,6 @@ async fn main() {
     }
 }
 
-///
 pub async fn ensure_db_keyspace(scylla: &Session) -> Result<scylla::QueryResult, scylla::transport::errors::QueryError> {
     let query = r#"
         CREATE KEYSPACE IF NOT EXISTS brane

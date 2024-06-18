@@ -176,11 +176,11 @@ where
         } else if !ext && (c == ' ' || c == '-' || c == '_') {
             // Write it as a space
             header_name.push(' ');
-        } else if !ext && saw_lowercase && c >= 'A' && c <= 'Z' {
+        } else if !ext && saw_lowercase && c.is_ascii_uppercase() {
             // Write is with a space, since we assume it's a word boundary in camelCase
             header_name.push(' ');
             header_name.push(c);
-        } else if !ext && c >= 'a' && c <= 'z' {
+        } else if !ext && c.is_ascii_lowercase() {
             // Capitalize it
             header_name.push((c as u8 - b'a' + b'A') as char);
         } else {
@@ -189,7 +189,7 @@ where
         }
 
         // Update whether we saw a lowercase last step
-        saw_lowercase = c >= 'a' && c <= 'z';
+        saw_lowercase = c.is_ascii_lowercase();
     }
 
     // Create a file, now

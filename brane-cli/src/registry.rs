@@ -382,9 +382,6 @@ pub async fn push(packages: Vec<(String, Version)>) -> Result<(), RegistryError>
 }
 /*******/
 
-///
-///
-///
 pub async fn search(term: Option<String>) -> Result<()> {
     #[derive(GraphQLQuery)]
     #[graphql(
@@ -437,9 +434,6 @@ pub async fn search(term: Option<String>) -> Result<()> {
     Ok(())
 }
 
-///
-///
-///
 pub async fn unpublish(
     name: String,
     version: Version,

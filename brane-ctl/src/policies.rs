@@ -31,7 +31,6 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use reqwest::{Client, Request, Response, StatusCode};
 use serde_json::value::RawValue;
-use serde_json::Value;
 use specifications::address::{Address, AddressOpt};
 use specifications::checking::{
     POLICY_API_ADD_VERSION, POLICY_API_GET_ACTIVE_VERSION, POLICY_API_GET_VERSION, POLICY_API_LIST_POLICIES, POLICY_API_SET_ACTIVE_VERSION,
@@ -201,11 +200,11 @@ impl error::Error for Error {
 /// # Errors
 /// This function may error if we failed to load a node config from the given path, or the node config was not for a worker node.
 fn resolve_worker_config(node_config_path: impl AsRef<Path>, worker: Option<WorkerConfig>) -> Result<WorkerConfig, Error> {
-    worker.map(|cfg| Ok(cfg)).unwrap_or_else(|| {
+    worker.map(Ok).unwrap_or_else(|| {
         let node_config_path: &Path = node_config_path.as_ref();
 
         debug!("Loading node configuration file '{}'...", node_config_path.display());
-        let node: NodeConfig = match NodeConfig::from_path(&node_config_path) {
+        let node: NodeConfig = match NodeConfig::from_path(node_config_path) {
             Ok(node) => node,
             Err(err) => return Err(Error::NodeConfigLoad { path: node_config_path.into(), err }),
         };
@@ -252,7 +251,7 @@ fn resolve_token(node_config_path: impl AsRef<Path>, worker: &mut Option<WorkerC
                 *worker = Some(worker_cfg);
                 Ok(token)
             },
-            Err(err) => return Err(Error::TokenGenerate { secret: worker_cfg.paths.policy_expert_secret, err }),
+            Err(err) => Err(Error::TokenGenerate { secret: worker_cfg.paths.policy_expert_secret, err }),
         }
     }
 }
@@ -469,7 +468,7 @@ fn prompt_user_version(
                 &style(format!(
                     " (created at {}, by {})",
                     version.created_at.format("%H:%M:%S %d-%m-%Y"),
-                    version.creator.as_ref().map(|c| c.as_str()).unwrap_or("<unknown>")
+                    version.creator.as_deref().unwrap_or("<unknown>")
                 ))
                 .to_string(),
             );
@@ -477,7 +476,7 @@ fn prompt_user_version(
             line.push_str(&format!(
                 " (created at {}, by {})",
                 version.created_at.format("%H:%M:%S %d-%m-%Y"),
-                version.creator.as_ref().map(|c| c.as_str()).unwrap_or("<unknown>")
+                version.creator.as_deref().unwrap_or("<unknown>")
             ));
         }
 
@@ -591,7 +590,7 @@ pub async fn activate(node_config_path: PathBuf, version: Option<i64>, address: 
         };
         // Then fetch the already active version
         let active_version: Option<i64> = match get_active_version_on_checker(&address, &token).await {
-            Ok(version) => version.map(|v| v.version.version).flatten(),
+            Ok(version) => version.and_then(|v| v.version.version),
             Err(err) => return Err(Error::ActiveVersionGet { addr: address, err: Box::new(err) }),
         };
 
@@ -828,7 +827,7 @@ pub async fn list(node_config_path: PathBuf, address: AddressOpt, token: Option<
     };
     // Then fetch the already active version
     let active_version: Option<i64> = match get_active_version_on_checker(&address, &token).await {
-        Ok(version) => version.map(|v| v.version.version).flatten(),
+        Ok(version) => version.and_then(|v| v.version.version),
         Err(err) => return Err(Error::ActiveVersionGet { addr: address, err: Box::new(err) }),
     };
 
@@ -843,7 +842,7 @@ pub async fn list(node_config_path: PathBuf, address: AddressOpt, token: Option<
         let version: i64 = versions.swap_remove(idx).version.unwrap();
 
         // Attempt to pull this version from the remote
-        let version: Policy = match get_version_body_from_checker(&address, &token, version).await {
+        let _version: Policy = match get_version_body_from_checker(&address, &token, version).await {
             Ok(version) => version,
             Err(err) => return Err(Error::VersionGetBody { addr: address, version, err: Box::new(err) }),
         };

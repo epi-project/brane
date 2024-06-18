@@ -19,7 +19,6 @@ use crate::scanner::Tokens;
 use crate::spec::TextRange;
 // use std::num::NonZeroUsize;
 
-///
 pub fn parse_ast(_input: Tokens, _package_index: PackageIndex) -> IResult<Tokens, Program, VerboseError<Tokens>> {
     // For now, let's be really naive
     Ok((Tokens::new(&[]), Program {

@@ -325,7 +325,7 @@ fn prepare_host(node_config: &NodeConfig) -> Result<(), Error> {
             if let Some(policy_audit_log) = policy_audit_log {
                 if !policy_audit_log.exists() {
                     debug!("Generating empty persistent audit log at '{}'...", policy_audit_log.display());
-                    if let Err(err) = File::create(&policy_audit_log) {
+                    if let Err(err) = File::create(policy_audit_log) {
                         return Err(Error::AuditLogCreate { path: policy_audit_log.clone(), err });
                     }
                 }

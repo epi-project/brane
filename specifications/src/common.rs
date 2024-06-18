@@ -34,9 +34,6 @@ pub struct Parameter {
 }
 
 impl Parameter {
-    ///
-    ///
-    ///
     pub fn new(
         name: String,
         data_type: String,
@@ -68,9 +65,6 @@ pub struct Function {
 }
 
 impl Function {
-    ///
-    ///
-    ///
     pub fn new(
         parameters: Vec<Parameter>,
         pattern: Option<CallPattern>,
@@ -99,9 +93,6 @@ pub struct CallPattern {
 }
 
 impl CallPattern {
-    ///
-    ///
-    ///
     pub fn new(
         prefix: Option<String>,
         infix: Option<Vec<String>>,
@@ -123,9 +114,6 @@ pub struct Type {
 }
 
 impl Type {
-    ///
-    ///
-    ///
     pub fn new(
         name: String,
         properties: Vec<Property>,
@@ -151,9 +139,6 @@ pub struct Property {
 }
 
 impl Property {
-    ///
-    ///
-    ///
     pub fn new(
         name: String,
         data_type: String,
@@ -172,9 +157,6 @@ impl Property {
         }
     }
 
-    ///
-    ///
-    ///
     pub fn new_quick(
         name: &str,
         data_type: &str,
@@ -189,9 +171,6 @@ impl Property {
         }
     }
 
-    ///
-    ///
-    ///
     pub fn into_parameter(self) -> Parameter {
         Parameter::new(self.name, self.data_type, self.optional, self.default, None)
     }
@@ -315,9 +294,6 @@ impl Display for CastError {
 impl std::error::Error for CastError {}
 
 impl Value {
-    ///
-    ///
-    ///
     pub fn from_json(value: &JValue) -> Self {
         match value {
             JValue::Null => Value::Unit,
@@ -371,9 +347,6 @@ impl Value {
     }
     /*******/
 
-    ///
-    ///
-    ///
     pub fn as_bool(&self) -> Result<bool, CastError> {
         if let Value::Boolean(b) = self {
             Ok(*b)
@@ -382,9 +355,6 @@ impl Value {
         }
     }
 
-    ///
-    ///
-    ///
     pub fn as_f64(&self) -> Result<f64, CastError> {
         if let Value::Real(f) = self {
             Ok(*f)
@@ -393,9 +363,6 @@ impl Value {
         }
     }
 
-    ///
-    ///
-    ///
     pub fn as_i64(&self) -> Result<i64, CastError> {
         if let Value::Integer(i) = self {
             Ok(*i)
@@ -404,9 +371,6 @@ impl Value {
         }
     }
 
-    ///
-    ///
-    ///
     pub fn as_string(&self) -> Result<String, CastError> {
         if let Value::Unicode(s) = self {
             Ok(s.clone())
@@ -415,9 +379,6 @@ impl Value {
         }
     }
 
-    ///
-    ///
-    ///
     pub fn as_json(&self) -> JValue {
         use Value::*;
         match self {
@@ -487,9 +448,6 @@ impl Display for Value {
 }
 
 impl PartialEq for Value {
-    ///
-    ///
-    ///
     fn eq(
         &self,
         other: &Self,
@@ -511,9 +469,6 @@ impl PartialEq for Value {
 }
 
 impl PartialOrd for Value {
-    ///
-    ///
-    ///
     fn partial_cmp(
         &self,
         other: &Self,
@@ -591,9 +546,6 @@ pub struct Variable {
 }
 
 impl Variable {
-    ///
-    ///
-    ///
     pub fn new(
         name: String,
         data_type: String,
@@ -608,9 +560,6 @@ impl Variable {
         }
     }
 
-    ///
-    ///
-    ///
     pub fn as_pointer(&self) -> Value {
         Value::Pointer {
             data_type: self.data_type.clone(),

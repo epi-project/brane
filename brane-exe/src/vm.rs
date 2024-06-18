@@ -25,101 +25,6 @@ use crate::thread::Thread;
 use crate::value::FullValue;
 
 
-/***** TESTS *****/
-#[cfg(test)]
-pub mod tests {
-    use brane_ast::fetcher::SnippetFetcher;
-    use brane_ast::state::CompileState;
-    use brane_ast::traversals::print::ast;
-    use brane_ast::{compile_snippet, CompileResult, ParserOptions};
-    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files_async};
-    use specifications::data::DataIndex;
-    use specifications::package::PackageIndex;
-
-    use super::*;
-    use crate::dummy::DummyVm;
-
-
-    /// Tests the traversal by generating symbol tables for every file.
-    #[tokio::test]
-    async fn test_snippets() {
-        // Run the tests on all the files
-        test_on_dsl_files_async("BraneScript", |path, code| {
-            async move {
-                // Start by the name to always know which file this is
-                println!("{}", (0..80).map(|_| '-').collect::<String>());
-                println!("File '{}' gave us:", path.display());
-
-                // Load the package index
-                let pindex: PackageIndex = create_package_index();
-                let dindex: DataIndex = create_data_index();
-
-                // Run the program but now line-by-line (to test the snippet function)
-                let mut source: String = String::new();
-                let mut state: CompileState = CompileState::new();
-                let mut vm: DummyVm = DummyVm::new();
-                let mut iter = code.split('\n');
-                for (offset, l) in SnippetFetcher::new(|| Ok(iter.next().map(|l| l.into()))) {
-                    // Append the source (for errors only)
-                    source.push_str(&l);
-
-                    // Compile the workflow
-                    let workflow: Workflow = match compile_snippet(&mut state, l.as_bytes(), &pindex, &dindex, &ParserOptions::bscript()) {
-                        CompileResult::Workflow(wf, warns) => {
-                            // Print warnings if any
-                            for w in warns {
-                                w.prettyprint(path.to_string_lossy(), &source);
-                            }
-                            wf
-                        },
-                        CompileResult::Eof(err) => {
-                            // Fetch more data instead
-                            err.prettyprint(path.to_string_lossy(), &source);
-                            panic!("Failed to compile to workflow (see output above)");
-                        },
-                        CompileResult::Err(errs) => {
-                            // Print the errors
-                            for e in errs {
-                                e.prettyprint(path.to_string_lossy(), &source);
-                            }
-                            panic!("Failed to compile to workflow (see output above)");
-                        },
-
-                        _ => {
-                            unreachable!();
-                        },
-                    };
-
-                    // Print the file itself
-                    ast::do_traversal(&workflow, std::io::stdout()).unwrap();
-                    println!("{}", (0..40).map(|_| "- ").collect::<String>());
-
-                    // Run the VM on this snippet
-                    vm = match vm.exec(workflow).await {
-                        (vm, Ok(value)) => {
-                            println!("Workflow stdout:");
-                            vm.flush_stdout();
-                            println!();
-                            println!("Workflow returned: {value:?}");
-                            vm
-                        },
-                        (_, Err(err)) => {
-                            eprintln!("{err}");
-                            panic!("Failed to execute workflow (snippet) (see output above)");
-                        },
-                    };
-
-                    // Increment the state offset
-                    state.offset += offset.line;
-                }
-                println!("{}\n\n", (0..80).map(|_| '-').collect::<String>());
-            }
-        })
-        .await;
-    }
-}
-
-
 
 
 
@@ -215,5 +120,100 @@ pub trait Vm {
             },
             Err(err) => Err(err),
         }
+    }
+}
+
+
+/***** TESTS *****/
+#[cfg(test)]
+pub mod tests {
+    use brane_ast::fetcher::SnippetFetcher;
+    use brane_ast::state::CompileState;
+    use brane_ast::traversals::print::ast;
+    use brane_ast::{compile_snippet, CompileResult, ParserOptions};
+    use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files_async};
+    use specifications::data::DataIndex;
+    use specifications::package::PackageIndex;
+
+    use super::*;
+    use crate::dummy::DummyVm;
+
+
+    /// Tests the traversal by generating symbol tables for every file.
+    #[tokio::test]
+    async fn test_snippets() {
+        // Run the tests on all the files
+        test_on_dsl_files_async("BraneScript", |path, code| {
+            async move {
+                // Start by the name to always know which file this is
+                println!("{}", (0..80).map(|_| '-').collect::<String>());
+                println!("File '{}' gave us:", path.display());
+
+                // Load the package index
+                let pindex: PackageIndex = create_package_index();
+                let dindex: DataIndex = create_data_index();
+
+                // Run the program but now line-by-line (to test the snippet function)
+                let mut source: String = String::new();
+                let mut state: CompileState = CompileState::new();
+                let mut vm: DummyVm = DummyVm::new();
+                let mut iter = code.split('\n');
+                for (offset, l) in SnippetFetcher::new(|| Ok(iter.next().map(|l| l.into()))) {
+                    // Append the source (for errors only)
+                    source.push_str(&l);
+
+                    // Compile the workflow
+                    let workflow: Workflow = match compile_snippet(&mut state, l.as_bytes(), &pindex, &dindex, &ParserOptions::bscript()) {
+                        CompileResult::Workflow(wf, warns) => {
+                            // Print warnings if any
+                            for w in warns {
+                                w.prettyprint(path.to_string_lossy(), &source);
+                            }
+                            wf
+                        },
+                        CompileResult::Eof(err) => {
+                            // Fetch more data instead
+                            err.prettyprint(path.to_string_lossy(), &source);
+                            panic!("Failed to compile to workflow (see output above)");
+                        },
+                        CompileResult::Err(errs) => {
+                            // Print the errors
+                            for e in errs {
+                                e.prettyprint(path.to_string_lossy(), &source);
+                            }
+                            panic!("Failed to compile to workflow (see output above)");
+                        },
+
+                        _ => {
+                            unreachable!();
+                        },
+                    };
+
+                    // Print the file itself
+                    ast::do_traversal(&workflow, std::io::stdout()).unwrap();
+                    println!("{}", (0..40).map(|_| "- ").collect::<String>());
+
+                    // Run the VM on this snippet
+                    vm = match vm.exec(workflow).await {
+                        (vm, Ok(value)) => {
+                            println!("Workflow stdout:");
+                            vm.flush_stdout();
+                            println!();
+                            println!("Workflow returned: {value:?}");
+                            vm
+                        },
+                        (_, Err(err)) => {
+                            eprintln!("{err}");
+                            panic!("Failed to execute workflow (snippet) (see output above)");
+                        },
+                    };
+
+                    // Increment the state offset
+                    state.offset += offset.line;
+                }
+                println!("{}\n\n", (0..80).map(|_| '-').collect::<String>());
+            }
+        })
+        .await;
     }
 }

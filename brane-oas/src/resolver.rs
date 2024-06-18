@@ -5,9 +5,6 @@ use openapiv3::{
     SecurityScheme,
 };
 
-///
-///
-///
 pub fn resolve_path_item(item: &ReferenceOr<PathItem>) -> Result<PathItem> {
     match item {
         ReferenceOr::Item(item) => Ok(item.clone()),
@@ -15,9 +12,6 @@ pub fn resolve_path_item(item: &ReferenceOr<PathItem>) -> Result<PathItem> {
     }
 }
 
-///
-///
-///
 pub fn resolve_security_scheme(
     item: &ReferenceOr<SecurityScheme>,
     components: &Option<Components>,
@@ -40,9 +34,6 @@ pub fn resolve_security_scheme(
     }
 }
 
-///
-///
-///
 pub fn resolve_response(
     item: &ReferenceOr<Response>,
     components: &Option<Components>,
@@ -65,9 +56,6 @@ pub fn resolve_response(
     }
 }
 
-///
-///
-///
 pub fn resolve_parameter(
     item: &ReferenceOr<Parameter>,
     components: &Option<Components>,
@@ -90,9 +78,6 @@ pub fn resolve_parameter(
     }
 }
 
-///
-///
-///
 pub fn resolve_example(
     item: &ReferenceOr<Example>,
     components: &Option<Components>,
@@ -115,9 +100,6 @@ pub fn resolve_example(
     }
 }
 
-///
-///
-///
 pub fn resolve_request_body(
     item: &ReferenceOr<RequestBody>,
     components: &Option<Components>,
@@ -140,9 +122,6 @@ pub fn resolve_request_body(
     }
 }
 
-///
-///
-///
 pub fn resolve_headers(
     item: &ReferenceOr<Header>,
     components: &Option<Components>,
@@ -165,9 +144,6 @@ pub fn resolve_headers(
     }
 }
 
-///
-///
-///
 pub fn resolve_schema(
     item: &ReferenceOr<Schema>,
     components: &Option<Components>,
@@ -190,9 +166,6 @@ pub fn resolve_schema(
     }
 }
 
-///
-///
-///
 pub fn resolve_links(
     item: &ReferenceOr<Link>,
     components: &Option<Components>,
@@ -215,9 +188,6 @@ pub fn resolve_links(
     }
 }
 
-///
-///
-///
 pub fn resolve_callback(
     item: &ReferenceOr<Callback>,
     components: &Option<Components>,

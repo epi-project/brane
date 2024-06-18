@@ -20,9 +20,6 @@ use warp::hyper::Body;
 use warp::{Reply, Rejection};
 
 
-///
-///
-///
 pub async fn handle() -> Result<impl Reply, Rejection> {
     let mut response = Response::new(Body::from("OK!\n"));
 

@@ -147,7 +147,7 @@ async fn main() {
 
     // Run the server
     info!("Reading to accept new connections @ '{}'...", bind_addr);
-    match warp::serve(filter).try_bind_with_graceful_shutdown(bind_addr, async {
+    let handle = warp::serve(filter).try_bind_with_graceful_shutdown(bind_addr, async {
         // Register a SIGTERM handler to be Docker-friendly
         let mut handler: Signal = match signal(SignalKind::terminate()) {
             Ok(handler) => handler,
@@ -163,7 +163,9 @@ async fn main() {
         // Wait until we receive such a signal after which we terminate the server
         handler.recv().await;
         info!("Received SIGTERM, shutting down gracefully...");
-    }) {
+    });
+
+    match handle {
         Ok((addr, srv)) => {
             info!("Now serving @ '{addr}'");
             srv.await
