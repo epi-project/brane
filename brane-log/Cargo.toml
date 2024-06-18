@@ -3,6 +3,7 @@ name = "brane-log"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2018"
+rust-version = "1.74.1"
 
 [dependencies]
 anyhow = "1"
