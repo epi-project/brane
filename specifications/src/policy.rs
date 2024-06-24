@@ -112,7 +112,7 @@ pub fn generate_policy_token(
 
     // Read the secret
     debug!("Reading secret '{}'...", secret_path.display());
-    let secret: JwkSet = match File::open(&secret_path) {
+    let secret: JwkSet = match File::open(secret_path) {
         Ok(handle) => match serde_json::from_reader(handle) {
             Ok(secret) => secret,
             Err(err) => return Err(Error::SecretDeserializeError { path: secret_path.into(), err }),
@@ -121,13 +121,17 @@ pub fn generate_policy_token(
     };
 
     // Resolve the set to a single key
-    let key: &Jwk = if secret.keys.len() > 1 {
-        return Err(Error::TooManySecrets { path: secret_path.into(), got: secret.keys.len() });
-    } else if secret.keys.len() == 1 {
-        debug!("Single key detected in secret '{}', trivial selection", secret_path.display());
-        &secret.keys[0]
-    } else {
-        return Err(Error::EmptySecret { path: secret_path.into() });
+    let key: &Jwk = match secret.keys.len().cmp(&1) {
+        std::cmp::Ordering::Less => {
+            return Err(Error::EmptySecret { path: secret_path.into() });
+        },
+        std::cmp::Ordering::Equal => {
+            debug!("Single key detected in secret '{}', trivial selection", secret_path.display());
+            &secret.keys[0]
+        },
+        std::cmp::Ordering::Greater => {
+            return Err(Error::TooManySecrets { path: secret_path.into(), got: secret.keys.len() });
+        },
     };
 
     // Now extract the information from the key we want
@@ -170,7 +174,7 @@ pub fn generate_policy_token(
 
     // Build a header
     let mut header: Header = Header::new(alg);
-    header.kid = key.common.key_id.clone();
+    header.kid.clone_from(&key.common.key_id);
 
     // Construct a token with that secret
     let exp: u64 = (SystemTime::now() + exp).duration_since(UNIX_EPOCH).unwrap().as_secs();

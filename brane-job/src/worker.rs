@@ -288,6 +288,7 @@ impl TaskInfo {
     /// # Returns
     /// A new TaskInfo instance.
     #[inline]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: impl Into<String>,
         pc: ProgramCounter,
@@ -339,6 +340,7 @@ impl TaskInfo {
 ///
 /// # Errors
 /// This function can error for literally a million reasons - but they mostly relate to IO (file access, request success etc).
+#[allow(clippy::too_many_arguments)]
 async fn preprocess_transfer_tar_local(
     location_cache: &DomainRegistryCache,
     worker_cfg: &WorkerConfig,
@@ -542,6 +544,7 @@ async fn preprocess_transfer_tar_local(
 ///
 /// # Errors
 /// This function can error for literally a million reasons - but they mostly relate to IO (file access, request success etc).
+#[allow(clippy::too_many_arguments)]
 pub async fn preprocess_transfer_tar(
     location_cache: &DomainRegistryCache,
     worker_cfg: &WorkerConfig,
@@ -1801,7 +1804,7 @@ impl WorkerServer {
             worker.usecases.into_iter().map(|(usecase, reg)| (usecase, DomainRegistryCache::new(reg.api))).collect();
 
         // OK, return self
-        Ok(Self { node_config_path: node_config_path.into(), keep_containers, proxy, registries: Arc::new(registries) })
+        Ok(Self { node_config_path, keep_containers, proxy, registries: Arc::new(registries) })
     }
 }
 
@@ -1857,7 +1860,7 @@ impl JobService for WorkerServer {
             Some(dataname) => dataname.into(),
             None => {
                 error!("Failed to parse dataname in incoming request");
-                return Err(Status::invalid_argument(format!("Invalid request: could not parse dataname")));
+                return Err(Status::invalid_argument("Invalid request: could not parse dataname".to_string()));
             },
         };
 

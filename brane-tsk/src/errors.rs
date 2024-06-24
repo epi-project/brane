@@ -14,7 +14,7 @@
 
 use std::collections::HashSet;
 use std::error::Error;
-use std::fmt::{Display, Formatter, Result as FResult};
+use std::fmt::{Display, Formatter, Result as FResult, Write};
 use std::path::PathBuf;
 
 use bollard::ClientVersion;
@@ -229,7 +229,10 @@ impl Display for PlanError {
                 f,
                 "Checker of domain '{domain}' denied plan{}",
                 if !reasons.is_empty() {
-                    format!("\n\nReasons:\n{}", reasons.iter().map(|r| format!("  - {r}\n")).collect::<String>())
+                    format!("\n\nReasons:\n{}", reasons.iter().fold(String::new(), |mut output, r| {
+                        let _ = writeln!(output, "  - {r}");
+                        output
+                    }))
                 } else {
                     String::new()
                 }

@@ -315,7 +315,7 @@ impl DummyPlanner {
         }
 
         // Write the results to the global state
-        *state_results = table.results.clone();
+        state_results.clone_from(&table.results);
 
         // Then, put the table back
         let mut table: Arc<SymTable> = Arc::new(table);

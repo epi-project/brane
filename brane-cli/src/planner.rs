@@ -463,7 +463,7 @@ impl Planner for OfflinePlanner {
         }
 
         // Flush the results back to the internal results table
-        *self.results.lock() = table.results.clone();
+        self.results.lock().clone_from(&table.results);
 
         // Then, put the table back
         let mut table: Arc<SymTable> = Arc::new(table);

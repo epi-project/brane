@@ -56,3 +56,6 @@ features = ["vendored"]
 [build-dependencies]
 download = { git = "https://github.com/Lut99/download-rs", default-features = false, features = ["download"] }
 hex-literal = "0.4"
+
+[lints.clippy]
+result_large_err = { level = "allow", priority = 1 }

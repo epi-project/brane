@@ -174,7 +174,7 @@ async fn check_data_or_result(name: DataName, body: CheckTransferRequest, contex
             };
 
             // Return it
-            return Ok(reply::with_status(Response::new(res.into()), StatusCode::OK));
+            Ok(reply::with_status(Response::new(res.into()), StatusCode::OK))
         },
 
         Ok(Some(reasons)) => {
@@ -196,11 +196,11 @@ async fn check_data_or_result(name: DataName, body: CheckTransferRequest, contex
             };
 
             // Return it
-            return Ok(reply::with_status(Response::new(res.into()), StatusCode::OK));
+            Ok(reply::with_status(Response::new(res.into()), StatusCode::OK))
         },
         Err(err) => {
             error!("{}", trace!(("Failed to consult the checker"), err));
-            return Err(warp::reject::reject());
+            Err(warp::reject::reject())
         },
     }
 }

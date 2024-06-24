@@ -17,9 +17,6 @@ pub mod resolver;
 
 pub use execute::execute;
 
-///
-///
-///
 pub fn parse_oas_file<P: Into<PathBuf>>(oas_file: P) -> Result<OpenAPI> {
     let oas_file: PathBuf = oas_file.into();
     let extension = oas_file.extension().unwrap_or_default();

@@ -79,6 +79,9 @@ impl InfraFile {
     /// Returns the number of locations in this file.
     #[inline]
     pub fn len(&self) -> usize { self.locations.len() }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool { self.locations.len() == 0 }
 }
 impl<'de> YamlInfo<'de> for InfraFile {}
 

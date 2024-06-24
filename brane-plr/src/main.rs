@@ -103,7 +103,7 @@ async fn main() {
     // Create a context for the handler(s)
     let context: Arc<Context> = {
         // Create a client to the relevant proxy thing
-        let proxy: ProxyClient = ProxyClient::new(&central_cfg.services.prx.address());
+        let proxy: ProxyClient = ProxyClient::new(central_cfg.services.prx.address());
 
         // The state of previously planned workflow snippets per-instance.
         let state: Mutex<HashMap<String, (Instant, HashMap<String, String>)>> = Mutex::new(HashMap::new());
@@ -122,7 +122,7 @@ async fn main() {
     let paths = plan;
 
     // Launch it
-    match warp::serve(paths).try_bind_with_graceful_shutdown(central_cfg.services.plr.bind, async {
+    let handle = warp::serve(paths).try_bind_with_graceful_shutdown(central_cfg.services.plr.bind, async {
         // Register a SIGTERM handler to be Docker-friendly
         let mut handler: Signal = match signal(SignalKind::terminate()) {
             Ok(handler) => handler,
@@ -138,7 +138,9 @@ async fn main() {
         // Wait until we receive such a signal after which we terminate the server
         handler.recv().await;
         info!("Received SIGTERM, shutting down gracefully...");
-    }) {
+    });
+
+    match handle {
         Ok((addr, srv)) => {
             info!("Now serving @ '{addr}'");
             srv.await

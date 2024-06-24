@@ -179,7 +179,7 @@ enum EdgeResult {
 /// # Errors
 /// This function may error if the given `input` does not contain any of the data in the value _or_ if the referenced input is not yet planned.
 #[async_recursion]
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::multiple_bound_locations)]
 async fn preprocess_value<'p: 'async_recursion, P: VmPlugin>(
     global: &Arc<RwLock<P::GlobalState>>,
     local: &P::LocalState,

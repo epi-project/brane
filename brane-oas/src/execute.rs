@@ -12,9 +12,6 @@ use std::{collections::HashMap, sync::Arc};
 
 type Map<T> = std::collections::HashMap<String, T>;
 
-///
-///
-///
 pub async fn execute(
     operation_id: &str,
     arguments: &Map<FullValue>,
@@ -194,9 +191,6 @@ async fn perform_request(client: RequestBuilder) -> Result<String, Error<reqwest
     retry(backoff, op)
 }
 
-///
-///
-///
 pub fn get_operation(
     operation_id: &str,
     oas_document: &OpenAPI,

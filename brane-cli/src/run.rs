@@ -61,6 +61,8 @@ use crate::vm::OfflineVm;
 ///
 /// # Errors
 /// This function errors if the given string was not a valid workflow. If that's the case, it's also pretty-printed to stdout with source context.
+
+#[allow(clippy::too_many_arguments)]
 fn compile(
     state: &mut CompileState,
     source: &mut String,
@@ -149,6 +151,7 @@ fn compile(
 ///
 /// # Errors
 /// This function may error if we failed to reach the remote driver, or if the given session did not exist.
+#[allow(clippy::too_many_arguments)]
 pub async fn initialize_instance<O: Write, E: Write>(
     stdout_writer: O,
     stderr_writer: E,
@@ -776,7 +779,7 @@ pub async fn run_instance_vm(
         // Acquire the locks
         let pindex: MutexGuard<PackageIndex> = state.pindex.lock();
         let dindex: MutexGuard<DataIndex> = state.dindex.lock();
-        compile(&mut state.state, &mut state.source, &pindex, &dindex, state.user.as_ref().map(|u| u.as_str()), &state.options, what, snippet)?
+        compile(&mut state.state, &mut state.source, &pindex, &dindex, state.user.as_deref(), &state.options, what, snippet)?
     };
 
     // Run the thing using the other function

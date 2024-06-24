@@ -809,7 +809,7 @@ pub fn node(
                         policy_database: canonicalize(policy_database)?,
                         policy_deliberation_secret: canonicalize(policy_deliberation_secret)?,
                         policy_expert_secret: canonicalize(policy_expert_secret)?,
-                        policy_audit_log: policy_audit_log.map(|p| canonicalize(p)).transpose()?,
+                        policy_audit_log: policy_audit_log.map(canonicalize).transpose()?,
                         proxy: if external_proxy.is_some() { None } else { Some(canonicalize(proxy)?) },
 
                         data: canonicalize(data)?,
@@ -1408,7 +1408,7 @@ pub fn policy_secret(fix_dirs: bool, path: PathBuf, key_id: String, key_alg: Key
             // Generate a 256-bit, base64-encoded random string of bytes
             // See: <https://datatracker.ietf.org/doc/html/rfc7518#section-6.4.1>
             let mut key: [u8; 32] = [0; 32];
-            OsRng::default().fill(&mut key);
+            OsRng.fill(&mut key);
             base64ct::Base64Url::encode_string(&key)
         },
 

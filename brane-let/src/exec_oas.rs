@@ -216,23 +216,21 @@ async fn complete(
         tokio::pin!(sleep);
 
         // Wait for either the timer or the process
-        let status = loop {
-            tokio::select! {
-                result = brane_oas::execute(function, arguments, oas_doc) => {
-                    // Process is finished!
-                    break Some(result);
-                },
-                _ = &mut sleep => {
-                    // // Timeout occurred; send the heartbeat and continue
-                    // if let Some(callback) = callback {
-                    //     if let Err(err) = callback.heartbeat().await { warn!("Could not update driver on Heartbeat: {}", err); }
-                    //     else { debug!("Sent Heartbeat to driver."); }
-                    // }
+        let status = tokio::select! {
+            result = brane_oas::execute(function, arguments, oas_doc) => {
+                // Process is finished!
+                Some(result)
+            },
+            _ = &mut sleep => {
+                // // Timeout occurred; send the heartbeat and continue
+                // if let Some(callback) = callback {
+                //     if let Err(err) = callback.heartbeat().await { warn!("Could not update driver on Heartbeat: {}", err); }
+                //     else { debug!("Sent Heartbeat to driver."); }
+                // }
 
-                    // Stop without result
-                    break None;
-                },
-            }
+                // Stop without result
+                None
+            },
         };
 
         // If we have a result, break from the main loop; otherwise, try again

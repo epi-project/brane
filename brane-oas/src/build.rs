@@ -178,9 +178,6 @@ pub fn build_oas_function(
     Ok((functions, types))
 }
 
-///
-///
-///
 fn build_oas_function_input(
     operation_id: &str,
     operation: &Operation,
@@ -274,9 +271,6 @@ fn build_oas_function_input(
     Ok((input_parameters, input_types))
 }
 
-///
-///
-///
 fn build_oas_function_output(
     operation_id: &str,
     operation: &Operation,
@@ -338,9 +332,6 @@ fn build_oas_function_output(
     Ok((return_type, output_types))
 }
 
-///
-///
-///
 fn parameter_to_properties(
     parameter: &OParameter,
     components: &Option<Components>,
@@ -365,9 +356,6 @@ fn parameter_to_properties(
     }
 }
 
-///
-///
-///
 pub fn schema_to_properties(
     name: Option<String>,
     schema: &Schema,
@@ -383,9 +371,6 @@ pub fn schema_to_properties(
     }
 }
 
-///
-///
-///
 fn any_schema_to_properties(
     name: Option<String>,
     schema: &Schema,
@@ -442,9 +427,6 @@ fn any_schema_to_properties(
     Ok(properties)
 }
 
-///
-///
-///
 fn type_schema_to_properties(
     name: Option<String>,
     schema: &Schema,
