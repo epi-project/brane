@@ -3,6 +3,7 @@ name = "brane-prx"
 version = { workspace = true }
 edition = "2021"
 authors = [ "Lut99" ]
+license = { workspace = true }
 
 [dependencies]
 anyhow = "1.0.66"
