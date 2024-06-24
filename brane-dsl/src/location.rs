@@ -1,16 +1,16 @@
 //  LOCATIONS.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    26 Aug 2022, 15:44:19
 //  Last edited:
 //    14 Nov 2022, 10:00:31
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Defines helpful enums and functions for location analysis.
-// 
+//
 
 use std::collections::HashSet;
 use std::mem;
@@ -23,37 +23,27 @@ pub struct Location(pub String);
 
 impl From<String> for Location {
     #[inline]
-    fn from(value: String) -> Self {
-        Self(value)
-    }
+    fn from(value: String) -> Self { Self(value) }
 }
 
 impl From<&String> for Location {
     #[inline]
-    fn from(value: &String) -> Self {
-        Self(value.clone())
-    }
+    fn from(value: &String) -> Self { Self(value.clone()) }
 }
 
 impl From<&str> for Location {
     #[inline]
-    fn from(value: &str) -> Self {
-        Self(value.into())
-    }
+    fn from(value: &str) -> Self { Self(value.into()) }
 }
 
 impl From<Location> for String {
     #[inline]
-    fn from(value: Location) -> Self {
-        value.0
-    }
+    fn from(value: Location) -> Self { value.0 }
 }
 
 impl From<&Location> for String {
     #[inline]
-    fn from(value: &Location) -> Self {
-        value.0.clone()
-    }
+    fn from(value: &Location) -> Self { value.0.clone() }
 }
 
 
@@ -69,19 +59,21 @@ pub enum AllowedLocations {
 
 impl AllowedLocations {
     /// Computes the intersection between this AllowedLocations and the given one.
-    /// 
+    ///
     /// In other words, after running, this AllowedLocation contains only locations allowed by both.
-    /// 
+    ///
     /// # Arguments
     /// - `other`: The other AllowedLocations to take the intersection with.
     #[inline]
     pub fn intersection(&mut self, other: &mut AllowedLocations) {
         use AllowedLocations::*;
         match self {
-            All                  => { mem::swap(self, other); },
+            All => {
+                mem::swap(self, other);
+            },
             Exclusive(self_locs) => {
                 match other {
-                    All                   => {},
+                    All => {},
                     Exclusive(other_locs) => {
                         // Take the self_locs
                         let old_locs: HashSet<Location> = mem::take(self_locs);
@@ -89,19 +81,19 @@ impl AllowedLocations {
                         // Add those only present in both
                         let mut res_locs: HashSet<Location> = HashSet::with_capacity(old_locs.len());
                         for l in old_locs {
-                            if other_locs.contains(&l) { res_locs.insert(l); }
+                            if other_locs.contains(&l) {
+                                res_locs.insert(l);
+                            }
                         }
                         res_locs.shrink_to_fit();
 
                         // Set 'em
                         *self_locs = res_locs;
-                    }
+                    },
                 }
-            }
+            },
         }
     }
-
-
 
     /// Returns whether all locations are allowed right now.
     #[inline]
@@ -115,7 +107,7 @@ impl AllowedLocations {
     #[inline]
     pub fn is_empty(&self) -> bool {
         match self {
-            AllowedLocations::All             => false,
+            AllowedLocations::All => false,
             AllowedLocations::Exclusive(locs) => locs.is_empty(),
         }
     }
@@ -128,7 +120,5 @@ impl AsRef<AllowedLocations> for AllowedLocations {
 
 impl From<Location> for AllowedLocations {
     #[inline]
-    fn from(value: Location) -> Self {
-        Self::Exclusive(HashSet::from([ value ]))
-    }
+    fn from(value: Location) -> Self { Self::Exclusive(HashSet::from([value])) }
 }

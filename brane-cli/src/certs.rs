@@ -1,16 +1,16 @@
 //  CERTS.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    30 Jan 2023, 09:35:00
 //  Last edited:
 //    26 Jul 2023, 09:35:32
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Contains commands for managing certificates.
-// 
+//
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -18,13 +18,15 @@ use std::fs::{self, DirEntry, File, ReadDir};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
+use base64::Engine as _;
+use brane_cfg::certs::load_all;
+use brane_shr::formatters::PrettyListFormatter;
 use console::{pad_str, style, Alignment};
 use dialoguer::Confirm;
 use enum_debug::EnumDebug;
-use prettytable::Table;
 use prettytable::format::FormatBuilder;
+use prettytable::Table;
 use rustls::{Certificate, PrivateKey};
 use x509_parser::certificate::X509Certificate;
 use x509_parser::extensions::{ParsedExtension, X509Extension};
@@ -32,76 +34,79 @@ use x509_parser::oid_registry::OID_X509_EXT_KEY_USAGE;
 use x509_parser::prelude::FromDer as _;
 use x509_parser::x509::X509Name;
 
-use brane_cfg::certs::load_all;
-use brane_shr::formatters::PrettyListFormatter;
-
 pub use crate::errors::CertsError as Error;
-use crate::utils::{ensure_instances_dir, get_instance_dir};
 use crate::instance::InstanceInfo;
+use crate::utils::{ensure_instances_dir, get_instance_dir};
 
 
 /***** HELPER FUNCTIONS *****/
 /// Resolves the given maybe-instance-name to a path and a name.
-/// 
+///
 /// # Returns
 /// The name and the path of the resolved instance.
-/// 
+///
 /// # Errors
 /// This function may error if the name given was unknown, or no active instance existed if no name was given.
 fn resolve_instance(name: Option<String>) -> Result<(String, PathBuf), Error> {
     if let Some(name) = name {
         match get_instance_dir(&name) {
             Ok(path) => match path.exists() {
-                true  => Ok((name, path)),
-                false => Err(Error::UnknownInstance{ name }),
+                true => Ok((name, path)),
+                false => Err(Error::UnknownInstance { name }),
             },
-            Err(err) => Err(Error::InstanceDirError{ err }),
+            Err(err) => Err(Error::InstanceDirError { err }),
         }
     } else {
         match InstanceInfo::get_active_name() {
             Ok(name) => match InstanceInfo::get_instance_path(&name) {
                 Ok(path) => Ok((name, path)),
-                Err(err) => Err(Error::InstancePathError{ name, err }),
+                Err(err) => Err(Error::InstancePathError { name, err }),
             },
-            Err(err) => Err(Error::ActiveInstanceReadError{ err }),
+            Err(err) => Err(Error::ActiveInstanceReadError { err }),
         }
     }
 }
 
 /// Reads a certificate and extracts the issued usage and, if present, the domain for which it is intended.
-/// 
+///
 /// # Arguments
 /// - `cert`: The raw Certificate to analyze.
 /// - `path`: The path to this certificate. Only used for debugging purposes.
 /// - `i`: The number of this certificate in that file.
-/// 
+///
 /// # Returns
 /// A tuple of the issued usage and the name of the domain for which it is intended (or `None` if the latter was missing).
-/// 
+///
 /// # Errors
 /// This function may error if we failed to parse the certificate or extract the required fields.
 fn analyse_cert(cert: &Certificate, path: impl Into<PathBuf>, i: usize) -> Result<(CertificateKind, Option<String>), Error> {
     // Attempt to parse the certificate as a real x509 one
     let cert: X509Certificate = match X509Certificate::from_der(&cert.0) {
         Ok((_, cert)) => cert,
-        Err(err)      => { return Err(Error::CertParseError { path: path.into(), i, err }); },
+        Err(err) => {
+            return Err(Error::CertParseError { path: path.into(), i, err });
+        },
     };
 
     // Try to find the list of allowed usages
     let exts: HashMap<_, _> = match cert.extensions_map() {
         Ok(exts) => exts,
-        Err(err) => { return Err(Error::CertExtensionsError{ path: path.into(), i, err }); },
+        Err(err) => {
+            return Err(Error::CertExtensionsError { path: path.into(), i, err });
+        },
     };
     let usage: &X509Extension = match exts.get(&OID_X509_EXT_KEY_USAGE) {
         Some(usage) => usage,
-        None        => { return Err(Error::CertNoKeyUsageError{ path: path.into(), i }); },
+        None => {
+            return Err(Error::CertNoKeyUsageError { path: path.into(), i });
+        },
     };
 
     // Attempt to find the CA one
     let kind: CertificateKind = match usage.parsed_extension() {
         ParsedExtension::KeyUsage(ext) => {
-            let ds : bool = ext.digital_signature();
-            let cs : bool = ext.crl_sign();
+            let ds: bool = ext.digital_signature();
+            let cs: bool = ext.crl_sign();
             if ds && !cs {
                 CertificateKind::Client
             } else if !ds && cs {
@@ -109,12 +114,14 @@ fn analyse_cert(cert: &Certificate, path: impl Into<PathBuf>, i: usize) -> Resul
             } else if ds && cs {
                 CertificateKind::Both
             } else {
-                return Err(Error::CertNoUsageError{ path: path.into(), i });
+                return Err(Error::CertNoUsageError { path: path.into(), i });
             }
         },
 
         // Error values
-        _ => { unreachable!(); },
+        _ => {
+            unreachable!();
+        },
     };
 
     // Now attempt to extract the name from the issuer field
@@ -124,7 +131,9 @@ fn analyse_cert(cert: &Certificate, path: impl Into<PathBuf>, i: usize) -> Resul
         // Get it as a string
         let name: &str = match name.as_str() {
             Ok(name) => name,
-            Err(err) => { return Err(Error::CertIssuerCaError{ path: path.into(), i, err }); },
+            Err(err) => {
+                return Err(Error::CertIssuerCaError { path: path.into(), i, err });
+            },
         };
 
         // Extract the real name if any
@@ -159,13 +168,13 @@ enum CertificateKind {
 
 /***** SERVICE FUNCTIONS *****/
 /// Retrieves the path to the certificate directory of the active instance.
-/// 
+///
 /// # Arguments
 /// - `domain`: The name of the domain for which we want to get certificates.
-/// 
+///
 /// # Returns
 /// The path to the directory with the certificates of the active instance.
-/// 
+///
 /// # Errors
 /// This function may error if there was no active instance or we failed to get/read its directory.
 pub fn get_active_certs_dir(domain: impl AsRef<Path>) -> Result<PathBuf, Error> {
@@ -173,9 +182,13 @@ pub fn get_active_certs_dir(domain: impl AsRef<Path>) -> Result<PathBuf, Error> 
     let active_path: PathBuf = match InstanceInfo::get_active_name() {
         Ok(name) => match InstanceInfo::get_instance_path(&name) {
             Ok(path) => path,
-            Err(err) => { return Err(Error::InstancePathError { name, err }); },
+            Err(err) => {
+                return Err(Error::InstancePathError { name, err });
+            },
         },
-        Err(err) => { return Err(Error::ActiveInstanceReadError{ err }); },
+        Err(err) => {
+            return Err(Error::ActiveInstanceReadError { err });
+        },
     };
 
     // Return the path within
@@ -188,13 +201,13 @@ pub fn get_active_certs_dir(domain: impl AsRef<Path>) -> Result<PathBuf, Error> 
 
 /***** SUBCOMMANDS *****/
 /// Adds the given certificate(s) as the certificate(s) for the given domain.
-/// 
+///
 /// # Arguments
 /// - `instance_name`: The name of the instance for which to add them. If omitted, we should default to the active instance.
 /// - `paths`: The paths of the certificate files to add.
 /// - `domain_name`: The name of the domain to add. If it is not present, then the function is supposed to deduce it from the given certificates.
 /// - `force`: If given, does not ask for permission to override an existing certificate but just does it$^{TM}$.
-/// 
+///
 /// # Errors
 /// This function errors if we failed to read any of the certificates, parse them, if not all the required certificates were given, if we failed to write them and create the directory structure _or_ if we are asked to deduce the domain name but failed.
 pub fn add(instance_name: Option<String>, paths: Vec<PathBuf>, mut domain_name: Option<String>, force: bool) -> Result<(), Error> {
@@ -205,22 +218,30 @@ pub fn add(instance_name: Option<String>, paths: Vec<PathBuf>, mut domain_name: 
     debug!("Adding for instance: '{}' ({})", instance_name, instance_path.display());
 
     // First attempt to load the given certificates using rustls
-    let mut ca_cert     : Option<Certificate> = None;
-    let mut client_cert : Option<Certificate> = None;
-    let mut client_key  : Option<PrivateKey>  = None;
+    let mut ca_cert: Option<Certificate> = None;
+    let mut client_cert: Option<Certificate> = None;
+    let mut client_key: Option<PrivateKey> = None;
     for path in &paths {
         debug!("Reading certificate '{}'...", path.display());
 
         // Load any certificate and key we can find in this file
         let (certs, keys): (Vec<Certificate>, Vec<PrivateKey>) = match load_all(path) {
-            Ok(res)  => res,
-            Err(err) => { return Err(Error::PemLoadError{ path: path.clone(), err }); },
+            Ok(res) => res,
+            Err(err) => {
+                return Err(Error::PemLoadError { path: path.clone(), err });
+            },
         };
-        if certs.is_empty() && keys.is_empty() { warn!("Empty file '{}' (at least, no valid certificates or keys found)", path.display()); continue; }
+        if certs.is_empty() && keys.is_empty() {
+            warn!("Empty file '{}' (at least, no valid certificates or keys found)", path.display());
+            continue;
+        }
 
         // We can add the keys by-default, since we know what they are used for
         for (i, key) in keys.into_iter().enumerate() {
-            if client_key.is_some() { warn!("Multiple private keys specified, ignoring key {} in file '{}'", i, path.display()); continue; }
+            if client_key.is_some() {
+                warn!("Multiple private keys specified, ignoring key {} in file '{}'", i, path.display());
+                continue;
+            }
             client_key = Some(key);
         }
 
@@ -228,15 +249,26 @@ pub fn add(instance_name: Option<String>, paths: Vec<PathBuf>, mut domain_name: 
         for (i, c) in certs.into_iter().enumerate() {
             // Attempt to extract the properties we are interested in from the certificate
             let (kind, cert_domain): (CertificateKind, Option<String>) = match analyse_cert(&c, path, i) {
-                Ok(res)  => res,
-                Err(err) => { warn!("{} (skipping)", err); continue; }
+                Ok(res) => res,
+                Err(err) => {
+                    warn!("{} (skipping)", err);
+                    continue;
+                },
             };
             debug!("Certificate {} in '{}' is a {} certificate for {:?}", i, path.display(), kind.variant(), cert_domain);
 
             // Do something with the domain name (i.e., store it or not
             if let Some(domain_name) = &domain_name {
                 if let Some(cert_domain) = &cert_domain {
-                    if cert_domain != domain_name { warn!("Certificate {} in '{}' appears to be issued for domain '{}', but you are adding it for domain '{}'", i, path.display(), cert_domain, domain_name); }
+                    if cert_domain != domain_name {
+                        warn!(
+                            "Certificate {} in '{}' appears to be issued for domain '{}', but you are adding it for domain '{}'",
+                            i,
+                            path.display(),
+                            cert_domain,
+                            domain_name
+                        );
+                    }
                 } else {
                     warn!("Certificate {} in '{}' does not have a domain name specified", i, path.display());
                 }
@@ -249,58 +281,107 @@ pub fn add(instance_name: Option<String>, paths: Vec<PathBuf>, mut domain_name: 
                 CertificateKind::Both => {
                     // Try to add as CA first
                     match ca_cert.is_some() {
-                        true  => { warn!("Multiple CA certificates specified, ignoring certificate {} in file '{}'", i, path.display()); continue; },
-                        false => { ca_cert = Some(c.clone()); },
+                        true => {
+                            warn!("Multiple CA certificates specified, ignoring certificate {} in file '{}'", i, path.display());
+                            continue;
+                        },
+                        false => {
+                            ca_cert = Some(c.clone());
+                        },
                     }
                     // Next try as client
                     match client_cert.is_some() {
-                        true  => { warn!("Multiple client certificates specified, ignoring certificate {} in file '{}'", i, path.display()); continue; },
-                        false => { client_cert = Some(c); },
+                        true => {
+                            warn!("Multiple client certificates specified, ignoring certificate {} in file '{}'", i, path.display());
+                            continue;
+                        },
+                        false => {
+                            client_cert = Some(c);
+                        },
                     }
                 },
                 CertificateKind::Ca => match ca_cert.is_some() {
-                    true  => { warn!("Multiple CA certificates specified, ignoring certificate {} in file '{}'", i, path.display()); continue; },
-                    false => { ca_cert = Some(c); },
+                    true => {
+                        warn!("Multiple CA certificates specified, ignoring certificate {} in file '{}'", i, path.display());
+                        continue;
+                    },
+                    false => {
+                        ca_cert = Some(c);
+                    },
                 },
                 CertificateKind::Client => match client_cert.is_some() {
-                    true  => { warn!("Multiple client certificates specified, ignoring certificate {} in file '{}'", i, path.display()); continue; },
-                    false => { client_cert = Some(c); },
+                    true => {
+                        warn!("Multiple client certificates specified, ignoring certificate {} in file '{}'", i, path.display());
+                        continue;
+                    },
+                    false => {
+                        client_cert = Some(c);
+                    },
                 },
             }
         }
     }
-    let ca_cert     : Certificate = match ca_cert     { Some(cert) => cert, None => { return Err(Error::NoCaCert); } };
-    let client_cert : Certificate = match client_cert { Some(cert) => cert, None => { return Err(Error::NoClientCert); } };
-    let client_key  : PrivateKey  = match client_key  { Some(key) => key,   None => { return Err(Error::NoClientKey); } };
+    let ca_cert: Certificate = match ca_cert {
+        Some(cert) => cert,
+        None => {
+            return Err(Error::NoCaCert);
+        },
+    };
+    let client_cert: Certificate = match client_cert {
+        Some(cert) => cert,
+        None => {
+            return Err(Error::NoClientCert);
+        },
+    };
+    let client_key: PrivateKey = match client_key {
+        Some(key) => key,
+        None => {
+            return Err(Error::NoClientKey);
+        },
+    };
 
     // Crash if the domain name is still unknown at this point
     let domain_name: String = match domain_name {
         Some(name) => name,
-        None       => { return Err(Error::NoDomainName); },
+        None => {
+            return Err(Error::NoDomainName);
+        },
     };
 
     // Otherwise, start adding directory structures
     let certs_path: PathBuf = instance_path.join("certs").join(&domain_name);
     if certs_path.exists() {
-        if !certs_path.is_dir() { return Err(Error::CertsDirNotADir{ path: certs_path }); }
+        if !certs_path.is_dir() {
+            return Err(Error::CertsDirNotADir { path: certs_path });
+        }
         if !force {
             // Assert we are allowed to override it
             debug!("Asking for confirmation...");
-            println!("A certificate for domain {} in instance {} already exists. Overwrite?", style(&domain_name).cyan().bold(), style(&instance_name).cyan().bold());
+            println!(
+                "A certificate for domain {} in instance {} already exists. Overwrite?",
+                style(&domain_name).cyan().bold(),
+                style(&instance_name).cyan().bold()
+            );
             let consent: bool = match Confirm::new().interact() {
                 Ok(consent) => consent,
-                Err(err)    => { return Err(Error::ConfirmationError{ err }); }
+                Err(err) => {
+                    return Err(Error::ConfirmationError { err });
+                },
             };
             if !consent {
                 println!("Not overwriting, aborted.");
                 return Ok(());
             }
-            if let Err(err) = fs::remove_dir_all(&certs_path) { return Err(Error::CertsDirRemoveError{ path: certs_path, err }); }
+            if let Err(err) = fs::remove_dir_all(&certs_path) {
+                return Err(Error::CertsDirRemoveError { path: certs_path, err });
+            }
         }
     }
 
     debug!("Creating directory '{}'...", certs_path.display());
-    if let Err(err) = fs::create_dir_all(&certs_path) { return Err(Error::CertsDirCreateError{ path: certs_path, err }); }
+    if let Err(err) = fs::create_dir_all(&certs_path) {
+        return Err(Error::CertsDirCreateError { path: certs_path, err });
+    }
 
     // Now write the CA certificates first
     {
@@ -310,16 +391,26 @@ pub fn add(instance_name: Option<String>, paths: Vec<PathBuf>, mut domain_name: 
         // Open a handle
         let mut handle: File = match File::create(&ca_path) {
             Ok(handle) => handle,
-            Err(err)   => { return Err(Error::FileOpenError{ what: "ca", path: ca_path, err }); },
+            Err(err) => {
+                return Err(Error::FileOpenError { what: "ca", path: ca_path, err });
+            },
         };
 
         // Write the CA certificate with all the bells and whistles
-        if let Err(err) = writeln!(handle, "-----BEGIN CERTIFICATE-----") { return Err(Error::FileWriteError{ what: "ca", path: ca_path, err }); }
-        for chunk in STANDARD.encode(ca_cert.0).as_bytes().chunks(64) {
-            if let Err(err) = handle.write(chunk) { return Err(Error::FileWriteError{ what: "ca", path: ca_path, err }); }
-            if let Err(err) = writeln!(handle) { return Err(Error::FileWriteError{ what: "ca", path: ca_path, err }); }
+        if let Err(err) = writeln!(handle, "-----BEGIN CERTIFICATE-----") {
+            return Err(Error::FileWriteError { what: "ca", path: ca_path, err });
         }
-        if let Err(err) = writeln!(handle, "-----END CERTIFICATE-----") { return Err(Error::FileWriteError{ what: "ca", path: ca_path, err }); }
+        for chunk in STANDARD.encode(ca_cert.0).as_bytes().chunks(64) {
+            if let Err(err) = handle.write(chunk) {
+                return Err(Error::FileWriteError { what: "ca", path: ca_path, err });
+            }
+            if let Err(err) = writeln!(handle) {
+                return Err(Error::FileWriteError { what: "ca", path: ca_path, err });
+            }
+        }
+        if let Err(err) = writeln!(handle, "-----END CERTIFICATE-----") {
+            return Err(Error::FileWriteError { what: "ca", path: ca_path, err });
+        }
     }
 
     // Next, write the client certificates and keys
@@ -330,24 +421,42 @@ pub fn add(instance_name: Option<String>, paths: Vec<PathBuf>, mut domain_name: 
         // Open a handle
         let mut handle: File = match File::create(&client_path) {
             Ok(handle) => handle,
-            Err(err)   => { return Err(Error::FileOpenError{ what: "client ID", path: client_path, err }); },
+            Err(err) => {
+                return Err(Error::FileOpenError { what: "client ID", path: client_path, err });
+            },
         };
 
         // Write the client certificate with all the bells and whistles
-        if let Err(err) = writeln!(handle, "-----BEGIN CERTIFICATE-----") { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
-        for chunk in STANDARD.encode(client_cert.0).as_bytes().chunks(64) {
-            if let Err(err) = handle.write(chunk) { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
-            if let Err(err) = writeln!(handle) { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
+        if let Err(err) = writeln!(handle, "-----BEGIN CERTIFICATE-----") {
+            return Err(Error::FileWriteError { what: "client ID", path: client_path, err });
         }
-        if let Err(err) = writeln!(handle, "-----END CERTIFICATE-----") { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
+        for chunk in STANDARD.encode(client_cert.0).as_bytes().chunks(64) {
+            if let Err(err) = handle.write(chunk) {
+                return Err(Error::FileWriteError { what: "client ID", path: client_path, err });
+            }
+            if let Err(err) = writeln!(handle) {
+                return Err(Error::FileWriteError { what: "client ID", path: client_path, err });
+            }
+        }
+        if let Err(err) = writeln!(handle, "-----END CERTIFICATE-----") {
+            return Err(Error::FileWriteError { what: "client ID", path: client_path, err });
+        }
 
         // Write the client key with all the bells and whistles
-        if let Err(err) = writeln!(handle, "-----BEGIN RSA PRIVATE KEY-----") { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
-        for chunk in STANDARD.encode(client_key.0).as_bytes().chunks(64) {
-            if let Err(err) = handle.write(chunk) { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
-            if let Err(err) = writeln!(handle) { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
+        if let Err(err) = writeln!(handle, "-----BEGIN RSA PRIVATE KEY-----") {
+            return Err(Error::FileWriteError { what: "client ID", path: client_path, err });
         }
-        if let Err(err) = writeln!(handle, "-----END RSA PRIVATE KEY-----") { return Err(Error::FileWriteError{ what: "client ID", path: client_path, err }); }
+        for chunk in STANDARD.encode(client_key.0).as_bytes().chunks(64) {
+            if let Err(err) = handle.write(chunk) {
+                return Err(Error::FileWriteError { what: "client ID", path: client_path, err });
+            }
+            if let Err(err) = writeln!(handle) {
+                return Err(Error::FileWriteError { what: "client ID", path: client_path, err });
+            }
+        }
+        if let Err(err) = writeln!(handle, "-----END RSA PRIVATE KEY-----") {
+            return Err(Error::FileWriteError { what: "client ID", path: client_path, err });
+        }
     }
 
     // Done!
@@ -356,12 +465,12 @@ pub fn add(instance_name: Option<String>, paths: Vec<PathBuf>, mut domain_name: 
 }
 
 /// Removes the certificate(s) for the given domain.
-/// 
+///
 /// # Arguments
 /// - `domain_names`: The name(s) of the domain(s) for which to remove the certificates.
 /// - `instance_name`: The name of the instance for which to remove them. If omitted, we should default to the active instance.
 /// - `force`: If given, does not ask for confirmation but just does it$^{TM}$.
-/// 
+///
 /// # Errors
 /// This function fails if we failed to find any directories or failed to remove them.
 pub fn remove(domain_names: Vec<String>, instance_name: Option<String>, force: bool) -> Result<(), Error> {
@@ -380,10 +489,16 @@ pub fn remove(domain_names: Vec<String>, instance_name: Option<String>, force: b
     // Ask the user for permission, if needed
     if !force {
         debug!("Asking for confirmation...");
-        println!("Are you sure you want to remove the certificates for domain{} {}?", if domain_names.len() > 1 { "s" } else { "" }, PrettyListFormatter::new(domain_names.iter().map(|n| style(n).bold().cyan()), "and"));
+        println!(
+            "Are you sure you want to remove the certificates for domain{} {}?",
+            if domain_names.len() > 1 { "s" } else { "" },
+            PrettyListFormatter::new(domain_names.iter().map(|n| style(n).bold().cyan()), "and")
+        );
         let consent: bool = match Confirm::new().interact() {
             Ok(consent) => consent,
-            Err(err)    => { return Err(Error::ConfirmationError{ err }); }
+            Err(err) => {
+                return Err(Error::ConfirmationError { err });
+            },
         };
         if !consent {
             println!("Aborted.");
@@ -398,7 +513,10 @@ pub fn remove(domain_names: Vec<String>, instance_name: Option<String>, force: b
         // Attempt to remove it if it exists
         let certs_dir: PathBuf = instance_path.join("certs").join(&name);
         if certs_dir.exists() {
-            if let Err(err) = fs::remove_dir_all(&certs_dir) { warn!("Failed to remove directory '{}': {} (skipping)", certs_dir.display(), err); continue; }
+            if let Err(err) = fs::remove_dir_all(&certs_dir) {
+                warn!("Failed to remove directory '{}': {} (skipping)", certs_dir.display(), err);
+                continue;
+            }
         } else {
             println!("Domain {} does not have any certificates (skipping)", style(name).yellow().bold());
             continue;
@@ -415,22 +533,18 @@ pub fn remove(domain_names: Vec<String>, instance_name: Option<String>, force: b
 
 
 /// Lists the domains for which certificates are defined.
-/// 
+///
 /// # Arguments
 /// - `instance`: The name of the instance for which to list them. If omitted, we should default to the active instance.
 /// - `all`: If given, shows all certificates across instances.
-/// 
+///
 /// # Errors
 /// This function fails if we failed to find any directories or failed to remove them.
 pub fn list(instance_name: Option<String>, all: bool) -> Result<(), Error> {
     info!("Listing certificates...");
 
     // Prepare display table.
-    let format = FormatBuilder::new()
-        .column_separator('\0')
-        .borders('\0')
-        .padding(1, 1)
-        .build();
+    let format = FormatBuilder::new().column_separator('\0').borders('\0').padding(1, 1).build();
     let mut table = Table::new();
     table.set_format(format);
     table.add_row(row!["INSTANCE", "DOMAIN", "CA", "CLIENT"]);
@@ -440,21 +554,27 @@ pub fn list(instance_name: Option<String>, all: bool) -> Result<(), Error> {
         // Get the instances dir
         debug!("Finding instances...");
         let instances_dir: PathBuf = match ensure_instances_dir(true) {
-            Ok(dir)  => dir,
-            Err(err) => { return Err(Error::InstancesDirError{ err }); },
+            Ok(dir) => dir,
+            Err(err) => {
+                return Err(Error::InstancesDirError { err });
+            },
         };
 
         // Iterate over it
         let entries: ReadDir = match fs::read_dir(&instances_dir) {
             Ok(entries) => entries,
-            Err(err)    => { return Err(Error::DirReadError{ what: "instances", path: instances_dir, err }); },
+            Err(err) => {
+                return Err(Error::DirReadError { what: "instances", path: instances_dir, err });
+            },
         };
         let mut instances: Vec<(String, PathBuf)> = Vec::with_capacity(entries.size_hint().1.unwrap_or(entries.size_hint().0));
         for (i, entry) in entries.enumerate() {
             // Unwrap the entry
             let entry: DirEntry = match entry {
                 Ok(entries) => entries,
-                Err(err)    => { return Err(Error::DirEntryReadError{ what: "instances", path: instances_dir, entry: i, err }); },
+                Err(err) => {
+                    return Err(Error::DirEntryReadError { what: "instances", path: instances_dir, entry: i, err });
+                },
             };
 
             // Do some checks on whether this is an instance or not
@@ -474,11 +594,10 @@ pub fn list(instance_name: Option<String>, all: bool) -> Result<(), Error> {
 
         // Return those
         instances
-
     } else {
         // Resolve the instance first
         let (instance_name, instance_path): (String, PathBuf) = resolve_instance(instance_name)?;
-        vec![ (instance_name, instance_path) ]
+        vec![(instance_name, instance_path)]
     };
 
     // Search each of those instances for domains
@@ -487,19 +606,25 @@ pub fn list(instance_name: Option<String>, all: bool) -> Result<(), Error> {
         // Ensure the certs directory exists
         let certs_dir: PathBuf = path.join("certs");
         if !certs_dir.exists() {
-            if let Err(err) = fs::create_dir_all(&certs_dir) { return Err(Error::CertsDirCreateError{ path: certs_dir, err }); }
+            if let Err(err) = fs::create_dir_all(&certs_dir) {
+                return Err(Error::CertsDirCreateError { path: certs_dir, err });
+            }
         }
 
         // Iterate over the things in the 'certs' directory
         let entries: ReadDir = match fs::read_dir(&certs_dir) {
             Ok(entries) => entries,
-            Err(err)    => { return Err(Error::DirReadError{ what: "certificates", path: certs_dir, err }); },
+            Err(err) => {
+                return Err(Error::DirReadError { what: "certificates", path: certs_dir, err });
+            },
         };
         for (i, entry) in entries.enumerate() {
             // Unwrap the entry
             let entry: DirEntry = match entry {
                 Ok(entries) => entries,
-                Err(err)    => { return Err(Error::DirEntryReadError{ what: "certificates", path: certs_dir, entry: i, err }); },
+                Err(err) => {
+                    return Err(Error::DirEntryReadError { what: "certificates", path: certs_dir, entry: i, err });
+                },
             };
 
             // Do some checks on whether this is a certificate directory or not
@@ -520,16 +645,16 @@ pub fn list(instance_name: Option<String>, all: bool) -> Result<(), Error> {
             }
 
             // Cast the things to string
-            let domain_name : String   = entry.file_name().to_string_lossy().into();
-            let ca_path     : Cow<str> = ca_path.to_string_lossy();
-            let client_path : Cow<str> = client_path.to_string_lossy();
+            let domain_name: String = entry.file_name().to_string_lossy().into();
+            let ca_path: Cow<str> = ca_path.to_string_lossy();
+            let client_path: Cow<str> = client_path.to_string_lossy();
 
             // Add an entry in the table
-            let instance_name : Cow<str> = pad_str(&name, 20, Alignment::Left, Some(".."));
-            let domain_name   : Cow<str> = pad_str(&domain_name, 20, Alignment::Left, Some(".."));
-            let ca_path       : Cow<str> = pad_str(&ca_path, 30, Alignment::Left, Some(".."));
-            let client_path   : Cow<str> = pad_str(&client_path, 30, Alignment::Left, Some(".."));
-            table.add_row(row![ instance_name, domain_name, ca_path, client_path ]);
+            let instance_name: Cow<str> = pad_str(&name, 20, Alignment::Left, Some(".."));
+            let domain_name: Cow<str> = pad_str(&domain_name, 20, Alignment::Left, Some(".."));
+            let ca_path: Cow<str> = pad_str(&ca_path, 30, Alignment::Left, Some(".."));
+            let client_path: Cow<str> = pad_str(&client_path, 30, Alignment::Left, Some(".."));
+            table.add_row(row![instance_name, domain_name, ca_path, client_path]);
         }
     }
 

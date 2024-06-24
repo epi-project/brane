@@ -16,7 +16,6 @@ use std::str::FromStr;
 
 use log::debug;
 use reqwest::{Response, StatusCode};
-
 use specifications::arch::Arch;
 use specifications::version::Version;
 
@@ -29,32 +28,30 @@ use crate::instance::InstanceInfo;
 #[derive(Debug)]
 struct LocalVersion {
     /// The architecture as reported by `uname -m`
-    arch    : Arch,
+    arch:    Arch,
     /// The version as reported by the env
-    version : Version,
+    version: Version,
 }
 
 impl LocalVersion {
     /// Constructor for the RemoteVersion.
-    /// 
+    ///
     /// Queries the CARGO_PKG_VERSION environment variable for the version.
-    /// 
+    ///
     /// # Returns
     /// A new LocalVersion instance on success, or else a VersionError.
     fn new() -> Result<Self, VersionError> {
         // Parse the env
         let version = match Version::from_str(env!("CARGO_PKG_VERSION")) {
             Ok(version) => version,
-            Err(err)    => { return Err(VersionError::VersionParseError{ raw: env!("CARGO_PKG_VERSION").to_string(), err }); }
+            Err(err) => {
+                return Err(VersionError::VersionParseError { raw: env!("CARGO_PKG_VERSION").to_string(), err });
+            },
         };
 
         // Done, return the struct
-        Ok(Self {
-            arch : Arch::HOST,
-            version,
-        })
+        Ok(Self { arch: Arch::HOST, version })
     }
-    
 }
 
 
@@ -63,16 +60,16 @@ impl LocalVersion {
 #[derive(Debug)]
 struct RemoteVersion {
     /// The architecture as reported by the remote
-    _arch   : Arch,
+    _arch:   Arch,
     /// The version as downloaded from the remote
-    version : Version,
+    version: Version,
 }
 
 impl RemoteVersion {
     /// Constructor for the RemoteVersion.
-    /// 
+    ///
     /// Queries the remote host as stored in the Brane registry login file (get_config_dir()/registry.yml) for its version number.
-    /// 
+    ///
     /// # Returns
     /// A new RemoteVersion instance on success, or else a VersionError.
     async fn new() -> Result<Self, VersionError> {
@@ -82,7 +79,9 @@ impl RemoteVersion {
         debug!(" > Reading registy.yml...");
         let config: InstanceInfo = match InstanceInfo::from_active_path() {
             Ok(config) => config,
-            Err(err)   => { return Err(VersionError::InstanceInfoError{ err }); }
+            Err(err) => {
+                return Err(VersionError::InstanceInfoError { err });
+            },
         };
 
         // Pass to the other constructor
@@ -90,41 +89,45 @@ impl RemoteVersion {
     }
 
     /// Constructor for the RemoteVersion, which creates it from a given IdentityFile.
-    /// 
+    ///
     /// # Arguments
     /// - `info`: The InstanceInfo file to use to find the remote registry's properties.
-    /// 
+    ///
     /// # Returns
     /// A new RemoteVersion instance on success, or else a VersionError.
     async fn from_instance_info(info: InstanceInfo) -> Result<Self, VersionError> {
         // Use reqwest for the API call
         debug!(" > Querying...");
-        let mut url: String = info.api.to_string(); url.push_str("/version");
+        let mut url: String = info.api.to_string();
+        url.push_str("/version");
         let response: Response = match reqwest::get(&url).await {
             Ok(version) => version,
-            Err(err)    => { return Err(VersionError::RequestError{ url, err }); }
+            Err(err) => {
+                return Err(VersionError::RequestError { url, err });
+            },
         };
         if response.status() != StatusCode::OK {
-            return Err(VersionError::RequestFailure{ url, status: response.status() });
+            return Err(VersionError::RequestFailure { url, status: response.status() });
         }
         let version_body: String = match response.text().await {
             Ok(body) => body,
-            Err(err) => { return Err(VersionError::RequestBodyError{ url, err }); }
+            Err(err) => {
+                return Err(VersionError::RequestBodyError { url, err });
+            },
         };
 
         // Try to parse the version
         debug!(" > Parsing remote version...");
         let version = match Version::from_str(&version_body) {
             Ok(version) => version,
-            Err(err)    => { return Err(VersionError::VersionParseError{ raw: version_body, err }); }  
+            Err(err) => {
+                return Err(VersionError::VersionParseError { raw: version_body, err });
+            },
         };
 
         // Done!
         debug!("Remote version number: {}", &version);
-        Ok(Self {
-            _arch : Arch::X86_64,
-            version,
-        })
+        Ok(Self { _arch: Arch::X86_64, version })
     }
 }
 
@@ -186,18 +189,22 @@ pub async fn handle() -> Result<(), VersionError> {
     // If the registry file exists, then also do the remote
     let active_instance_exists: bool = match InstanceInfo::active_instance_exists() {
         Ok(exists) => exists,
-        Err(err)   => { return Err(VersionError::InstanceInfoExistsError{ err }); }
+        Err(err) => {
+            return Err(VersionError::InstanceInfoExistsError { err });
+        },
     };
     if active_instance_exists {
         // Get the registry file from it
         let config = match InstanceInfo::from_active_path() {
             Ok(config) => config,
-            Err(err)   => { return Err(VersionError::InstanceInfoError{ err }); }
+            Err(err) => {
+                return Err(VersionError::InstanceInfoError { err });
+            },
         };
 
         // Print the URL
         println!("Remote Brane instance at '{}'", &config.api);
-        
+
         // Get the version
         let remote = RemoteVersion::from_instance_info(config).await?;
         println!(" - Version      : v{}", remote.version);

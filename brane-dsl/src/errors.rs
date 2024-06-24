@@ -1,32 +1,29 @@
 //  ERRORS.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    17 Aug 2022, 11:29:00
 //  Last edited:
 //    16 Nov 2022, 16:39:28
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Defines errors that occur in the `brane-dsl` crate. Additionally,
 //!   provides some nice formatting options for parser errors.
-// 
+//
 
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FResult};
 
 use nom::error::{VerboseError, VerboseErrorKind};
 
-use crate::spec::{Language, TextRange};
 use crate::scanner::{Span, Tokens};
+use crate::spec::{Language, TextRange};
 
 
 /***** FORMATTING *****/
-pub(crate) fn convert_parser_error(
-    input: Tokens,
-    e: VerboseError<Tokens>,
-) -> String {
+pub(crate) fn convert_parser_error(input: Tokens, e: VerboseError<Tokens>) -> String {
     use std::fmt::Write;
 
     let mut result = String::new();
@@ -43,10 +40,7 @@ pub(crate) fn convert_parser_error(
 
                         write!(
                             &mut result,
-                            "{i}: at line {line_number}:\n\n\
-                             {line}\n\
-                             {caret:>column$}\n\
-                             expected '{expected}', but encountered EOF\n\n",
+                            "{i}: at line {line_number}:\n\n{line}\n{caret:>column$}\nexpected '{expected}', but encountered EOF\n\n",
                             i = i,
                             line_number = line_number,
                             line = line,
@@ -56,11 +50,7 @@ pub(crate) fn convert_parser_error(
                         )
                         .unwrap();
                     } else {
-                        write!(
-                            &mut result,
-                            "{i}: expected '{c}', but EOF\n\n",
-                        )
-                        .unwrap();
+                        write!(&mut result, "{i}: expected '{c}', but EOF\n\n",).unwrap();
                     }
                 } else {
                     let mismatch = tokens.tok[0].inner();
@@ -71,10 +61,7 @@ pub(crate) fn convert_parser_error(
 
                     write!(
                         &mut result,
-                        "{i}: at line {line_number}:\n\n\
-                         {line}\n\
-                         {caret:>column$}\n\
-                         expected '{expected}', found '{actual}'\n\n",
+                        "{i}: at line {line_number}:\n\n{line}\n{caret:>column$}\nexpected '{expected}', found '{actual}'\n\n",
                         i = i,
                         line_number = line_number,
                         line = line,
@@ -85,7 +72,7 @@ pub(crate) fn convert_parser_error(
                     )
                     .unwrap();
                 }
-            }
+            },
             VerboseErrorKind::Nom(nom::error::ErrorKind::Tag) => {
                 let mismatch = tokens.tok[0].inner();
                 let line = String::from_utf8(mismatch.get_line_beginning().to_vec()).unwrap();
@@ -95,10 +82,7 @@ pub(crate) fn convert_parser_error(
 
                 write!(
                     &mut result,
-                    "{i}: at line {line_number}:\n\
-                     {line}\n\
-                     {caret:>column$}\n\
-                     unexpected token '{actual}'\n\n",
+                    "{i}: at line {line_number}:\n{line}\n{caret:>column$}\nunexpected token '{actual}'\n\n",
                     i = i,
                     line_number = line_number,
                     line = line,
@@ -107,28 +91,26 @@ pub(crate) fn convert_parser_error(
                     actual = actual,
                 )
                 .unwrap();
-            }
+            },
             VerboseErrorKind::Context(s) => {
                 let mismatch = tokens.tok[0].inner();
                 let line = String::from_utf8(mismatch.get_line_beginning().to_vec()).unwrap();
 
                 writeln!(result, "{i} in section '{s}', at: {line}").unwrap()
-            }
+            },
             e => {
                 writeln!(result, "Compiler error: unkown error from parser: {e:?}").unwrap();
-            }
+            },
         }
     }
 
     result
 }
 
-pub(crate) fn convert_scanner_error(
-    input: Span,
-    e: VerboseError<Span>,
-) -> String {
-    use nom::Offset;
+pub(crate) fn convert_scanner_error(input: Span, e: VerboseError<Span>) -> String {
     use std::fmt::Write;
+
+    use nom::Offset;
 
     let mut result = String::new();
 
@@ -241,13 +223,13 @@ pub(crate) fn convert_scanner_error(
 #[derive(Debug)]
 pub enum SymbolTableError {
     /// A given function already existed in the SymbolTable and could not be easily shadowed.
-    DuplicateFunction{ name: String, existing: TextRange, got: TextRange },
+    DuplicateFunction { name: String, existing: TextRange, got: TextRange },
     /// A given class already existed in the SymbolTable and could not be easily shadowed.
-    DuplicateClass{ name: String, existing: TextRange, got: TextRange },
+    DuplicateClass { name: String, existing: TextRange, got: TextRange },
     /// A given variable already existed in the SymbolTable and could not be easily shadowed.
-    DuplicateVariable{ name: String, existing: TextRange, got: TextRange },
+    DuplicateVariable { name: String, existing: TextRange, got: TextRange },
     /// A given field (property or method) already existing in the given class.
-    DuplicateField{ c_name: String, name: String, existing: TextRange, got: TextRange },
+    DuplicateField { c_name: String, name: String, existing: TextRange, got: TextRange },
 }
 
 impl Display for SymbolTableError {
@@ -255,10 +237,10 @@ impl Display for SymbolTableError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use SymbolTableError::*;
         match self {
-            DuplicateFunction{ name, .. }      => write!(f, "Duplicate definition of function '{name}'"),
-            DuplicateClass{ name, .. }         => write!(f, "Duplicate definition of class '{name}'"),
-            DuplicateVariable{ name, .. }      => write!(f, "Duplicate definition of variable '{name}'"),
-            DuplicateField{ c_name, name, .. } => write!(f, "Duplicate definition of field '{name}' in class '{c_name}'"),
+            DuplicateFunction { name, .. } => write!(f, "Duplicate definition of function '{name}'"),
+            DuplicateClass { name, .. } => write!(f, "Duplicate definition of class '{name}'"),
+            DuplicateVariable { name, .. } => write!(f, "Duplicate definition of variable '{name}'"),
+            DuplicateField { c_name, name, .. } => write!(f, "Duplicate definition of field '{name}' in class '{c_name}'"),
         }
     }
 }
@@ -271,14 +253,14 @@ impl Error for SymbolTableError {}
 #[derive(Debug)]
 pub enum LanguageParseError {
     /// Encountered an unknown language ID.
-    UnknownLanguageId{ raw: String },
+    UnknownLanguageId { raw: String },
 }
 
 impl Display for LanguageParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use LanguageParseError::*;
         match self {
-            UnknownLanguageId{ raw } => write!(f, "Unknown language ID '{raw}'"),
+            UnknownLanguageId { raw } => write!(f, "Unknown language ID '{raw}'"),
         }
     }
 }
@@ -289,7 +271,7 @@ impl Error for LanguageParseError {}
 #[derive(Debug)]
 pub enum PatternError {
     /// The given pattern was unknown
-    UnknownPattern{ raw: String, range: TextRange },
+    UnknownPattern { raw: String, range: TextRange },
 }
 
 impl Display for PatternError {
@@ -297,7 +279,7 @@ impl Display for PatternError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use PatternError::*;
         match self {
-            UnknownPattern{ raw, .. } => write!(f, "Pattern '{raw}' is unknown (are you missing a package import?)"),
+            UnknownPattern { raw, .. } => write!(f, "Pattern '{raw}' is unknown (are you missing a package import?)"),
         }
     }
 }
@@ -310,20 +292,20 @@ impl Error for PatternError {}
 #[derive(Debug)]
 pub enum ParseError {
     /// The scanner failed to scan.
-    ScanError{ err: String },
+    ScanError { err: String },
     /// Some non-Nom error occurred while scanning.
-    ScannerError{ err: String },
+    ScannerError { err: String },
     /// Not all source was parsed (indicating a syntax error).
     LeftoverSourceError,
 
     /// The parser failed to parse.
-    ParseError{ lang: Language, err: String },
+    ParseError { lang: Language, err: String },
     /// Some non-Nom error occurred while parsing.
-    ParserError{ lang: Language, err: String },
+    ParserError { lang: Language, err: String },
     /// We did not have enough tokens to make an informed decision (i.e., an error occurred).
-    Eof{ lang: Language, err: String },
+    Eof { lang: Language, err: String },
     /// Not all tokens were parsed (indicating an error).
-    LeftoverTokensError{ lang: Language },
+    LeftoverTokensError { lang: Language },
 }
 
 impl Display for ParseError {
@@ -331,14 +313,14 @@ impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use self::ParseError::*;
         match self {
-            ScanError { err }   => write!(f, "Syntax error: {err}"),
-            ScannerError{ err } => write!(f, "Syntax error: {err}"),
+            ScanError { err } => write!(f, "Syntax error: {err}"),
+            ScannerError { err } => write!(f, "Syntax error: {err}"),
             LeftoverSourceError => write!(f, "Syntax error: not all input could be parsed"),
 
-            ParseError { lang, err }    => write!(f, "{lang} parse error: {err}"),
-            ParserError{ lang, err }    => write!(f, "{lang} parse error: {err}"),
-            Eof{ lang, err }            => write!(f, "{lang} parse error: reached end-of-file unexpectedly ({err})"),
-            LeftoverTokensError{ lang } => write!(f, "{lang} parse error: not all input could be parsed"),
+            ParseError { lang, err } => write!(f, "{lang} parse error: {err}"),
+            ParserError { lang, err } => write!(f, "{lang} parse error: {err}"),
+            Eof { lang, err } => write!(f, "{lang} parse error: reached end-of-file unexpectedly ({err})"),
+            LeftoverTokensError { lang } => write!(f, "{lang} parse error: not all input could be parsed"),
         }
     }
 }

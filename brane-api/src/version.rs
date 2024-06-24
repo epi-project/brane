@@ -12,15 +12,15 @@
  *   Handles the /version path from in the API.
 **/
 
-use warp::reply::Response;
 use warp::http::HeaderValue;
 use warp::hyper::Body;
-use warp::{Reply, Rejection};
+use warp::reply::Response;
+use warp::{Rejection, Reply};
 
 
 /***** HANDLER *****/
 /// Handles the '/version' path.
-/// 
+///
 /// Simply returns the environment veriable with '200 OK'.
 pub async fn handle() -> Result<impl Reply, Rejection> {
     let version = env!("CARGO_PKG_VERSION");
@@ -28,10 +28,7 @@ pub async fn handle() -> Result<impl Reply, Rejection> {
     let version_len = version.len();
     let mut response = Response::new(Body::from(version));
 
-    response.headers_mut().insert(
-        "Content-Length",
-        HeaderValue::from(version_len),
-    );
+    response.headers_mut().insert("Content-Length", HeaderValue::from(version_len));
 
     Ok(response)
 }

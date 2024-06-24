@@ -229,10 +229,13 @@ impl Display for PlanError {
                 f,
                 "Checker of domain '{domain}' denied plan{}",
                 if !reasons.is_empty() {
-                    format!("\n\nReasons:\n{}", reasons.iter().fold(String::new(), |mut output, r| {
-                        let _ = writeln!(output, "  - {r}");
-                        output
-                    }))
+                    format!(
+                        "\n\nReasons:\n{}",
+                        reasons.iter().fold(String::new(), |mut output, r| {
+                            let _ = writeln!(output, "  - {r}");
+                            output
+                        })
+                    )
                 } else {
                     String::new()
                 }

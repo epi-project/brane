@@ -1,4 +1,6 @@
-use crate::{build, resolver};
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use anyhow::Result;
 use backoff::{retry, Error, ExponentialBackoff};
 use brane_exe::FullValue;
@@ -8,15 +10,12 @@ use openapiv3::{OpenAPI, Operation, Parameter as OParameter, ReferenceOr, Securi
 use reqwest::blocking::RequestBuilder;
 use reqwest::Url;
 use reqwest_cookie_store::CookieStoreRwLock;
-use std::{collections::HashMap, sync::Arc};
+
+use crate::{build, resolver};
 
 type Map<T> = std::collections::HashMap<String, T>;
 
-pub async fn execute(
-    operation_id: &str,
-    arguments: &Map<FullValue>,
-    oas_document: &OpenAPI,
-) -> Result<String> {
+pub async fn execute(operation_id: &str, arguments: &Map<FullValue>, oas_document: &OpenAPI) -> Result<String> {
     let mut arguments = arguments.clone();
     debug!("Arguments: {:?}", arguments);
 
@@ -39,15 +38,15 @@ pub async fn execute(
     // 4. global (document)
     let base_url: Url = arguments
         .get(&String::from("server"))
-        .map(|v| if let FullValue::String(value) = v { value.clone() } else { panic!("Given argument is not a string"); })
-        .or_else(|| operation.servers.first().map(|s| s.url.clone()))
-        .or_else(|| {
-            resolver::resolve_path_item(oas_document.paths.get(&path).unwrap())
-                .unwrap()
-                .servers
-                .first()
-                .map(|s| s.url.clone())
+        .map(|v| {
+            if let FullValue::String(value) = v {
+                value.clone()
+            } else {
+                panic!("Given argument is not a string");
+            }
         })
+        .or_else(|| operation.servers.first().map(|s| s.url.clone()))
+        .or_else(|| resolver::resolve_path_item(oas_document.paths.get(&path).unwrap()).unwrap().servers.first().map(|s| s.url.clone()))
         .or_else(|| oas_document.servers.first().map(|s| s.url.clone()))
         .expect("The `server` property is not provided and can't be deduced from OAS document.")
         .parse()?;
@@ -67,35 +66,33 @@ pub async fn execute(
                 let cookie = RawCookie::new(name.clone(), value.to_string());
                 let cookie = Cookie::try_from_raw_cookie(&cookie, &base_url)?;
                 cookies.insert(cookie, &base_url)?;
-            }
+            },
             OParameter::Header { parameter_data, .. } => {
                 let name = &parameter_data.name;
                 let value = arguments.get(name).expect("Missing argument.");
 
                 headers.push((name.clone(), value.to_string()));
-            }
+            },
             OParameter::Path { parameter_data, .. } => {
                 let name = &parameter_data.name;
                 let value = arguments.get(name).expect("Missing argument.");
                 /* TIM */
                 operation_url = operation_url.replace(&format!("%7B{name}%7D"), &value.to_string());
                 /*******/
-            }
+            },
             OParameter::Query { parameter_data, .. } => {
                 let name = &parameter_data.name;
                 let value = arguments.get(name).expect("Missing argument.");
 
                 query.push((name.clone(), value.to_string()));
-            }
+            },
         }
     }
 
     // Determine input from security schemes.
     if let Some(Some(security_scheme)) = &operation.security.map(|s| s.first().cloned()) {
         if let Some(security_scheme) = security_scheme.keys().next() {
-            let item = ReferenceOr::Reference::<SecurityScheme> {
-                reference: format!("#/components/schemas/{security_scheme}"),
-            };
+            let item = ReferenceOr::Reference::<SecurityScheme> { reference: format!("#/components/schemas/{security_scheme}") };
 
             let security_scheme = resolver::resolve_security_scheme(&item, &components)?;
             match security_scheme {
@@ -104,17 +101,17 @@ pub async fn execute(
                     match location {
                         openapiv3::APIKeyLocation::Query => {
                             query.push((name.clone(), value.to_string()));
-                        }
+                        },
                         openapiv3::APIKeyLocation::Header => {
                             headers.push((name.clone(), value.to_string()));
-                        }
+                        },
                         openapiv3::APIKeyLocation::Cookie => {
                             let cookie = RawCookie::new(name.clone(), value.to_string());
                             let cookie = Cookie::try_from_raw_cookie(&cookie, &base_url)?;
                             cookies.insert(cookie, &base_url)?;
-                        }
+                        },
                     }
-                }
+                },
                 SecurityScheme::HTTP { scheme, .. } => {
                     if scheme.to_lowercase() != *"bearer" {
                         todo!();
@@ -122,17 +119,15 @@ pub async fn execute(
 
                     let value = arguments.get("token").expect("Missing `token` argument.");
                     headers.push((String::from("Authorization"), format!("Bearer {value}")));
-                }
+                },
                 _ => todo!(),
             }
         }
     }
 
     // Build the client.
-    let client = reqwest::blocking::Client::builder()
-        .cookie_provider(Arc::new(CookieStoreRwLock::new(cookies)))
-        .user_agent("HTTPie/2.2.0")
-        .build()?;
+    let client =
+        reqwest::blocking::Client::builder().cookie_provider(Arc::new(CookieStoreRwLock::new(cookies))).user_agent("HTTPie/2.2.0").build()?;
 
     let mut client = match method.as_str() {
         "delete" => client.delete(&operation_url),
@@ -164,7 +159,9 @@ pub async fn execute(
                     if let Some(value) = arguments.get(&property.name) {
                         json.insert(property.name.clone(), match serde_json::to_value(value) {
                             Ok(value) => value,
-                            Err(err)  => { return Err(anyhow!("Failed to serialize value '{}' to JSON: {}", value, err)); }
+                            Err(err) => {
+                                return Err(anyhow!("Failed to serialize value '{}' to JSON: {}", value, err));
+                            },
                         });
                     }
                 }
@@ -191,10 +188,7 @@ async fn perform_request(client: RequestBuilder) -> Result<String, Error<reqwest
     retry(backoff, op)
 }
 
-pub fn get_operation(
-    operation_id: &str,
-    oas_document: &OpenAPI,
-) -> Result<(String, String, Operation)> {
+pub fn get_operation(operation_id: &str, oas_document: &OpenAPI) -> Result<(String, String, Operation)> {
     let (path, method, operation) = oas_document
         .paths
         .iter()
