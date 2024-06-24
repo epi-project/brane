@@ -1,31 +1,30 @@
 //  INPUT.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    06 Jun 2023, 18:38:50
 //  Last edited:
 //    07 Jun 2023, 15:46:31
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Contains functions for prompting the user in the various user-facing
 //!   executables.
-// 
+//
 
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
-use std::error;
 use std::ffi::OsString;
 use std::fmt::{Display, Formatter, Result as FResult, Write as _};
 use std::fs::{self, DirEntry, ReadDir};
 use std::hash::Hash;
-use std::mem;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::{error, mem};
 
-use dialoguer::{Completion, Confirm, History, Input, Select};
 use dialoguer::theme::ColorfulTheme;
+use dialoguer::{Completion, Confirm, History, Input, Select};
 use log::warn;
 
 
@@ -44,9 +43,9 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use Error::*;
         match self {
-            Confirm { .. }        => write!(f, "Failed to prompt the user (you!) to answer yes or no"),
+            Confirm { .. } => write!(f, "Failed to prompt the user (you!) to answer yes or no"),
             Select { n_opts, .. } => write!(f, "Failed to prompt the user (you!) to select one of {n_opts} options"),
-            Text { .. }           => write!(f, "Failed to prompt the user (you!) for a string input"),
+            Text { .. } => write!(f, "Failed to prompt the user (you!) for a string input"),
         }
     }
 }
@@ -55,8 +54,8 @@ impl error::Error for Error {
         use Error::*;
         match self {
             Confirm { err, .. } => Some(err),
-            Select { err, .. }  => Some(err),
-            Text { err, .. }    => Some(err),
+            Select { err, .. } => Some(err),
+            Text { err, .. } => Some(err),
         }
     }
 }
@@ -67,27 +66,27 @@ impl error::Error for Error {
 
 /***** HISTORIES *****/
 /// Defines a history that relates to a particular file.
-/// 
+///
 /// Will automatically write-back on dropping.
 #[derive(Clone, Debug)]
 pub struct FileHistory {
     /// Defines the path to write the history to upon destruction.
-    path    : PathBuf,
+    path:    PathBuf,
     /// Defines the in-memory history.
-    history : VecDeque<String>,
+    history: VecDeque<String>,
 }
 
 impl FileHistory {
     /// Constructor for the FileHistory.
-    /// 
+    ///
     /// Attempts to read the history from the given `path`, and writes it back when this struct is dropped (unless [`Self::forget()`] is called). To this end, avoid having two FileHistory's that point to the same file.
-    /// 
+    ///
     /// # Arguments
     /// - `path`: Points to the location of this history's file.
-    /// 
+    ///
     /// # Returns
     /// A new FileHistory instance.
-    /// 
+    ///
     /// # Warnings
     /// This function emits warnings using [`log::warn()`] when it fails to read the file.
     pub fn new(path: impl Into<PathBuf>) -> Self {
@@ -95,7 +94,7 @@ impl FileHistory {
 
         // Attempt to read the file
         let raw: String = match fs::read_to_string(&path) {
-            Ok(raw)  => raw,
+            Ok(raw) => raw,
             Err(err) => {
                 warn!("Failed to read history file '{}': {}", path.display(), err);
                 return Self { path, history: VecDeque::new() };
@@ -128,16 +127,11 @@ impl FileHistory {
         }
 
         // We can now save the restored history
-        Self {
-            path,
-            history,
-        }
+        Self { path, history }
     }
 
     /// Drops this history without saving it.
-    pub fn forget(self) {
-        mem::forget(self);
-    }
+    pub fn forget(self) { mem::forget(self); }
 }
 impl Drop for FileHistory {
     fn drop(&mut self) {
@@ -173,16 +167,18 @@ impl Drop for FileHistory {
 
 impl History<String> for FileHistory {
     #[inline]
-    fn read(&self, pos: usize) -> Option<String> {
-        self.history.get(pos).cloned()
-    }
+    fn read(&self, pos: usize) -> Option<String> { self.history.get(pos).cloned() }
 
     fn write(&mut self, val: &String) {
         // Pop the front if we don't have the space
-        while self.history.len() >= 500 { self.history.pop_back(); }
+        while self.history.len() >= 500 {
+            self.history.pop_back();
+        }
 
         // Simply push to the end
-        if self.history.len() == self.history.capacity() { self.history.reserve(self.history.len()); }
+        if self.history.len() == self.history.capacity() {
+            self.history.reserve(self.history.len());
+        }
         self.history.push_front(val.clone());
     }
 }
@@ -200,7 +196,7 @@ impl Completion for FileAutocompleter {
         // Get the input as a directory and some filter in that directory
         let (dir, filter): (&str, &str) = match input.rfind('/') {
             Some(pos) => (&input[..pos + 1], &input[pos + 1..]),
-            None      => ("./", input),
+            None => ("./", input),
         };
 
         // Attempt to find all entries that are allowed by the filter in that directory
@@ -225,15 +221,13 @@ impl Completion for FileAutocompleter {
             // Filter the entry
             let sentry: OsString = entry.file_name();
             let sentry: Cow<str> = sentry.to_string_lossy();
-            if sentry.len() < filter.len() || &sentry[..filter.len()] != filter { continue; }
+            if sentry.len() < filter.len() || &sentry[..filter.len()] != filter {
+                continue;
+            }
 
             // Otherwise, add it as a possibility
             // Before we do, add an optional '/' if this is a directory
-            let sentry: String = if entry.path().is_dir() {
-                format!("{dir}{sentry}/")
-            } else {
-                format!("{dir}{sentry}")
-            };
+            let sentry: String = if entry.path().is_dir() { format!("{dir}{sentry}/") } else { format!("{dir}{sentry}") };
 
             // Otherwise, add it as possibility
             targets.push(sentry);
@@ -275,14 +269,14 @@ impl Completion for FileAutocompleter {
 
 /***** LIBRARY *****/
 /// Prompts the user with a yes/no question.
-/// 
+///
 /// # Arguments
 /// - `prompt`: The prompt to display to the user.
 /// - `default`: If not [`None`], allows the user to answer a default yes/no based on the given boolean value (true for yes, false for no).
-/// 
+///
 /// # Returns
 /// True if the user answered yes, or else false.
-/// 
+///
 /// # Errors
 /// This function errors if we failed to interact with the user.
 pub fn confirm(prompt: impl ToString, default: Option<bool>) -> Result<bool, Error> {
@@ -296,7 +290,7 @@ pub fn confirm(prompt: impl ToString, default: Option<bool>) -> Result<bool, Err
 
     // Run the prompt
     match confirm.interact() {
-        Ok(res)  => Ok(res),
+        Ok(res) => Ok(res),
         Err(err) => Err(Error::Confirm { err }),
     }
 }
@@ -304,22 +298,27 @@ pub fn confirm(prompt: impl ToString, default: Option<bool>) -> Result<bool, Err
 
 
 /// Prompts the user for a string.
-/// 
+///
 /// # Generic arguments
 /// - `S`: The [`FromStr`]-capable type to query.
-/// 
+///
 /// # Arguments
 /// - `what`: Some string description to show to the user that tells them what kind of thing they are inputting. Should fill in: `Invalid ...`. Only used in the case they fail the first time.
 /// - `prompt`: The prompt to display to the user.
 /// - `default`: Any default value to give, or else [`None`].
 /// - `history`: An optional [`History`]-capabable struct that can be used to keep track of this prompt's history.
-/// 
+///
 /// # Returns
 /// The users inputted value for `S`.
-/// 
+///
 /// # Errors
 /// This function errors if we failed to interact with the user.
-pub fn input<S>(what: impl Display, prompt: impl ToString, default: Option<impl Into<S>>, mut history: Option<impl History<String>>) -> Result<S, Error>
+pub fn input<S>(
+    what: impl Display,
+    prompt: impl ToString,
+    default: Option<impl Into<S>>,
+    mut history: Option<impl History<String>>,
+) -> Result<S, Error>
 where
     S: FromStr + ToString,
     S::Err: error::Error,
@@ -343,13 +342,17 @@ where
 
         // Run the prompt
         let res: String = match input.interact_text() {
-            Ok(res)  => res,
-            Err(err) => { return Err(Error::Text { err }); },
+            Ok(res) => res,
+            Err(err) => {
+                return Err(Error::Text { err });
+            },
         };
 
         // Attempt to parse it as S
         match S::from_str(&res) {
-            Ok(res)  => { return Ok(res); },
+            Ok(res) => {
+                return Ok(res);
+            },
             Err(err) => {
                 warn!("Failed to parse '{}' as {}: {}", res, std::any::type_name::<S>(), err);
                 prompt = format!("Illegal value for {what}; try again");
@@ -359,25 +362,24 @@ where
 }
 
 /// Prompts the user for an input path.
-/// 
+///
 /// While [`input()`] can be used too, this function features auto-completion for the filesystem.
-/// 
+///
 /// # Arguments
 /// - `prompt`: The prompt to display to the user.
 /// - `default`: Any default path to give, or else [`None`].
 /// - `history`: An optional [`History`]-capabable struct that can be used to keep track of this prompt's history.
-/// 
+///
 /// # Returns
 /// The user's chosen path.
-/// 
+///
 /// # Errors
 /// This function errors if we failed to interact with the user.
 pub fn input_path(prompt: impl ToString, default: Option<impl Into<PathBuf>>, mut history: Option<impl History<String>>) -> Result<PathBuf, Error> {
     // Construct the prompt
     let theme: ColorfulTheme = ColorfulTheme::default();
     let mut input: Input<String> = Input::with_theme(&theme);
-    input.with_prompt(prompt.to_string())
-        .completion_with(&FileAutocompleter);
+    input.with_prompt(prompt.to_string()).completion_with(&FileAutocompleter);
     if let Some(default) = default {
         input.default(default.into().to_string_lossy().into());
     }
@@ -393,9 +395,9 @@ pub fn input_path(prompt: impl ToString, default: Option<impl Into<PathBuf>>, mu
 }
 
 /// Prompts the user for a map of arbitrary size.
-/// 
+///
 /// The user can specify keys multiple times to overwrite previous ones.
-/// 
+///
 /// # Arguments
 /// - `key_what`: Some string description to show to the user that tells them what kind of key they are inputting. Should fill in: `Invalid ...`. Only used in the case they fail the first time.
 /// - `val_what`: Some string description to show to the user that tells them what kind of value they are inputting. Should fill in: `Invalid ...`. Only used in the case they fail the first time.
@@ -403,13 +405,20 @@ pub fn input_path(prompt: impl ToString, default: Option<impl Into<PathBuf>>, mu
 /// - `second_prompt`: Another prompt to show for entries beyond the first. You can use `%I` to get the current prompt index.
 /// - `split`: The split sequence between keys and values.
 /// - `history`: An optional [`History`]-capabable struct that can be used to keep track of this prompt's history.
-/// 
+///
 /// # Returns
 /// A new [`HashMap`] that contains the user's entered values.
-/// 
+///
 /// # Errors
 /// This function errors if we failed to interact with the user.
-pub fn input_map<K, V>(key_what: impl Display, val_what: impl Display, prompt: impl ToString, second_prompt: impl ToString, split: impl AsRef<str>, mut history: Option<impl History<String>>) -> Result<HashMap<K, V>, Error>
+pub fn input_map<K, V>(
+    key_what: impl Display,
+    val_what: impl Display,
+    prompt: impl ToString,
+    second_prompt: impl ToString,
+    split: impl AsRef<str>,
+    mut history: Option<impl History<String>>,
+) -> Result<HashMap<K, V>, Error>
 where
     K: Eq + FromStr + Hash,
     V: FromStr,
@@ -427,8 +436,7 @@ where
     loop {
         // Construct the prompt
         let mut input: Input<String> = Input::with_theme(&theme);
-        input.with_prompt(prompt.replace("%I", &(map.len() + 1).to_string()))
-            .allow_empty(true);
+        input.with_prompt(prompt.replace("%I", &(map.len() + 1).to_string())).allow_empty(true);
         if let Some(history) = &mut history {
             input.history_with(history);
         }
@@ -436,22 +444,28 @@ where
         // Interact with it
         let entry: String = match input.interact_text() {
             Ok(entry) => entry,
-            Err(err)  => { return Err(Error::Text { err }); },
+            Err(err) => {
+                return Err(Error::Text { err });
+            },
         };
-        if entry.is_empty() { return Ok(map); }
+        if entry.is_empty() {
+            return Ok(map);
+        }
 
         // Split on the first splitter
         let (key, value): (&str, &str) = match entry.find(split) {
             Some(pos) => (&entry[..pos], &entry[pos + 1..]),
-            None      => {
-                prompt = Cow::Owned(format!("'{entry}' is not a valid {key_what}{split}{val_what} pair; try again using '{split}' (or leave empty to finish)"));
+            None => {
+                prompt = Cow::Owned(format!(
+                    "'{entry}' is not a valid {key_what}{split}{val_what} pair; try again using '{split}' (or leave empty to finish)"
+                ));
                 continue;
             },
         };
 
         // Parse the Key and Value individually
         let key: K = match K::from_str(key) {
-            Ok(key)  => key,
+            Ok(key) => key,
             Err(err) => {
                 warn!("Failed to parse '{}' as {}: {}", key, std::any::type_name::<K>(), err);
                 prompt = Cow::Owned(format!("'{key}' is not a valid {key_what}; try again (or leave empty to finish)"));
@@ -459,7 +473,7 @@ where
             },
         };
         let value: V = match V::from_str(value) {
-            Ok(val)  => val,
+            Ok(val) => val,
             Err(err) => {
                 warn!("Failed to parse '{}' as {}: {}", value, std::any::type_name::<V>(), err);
                 prompt = Cow::Owned(format!("'{value}' is not a valid {val_what}; try again (or leave empty to finish)"));
@@ -476,15 +490,15 @@ where
 
 
 /// Prompts the user to select on the given values.
-/// 
+///
 /// # Arguments
 /// - `prompt`: The prompt to display to the user.
 /// - `options`: A list of options to select from.
 /// - `default`: If not [`None`], then the select highlights another item than the first.
-/// 
+///
 /// # Returns
 /// The selected option. If the user aborted the select, [`None`] is returned instead.
-/// 
+///
 /// # Errors
 /// This function errors if we failed to interact with the user.
 pub fn select<S: ToString>(prompt: impl ToString, options: impl IntoIterator<Item = S>, default: Option<usize>) -> Result<S, Error> {
@@ -494,14 +508,11 @@ pub fn select<S: ToString>(prompt: impl ToString, options: impl IntoIterator<Ite
     // Construct the prompt
     let theme: ColorfulTheme = ColorfulTheme::default();
     let mut input: Select = Select::with_theme(&theme);
-    input.with_prompt(prompt.to_string())
-        .default(default.unwrap_or(0))
-        .items(&options)
-        .report(true);
+    input.with_prompt(prompt.to_string()).default(default.unwrap_or(0)).items(&options).report(true);
 
     // Run it
     match input.interact() {
         Ok(index) => Ok(options.swap_remove(index)),
-        Err(err)  => Err(Error::Select { n_opts: options.len(), err }),
+        Err(err) => Err(Error::Select { n_opts: options.len(), err }),
     }
 }

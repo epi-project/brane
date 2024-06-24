@@ -35,17 +35,9 @@ fn param_required_is_preserved() -> Result<()> {
     let (function, _) = common::build_oas_function_param("/param-required", "onlyPathParameters")?;
     assert_eq!(function.parameters.len(), 2);
 
-    assert!(function
-        .parameters
-        .iter()
-        .filter(|p| p.name == "1")
-        .any(|p| !p.optional.unwrap()));
+    assert!(function.parameters.iter().filter(|p| p.name == "1").any(|p| !p.optional.unwrap()));
 
-    assert!(function
-        .parameters
-        .iter()
-        .filter(|p| p.name == "2")
-        .any(|p| p.optional.unwrap()));
+    assert!(function.parameters.iter().filter(|p| p.name == "2").any(|p| p.optional.unwrap()));
 
     // For >=4 parameters, the parameters are grouped into a input type.
     let (function, types) = common::build_oas_function_param("/param-required-count-4", "onlyPathParameters")?;

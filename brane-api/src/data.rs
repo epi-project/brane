@@ -1,31 +1,30 @@
 //  DATA.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    26 Sep 2022, 17:20:55
 //  Last edited:
 //    07 Jun 2023, 16:29:39
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Defines functions that handle REST-functions to the `/data` path and
 //!   nested.
-// 
+//
 
 use std::collections::HashMap;
-
-use log::{debug, error};
-use reqwest::StatusCode;
-use warp::{Rejection, Reply};
-use warp::http::{HeaderValue, Response};
-use warp::hyper::Body;
 
 use brane_cfg::info::Info as _;
 use brane_cfg::infra::InfraFile;
 use brane_cfg::node::NodeConfig;
 use brane_prx::spec::NewPathRequestTlsOptions;
+use log::{debug, error};
+use reqwest::StatusCode;
 use specifications::data::{AssetInfo, DataInfo};
+use warp::http::{HeaderValue, Response};
+use warp::hyper::Body;
+use warp::{Rejection, Reply};
 
 pub use crate::errors::DataError as Error;
 use crate::spec::Context;
@@ -45,13 +44,13 @@ macro_rules! fail {
 
 /***** LIBRARY *****/
 /// Lists the datasets that are known in the instance.
-/// 
+///
 /// # Arguments
 /// - `context`: The Context that contains stuff we need to run.
-/// 
+///
 /// # Returns
 /// A response that can be send to client. Specifically, it will contains a map (i.e., `HashMap`) of DataInfo structs that describe all the known datasets and where they live (mapped by their name).
-/// 
+///
 /// # Errors
 /// This function may error (i.e., reject the request) if we failed to load the infrastructure file.
 pub async fn list(context: Context) -> Result<impl Reply, Rejection> {
@@ -60,7 +59,7 @@ pub async fn list(context: Context) -> Result<impl Reply, Rejection> {
     // Load the node config file
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
         Ok(config) => config,
-        Err(err)   => {
+        Err(err) => {
             error!("Failed to load NodeConfig file: {}", err);
             return Err(warp::reject::custom(Error::SecretError));
         },
@@ -73,8 +72,8 @@ pub async fn list(context: Context) -> Result<impl Reply, Rejection> {
     // Load the infrastructure file
     let infra: InfraFile = match InfraFile::from_path(&node_config.node.central().paths.infra) {
         Ok(infra) => infra,
-        Err(err)  => {
-            error!("{}", Error::InfrastructureOpenError{ path: node_config.node.central().paths.infra.clone(), err });
+        Err(err) => {
+            error!("{}", Error::InfrastructureOpenError { path: node_config.node.central().paths.infra.clone(), err });
             return Err(warp::reject::custom(Error::SecretError));
         },
     };
@@ -84,19 +83,20 @@ pub async fn list(context: Context) -> Result<impl Reply, Rejection> {
     for (loc_name, loc) in infra {
         // Run a GET-request on `/data/info` to fetch all datasets in this domain
         let address: String = format!("{}/data/info", loc.registry);
-        let res: reqwest::Response = match context.proxy.get(&address, Some(NewPathRequestTlsOptions{ location: loc_name.clone(), use_client_auth: false })).await {
-            Ok(res)  => match res {
-                Ok(res)  => res,
+        let res: reqwest::Response =
+            match context.proxy.get(&address, Some(NewPathRequestTlsOptions { location: loc_name.clone(), use_client_auth: false })).await {
+                Ok(res) => match res {
+                    Ok(res) => res,
+                    Err(err) => {
+                        error!("{} (skipping domain)", Error::RequestError { address, err });
+                        continue;
+                    },
+                },
                 Err(err) => {
-                    error!("{} (skipping domain)", Error::RequestError{ address, err });
+                    error!("{} (skipping domain)", Error::ProxyError { err });
                     continue;
                 },
-            },
-            Err(err) => {
-                error!("{} (skipping domain)", Error::ProxyError{ err });
-                continue;
-            },
-        };
+            };
         if res.status() == StatusCode::NOT_FOUND {
             // Search the next one instead
             continue;
@@ -106,17 +106,17 @@ pub async fn list(context: Context) -> Result<impl Reply, Rejection> {
         let body: String = match res.text().await {
             Ok(body) => body,
             Err(err) => {
-                error!("{} (skipping domain)", Error::ResponseBodyError{ address, err });
+                error!("{} (skipping domain)", Error::ResponseBodyError { address, err });
                 continue;
-            }
+            },
         };
         let local_sets: HashMap<String, AssetInfo> = match serde_json::from_str(&body) {
             Ok(body) => body,
             Err(err) => {
                 debug!("Received body: \"\"\"{}\"\"\"", body);
-                error!("{} (skipping domain)", Error::ResponseParseError{ address, err });
+                error!("{} (skipping domain)", Error::ResponseParseError { address, err });
                 continue;
-            }  
+            },
         };
 
         // Merge that into the existing mapping of DataInfos
@@ -134,18 +134,15 @@ pub async fn list(context: Context) -> Result<impl Reply, Rejection> {
     let body: String = match serde_json::to_string(&datasets) {
         Ok(body) => body,
         Err(err) => {
-            error!("{}", Error::SerializeError{ what: "list of all datasets", err });
+            error!("{}", Error::SerializeError { what: "list of all datasets", err });
             fail!();
-        }
+        },
     };
     let body_len: usize = body.len();
 
     // Create the respones around it
     let mut response = Response::new(Body::from(body));
-    response.headers_mut().insert(
-        "Content-Length",
-        HeaderValue::from(body_len),
-    );
+    response.headers_mut().insert("Content-Length", HeaderValue::from(body_len));
 
     // Done
     Ok(response)
@@ -154,14 +151,14 @@ pub async fn list(context: Context) -> Result<impl Reply, Rejection> {
 
 
 /// Retrieves all information about the given dataset.
-/// 
+///
 /// # Arguments
 /// - `name`: The name of the dataset to query about.
 /// - `context`: The Context that contains stuff we need to run.
-/// 
+///
 /// # Returns
 /// A response that can be send to client. Specifically, it will contains a DataInfo struct that describes everything we know about it.
-/// 
+///
 /// # Errors
 /// This function may error (i.e., reject the request) if the given name was not known.
 pub async fn get(name: String, context: Context) -> Result<impl Reply, Rejection> {
@@ -170,7 +167,7 @@ pub async fn get(name: String, context: Context) -> Result<impl Reply, Rejection
     // Load the node config file
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
         Ok(config) => config,
-        Err(err)   => {
+        Err(err) => {
             error!("Failed to load NodeConfig file: {}", err);
             return Err(warp::reject::custom(Error::SecretError));
         },
@@ -183,8 +180,8 @@ pub async fn get(name: String, context: Context) -> Result<impl Reply, Rejection
     // Load the infrastructure file
     let infra: InfraFile = match InfraFile::from_path(&node_config.node.central().paths.infra) {
         Ok(infra) => infra,
-        Err(err)  => {
-            error!("{}", Error::InfrastructureOpenError{ path: node_config.node.central().paths.infra.clone(), err });
+        Err(err) => {
+            error!("{}", Error::InfrastructureOpenError { path: node_config.node.central().paths.infra.clone(), err });
             return Err(warp::reject::custom(Error::SecretError));
         },
     };
@@ -194,19 +191,20 @@ pub async fn get(name: String, context: Context) -> Result<impl Reply, Rejection
     for (loc_name, loc) in infra {
         // Run a GET-request on `/data` to fetch the specific dataset we're asked for
         let address: String = format!("{}/data/info/{}", loc.registry, name);
-        let res: reqwest::Response = match context.proxy.get(&address, Some(NewPathRequestTlsOptions{ location: loc_name.clone(), use_client_auth: false })).await {
-            Ok(res)  => match res {
-                Ok(res)  => res,
+        let res: reqwest::Response =
+            match context.proxy.get(&address, Some(NewPathRequestTlsOptions { location: loc_name.clone(), use_client_auth: false })).await {
+                Ok(res) => match res {
+                    Ok(res) => res,
+                    Err(err) => {
+                        error!("{} (skipping domain)", Error::RequestError { address, err });
+                        continue;
+                    },
+                },
                 Err(err) => {
-                    error!("{} (skipping domain)", Error::RequestError{ address, err });
+                    error!("{} (skipping domain)", Error::ProxyError { err });
                     continue;
                 },
-            },
-            Err(err) => {
-                error!("{} (skipping domain)", Error::ProxyError{ err });
-                continue;
-            },
-        };
+            };
         if res.status() == StatusCode::NOT_FOUND {
             // Search the next one instead
             continue;
@@ -216,17 +214,17 @@ pub async fn get(name: String, context: Context) -> Result<impl Reply, Rejection
         let body: String = match res.text().await {
             Ok(body) => body,
             Err(err) => {
-                error!("{} (skipping domain datasets)", Error::ResponseBodyError{ address, err });
+                error!("{} (skipping domain datasets)", Error::ResponseBodyError { address, err });
                 continue;
-            }
+            },
         };
         let local_set: AssetInfo = match serde_json::from_str(&body) {
             Ok(body) => body,
             Err(err) => {
                 debug!("Received body: \"\"\"{}\"\"\"", body);
-                error!("{} (skipping domain datasets)", Error::ResponseParseError{ address, err });
+                error!("{} (skipping domain datasets)", Error::ResponseParseError { address, err });
                 continue;
-            }  
+            },
         };
 
         // Either add or set that as the result
@@ -238,24 +236,23 @@ pub async fn get(name: String, context: Context) -> Result<impl Reply, Rejection
     }
 
     // If we failed to find it, 404 as well
-    if dataset.is_none() { return Err(warp::reject::not_found()); }
+    if dataset.is_none() {
+        return Err(warp::reject::not_found());
+    }
 
     // Now serialize this thing
     let body: String = match serde_json::to_string(&dataset) {
         Ok(body) => body,
         Err(err) => {
-            error!("{}", Error::SerializeError{ what: "dataset metadata", err });
+            error!("{}", Error::SerializeError { what: "dataset metadata", err });
             fail!();
-        }
+        },
     };
     let body_len: usize = body.len();
 
     // Create the respones around it
     let mut response = Response::new(Body::from(body));
-    response.headers_mut().insert(
-        "Content-Length",
-        HeaderValue::from(body_len),
-    );
+    response.headers_mut().insert("Content-Length", HeaderValue::from(body_len));
 
     // Done
     Ok(response)

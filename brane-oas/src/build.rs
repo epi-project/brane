@@ -1,12 +1,13 @@
-use super::*;
-use crate::resolver::{self, resolve_schema};
 use anyhow::Result;
-use openapiv3::{Components, Parameter as OParameter, Type as OType};
-use openapiv3::{OpenAPI, ReferenceOr, SecurityScheme};
-use openapiv3::{Operation, ParameterSchemaOrContent, Schema, SchemaKind};
+use openapiv3::{
+    Components, OpenAPI, Operation, Parameter as OParameter, ParameterSchemaOrContent, ReferenceOr, Schema, SchemaKind, SecurityScheme, Type as OType,
+};
 use rand::distributions::Alphanumeric;
 use rand::{self, Rng};
 use specifications::common::{CallPattern, Function, Parameter, Property, Type};
+
+use super::*;
+use crate::resolver::{self, resolve_schema};
 
 type Map<T> = std::collections::HashMap<String, T>;
 type FunctionsAndTypes = (Map<Function>, Map<Type>);
@@ -43,64 +44,21 @@ pub fn build_oas_functions(oas_document: &OpenAPI) -> Result<FunctionsAndTypes> 
         let path = resolver::resolve_path_item(path)?;
         let server_known = !oas_document.servers.is_empty() || !path.servers.is_empty();
 
-        try_build(
-            generate_operation_id("delete", url_path),
-            path.delete,
-            &components,
-            server_known,
-        )?;
-        try_build(
-            generate_operation_id("get", url_path),
-            path.get,
-            &components,
-            server_known,
-        )?;
-        try_build(
-            generate_operation_id("head", url_path),
-            path.head,
-            &components,
-            server_known,
-        )?;
-        try_build(
-            generate_operation_id("options", url_path),
-            path.options,
-            &components,
-            server_known,
-        )?;
-        try_build(
-            generate_operation_id("patch", url_path),
-            path.patch,
-            &components,
-            server_known,
-        )?;
-        try_build(
-            generate_operation_id("post", url_path),
-            path.post,
-            &components,
-            server_known,
-        )?;
-        try_build(
-            generate_operation_id("put", url_path),
-            path.put,
-            &components,
-            server_known,
-        )?;
-        try_build(
-            generate_operation_id("trace", url_path),
-            path.trace,
-            &components,
-            server_known,
-        )?;
+        try_build(generate_operation_id("delete", url_path), path.delete, &components, server_known)?;
+        try_build(generate_operation_id("get", url_path), path.get, &components, server_known)?;
+        try_build(generate_operation_id("head", url_path), path.head, &components, server_known)?;
+        try_build(generate_operation_id("options", url_path), path.options, &components, server_known)?;
+        try_build(generate_operation_id("patch", url_path), path.patch, &components, server_known)?;
+        try_build(generate_operation_id("post", url_path), path.post, &components, server_known)?;
+        try_build(generate_operation_id("put", url_path), path.put, &components, server_known)?;
+        try_build(generate_operation_id("trace", url_path), path.trace, &components, server_known)?;
     }
 
     Ok((functions, types))
 }
 
 /// Generates an identifier for a OpenAPI operation.
-pub fn generate_operation_id(
-    method: &str,
-    path: &str,
-) -> String {
+pub fn generate_operation_id(method: &str, path: &str) -> String {
     let mut operation_id = method.to_string();
 
     let segments = path.split('/');
@@ -111,30 +69,18 @@ pub fn generate_operation_id(
 
         // Trim { } indicating variable placeholders.
         let trimmed = segment.trim_matches(|c| c == '{' || c == '}');
-        let segment = if segment == trimmed {
-            format!("_{segment}")
-        } else {
-            format!("_by{trimmed}")
-        };
+        let segment = if segment == trimmed { format!("_{segment}") } else { format!("_by{trimmed}") };
 
         operation_id.push_str(&segment);
     }
 
-    debug!(
-        "Generated (potential) ID {} based on {} ({}).",
-        operation_id,
-        path,
-        method.to_uppercase()
-    );
+    debug!("Generated (potential) ID {} based on {} ({}).", operation_id, path, method.to_uppercase());
 
     operation_id
 }
 
 /// Gets and validates the identifier of an OpenAPI operation.
-pub fn get_operation_id(
-    operation: &Operation,
-    fallback: Option<String>,
-) -> Result<String> {
+pub fn get_operation_id(operation: &Operation, fallback: Option<String>) -> Result<String> {
     let operation_id = if let Some(operation_id) = &operation.operation_id {
         operation_id.clone()
     } else if let Some(fallback) = fallback {
@@ -223,9 +169,7 @@ fn build_oas_function_input(
     // Determine input from security schemes.
     if let Some(Some(security_scheme)) = &operation.security.as_ref().map(|s| s.first().cloned()) {
         if let Some(security_scheme) = security_scheme.keys().next() {
-            let item = ReferenceOr::Reference::<SecurityScheme> {
-                reference: format!("#/components/schemas/{security_scheme}"),
-            };
+            let item = ReferenceOr::Reference::<SecurityScheme> { reference: format!("#/components/schemas/{security_scheme}") };
 
             let security_scheme = resolver::resolve_security_scheme(&item, components)?;
             let property = match security_scheme {
@@ -244,14 +188,9 @@ fn build_oas_function_input(
         let input_data_type = format!("{type_name}Input");
 
         debug!("Grouping input into a single object: {}", input_data_type);
-        let (specials, input_properties) = input_properties
-            .into_iter()
-            .partition(|p| p.name == *"token" || p.name == *"server");
+        let (specials, input_properties) = input_properties.into_iter().partition(|p| p.name == *"token" || p.name == *"server");
 
-        let input_type = Type {
-            name: input_data_type.clone(),
-            properties: input_properties,
-        };
+        let input_type = Type { name: input_data_type.clone(), properties: input_properties };
 
         input_types.insert(input_data_type.clone(), input_type);
         let mut input_parameters = vec![Parameter::new(String::from("input"), input_data_type, None, None, None)];
@@ -262,20 +201,13 @@ fn build_oas_function_input(
 
         input_parameters
     } else {
-        input_properties
-            .iter()
-            .map(|p| p.clone().into_parameter())
-            .collect::<Vec<Parameter>>()
+        input_properties.iter().map(|p| p.clone().into_parameter()).collect::<Vec<Parameter>>()
     };
 
     Ok((input_parameters, input_types))
 }
 
-fn build_oas_function_output(
-    operation_id: &str,
-    operation: &Operation,
-    components: &Option<Components>,
-) -> Result<(String, Map<Type>)> {
+fn build_oas_function_output(operation_id: &str, operation: &Operation, components: &Option<Components>) -> Result<(String, Map<Type>)> {
     let mut output_properties = Vec::<Property>::new();
     let mut output_types = Map::<Type>::new();
 
@@ -284,11 +216,7 @@ fn build_oas_function_output(
         resolver::resolve_response(default, components)?
     } else {
         let responses = &operation.responses.responses;
-        if let Some(response) = responses.values().next() {
-            resolver::resolve_response(response, components)?
-        } else {
-            unreachable!()
-        }
+        if let Some(response) = responses.values().next() { resolver::resolve_response(response, components)? } else { unreachable!() }
     };
 
     // Only 'application/json' responses are supported
@@ -318,10 +246,7 @@ fn build_oas_function_output(
         let type_name = uppercase_first_letter(operation_id);
         let output_data_type = format!("{type_name}Output");
 
-        let output_type = Type {
-            name: output_data_type.clone(),
-            properties: output_properties,
-        };
+        let output_type = Type { name: output_data_type.clone(), properties: output_properties };
 
         output_types.insert(output_data_type.clone(), output_type);
         output_data_type
@@ -332,11 +257,7 @@ fn build_oas_function_output(
     Ok((return_type, output_types))
 }
 
-fn parameter_to_properties(
-    parameter: &OParameter,
-    components: &Option<Components>,
-    types: &mut Map<Type>,
-) -> Result<Vec<Property>> {
+fn parameter_to_properties(parameter: &OParameter, components: &Option<Components>, types: &mut Map<Type>) -> Result<Vec<Property>> {
     // Get inner parameter object.
     let parameter_data = match parameter {
         OParameter::Query { parameter_data, .. } => parameter_data,
@@ -351,7 +272,7 @@ fn parameter_to_properties(
         ParameterSchemaOrContent::Schema(schema) => {
             let (ref_name, schema) = resolver::resolve_schema(schema, components)?;
             schema_to_properties(name, &schema, required, components, types, ref_name)
-        }
+        },
         ParameterSchemaOrContent::Content(_) => Err(anyhow!(OAS_CONTENT_NOT_SUPPORTED)),
     }
 }
@@ -378,11 +299,7 @@ fn any_schema_to_properties(
     types: &mut Map<Type>,
     ref_name: Option<String>,
 ) -> Result<Vec<Property>> {
-    let any_schema = if let SchemaKind::Any(any_schema) = &schema.schema_kind {
-        any_schema
-    } else {
-        unreachable!()
-    };
+    let any_schema = if let SchemaKind::Any(any_schema) = &schema.schema_kind { any_schema } else { unreachable!() };
 
     if let Some(name) = &name {
         debug!("Converting nested AnySchema '{}', to property.", name);
@@ -404,18 +321,12 @@ fn any_schema_to_properties(
                 ref_name.clone()
             } else {
                 let random_id = get_random_identifier();
-                info!(
-                    "Couldn't determine name for {}'s type, using a random one: {}",
-                    name, random_id
-                );
+                info!("Couldn't determine name for {}'s type, using a random one: {}", name, random_id);
 
                 random_id
             };
 
-            let item_type = Type {
-                name: type_name.clone(),
-                properties: props,
-            };
+            let item_type = Type { name: type_name.clone(), properties: props };
 
             properties.push(Property::new_quick(name, &type_name));
             types.insert(type_name, item_type);
@@ -435,11 +346,7 @@ fn type_schema_to_properties(
     types: &mut Map<Type>,
     _ref_name: Option<String>,
 ) -> Result<Vec<Property>> {
-    let data_type = if let SchemaKind::Type(data_type) = &schema.schema_kind {
-        data_type
-    } else {
-        unreachable!()
-    };
+    let data_type = if let SchemaKind::Type(data_type) = &schema.schema_kind { data_type } else { unreachable!() };
 
     if let Some(name) = &name {
         debug!("Converting nested TypeSchema '{}', to property.", name);
@@ -458,42 +365,28 @@ fn type_schema_to_properties(
                 SchemaKind::Type(OType::Integer(_)) => String::from("integer[]"),
                 SchemaKind::Type(OType::Boolean {}) => String::from("boolean[]"),
                 SchemaKind::Any(_) => {
-                    let item_type_properties =
-                        any_schema_to_properties(None, &items_schema, components, types, ref_name.clone())?;
+                    let item_type_properties = any_schema_to_properties(None, &items_schema, components, types, ref_name.clone())?;
 
                     let item_type_name = if let Some(ref_name) = ref_name {
                         ref_name
                     } else {
                         let random_id = get_random_identifier();
-                        info!(
-                            "Couldn't properly determine array item type name (AnySchema), using a random one: {}",
-                            random_id
-                        );
+                        info!("Couldn't properly determine array item type name (AnySchema), using a random one: {}", random_id);
 
                         random_id
                     };
 
-                    let item_type = Type {
-                        name: item_type_name.clone(),
-                        properties: item_type_properties,
-                    };
+                    let item_type = Type { name: item_type_name.clone(), properties: item_type_properties };
 
                     types.insert(item_type_name.clone(), item_type);
 
                     format!("{item_type_name}[]")
-                }
+                },
                 _ => todo!(),
             };
 
-            vec![Property::new(
-                name.unwrap_or_default(),
-                data_type,
-                None,
-                None,
-                Some(!required),
-                None,
-            )]
-        }
+            vec![Property::new(name.unwrap_or_default(), data_type, None, None, Some(!required), None)]
+        },
         OType::Object(object) => {
             ensure!(name.is_none(), OAS_NESTED_OBJECTS_NOT_SUPPORTED);
 
@@ -509,7 +402,7 @@ fn type_schema_to_properties(
             }
 
             properties
-        }
+        },
         _ => {
             let data_type = match data_type {
                 OType::String(_) => String::from("string"),
@@ -519,15 +412,8 @@ fn type_schema_to_properties(
                 _ => unreachable!(),
             };
 
-            vec![Property::new(
-                name.unwrap_or_default(),
-                data_type,
-                None,
-                None,
-                Some(!required),
-                None,
-            )]
-        }
+            vec![Property::new(name.unwrap_or_default(), data_type, None, None, Some(!required), None)]
+        },
     };
 
     Ok(properties)
@@ -546,11 +432,7 @@ fn uppercase_first_letter(s: &str) -> String {
 fn get_random_identifier() -> String {
     let mut rng = rand::thread_rng();
 
-    let identifier: String = std::iter::repeat(())
-        .map(|()| rng.sample(Alphanumeric))
-        .map(char::from)
-        .take(6)
-        .collect();
+    let identifier: String = std::iter::repeat(()).map(|()| rng.sample(Alphanumeric)).map(char::from).take(6).collect();
 
     identifier.to_lowercase()
 }

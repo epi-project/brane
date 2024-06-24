@@ -1,17 +1,17 @@
 //  DATA TYPE.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    30 Aug 2022, 12:02:57
 //  Last edited:
 //    17 Jan 2023, 15:13:15
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Defines a DataType enum that is optimized for execution (and
 //!   transferral along the wire).
-// 
+//
 
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FResult};
@@ -26,7 +26,7 @@ use crate::spec::BuiltinClasses;
 #[derive(Debug)]
 pub enum DataTypeError {
     /// The given string was not recognized.
-    UnknownDataType{ raw: String },
+    UnknownDataType { raw: String },
 }
 
 impl Display for DataTypeError {
@@ -34,7 +34,7 @@ impl Display for DataTypeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use DataTypeError::*;
         match self {
-            UnknownDataType{ raw } => write!(f, "Unknown data type '{raw}'"),
+            UnknownDataType { raw } => write!(f, "Unknown data type '{raw}'"),
         }
     }
 }
@@ -92,23 +92,23 @@ pub enum DataType {
     // Composite types (sorry Thomas)
     /// Arrays (i.e., a memory area divided into homogeneous types).
     #[serde(rename = "arr")]
-    Array{
+    Array {
         #[serde(rename = "t")]
-        elem_type : Box<DataType>,
+        elem_type: Box<DataType>,
     },
     /// Functions (i.e., executable pieces of code). Contains both the types (and arity) of its arguments and the return type.
     #[serde(rename = "func")]
-    Function{
+    Function {
         #[serde(rename = "a")]
-        args : Vec<DataType>,
+        args: Vec<DataType>,
         #[serde(rename = "t")]
-        ret  : Box<DataType>,
+        ret:  Box<DataType>,
     },
     /// Classes (i.e., a memory area divided into heterogeneous types). The usize indexes the signature into the Workflow's global buffers.
     #[serde(rename = "clss")]
-    Class{
+    Class {
         #[serde(rename = "n")]
-        name : String,
+        name: String,
     },
     /// An externally represented dataset. The string is its identifier.
     #[serde(rename = "data")]
@@ -120,12 +120,12 @@ pub enum DataType {
 
 impl DataType {
     /// Returns if this DataType is the same or at least targeted of the given one.
-    /// 
+    ///
     /// A common use-case for this function is checking return types, where the return type would be the given one.
-    /// 
+    ///
     /// # Arguments
     /// - `allowed`: The DataType that describes what is allowed.
-    /// 
+    ///
     /// # Returns
     /// Whether or not this DataType "is the same" as the other one.
     #[inline]
@@ -137,29 +137,27 @@ impl DataType {
 
             // Group cases
             (Integer, Numeric) => true,
-            (Real, Numeric)    => true,
+            (Real, Numeric) => true,
 
             (Integer, Addable) => true,
-            (Real, Addable)    => true,
-            (String, Addable)  => true,
+            (Real, Addable) => true,
+            (String, Addable) => true,
 
-            (Function{ .. }, Callable)  => true,
+            (Function { .. }, Callable) => true,
 
             (Void, NonVoid) => false,
-            (_, NonVoid)    => true,
+            (_, NonVoid) => true,
 
-            (Any, _)  => true,
-            (_, Any)  => true,
+            (Any, _) => true,
+            (_, Any) => true,
 
             // Recursive cases
-            (Array{ elem_type: lhs }, Array{ elem_type: rhs }) => lhs.allowed_by(rhs),
+            (Array { elem_type: lhs }, Array { elem_type: rhs }) => lhs.allowed_by(rhs),
 
             // General case
             (t1, t2) => t1 == t2,
         }
     }
-
-
 
     /// Returns if this DataType is Void (i.e., no value).
     #[inline]
@@ -171,25 +169,30 @@ impl Display for DataType {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use DataType::*;
         match self {
-            Any  => write!(f, "Any"),
+            Any => write!(f, "Any"),
             Void => write!(f, "Void"),
 
-            Numeric  => write!(f, "Numeric"),
-            Addable  => write!(f, "Addable (Numeric or String)"),
+            Numeric => write!(f, "Numeric"),
+            Addable => write!(f, "Addable (Numeric or String)"),
             Callable => write!(f, "Callable (Function)"),
-            NonVoid  => write!(f, "non-Void"),
+            NonVoid => write!(f, "non-Void"),
 
             Boolean => write!(f, "Boolean"),
             Integer => write!(f, "Integer"),
-            Real    => write!(f, "Real"),
-            String  => write!(f, "String"),
-            Semver  => write!(f, "Semver"),
+            Real => write!(f, "Real"),
+            String => write!(f, "String"),
+            Semver => write!(f, "Semver"),
 
-            Array{ elem_type }    => write!(f, "Array<{elem_type}>"),
-            Function{ args, ret } => write!(f, "Func<({}){}>", args.iter().map(|t| format!("{t}")).collect::<Vec<std::string::String>>().join(", "), if **ret != DataType::Void { format!(" -> {ret}") } else { std::string::String::new() }),
-            Class{ name }         => write!(f, "Class<{name}>"),
-            Data                  => write!(f, "Data"),
-            IntermediateResult    => write!(f, "IntermediateResult"),
+            Array { elem_type } => write!(f, "Array<{elem_type}>"),
+            Function { args, ret } => write!(
+                f,
+                "Func<({}){}>",
+                args.iter().map(|t| format!("{t}")).collect::<Vec<std::string::String>>().join(", "),
+                if **ret != DataType::Void { format!(" -> {ret}") } else { std::string::String::new() }
+            ),
+            Class { name } => write!(f, "Class<{name}>"),
+            Data => write!(f, "Data"),
+            IntermediateResult => write!(f, "IntermediateResult"),
         }
     }
 }
@@ -199,25 +202,25 @@ impl From<brane_dsl::DataType> for DataType {
     fn from(value: brane_dsl::DataType) -> Self {
         use brane_dsl::DataType::*;
         match value {
-            Any  => Self::Any,
+            Any => Self::Any,
             Void => Self::Void,
 
             Boolean => Self::Boolean,
             Integer => Self::Integer,
-            Real    => Self::Real,
-            String  => Self::String,
-            Semver  => Self::Semver,
+            Real => Self::Real,
+            String => Self::String,
+            Semver => Self::Semver,
 
-            Array(a)      => Self::Array{ elem_type: a.into() },
-            Function(sig) => Self::Function{ args: sig.args.into_iter().map(|d| d.into()).collect(), ret: Box::new(sig.ret.into()) },
-            Class(name)   => {
+            Array(a) => Self::Array { elem_type: a.into() },
+            Function(sig) => Self::Function { args: sig.args.into_iter().map(|d| d.into()).collect(), ret: Box::new(sig.ret.into()) },
+            Class(name) => {
                 // Match if 'Data' or 'IntermediateResult'
                 if name == BuiltinClasses::Data.name() {
                     Self::Data
                 } else if name == BuiltinClasses::IntermediateResult.name() {
                     Self::IntermediateResult
                 } else {
-                    Self::Class{ name }
+                    Self::Class { name }
                 }
             },
         }
@@ -229,25 +232,25 @@ impl From<&brane_dsl::DataType> for DataType {
     fn from(value: &brane_dsl::DataType) -> Self {
         use brane_dsl::DataType::*;
         match value {
-            Any  => Self::Any,
+            Any => Self::Any,
             Void => Self::Void,
 
             Boolean => Self::Boolean,
             Integer => Self::Integer,
-            Real    => Self::Real,
-            String  => Self::String,
-            Semver  => Self::Semver,
+            Real => Self::Real,
+            String => Self::String,
+            Semver => Self::Semver,
 
-            Array(a)      => Self::Array{ elem_type: a.into() },
-            Function(sig) => Self::Function{ args: sig.args.iter().map(|d| d.into()).collect(), ret: Box::new((&sig.ret).into()) },
-            Class(name)   => {
+            Array(a) => Self::Array { elem_type: a.into() },
+            Function(sig) => Self::Function { args: sig.args.iter().map(|d| d.into()).collect(), ret: Box::new((&sig.ret).into()) },
+            Class(name) => {
                 // Match if 'Data' or 'IntermediateResult'
                 if name == BuiltinClasses::Data.name() {
                     Self::Data
                 } else if name == BuiltinClasses::IntermediateResult.name() {
                     Self::IntermediateResult
                 } else {
-                    Self::Class{ name: name.clone() }
+                    Self::Class { name: name.clone() }
                 }
             },
         }
@@ -256,25 +259,21 @@ impl From<&brane_dsl::DataType> for DataType {
 
 impl From<Box<brane_dsl::DataType>> for Box<DataType> {
     #[inline]
-    fn from(value: Box<brane_dsl::DataType>) -> Self {
-        Self::from(&value)
-    }
+    fn from(value: Box<brane_dsl::DataType>) -> Self { Self::from(&value) }
 }
 
 impl From<&Box<brane_dsl::DataType>> for Box<DataType> {
     #[inline]
-    fn from(value: &Box<brane_dsl::DataType>) -> Self {
-        Box::new(DataType::from(value.as_ref()))
-    }
+    fn from(value: &Box<brane_dsl::DataType>) -> Self { Box::new(DataType::from(value.as_ref())) }
 }
 
 impl From<&str> for DataType {
     fn from(value: &str) -> Self {
         // First: any arrays are done recursively
         if !value.is_empty() && &value[..1] == "[" && &value[value.len() - 1..] == "]" {
-            return Self::Array{ elem_type: Box::new(Self::from(&value[1..value.len() - 1])) };
+            return Self::Array { elem_type: Box::new(Self::from(&value[1..value.len() - 1])) };
         } else if value.len() >= 2 && &value[value.len() - 2..] == "[]" {
-            return Self::Array{ elem_type: Box::new(Self::from(&value[..value.len() - 2])) };
+            return Self::Array { elem_type: Box::new(Self::from(&value[..value.len() - 2])) };
         }
 
         // Otherwise, match literals & classes
@@ -282,17 +281,19 @@ impl From<&str> for DataType {
         match value {
             // Literal types
             "bool" | "boolean" => Boolean,
-            "int"  | "integer" => Integer,
-            "float" | "real"   => Real,
-            "string"           => String,
+            "int" | "integer" => Integer,
+            "float" | "real" => Real,
+            "string" => String,
 
             // The rest is always a class unless it's data or an intermediate result
-            value => if value == BuiltinClasses::Data.name() {
-                Data
-            } else if value == BuiltinClasses::IntermediateResult.name() {
-                IntermediateResult
-            } else {
-                Class{ name: value.into() }
+            value => {
+                if value == BuiltinClasses::Data.name() {
+                    Data
+                } else if value == BuiltinClasses::IntermediateResult.name() {
+                    IntermediateResult
+                } else {
+                    Class { name: value.into() }
+                }
             },
         }
     }

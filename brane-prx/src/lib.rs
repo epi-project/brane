@@ -1,13 +1,13 @@
 //  LIB.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    23 Nov 2022, 10:34:23
 //  Last edited:
 //    23 May 2023, 15:29:39
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   The `brane-prx` service acts as a gateway for outgoing, and sometimes
 //!   also incoming, traffic on a node. This is done so that it acts as a
@@ -34,17 +34,17 @@
 //!   incoming connection on this port will be forwarded to the target, while
 //!   `brane-prx` applies any of the aforementioned encryption or bridging
 //!   functions.
-//! 
+//!
 //!   The second feature is that it can "forward" external ports to the
 //!   internal part as well, except that these are only statically defined in
 //!   the `proxy.yml` file. This is especially useful when the proxy service
 //!   is deployed as a standalone proxy node.
-// 
+//
 
 // Declare modules
-pub mod errors;
-pub mod spec;
-pub mod ports;
-pub mod manage;
-pub mod redirect;
 pub mod client;
+pub mod errors;
+pub mod manage;
+pub mod ports;
+pub mod redirect;
+pub mod spec;

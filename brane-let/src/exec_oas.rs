@@ -1,44 +1,43 @@
 //  EXEC OAS.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    20 Sep 2022, 13:57:17
 //  Last edited:
 //    22 May 2023, 10:24:03
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Contains code for executing OpenAPI Standard (OAS) packages.
-// 
+//
 
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use log::{debug, info};
-use tokio::time::{self, Duration};
-
 use brane_exe::FullValue;
 use brane_oas::OpenAPI;
+use log::{debug, info};
 use specifications::package::{PackageInfo, PackageKind};
 use specifications::version::Version;
+use tokio::time::{self, Duration};
 
 // use crate::callback::Callback;
-use crate::common::{assert_input, HEARTBEAT_DELAY, Map, PackageResult, PackageReturnState};
+use crate::common::{assert_input, Map, PackageResult, PackageReturnState, HEARTBEAT_DELAY};
 use crate::errors::LetError;
 
 
 /***** ENTRYPOINT *****/
 /// **Edited: working with new callback interface + events.**
-/// 
+///
 /// Handles a package containing ExeCUtable code (ECU).
-/// 
+///
 /// **Arguments**
 ///  * `function`: The function name to execute in the package.
 ///  * `arguments`: The arguments, as a map of argument name / value pairs.
 ///  * `working_dir`: The wokring directory for this package.
 ///  * `callback`: The callback object we use to keep in touch with the driver.
-/// 
+///
 /// **Returns**  
 /// The return state of the package call on success, or a LetError otherwise.
 pub async fn handle(
@@ -66,7 +65,7 @@ pub async fn handle(
             //     if let Err(err) = callback.initialize_failed(format!("{}", &err)).await { warn!("Could not update driver on InitializeFailed: {}", err); }
             // }
             return Err(err);
-        }
+        },
     };
 
     // Do the API call, sending heartbeat updates while at it
@@ -90,12 +89,12 @@ pub async fn handle(
     // Convert the call to a PackageReturn value instead of state
     let result = match decode(result) {
         Ok(result) => result,
-        Err(err)   => {
+        Err(err) => {
             // if let Some(callback) = callback {
             //     if let Err(err) = callback.decode_failed(format!("{}", &err)).await { warn!("Could not update driver on DecodeFailed: {}", err); }
             // }
             return Err(err);
-        }
+        },
     };
 
     // Return the package call result!
@@ -108,42 +107,42 @@ pub async fn handle(
 
 /***** INITIALIZATION *****/
 /// **Edited: returning LetErrors + now also doing the steps before the specific working dir initialization.**
-/// 
+///
 /// Initializes the environment for the nested package by reading the package.yml and preparing the working directory (though that's not needed yet).
-/// 
+///
 /// **Arguments**
 ///  * `function`: The function name to execute in the package.
 ///  * `arguments`: The arguments, as a map of argument name / value pairs.
 ///  * `working_dir`: The wokring directory for this package.
-/// 
+///
 /// **Returns**  
 ///  * On success, a tuple with (in order):
 ///    * The PackageInfo struct representing the package.yml in this package
 ///    * The function represented as an Action that we should execute
 ///  * On failure:
 ///    * A LetError describing what went wrong.
-fn initialize(
-    function: &str,
-    arguments: &Map<FullValue>,
-    working_dir: &Path,
-) -> Result<OpenAPI, LetError> {
+fn initialize(function: &str, arguments: &Map<FullValue>, working_dir: &Path) -> Result<OpenAPI, LetError> {
     // Get the OasDocument from path
     let oas_file = working_dir.join("document.yml");
     let oas_document = match brane_oas::parse_oas_file(&oas_file) {
         Ok(oas_document) => oas_document,
-        Err(err) => { return Err(LetError::IllegalOasDocument{ path: oas_file, err }); },
+        Err(err) => {
+            return Err(LetError::IllegalOasDocument { path: oas_file, err });
+        },
     };
 
     // Get the package info from the OasDocument
     let package_info = match create_package_info(&oas_document) {
         Ok(package_info) => package_info,
-        Err(err)         => { return Err(LetError::PackageInfoError{ err }); }
+        Err(err) => {
+            return Err(LetError::PackageInfoError { err });
+        },
     };
 
     // Resolve the function we're supposed to call
     let function_info = match package_info.functions.get(function) {
         Some(function_info) => function_info.clone(),
-        None                => { return Err(LetError::UnknownFunction{ function: function.to_string(), package: package_info.name, kind: package_info.kind }) }
+        None => return Err(LetError::UnknownFunction { function: function.to_string(), package: package_info.name, kind: package_info.kind }),
     };
 
     // Make sure the input matches what we expect
@@ -156,17 +155,15 @@ fn initialize(
 
 
 /// **Edited: now returning BuildErrors.**
-/// 
+///
 /// Tries to build a PackageInfo from an OpenAPI document.
-/// 
+///
 /// **Arguments**
 ///  * `document`: The OpenAPI document to try and convert.
-/// 
+///
 /// **Returns**  
 /// The newly constructed PackageInfo upon success, or an anyhow::Error otherwise.
-fn create_package_info(
-    document: &OpenAPI,
-) -> Result<PackageInfo, anyhow::Error> {
+fn create_package_info(document: &OpenAPI) -> Result<PackageInfo, anyhow::Error> {
     // Collect some metadata from the document
     let name = document.info.title.to_lowercase().replace(' ', "-");
     let version = Version::from_str(&document.info.version)?;
@@ -176,16 +173,7 @@ fn create_package_info(
     let (functions, types) = brane_oas::build::build_oas_functions(document)?;
 
     // With the collected info, build and return the new PackageInfo
-    Ok(PackageInfo::new(
-        name,
-        version,
-        PackageKind::Oas,
-        vec![],
-        description,
-        false,
-        functions,
-        types,
-    ))
+    Ok(PackageInfo::new(name, version, PackageKind::Oas, vec![], description, false, functions, types))
 }
 
 
@@ -194,13 +182,13 @@ fn create_package_info(
 
 /***** WAITING FOR RESULT *****/
 /// Waits for the given process to complete, then returns its result.
-/// 
+///
 /// **Arguments**
 ///  * `function`: The OpenAPI function to run.
 ///  * `arguments`: The Arguments to pass to the OpenAPI call.
 ///  * `oas_doc`: The parsed document with the call to execute.
 ///  * `callback`: A Callback object to send heartbeats with.
-/// 
+///
 /// **Returns**  
 /// The PackageReturnState describing how the call went on success, or a LetError on failure.
 async fn complete(
@@ -234,13 +222,17 @@ async fn complete(
         };
 
         // If we have a result, break from the main loop; otherwise, try again
-        if let Some(status) = status { break status; }
+        if let Some(status) = status {
+            break status;
+        }
     };
 
     // Match the status
     match result {
-        Ok(stdout) => Ok(PackageReturnState::Finished{ stdout }),
-        Err(err)   => Ok(PackageReturnState::Failed{ code: -1, stdout: String::new(), stderr: format!("Could not perform external OpenAPI call: {err}") }),
+        Ok(stdout) => Ok(PackageReturnState::Finished { stdout }),
+        Err(err) => {
+            Ok(PackageReturnState::Failed { code: -1, stdout: String::new(), stderr: format!("Could not perform external OpenAPI call: {err}") })
+        },
     }
 }
 
@@ -250,56 +242,63 @@ async fn complete(
 
 /***** DECODE *****/
 /// Decodes the given PackageReturnState to a PackageResult (reading the YAML) if it's the Finished state. Simply maps the state to the value otherwise.
-/// 
+///
 /// **Arguments**
 ///  * `result`: The result from the call that we (possibly) want to decode.
-/// 
+///
 /// **Returns**  
 /// The decoded return state as a PackageResult, or a LetError otherwise.
 fn decode(result: PackageReturnState) -> Result<PackageResult, LetError> {
     // Match on the result
     match result {
-        PackageReturnState::Finished{ stdout } => {
+        PackageReturnState::Finished { stdout } => {
             // First, convert the input to a JSON value
             let stdout_json: serde_json::Value = match serde_json::from_str(&stdout) {
                 Ok(stdout_json) => stdout_json,
-                Err(err)        => { return Err(LetError::OasDecodeError{ stdout, err }); }
+                Err(err) => {
+                    return Err(LetError::OasDecodeError { stdout, err });
+                },
             };
-            debug!("Received JSON response:\n{}", serde_json::to_string_pretty(&stdout_json).unwrap_or_else(|_| String::from("<could not serialize>")));
+            debug!(
+                "Received JSON response:\n{}",
+                serde_json::to_string_pretty(&stdout_json).unwrap_or_else(|_| String::from("<could not serialize>"))
+            );
             let output: FullValue = match serde_json::from_value(stdout_json) {
                 Ok(output) => output,
-                Err(err)   => { return Err(LetError::OasDecodeError{ stdout, err }); }
+                Err(err) => {
+                    return Err(LetError::OasDecodeError { stdout, err });
+                },
             };
             debug!("Parsed response:\n{:#?}", output);
 
             // Done
-            Ok(PackageResult::Finished{ result: output })
+            Ok(PackageResult::Finished { result: output })
         },
 
-        PackageReturnState::Failed{ code, stdout, stderr } => {
+        PackageReturnState::Failed { code, stdout, stderr } => {
             // Simply map the values
-            Ok(PackageResult::Failed{ code, stdout, stderr })
+            Ok(PackageResult::Failed { code, stdout, stderr })
         },
 
-        PackageReturnState::Stopped{ signal } => {
+        PackageReturnState::Stopped { signal } => {
             // Simply map the value
-            Ok(PackageResult::Stopped{ signal })
+            Ok(PackageResult::Stopped { signal })
         },
     }
 }
 
 // /// **Edited: Now returning DecodeErrors.**
-// /// 
-// /// Tries to build the given object or array with proper typing.  
+// ///
+// /// Tries to build the given object or array with proper typing.
 // /// Simply clones the value if it isn't an object or an array.
-// /// 
+// ///
 // /// **Arguments**
 // ///  * `object`: The object or array (or other) to rebuild.
 // ///  * `c_type`: The type we want the object to be.
 // ///  * `c_types`: A list of known Class type definitions.
 // ///  * `p_name`: The name of the output argument we're currently parsing. Used for writing sensible errors only.
-// /// 
-// /// **Returns**  
+// ///
+// /// **Returns**
 // /// The rebuilt Value on success, or a DecodeError otherwise.
 // fn as_type(
 //     object: &Value,

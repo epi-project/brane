@@ -1,25 +1,24 @@
 //  GC.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    12 Jul 2023, 16:31:40
 //  Last edited:
 //    13 Jul 2023, 10:26:03
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Implements a small function that can be used as a "garbage
 //!   collector" for `brane-drv` sessions.
-// 
+//
 
 use std::sync::Weak;
 use std::time::{Duration, Instant};
 
+use brane_tsk::spec::AppId;
 use dashmap::DashMap;
 use log::{debug, info, warn};
-
-use brane_tsk::spec::AppId;
 
 use crate::vm::InstanceVm;
 
@@ -37,12 +36,12 @@ const SESSION_TIMEOUT: u64 = 24 * 3600;
 
 /***** LIBRARY *****/
 /// Can be run as a `tokio` background task to periodically clean the list of active sessions.
-/// 
+///
 /// Is really quite cancellation-safe.
-/// 
+///
 /// # Arguments
 /// - `sessions`: The [`DashMap`] of weak sessions. Note that, to avoid memory leaks because its destructor would not be run when this task is cancelled, we assume a [`Weak`] reference.
-/// 
+///
 /// # Returns
 /// Never, unless the referred `sessions` is free'd.
 pub async fn sessions(sessions: Weak<DashMap<AppId, (InstanceVm, Instant)>>) {
@@ -62,7 +61,12 @@ pub async fn sessions(sessions: Weak<DashMap<AppId, (InstanceVm, Instant)>>) {
                 if v.1.elapsed() < Duration::from_secs(SESSION_TIMEOUT) {
                     true
                 } else {
-                    info!("Removing session '{}' because it has not been used for {} seconds (last use {} seconds ago)", k, SESSION_TIMEOUT, v.1.elapsed().as_secs());
+                    info!(
+                        "Removing session '{}' because it has not been used for {} seconds (last use {} seconds ago)",
+                        k,
+                        SESSION_TIMEOUT,
+                        v.1.elapsed().as_secs()
+                    );
                     false
                 }
             });

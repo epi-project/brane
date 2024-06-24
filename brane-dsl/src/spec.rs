@@ -1,17 +1,17 @@
 //  SPEC.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    10 Aug 2022, 14:03:04
 //  Last edited:
 //    16 Nov 2022, 16:40:19
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Contains (some of the) common structs and interfaces for the
 //!   `brane-dsl` crate.
-// 
+//
 
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::str::FromStr;
@@ -29,52 +29,42 @@ use crate::errors::LanguageParseError;
 pub struct TextPos {
     /// The y-coordinate of the position (one-indexed)
     #[serde(rename = "l")]
-    pub line : usize,
+    pub line: usize,
     /// The x-coordinate of the position (one-indexed)
     #[serde(rename = "c")]
-    pub col  : usize,
+    pub col:  usize,
 }
 
 impl TextPos {
     /// Constructor for the TextPos.
-    /// 
+    ///
     /// # Arguments
     /// - `line`: The line number.
     /// - `col`: The column number.
-    /// 
+    ///
     /// # Returns
     /// A new TextPos instance with the given line and column number.
     #[inline]
-    pub const fn new(line: usize, col: usize) -> Self {
-        Self {
-            line,
-            col,
-        }
-    }
+    pub const fn new(line: usize, col: usize) -> Self { Self { line, col } }
 
     /// Constructor for the TextPos that initializes it to 'none'.
-    /// 
+    ///
     /// # Returns
     /// A new TextPos instance that represents 'no position'.
     #[inline]
-    pub const fn none() -> Self {
-        Self {
-            line : usize::MAX,
-            col  : usize::MAX,
-        }
-    }
+    pub const fn none() -> Self { Self { line: usize::MAX, col: usize::MAX } }
 
     /// Constructor for the TextPos that initializes it to the end of the given Span.
-    /// 
+    ///
     /// Concretely, it adds the length of the span to the Span's start location, modulo any newlines ('\n') it finds.
-    /// 
+    ///
     /// # Generic types
     /// - `T`: The type stored in the LocatedSpan.
     /// - `X`: Any extra information stored in the span.
-    /// 
+    ///
     /// # Arguments
     /// - `span`: The LocatedSpan that contains both the text and position that we will use to compute the end position.
-    /// 
+    ///
     /// # Returns
     /// A new TextPos instance that points to the end of the span (inclusive).
     pub fn end_of<T: AsBytes, X>(span: &LocatedSpan<T, X>) -> Self {
@@ -82,35 +72,31 @@ impl TextPos {
         let bs: &[u8] = span.fragment().as_bytes();
 
         // Get the position of the last newline and count them while at it
-        let mut n_nls   : usize = 0;
-        let mut last_nl : usize = usize::MAX;
+        let mut n_nls: usize = 0;
+        let mut last_nl: usize = usize::MAX;
         for (i, b) in bs.iter().enumerate() {
             if *b == b'\n' {
-                n_nls   += 1;
-                last_nl  = i;
+                n_nls += 1;
+                last_nl = i;
             }
         }
 
         // Use those to compute offsets for the lines and columns
         Self {
-            line : span.location_line() as usize + n_nls,
-            col  : if last_nl < usize::MAX { bs.len() - (last_nl + 1) } else { span.get_column() + bs.len() },
+            line: span.location_line() as usize + n_nls,
+            col:  if last_nl < usize::MAX { bs.len() - (last_nl + 1) } else { span.get_column() + bs.len() },
         }
     }
 
-
-
-
-
     /// Returns if this TextPos is a position (i.e., does not represent 'no position').
-    /// 
+    ///
     /// # Returns
     /// Whether or not this TextPos represents a useable position (true) or if it is 'no position' (false).
     #[inline]
     pub const fn is_some(&self) -> bool { self.line != usize::MAX || self.col != usize::MAX }
 
     /// Returns if this TextPos is _not_ a position (i.e., represents 'no position').
-    /// 
+    ///
     /// # Returns
     /// Whether or not this TextPos represents a useable position (false) or if it is 'no position' (true).
     #[inline]
@@ -124,9 +110,7 @@ impl Default for TextPos {
 
 impl Display for TextPos {
     #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-        write!(f, "{}:{}", self.line, self.col)
-    }
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult { write!(f, "{}:{}", self.line, self.col) }
 }
 
 impl<T: AsBytes, X> From<LocatedSpan<T, X>> for TextPos {
@@ -139,12 +123,7 @@ impl<T: AsBytes, X> From<LocatedSpan<T, X>> for TextPos {
 
 impl<T: AsBytes, X> From<&LocatedSpan<T, X>> for TextPos {
     #[inline]
-    fn from(value: &LocatedSpan<T, X>) -> Self {
-        Self {
-            line : value.location_line() as usize,
-            col  : value.get_column(),
-        }
-    }
+    fn from(value: &LocatedSpan<T, X>) -> Self { Self { line: value.location_line() as usize, col: value.get_column() } }
 }
 
 
@@ -154,52 +133,40 @@ impl<T: AsBytes, X> From<&LocatedSpan<T, X>> for TextPos {
 pub struct TextRange {
     /// The start position (inclusive) in the range.
     #[serde(rename = "s")]
-    pub start : TextPos,
+    pub start: TextPos,
     /// The end position (inclusive) in the range.
     #[serde(rename = "e")]
-    pub end   : TextPos,
+    pub end:   TextPos,
 }
 
 impl TextRange {
     /// Constructor for the TextRange.
-    /// 
+    ///
     /// # Arguments
     /// - `start`: The start position (inclusive) in the range.
     /// - `end`: The end position (inclusive) in the range.
-    /// 
+    ///
     /// # Returns
     /// A new TextRange instance.
     #[inline]
-    pub const fn new(start: TextPos, end: TextPos) -> Self {
-        Self {
-            start,
-            end,
-        }
-    }
+    pub const fn new(start: TextPos, end: TextPos) -> Self { Self { start, end } }
 
     /// Constructor for the TextRange that initializes it to 'none'.
-    /// 
+    ///
     /// # Returns
     /// A new TextRange instance that represents 'no range'.
     #[inline]
-    pub const fn none() -> Self {
-        Self {
-            start : TextPos::none(),
-            end   : TextPos::none(),
-        }
-    }
-
-
+    pub const fn none() -> Self { Self { start: TextPos::none(), end: TextPos::none() } }
 
     /// Returns if this TextRange is a range (i.e., does not represent 'no range').
-    /// 
+    ///
     /// # Returns
     /// Whether or not this TextRange represents a useable range (true) or if it is 'no range' (false).
     #[inline]
     pub const fn is_some(&self) -> bool { self.start.is_some() && self.end.is_some() }
 
     /// Returns if this TextRange is _not_ a range (i.e., represents 'no range').
-    /// 
+    ///
     /// # Returns
     /// Whether or not this TextRange represents a useable range (false) or if it is 'no range' (true).
     #[inline]
@@ -221,29 +188,17 @@ impl<T: AsBytes, X> From<LocatedSpan<T, X>> for TextRange {
 
 impl<T: AsBytes, X> From<&LocatedSpan<T, X>> for TextRange {
     #[inline]
-    fn from(value: &LocatedSpan<T, X>) -> Self {
-        Self {
-            start : TextPos::from(value),
-            end   : TextPos::end_of(value),
-        }
-    }
+    fn from(value: &LocatedSpan<T, X>) -> Self { Self { start: TextPos::from(value), end: TextPos::end_of(value) } }
 }
 
 impl<T1: AsBytes, T2: AsBytes, X1, X2> From<(LocatedSpan<T1, X1>, LocatedSpan<T2, X2>)> for TextRange {
     #[inline]
-    fn from(value: (LocatedSpan<T1, X1>, LocatedSpan<T2, X2>)) -> Self {
-        Self::from((&value.0, &value.1))
-    }
+    fn from(value: (LocatedSpan<T1, X1>, LocatedSpan<T2, X2>)) -> Self { Self::from((&value.0, &value.1)) }
 }
 
 impl<T1: AsBytes, T2: AsBytes, X1, X2> From<(&LocatedSpan<T1, X1>, &LocatedSpan<T2, X2>)> for TextRange {
     #[inline]
-    fn from(value: (&LocatedSpan<T1, X1>, &LocatedSpan<T2, X2>)) -> Self {
-        Self {
-            start : TextPos::from(value.0),
-            end   : TextPos::end_of(value.1),
-        }
-    }
+    fn from(value: (&LocatedSpan<T1, X1>, &LocatedSpan<T2, X2>)) -> Self { Self { start: TextPos::from(value.0), end: TextPos::end_of(value.1) } }
 }
 
 
@@ -263,7 +218,7 @@ impl Display for Language {
         use Language::*;
         match self {
             BraneScript => write!(f, "BraneScript"),
-            Bakery      => write!(f, "Bakery"),
+            Bakery => write!(f, "Bakery"),
         }
     }
 }
@@ -274,8 +229,8 @@ impl FromStr for Language {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "bscript" => Ok(Self::BraneScript),
-            "bakery"  => Ok(Self::Bakery),
-            raw       => Err(LanguageParseError::UnknownLanguageId { raw: raw.into() }),
+            "bakery" => Ok(Self::Bakery),
+            raw => Err(LanguageParseError::UnknownLanguageId { raw: raw.into() }),
         }
     }
 }
@@ -313,11 +268,11 @@ impl From<&str> for MergeStrategy {
     #[inline]
     fn from(value: &str) -> Self {
         match value.to_lowercase().as_str() {
-            "first"  => Self::First,
+            "first" => Self::First,
             "first*" => Self::FirstBlocking,
-            "last"   => Self::Last,
+            "last" => Self::Last,
 
-            "+" | "sum"     => Self::Sum,
+            "+" | "sum" => Self::Sum,
             "*" | "product" => Self::Product,
 
             "max" => Self::Max,
@@ -332,16 +287,12 @@ impl From<&str> for MergeStrategy {
 
 impl From<&String> for MergeStrategy {
     #[inline]
-    fn from(value: &String) -> Self {
-        Self::from(value.as_str())
-    }
+    fn from(value: &String) -> Self { Self::from(value.as_str()) }
 }
 
 impl From<String> for MergeStrategy {
     #[inline]
-    fn from(value: String) -> Self {
-        Self::from(value.as_str())
-    }
+    fn from(value: String) -> Self { Self::from(value.as_str()) }
 }
 
 
@@ -374,15 +325,15 @@ impl From<String> for MergeStrategy {
 
 // impl DataType {
 //     /// Returns whether this data type may be casted to the other type.
-//     /// 
+//     ///
 //     /// In other words, expresses some 'returns the same' proprety of a type.
-//     /// 
+//     ///
 //     /// # Generic arguments
 //     /// - `D`: The DataType-like type of the `other` datatype.
-//     /// 
+//     ///
 //     /// # Arguments
 //     /// - `other`: The other data type to check compatibility with.
-//     /// 
+//     ///
 //     /// # Returns
 //     /// Whether or not this type casts to the other type (true) or not (false).
 //     pub fn casts_to<D: AsRef<DataType>>(&self, other: D) -> bool {
@@ -476,7 +427,7 @@ impl From<String> for MergeStrategy {
 
 
 // /// Defines a symbol table entry for functions.
-// /// 
+// ///
 // /// Note that the identifier is not stored here, but as a key mapping to this entry.
 // #[derive(Clone, Debug)]
 // pub struct STFuncEntry {
@@ -493,7 +444,7 @@ impl From<String> for MergeStrategy {
 // }
 
 // /// Defines a symbol table entry for classes.
-// /// 
+// ///
 // /// Note that the identifier is not stored here, but as a key mapping to this entry.
 // #[derive(Clone, Debug)]
 // pub struct STClassEntry {
@@ -509,7 +460,7 @@ impl From<String> for MergeStrategy {
 // }
 
 // /// Defines a symbol table entry for variables.
-// /// 
+// ///
 // /// Note that the identifier is not stored here, but as a key mapping to this entry.
 // #[derive(Clone, Debug)]
 // pub struct STVarEntry {
@@ -541,7 +492,7 @@ impl From<String> for MergeStrategy {
 
 // impl SymbolTable {
 //     /// Constructor for the SymbolTable that initializes it uninitializes (i.e., it has yet to be populated).
-//     /// 
+//     ///
 //     /// # Returns
 //     /// A new, empty SymbolTable instance that is already pre-wrapped in an Rc and RefCell.
 //     #[inline]
@@ -558,18 +509,18 @@ impl From<String> for MergeStrategy {
 
 
 //     /// Adds an STFuncEntry to the SymbolTable as a builtin.
-//     /// 
+//     ///
 //     /// The types of the arguments and return type need to be deduced later during type analysis.
-//     /// 
+//     ///
 //     /// # Arguments
 //     /// - `this`: A (smart-)pointer to the symboltable to add the new entry to.
 //     /// - `name`: The name/identifier of the function.
 //     /// - `signature`: The function's signature (i.e., a list of data types (and thus the number) of arguments and its return type).
 //     /// - `range`: The range of the function in the original source text (for debugging).
-//     /// 
+//     ///
 //     /// # Returns
 //     /// Nothing, but adds it to the internal list.
-//     /// 
+//     ///
 //     /// # Errors
 //     /// This function errors if a function entry with this name already exists.
 //     pub fn add_builtin_entry(this: &Rc<RefCell<SymbolTable>>, name: String, signature: (Vec<DataType>, DataType), range : TextRange) -> Result<Rc<RefCell<SymbolTableEntry>>, SymbolTableError> {
@@ -595,17 +546,17 @@ impl From<String> for MergeStrategy {
 //     }
 
 //     /// Adds an STFuncEntry to the SymbolTable.
-//     /// 
+//     ///
 //     /// The types of the arguments and return type need to be deduced later during type analysis.
-//     /// 
+//     ///
 //     /// # Arguments
 //     /// - `this`: A (smart-)pointer to the symboltable to add the new entry to.
 //     /// - `name`: The name/identifier of the function.
 //     /// - `range`: The range of the function in the original source text (for debugging).
-//     /// 
+//     ///
 //     /// # Returns
 //     /// Nothing, but adds it to the internal list.
-//     /// 
+//     ///
 //     /// # Errors
 //     /// This function errors if a function entry with this name already exists.
 //     pub fn add_func_entry(this: &Rc<RefCell<SymbolTable>>, name: String, range : TextRange) -> Result<Rc<RefCell<SymbolTableEntry>>, SymbolTableError> {
@@ -631,17 +582,17 @@ impl From<String> for MergeStrategy {
 //     }
 
 //     /// Adds an STFuncEntry to the SymbolTable but for a package function.
-//     /// 
+//     ///
 //     /// # Arguments
 //     /// - `this`: A (smart-)pointer to the symboltable to add the new entry to.
 //     /// - `package_name`: The name/identifier of the package to which this function belongs.
 //     /// - `name`: The name/identifier of the function.
 //     /// - `signature`: The function's signature (i.e., a list of data types (and thus the number) of arguments and its return type).
 //     /// - `range`: The range of the function in the original source text (for debugging).
-//     /// 
+//     ///
 //     /// # Returns
 //     /// Nothing, but adds it to the internal list.
-//     /// 
+//     ///
 //     /// # Errors
 //     /// This function errors if a function entry with this name already exists.
 //     pub fn add_package_func_entry(this: &Rc<RefCell<SymbolTable>>, package_name: String, name: String, signature: (Vec<DataType>, DataType), range : TextRange) -> Result<Rc<RefCell<SymbolTableEntry>>, SymbolTableError> {
@@ -667,17 +618,17 @@ impl From<String> for MergeStrategy {
 //     }
 
 //     /// Adds an STCLassEntry to the SymbolTable.
-//     /// 
+//     ///
 //     /// # Arguments
 //     /// - `this`: A (smart-)pointer to the symboltable to add the new entry to.
 //     /// - `name`: The name/identifier of the function.
 //     /// - `properties`: The map of property names to their respective data types for this class.
 //     /// - `methods`: The methods defined within this Class, mapped by name.
 //     /// - `range`: The range of the class in the original source text (for debugging).
-//     /// 
+//     ///
 //     /// # Returns
 //     /// Nothing, but adds it to the internal list.
-//     /// 
+//     ///
 //     /// # Errors
 //     /// This function errors if a class entry with this name already exists.
 //     pub fn add_class_entry(this: &Rc<RefCell<SymbolTable>>, name: String, properties: HashMap<String, DataType>, methods: HashMap<String, Option<(Vec<DataType>, DataType)>>, range : TextRange) -> Result<Rc<RefCell<SymbolTableEntry>>, SymbolTableError> {
@@ -702,18 +653,18 @@ impl From<String> for MergeStrategy {
 //     }
 
 //     /// Adds a function parameter (i.e., variable) to the SymbolTable.
-//     /// 
+//     ///
 //     /// Its type needs to be deduced later during type analysis.
-//     /// 
+//     ///
 //     /// # Arguments
 //     /// - `this`: A (smart-)pointer to the symboltable to add the new entry to.
 //     /// - `func_name`: The name of the function for which this variable is a parameter.
 //     /// - `name`: The name of the variable.
 //     /// - `range`: The range of the variable in the original source text (for debugging).
-//     /// 
+//     ///
 //     /// # Returns
 //     /// Nothing, but adds it to the internal list.
-//     /// 
+//     ///
 //     /// # Errors
 //     /// This function errors if a variable entry with this name already exists.
 //     pub fn add_param_entry(this: &Rc<RefCell<SymbolTable>>, func_name: String, name: String, range: TextRange) -> Result<Rc<RefCell<SymbolTableEntry>>, SymbolTableError> {
@@ -739,17 +690,17 @@ impl From<String> for MergeStrategy {
 //     }
 
 //     /// Adds a fvariable to the SymbolTable.
-//     /// 
+//     ///
 //     /// Its type needs to be deduced later during type analysis.
-//     /// 
+//     ///
 //     /// # Arguments
 //     /// - `this`: A (smart-)pointer to the symboltable to add the new entry to.
 //     /// - `name`: The name of the variable.
 //     /// - `range`: The range of the variable in the original source text (for debugging).
-//     /// 
+//     ///
 //     /// # Returns
 //     /// Nothing, but adds it to the internal list.
-//     /// 
+//     ///
 //     /// # Errors
 //     /// This function errors if a variable entry with this name already exists.
 //     pub fn add_var_entry(this: &Rc<RefCell<SymbolTable>>, name: String, range: TextRange) -> Result<Rc<RefCell<SymbolTableEntry>>, SymbolTableError> {
@@ -777,15 +728,15 @@ impl From<String> for MergeStrategy {
 
 
 //     /// Returns a reference to its entry if the given function exists in this symbol table or any of its parents.
-//     /// 
+//     ///
 //     /// This function stops searching as soon as the first entry is found (walking up the tree), which allows shadowing of variables.
-//     /// 
+//     ///
 //     /// # Generic parameters
 //     /// - `S`: The &str-like type of the `name`.
-//     /// 
+//     ///
 //     /// # Arguments
 //     /// - `name`: The name/identifier of the function to search for.
-//     /// 
+//     ///
 //     /// # Returns
 //     /// The STFuncEntry of this function if it existed, or else None.
 //     #[inline]
@@ -801,15 +752,15 @@ impl From<String> for MergeStrategy {
 //     }
 
 //     /// Returns a reference to its entry if the given class exists in this symbol table or any of its parents.
-//     /// 
+//     ///
 //     /// This function stops searching as soon as the first entry is found (walking up the tree), which allows shadowing of variables.
-//     /// 
+//     ///
 //     /// # Generic parameters
 //     /// - `S`: The &str-like type of the `name`.
-//     /// 
+//     ///
 //     /// # Arguments
 //     /// - `name`: The name/identifier of the class to search for.
-//     /// 
+//     ///
 //     /// # Returns
 //     /// The STClassEntry of this class if it existed, or else None.
 //     #[inline]
@@ -825,15 +776,15 @@ impl From<String> for MergeStrategy {
 //     }
 
 //     /// Returns a reference to its entry if the given variable exists in this symbol table or any of its parents.
-//     /// 
+//     ///
 //     /// This function stops searching as soon as the first entry is found (walking up the tree), which allows shadowing of variables.
-//     /// 
+//     ///
 //     /// # Generic parameters
 //     /// - `S`: The &str-like type of the `name`.
-//     /// 
+//     ///
 //     /// # Arguments
 //     /// - `name`: The name/identifier of the variable to search for.
-//     /// 
+//     ///
 //     /// # Returns
 //     /// The STFuncEntry of this variable if it existed, or else None.
 //     #[inline]

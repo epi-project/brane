@@ -1,31 +1,28 @@
 //  MAIN.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    20 Sep 2022, 13:53:43
 //  Last edited:
 //    02 Oct 2023, 17:13:16
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Entrypoint to the in-container delegate executable that organises
 //!   things around there.
-// 
+//
 
 use std::path::PathBuf;
 use std::process;
 
+use brane_let::common::PackageResult;
+use brane_let::errors::LetError;
+use brane_let::{exec_ecu, exec_nop, exec_oas};
 use clap::Parser;
 use dotenvy::dotenv;
 use log::{debug, warn, LevelFilter};
 use serde::de::DeserializeOwned;
-
-use brane_let::common::PackageResult;
-use brane_let::errors::LetError;
-use brane_let::exec_ecu;
-use brane_let::exec_nop;
-use brane_let::exec_oas;
 
 
 /***** CONSTANTS *****/
@@ -67,9 +64,9 @@ enum SubCommand {
     #[clap(name = "ecu")]
     Code {
         /// Function to execute
-        function: String,
+        function:    String,
         /// Input arguments (encoded, as Base64'ed JSON)
-        arguments: String,
+        arguments:   String,
         #[clap(short, long, env = "BRANE_WORKDIR", default_value = "/opt/wd")]
         working_dir: PathBuf,
     },
@@ -80,9 +77,9 @@ enum SubCommand {
     #[clap(name = "oas")]
     WebApi {
         /// Function to execute
-        function: String,
+        function:    String,
         /// Input arguments (encoded, as Base64'ed JSON)
-        arguments: String,
+        arguments:   String,
         #[clap(short, long, env = "BRANE_WORKDIR", default_value = "/opt/wd")]
         working_dir: PathBuf,
     },
@@ -97,7 +94,7 @@ enum SubCommand {
 async fn main() {
     // Parse the arguments
     dotenv().ok();
-    let Opts{ proxy_address, debug, sub_command, .. } = Opts::parse();
+    let Opts { proxy_address, debug, sub_command, .. } = Opts::parse();
 
     // Configure logger.
     let mut logger = env_logger::builder();
@@ -153,18 +150,18 @@ async fn main() {
         Err(err) => {
             log::error!("{}", err);
             process::exit(-1);
-        }
+        },
     }
 }
 
 /// **Edited: instantiating callback earlier, updated callback policy (new callback interface + new events). Also returning LetErrors.**
-/// 
+///
 /// Runs the job that this branelet is in charge of.
-/// 
+///
 /// **Arguments**
 ///  * `sub_command`: The subcommand to execute (is it code, oas or nop?)
 ///  * `callback`: The Callback future that asynchronously constructs a Callback instance.
-/// 
+///
 /// **Returns**  
 /// The exit code of the nested application on success, or a LetError otherwise.
 async fn run(
@@ -178,33 +175,24 @@ async fn run(
 
     // Switch on the sub_command to do the actual work
     let output = match sub_command {
-        SubCommand::Code {
-            function,
-            arguments,
-            working_dir,
-        } => exec_ecu::handle(function, decode_b64(arguments)?, working_dir).await,
-        SubCommand::WebApi {
-            function,
-            arguments,
-            working_dir,
-        } => exec_oas::handle(function, decode_b64(arguments)?, working_dir).await,
-        SubCommand::NoOp {
-        } => exec_nop::handle().await,
+        SubCommand::Code { function, arguments, working_dir } => exec_ecu::handle(function, decode_b64(arguments)?, working_dir).await,
+        SubCommand::WebApi { function, arguments, working_dir } => exec_oas::handle(function, decode_b64(arguments)?, working_dir).await,
+        SubCommand::NoOp {} => exec_nop::handle().await,
     };
 
     // Perform final FINISHED callback.
     match output {
-        Ok(PackageResult::Finished{ result }) => {
+        Ok(PackageResult::Finished { result }) => {
             // Convert the output to a string
             let output: String = match serde_json::to_string(&result) {
                 Ok(output) => output,
-                Err(err)   => {
-                    let err = LetError::ResultJSONError{ value: format!("{result:?}"), err };
+                Err(err) => {
+                    let err = LetError::ResultJSONError { value: format!("{result:?}"), err };
                     // if let Some(ref mut callback) = callback {
                     //     if let Err(err) = callback.decode_failed(format!("{}", err)).await { log::error!("Could not update driver on DecodeFailed: {}", err); }
                     // }
                     return Err(err);
-                }
+                },
             };
 
             // If that went successfull, output the result in some way
@@ -212,41 +200,50 @@ async fn run(
             //     // Use the callback to report it
             //     if let Err(err) = callback.finished(output).await { log::error!("Could not update driver on Finished: {}", err); }
             // } else {
-                // Print to stdout as (base64-encoded) JSON
-                if std::env::vars().any(|(name, value)| name == OUTPUT_PREFIX_NAME && value == "1") {
-                    debug!("Writing output prefix enabled");
-                    println!("{}{}", OUTPUT_PREFIX, base64::encode(output));
-                } else {
-                    println!("{}", base64::encode(output));
-                }
+            // Print to stdout as (base64-encoded) JSON
+            if std::env::vars().any(|(name, value)| name == OUTPUT_PREFIX_NAME && value == "1") {
+                debug!("Writing output prefix enabled");
+                println!("{}{}", OUTPUT_PREFIX, base64::encode(output));
+            } else {
+                println!("{}", base64::encode(output));
+            }
             // }
 
             Ok(0)
         },
 
-        Ok(PackageResult::Failed{ code, stdout, stderr }) => {
+        Ok(PackageResult::Failed { code, stdout, stderr }) => {
             // Back it up to the user
             // if let Some(ref mut callback) = callback {
             //     // Use the callback to report it
             //     if let Err(err) = callback.failed(code, stdout, stderr).await { log::error!("Could not update driver on Failed: {}", err); }
             // } else {
-                // Gnerate the line divider
-                let lines = (0..80).map(|_| '-').collect::<String>();
-                // Print to stderr
-                log::error!("Internal package call return non-zero exit code {}\n\nstdout:\n{}\n{}\n{}\n\nstderr:\n{}\n{}\n{}\n\n", code, &lines, stdout, &lines, &lines, stderr, &lines);
+            // Gnerate the line divider
+            let lines = (0..80).map(|_| '-').collect::<String>();
+            // Print to stderr
+            log::error!(
+                "Internal package call return non-zero exit code {}\n\nstdout:\n{}\n{}\n{}\n\nstderr:\n{}\n{}\n{}\n\n",
+                code,
+                &lines,
+                stdout,
+                &lines,
+                &lines,
+                stderr,
+                &lines
+            );
             // }
 
             Ok(code)
         },
 
-        Ok(PackageResult::Stopped{ signal }) => {
+        Ok(PackageResult::Stopped { signal }) => {
             // Back it up to the user
             // if let Some(ref mut callback) = callback {
             //     // Use the callback to report it
             //     if let Err(err) = callback.stopped(signal).await { log::error!("Could not update driver on Stopped: {}", err); }
             // } else {
-                // Print to stderr
-                log::error!("Internal package call was forcefully stopped with signal {}", signal);
+            // Print to stderr
+            log::error!("Internal package call was forcefully stopped with signal {}", signal);
             // }
 
             Ok(-1)
@@ -255,17 +252,17 @@ async fn run(
         Err(err) => {
             // Just pass the error
             Err(err)
-        }
+        },
     }
 }
 
 /// **Edited: now returning LetErrors.**
-/// 
+///
 /// Decodes the given base64 string as JSON to the desired output type.
-/// 
+///
 /// **Arguments**
 ///  * `input`: The input to decode/parse.
-/// 
+///
 /// **Returns**  
 /// The parsed data as the appropriate type, or a LetError otherwise.
 fn decode_b64<T>(input: String) -> Result<T, LetError>
@@ -275,19 +272,23 @@ where
     // Decode the Base64
     let input = match base64::decode(input) {
         Ok(input) => input,
-        Err(err)  => { return Err(LetError::ArgumentsBase64Error{ err }); }
+        Err(err) => {
+            return Err(LetError::ArgumentsBase64Error { err });
+        },
     };
 
     // Decode the raw bytes to UTF-8
     let input = match String::from_utf8(input[..].to_vec()) {
         Ok(input) => input,
-        Err(err)  => { return Err(LetError::ArgumentsUTF8Error{ err }); }
+        Err(err) => {
+            return Err(LetError::ArgumentsUTF8Error { err });
+        },
     };
 
     // Decode the string to JSON
     // println!("Received input: {}", input);
     match serde_json::from_str(&input) {
         Ok(result) => Ok(result),
-        Err(err)   => Err(LetError::ArgumentsJSONError{ err }),
+        Err(err) => Err(LetError::ArgumentsJSONError { err }),
     }
 }
