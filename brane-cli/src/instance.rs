@@ -698,12 +698,12 @@ pub fn edit(
 
     // Get the instance's directory
     debug!("Resolving instance directory...");
-    let instance_dir: PathBuf = name
+    let instance_path: PathBuf = name
         .as_ref()
         .map(|n| {
             // We fetch the directory based on the name
             match get_instance_dir(n) {
-                Ok(path) => Ok(path),
+                Ok(path) => Ok(path.join("info.yml")),
                 Err(err) => Err(Error::InstanceDirError { err }),
             }
         })
@@ -720,7 +720,7 @@ pub fn edit(
 
     // With the path confirmed, load the info.yml
     debug!("Loading instance file...");
-    let mut info: InstanceInfo = InstanceInfo::from_path(instance_dir.join("info.yml"))?;
+    let mut info: InstanceInfo = InstanceInfo::from_path(instance_path.as_path())?;
 
     // Adapt whatever is necessary
     debug!("Updating information...");
@@ -745,7 +745,7 @@ pub fn edit(
 
     // Write the modified file back
     debug!("Writing instance file back...");
-    info.to_path(instance_dir.join("info.yml"))?;
+    info.to_path(instance_path)?;
 
     // Done
     if let Some(name) = name {
