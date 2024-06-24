@@ -3450,7 +3450,7 @@ for svc in CENTRAL_SERVICES + WORKER_SERVICES:
         )
 
     # Generate the service image build target
-    targets[f"{svc}-image"] = EitherTarget(f"{svc}-image-build",
+    targets[f"{svc}-image"] = EitherTarget(f"{svc}-image",
         "dev", {
             False : ImageTarget(f"{svc}-image-release",
                 "./Dockerfile.rls", f"./target/release/brane-{svc}.tar", target=f"brane-{svc}",
@@ -3758,6 +3758,10 @@ def build_target(target_name, args) -> int:
 
         This function acts as the 'main' function of the script.
     """
+
+    if target_name not in targets:
+        perror(f"Could not find target: {target_name}")
+        return 1
 
     # Do a warning
     if args.dry_run:
