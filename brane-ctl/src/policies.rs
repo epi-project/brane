@@ -4,7 +4,7 @@
 //  Created:
 //    10 Jan 2024, 15:57:54
 //  Last edited:
-//    06 Mar 2024, 14:06:05
+//    24 Jun 2024, 17:40:43
 //  Auto updated?
 //    Yes
 //
@@ -848,5 +848,7 @@ pub async fn list(node_config_path: PathBuf, address: AddressOpt, token: Option<
         };
     }
 
+    // TODO: Finish this. The idea is show a particular version to the user, then re-enter the loop until they quit
+    //       (empty version, as above)
     todo!();
 }
