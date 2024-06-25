@@ -9,21 +9,21 @@ name = "branelet"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1"
-base64 = "0.13"
-clap = { version = "4.0.24", features = ["derive","env"] }
-dotenvy = "0.15"
-env_logger = "0.10"
-libc = "0.2.118"
-log = "0.4"
-reqwest = { version = "0.11", features = ["json", "native-tls-vendored"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+anyhow = "1.0.66"
+base64 = "0.13.0"
+clap = { version = "4.4.0", features = ["derive","env"] }
+dotenvy = "0.15.0"
+env_logger = "0.10.0"
+libc = "0.2.154"
+log = "0.4.17"
+reqwest = { version = "0.11.27", features = ["json", "native-tls-vendored"] }
+serde = { version = "1.0.195", features = ["derive"] }
+serde_json = "1.0.87"
 serde_yaml = { version = "0.0.10", package = "serde_yml" }
 # socksx = { git = "https://github.com/onnovalkering/socksx" }
-subprocess = "0.2"
-tokio = { version = "1", features = ["full", "time"] }
-tonic = "0.11"
+subprocess = "0.2.0"
+tokio = { version = "1.38.0", features = ["full", "time"] }
+tonic = "0.11.0"
 yaml-rust = { version = "0.8", package = "yaml-rust2" }
 
 brane-ast = { path = "../brane-ast" }
