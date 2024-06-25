@@ -200,6 +200,12 @@ pub async fn services(
                 // user should be warned.
                 warn!("Could not tag directory: `./target` as cachedir, this could have implications for backup solutions and equivalent.\n{err:#}");
             }
+        } else {
+            if let Err(err) = cachedir::add_tag(&path) {
+                // Recovable, this does not need to impact the run of the application, but the
+                // user should be warned.
+                warn!("Could not tag directory: `{path:?}` as cachedir, this could have implications for backup solutions and equivalent.\n{err:#}");
+            }
         }
     }
     if !path.is_dir() {
