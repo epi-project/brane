@@ -16,9 +16,9 @@ doc        = false
 console = "0.15.5"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
 libc = "0.2.154"
-log = "0.4.17"
+log = "0.4.21"
 parking_lot = "0.12.1"
-serde_json = "1.0.87"
+serde_json = "1.0.117"
 tokio = "1.38.0"
 
 brane-ast = { path = "../brane-ast" }

@@ -18,10 +18,10 @@ futures-util = "0.3.30"
 hyper = "0.14.29"
 # kube = { version = "0.82", default_features = false, features = ["client"] }
 # k8s-openapi = { version = "0.18", default_features = false, features = ["v1_23"] }
-log = "0.4.17"
+log = "0.4.21"
 reqwest = { version = "0.11.27", features = ["rustls-tls-manual-roots","json","stream","multipart"] }
-serde = { version = "1.0.195", features = ["derive"] }
-serde_json = "1.0.87"
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
 serde_json_any_key = "2.0.0"
 serde_yaml = { version = "0.0.10", package = "serde_yml" }
 tokio = { version = "1.38.0", default-features = false, features = ["rt", "macros", "signal"] }
