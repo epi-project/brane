@@ -4,7 +4,7 @@
 //  Created:
 //    20 Feb 2023, 14:59:16
 //  Last edited:
-//    26 Jun 2024, 13:57:46
+//    26 Jun 2024, 16:41:31
 //  Auto updated?
 //    Yes
 //
@@ -14,8 +14,9 @@
 
 use std::borrow::Cow;
 use std::ffi::OsString;
-use std::fs::{self, DirEntry, ReadDir};
-use std::path::{Path, PathBuf};
+use std::fs::{self, DirEntry, File, ReadDir};
+use std::io::Write as _;
+use std::path::{Component, Path, PathBuf};
 
 use brane_shr::fs::{download_file_async, move_path_async, unarchive_async, DownloadSecurity};
 use brane_tsk::docker::{connect_local, ensure_image, save_image, Docker, DockerOptions, ImageSource};
@@ -183,11 +184,56 @@ pub async fn services(
 
     // Fix the missing directories, if any.
     if !path.exists() {
+        // We are paralyzed if the user told us not to do anything
         if !fix_dirs {
             return Err(Error::DirNotFound { what: "output", path: path.into() });
         }
-        if let Err(err) = fs::create_dir_all(path) {
-            return Err(Error::DirCreateError { what: "output", path: path.into(), err });
+
+        // Else, generate the directory tree one-by-one. We place a CACHEDIR.TAG in the highest one we create.
+        let mut first: bool = true;
+        let mut stack: PathBuf = PathBuf::new();
+        for comp in path.components() {
+            match comp {
+                Component::RootDir => {
+                    stack = PathBuf::from("/");
+                    continue;
+                },
+                Component::Prefix(comp) => {
+                    stack = PathBuf::from(comp.as_os_str());
+                    continue;
+                },
+
+                Component::CurDir => continue,
+                Component::ParentDir => {
+                    stack.pop();
+                    continue;
+                },
+                Component::Normal(comp) => {
+                    stack.push(comp);
+                    if !stack.exists() {
+                        // Create the directory first
+                        if let Err(err) = fs::create_dir(&stack) {
+                            return Err(Error::DirCreateError { what: "output", path: stack, err });
+                        }
+
+                        // Then create the CACHEDIR.TAG if we haven't already
+                        if first {
+                            let tag_path: PathBuf = stack.join("CACHEDIR.TAG");
+                            let mut handle: File = match File::create(&tag_path) {
+                                Ok(handle) => handle,
+                                Err(err) => return Err(Error::CachedirTagCreate { path: tag_path, err }),
+                            };
+                            if let Err(err) = handle.write(
+                                b"Signature: 8a477f597d28d172789f06886806bc55\n# This file is a cache directory tag created by BRANE's `branectl`.\n# For information about cache directory tags, see:\n#	    http://www.brynosaurus.com/cachedir/\n",
+                            ) {
+                                return Err(Error::CachedirTagWrite { path: tag_path, err })
+                            }
+                            first = false;
+                        }
+                    }
+                    continue;
+                },
+            }
         }
     }
     if !path.is_dir() {
