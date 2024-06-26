@@ -4,7 +4,7 @@
 //  Created:
 //    21 Nov 2022, 15:46:26
 //  Last edited:
-//    01 May 2024, 15:19:09
+//    26 Jun 2024, 16:44:55
 //  Auto updated?
 //    Yes
 //
@@ -33,6 +33,11 @@ use specifications::version::Version;
 /// Note: we box `brane_shr::fs::Error` to avoid the error enum growing too large (see `clippy::result_large_err`).
 #[derive(Debug)]
 pub enum DownloadError {
+    /// Failed to create a new CACHEDIR.TAG
+    CachedirTagCreate { path: PathBuf, err: std::io::Error },
+    /// Failed to write to a new CACHEDIR.TAG
+    CachedirTagWrite { path: PathBuf, err: std::io::Error },
+
     /// The given directory does not exist.
     DirNotFound { what: &'static str, path: PathBuf },
     /// The given directory exists but is not a directory.
@@ -64,24 +69,50 @@ impl Display for DownloadError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use self::DownloadError::*;
         match self {
+            CachedirTagCreate { path, .. } => write!(f, "Failed to create CACHEDIR.TAG file '{}'", path.display()),
+            CachedirTagWrite { path, .. } => write!(f, "Failed to write to CACHEDIR.TAG file '{}'", path.display()),
+
             DirNotFound { what, path } => write!(f, "{} directory '{}' not found", what.capitalize(), path.display()),
             DirNotADir { what, path } => write!(f, "{} directory '{}' exists but is not a directory", what.capitalize(), path.display()),
-            DirCreateError { what, path, err } => write!(f, "Failed to create {} directory '{}': {}", what, path.display(), err),
+            DirCreateError { what, path, .. } => write!(f, "Failed to create {} directory '{}'", what, path.display()),
 
-            TempDirError { err } => write!(f, "Failed to create a temporary directory: {err}"),
-            DownloadError { address, path, err } => write!(f, "Failed to download '{}' to '{}': {}", address, path.display(), err),
-            UnarchiveError { tar, target, err } => write!(f, "Failed to unpack '{}' to '{}': {}", tar.display(), target.display(), err),
-            ReadDirError { path, err } => write!(f, "Failed to read directory '{}': {}", path.display(), err),
-            ReadEntryError { path, entry, err } => write!(f, "Failed to read entry {} in directory '{}': {}", entry, path.display(), err),
-            MoveError { source, target, err } => write!(f, "Failed to move '{}' to '{}': {}", source.display(), target.display(), err),
+            TempDirError { .. } => write!(f, "Failed to create a temporary directory"),
+            DownloadError { address, path, .. } => write!(f, "Failed to download '{}' to '{}'", address, path.display()),
+            UnarchiveError { tar, target, .. } => write!(f, "Failed to unpack '{}' to '{}'", tar.display(), target.display()),
+            ReadDirError { path, .. } => write!(f, "Failed to read directory '{}'", path.display()),
+            ReadEntryError { path, entry, .. } => write!(f, "Failed to read entry {} in directory '{}'", entry, path.display()),
+            MoveError { source, target, .. } => write!(f, "Failed to move '{}' to '{}'", source.display(), target.display()),
 
-            DockerConnectError { err } => write!(f, "Failed to connect to local Docker daemon: {err}"),
-            PullError { name, image, err } => write!(f, "Failed to pull '{image}' as '{name}': {err}"),
-            SaveError { name, path, err, .. } => write!(f, "Failed to save image '{}' to '{}': {}", name, path.display(), err),
+            DockerConnectError { .. } => write!(f, "Failed to connect to local Docker daemon"),
+            PullError { name, image, .. } => write!(f, "Failed to pull '{image}' as '{name}'"),
+            SaveError { name, path, .. } => write!(f, "Failed to save image '{}' to '{}'", name, path.display()),
         }
     }
 }
-impl Error for DownloadError {}
+impl Error for DownloadError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use self::DownloadError::*;
+        match self {
+            CachedirTagCreate { err, .. } => Some(err),
+            CachedirTagWrite { err, .. } => Some(err),
+
+            DirNotFound { .. } => None,
+            DirNotADir { .. } => None,
+            DirCreateError { err, .. } => Some(err),
+
+            TempDirError { err } => Some(err),
+            DownloadError { err, .. } => Some(err),
+            UnarchiveError { err, .. } => Some(err),
+            ReadDirError { err, .. } => Some(err),
+            ReadEntryError { err, .. } => Some(err),
+            MoveError { err, .. } => Some(err),
+
+            DockerConnectError { err } => Some(err),
+            PullError { err, .. } => Some(err),
+            SaveError { err, .. } => Some(err),
+        }
+    }
+}
 
 
 
