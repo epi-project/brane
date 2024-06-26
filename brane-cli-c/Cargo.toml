@@ -28,6 +28,11 @@ brane-tsk = { path = "../brane-tsk" }
 specifications = { path = "../specifications" }
 
 
+# [build-dependencies]
+# cbindgen = "0.26"
+
+
 # Hacky indeed but necessary to dodge OpenSSL linking, which we need to make cross-compilation _so_ much easier
 [dependencies.openssl-sys]
+version = "0.9"
 features = ["vendored"]

@@ -14,22 +14,16 @@
  *   Contains code for the health part of the brane API.
 **/
 
-use warp::reply::Response;
 use warp::http::HeaderValue;
 use warp::hyper::Body;
-use warp::{Reply, Rejection};
+use warp::reply::Response;
+use warp::{Rejection, Reply};
 
 
-///
-///
-///
 pub async fn handle() -> Result<impl Reply, Rejection> {
     let mut response = Response::new(Body::from("OK!\n"));
 
-    response.headers_mut().insert(
-        "Content-Length",
-        HeaderValue::from(4),
-    );
+    response.headers_mut().insert("Content-Length", HeaderValue::from(4));
 
     Ok(response)
 }

@@ -3,6 +3,8 @@
 All notable changes to the Brane framework will be documented in this file.
 
 ## [4.0.0] - TODO
+This update sees a lot of changes. Most notably, it integrated with the [policy reasoner effort](https://github.com/epi-project/policy-reasoner) (see issue #60).
+
 ### Added
 - Attributes to BraneScript (e.g., `#[tag("amy.foo")]` or `#![on("foo")]`).
 - The `branectl wizard` subcommand, which interactively goes through the steps of setting up a node.
@@ -14,6 +16,27 @@ All notable changes to the Brane framework will be documented in this file.
 - `TEST_LOGGER` and `TEST_FILES` environment variables to any unit tests using `brane_shr::utilities::test_on_dsl_files*`.
   - If you give `TEST_LOGGER=1` or `TEST_LOGGER=true`, then it instantiates a `log`-capable logger ([humanlog](https://github.com/Lut99/humanlog-rs)).
   - If you give `TEST_FILES=<file1>[,<file2>[...]]`, then only the given files are tested instead of all in the `tests` folder. The files are matched by name, and then specifically an `end_of()`-call.
+- Integration with the [policy reasoner effort](https://github.com/epi-project/policy-reasoner):
+  - Part of this is:
+    - Adding `brane check` to validate workflow against all checkers without running anything.
+      - Note, this is currently imperfect, as checkers answer questions with pre-workflow state. This means that they may assume they won't have a dataset, while they would have while executing the workflow as a result of a previous step. To fix, needs some kind of hypothetical state specification to either `brane-api` or the `policy-reasoner`.
+    - Adding `branectl generate policy_db` to initialize the policy database file.
+    - Adding `branectl generate policy_secret` to initialize a JWK set to use for API endpoint authentication in the policy reasoner.
+    - Adding `branectl generate policy_token` to initialize a JWT based on the given JWK set.
+    - Adding `branectl policy add` to push policies to the checker.
+    - Adding `branectl policy activate` to activate policies on the checker.
+    - Adding `user`-field to `InstanceInfo`, accompanied with a `--user` option when creating new instance in `brane` (\[**breaking change**\], regeneration of instances necessary).
+    - Changing Docker Compose files used by `branectl` (\[**breaking change**\] if you use customized ones).
+    - Changing `policies` path in `node.yml` to `policy_database` file \[**breaking change**\].
+    - Changing `brane-job` to ask permission to ask a task from the `brane-chk` service.
+    - Changing `brane-reg` to ask permission to ask a task from the `brane-chk` service.
+    - Changing the `checker` service entry in `node.yml` to a private service instead of a public service (not a breaking change, since this now simply ignores the `external_address`-field if any).
+    - Changing Brane services to communicate use-case identifiers instead of addresses of central registries.
+    - Changing a worker's `node.yml` to map use-case identifiers to central registries (`brane-api`) (see the `usecases`-field) \[**breaking change**\].
+    - Removing `branectl generate policies` as the old file is no longer used \[**breaking change**\].
+- Graceful shutdown for instance services (`brane-api`, `brane-drv`, `brane-job`, `brane-plr`, `brane-reg`).
+- `branectl` now embeds `cfssl`/`cfssljson` binaries, either downloaded or compiled from source at compile time. The latter because 1.6.3 does not include ARM binaries by default.
+- Passing the `--debug` flag is now the default to the builtin `docker-compose-*.yml` files in `branectl`. If you want to revert to default behaviour, extract the compose file(s) first (`branectl extract compose ...`), change it accordingly, and then pass it during lifetime commands (e.g., `branectl start -f path/to/compose/file ...`).
 
 ### Changed
 - The WIR no longer has a dynamic definition table, but simply a large table spanning all scopes.
@@ -21,12 +44,16 @@ All notable changes to the Brane framework will be documented in this file.
 - `branec` now uses [humanlog](https://github.com/Lut99/humanlog-rs) as logging backend for nicer messages.
 - `brane-drv` and `brane-plr` are now using Rust 2021 instead of Rust 2018.
 - BraneScript syntax to remove the `on`-structs, and instead using `on`-, `loc`- or `location`-attributes \[**breaking change**\].
+- More error prints to use a trace (i.e., `Error::source()`) rather than endless colons.
+- `brane-drv` and `brane-plr` to communicate using HTTP instead of Kafka, finally. This allows us to finally get rid of `aux-kafka` and `aux-zookeeper` \[**breaking change**\].
 
 ### Fixed
 - The BraneScript compiler hanging in an infinite loop in some cases.
   - Specifically, it might fail if it is parsing a non-`[` unary operator.
 - The BraneScript compiler panicking on successive projections.
 - CI/CD in the repository by moving most of it to scripts which we _can_ test offline.
+- The WIR using platform-specific `usize::MAX` to detect the main function. This has been replaced with `FunctionId` (`brane-ast`) and `ProgramCounter` (`brane-exe`) \[**breaking change**\].
+- `make.py` relying on buildx being the default Docker builder.
 
 ## [3.0.0] - 2023-10-22
 ### Added

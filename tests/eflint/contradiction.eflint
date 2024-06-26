@@ -1,0 +1,18 @@
+// CONTRADICTION.eflint
+//   by Lut99
+//
+// Created:
+//   16 Jan 2024, 13:31:10
+// Last edited:
+//   16 Jan 2024, 13:31:23
+// Auto updated?
+//   Yes
+//
+// Description:
+//   Example eFLINT policy file that denies everything, as it always throws
+//   violations.
+//
+
+
+// An Invariant that always violates
+Invariant contradiction When False.

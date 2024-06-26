@@ -1,13 +1,6 @@
 use anyhow::Result;
-use openapiv3::Schema;
-use openapiv3::{
-    Callback, Components, Example, Header, Link, Parameter, PathItem, ReferenceOr, RequestBody, Response,
-    SecurityScheme,
-};
+use openapiv3::{Callback, Components, Example, Header, Link, Parameter, PathItem, ReferenceOr, RequestBody, Response, Schema, SecurityScheme};
 
-///
-///
-///
 pub fn resolve_path_item(item: &ReferenceOr<PathItem>) -> Result<PathItem> {
     match item {
         ReferenceOr::Item(item) => Ok(item.clone()),
@@ -15,13 +8,7 @@ pub fn resolve_path_item(item: &ReferenceOr<PathItem>) -> Result<PathItem> {
     }
 }
 
-///
-///
-///
-pub fn resolve_security_scheme(
-    item: &ReferenceOr<SecurityScheme>,
-    components: &Option<Components>,
-) -> Result<SecurityScheme> {
+pub fn resolve_security_scheme(item: &ReferenceOr<SecurityScheme>, components: &Option<Components>) -> Result<SecurityScheme> {
     match item {
         ReferenceOr::Item(item) => Ok(item.clone()),
         ReferenceOr::Reference { reference } => {
@@ -36,17 +23,11 @@ pub fn resolve_security_scheme(
             };
 
             Err(anyhow!("Couldn't resolve security scheme reference: '{}'.", reference))
-        }
+        },
     }
 }
 
-///
-///
-///
-pub fn resolve_response(
-    item: &ReferenceOr<Response>,
-    components: &Option<Components>,
-) -> Result<Response> {
+pub fn resolve_response(item: &ReferenceOr<Response>, components: &Option<Components>) -> Result<Response> {
     match item {
         ReferenceOr::Item(item) => Ok(item.clone()),
         ReferenceOr::Reference { reference } => {
@@ -61,17 +42,11 @@ pub fn resolve_response(
             };
 
             Err(anyhow!("Couldn't resolve response reference: '{}'.", reference))
-        }
+        },
     }
 }
 
-///
-///
-///
-pub fn resolve_parameter(
-    item: &ReferenceOr<Parameter>,
-    components: &Option<Components>,
-) -> Result<Parameter> {
+pub fn resolve_parameter(item: &ReferenceOr<Parameter>, components: &Option<Components>) -> Result<Parameter> {
     match item {
         ReferenceOr::Item(item) => Ok(item.clone()),
         ReferenceOr::Reference { reference } => {
@@ -86,17 +61,11 @@ pub fn resolve_parameter(
             };
 
             Err(anyhow!("Couldn't resolve parameter reference: '{}'.", reference))
-        }
+        },
     }
 }
 
-///
-///
-///
-pub fn resolve_example(
-    item: &ReferenceOr<Example>,
-    components: &Option<Components>,
-) -> Result<Example> {
+pub fn resolve_example(item: &ReferenceOr<Example>, components: &Option<Components>) -> Result<Example> {
     match item {
         ReferenceOr::Item(item) => Ok(item.clone()),
         ReferenceOr::Reference { reference } => {
@@ -111,17 +80,11 @@ pub fn resolve_example(
             };
 
             Err(anyhow!("Couldn't resolve example reference: '{}'.", reference))
-        }
+        },
     }
 }
 
-///
-///
-///
-pub fn resolve_request_body(
-    item: &ReferenceOr<RequestBody>,
-    components: &Option<Components>,
-) -> Result<RequestBody> {
+pub fn resolve_request_body(item: &ReferenceOr<RequestBody>, components: &Option<Components>) -> Result<RequestBody> {
     match item {
         ReferenceOr::Item(item) => Ok(item.clone()),
         ReferenceOr::Reference { reference } => {
@@ -136,17 +99,11 @@ pub fn resolve_request_body(
             };
 
             Err(anyhow!("Couldn't resolve request body reference: '{}'.", reference))
-        }
+        },
     }
 }
 
-///
-///
-///
-pub fn resolve_headers(
-    item: &ReferenceOr<Header>,
-    components: &Option<Components>,
-) -> Result<Header> {
+pub fn resolve_headers(item: &ReferenceOr<Header>, components: &Option<Components>) -> Result<Header> {
     match item {
         ReferenceOr::Item(item) => Ok(item.clone()),
         ReferenceOr::Reference { reference } => {
@@ -161,17 +118,11 @@ pub fn resolve_headers(
             };
 
             Err(anyhow!("Couldn't resolve header reference: '{}'.", reference))
-        }
+        },
     }
 }
 
-///
-///
-///
-pub fn resolve_schema(
-    item: &ReferenceOr<Schema>,
-    components: &Option<Components>,
-) -> Result<(Option<String>, Schema)> {
+pub fn resolve_schema(item: &ReferenceOr<Schema>, components: &Option<Components>) -> Result<(Option<String>, Schema)> {
     match item {
         ReferenceOr::Item(item) => Ok((None, item.clone())),
         ReferenceOr::Reference { reference } => {
@@ -186,17 +137,11 @@ pub fn resolve_schema(
             };
 
             Err(anyhow!("Couldn't resolve schema reference: '{}'.", reference))
-        }
+        },
     }
 }
 
-///
-///
-///
-pub fn resolve_links(
-    item: &ReferenceOr<Link>,
-    components: &Option<Components>,
-) -> Result<Link> {
+pub fn resolve_links(item: &ReferenceOr<Link>, components: &Option<Components>) -> Result<Link> {
     match item {
         ReferenceOr::Item(item) => Ok(item.clone()),
         ReferenceOr::Reference { reference } => {
@@ -211,17 +156,11 @@ pub fn resolve_links(
             };
 
             Err(anyhow!("Couldn't resolve link reference: '{}'.", reference))
-        }
+        },
     }
 }
 
-///
-///
-///
-pub fn resolve_callback(
-    item: &ReferenceOr<Callback>,
-    components: &Option<Components>,
-) -> Result<Callback> {
+pub fn resolve_callback(item: &ReferenceOr<Callback>, components: &Option<Components>) -> Result<Callback> {
     match item {
         ReferenceOr::Item(item) => Ok(item.clone()),
         ReferenceOr::Reference { reference } => {
@@ -236,6 +175,6 @@ pub fn resolve_callback(
             };
 
             Err(anyhow!("Couldn't resolve callback reference: '{}'.", reference))
-        }
+        },
     }
 }

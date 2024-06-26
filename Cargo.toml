@@ -49,8 +49,8 @@ members = [
     "brane-shr",
     "specifications",
 
-    # TODO
-    "brane-log",
+    # # TODO
+    # "brane-log",
 ]
 
 
@@ -68,3 +68,6 @@ documentation = "https://wiki.enablingpersonalizedinterventions.nl"
 name = "brane-meta"
 version.workspace = true
 edition = "2021"
+
+[lints.clippy]
+result_large_err = { level = "allow", priority = 1 }

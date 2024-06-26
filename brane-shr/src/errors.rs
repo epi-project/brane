@@ -1,17 +1,17 @@
 //  ERRORS.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    10 May 2023, 16:35:29
 //  Last edited:
 //    10 May 2023, 16:45:29
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Defines commonly used functions and structs relating to error
 //!   handling.
-// 
+//
 
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FResult};
@@ -22,7 +22,7 @@ use std::fmt::{Display, Formatter, Result as FResult};
 #[derive(Debug)]
 pub struct ErrorTraceFormatter<'e> {
     /// The error to format.
-    err : &'e dyn Error,
+    err: &'e dyn Error,
 }
 impl<'e> Display for ErrorTraceFormatter<'e> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -56,7 +56,7 @@ impl<'e> Display for ErrorTraceFormatter<'e> {
 /// Implements a function over a normal [`Error`] that prints it and any [`Error::source()`] it has.
 pub trait ErrorTrace: Error {
     /// Returns a formatter that writes the error to the given formatter, with any sources it has.
-    /// 
+    ///
     /// # Returns
     /// A new [`ErrorTraceFormatter`] that can write this error and its sources.
     fn trace(&self) -> ErrorTraceFormatter;
@@ -65,9 +65,5 @@ pub trait ErrorTrace: Error {
 // We auto-implement [`ErrorTrace`] for everything [`Error`]
 impl<T: Error> ErrorTrace for T {
     #[inline]
-    fn trace(&self) -> ErrorTraceFormatter {
-        ErrorTraceFormatter {
-            err : self,
-        }
-    }
+    fn trace(&self) -> ErrorTraceFormatter { ErrorTraceFormatter { err: self } }
 }

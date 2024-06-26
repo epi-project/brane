@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2022, 14:34:28
 //  Last edited:
-//    13 Dec 2023, 08:30:06
+//    08 Feb 2024, 17:15:18
 //  Auto updated?
 //    Yes
 //
@@ -22,16 +22,17 @@ use std::str::FromStr;
 use anyhow::Result;
 use brane_cli::errors::{CliError, ImportError};
 use brane_cli::spec::{Hostname, VersionFix, API_DEFAULT_VERSION};
-use brane_cli::{build_ecu, build_oas, certs, data, instance, packages, registry, repl, run, test, upgrade, verify, version};
+use brane_cli::{build_ecu, build_oas, certs, check, data, instance, packages, registry, repl, run, test, upgrade, verify, version};
 use brane_dsl::Language;
 use brane_shr::fs::DownloadSecurity;
 use brane_tsk::docker::{ClientVersion, DockerOptions};
 use brane_tsk::spec::AppId;
 use clap::Parser;
-use console::style;
 use dotenvy::dotenv;
+use error_trace::ErrorTrace as _;
+use humanlog::{DebugMode, HumanLogger};
 // use git2::Repository;
-use log::LevelFilter;
+use log::{error, info};
 use specifications::arch::Arch;
 use specifications::package::PackageKind;
 use specifications::version::Version as SemVersion;
@@ -84,6 +85,24 @@ enum SubCommand {
         // We subcommand further
         #[clap(subcommand)]
         subcommand: CertsSubcommand,
+    },
+
+    #[clap(
+        name = "check",
+        about = "Checks a workflow against the policy in the current remote instance. You can think of this as using `brane run --remote`, except \
+                 that the Workflow won't be executed - only policy is checked."
+    )]
+    Check {
+        #[clap(name = "FILE", help = "Path to the file to run. Use '-' to run from stdin instead.")]
+        file:   String,
+        #[clap(short, long, action, help = "Use Bakery instead of BraneScript")]
+        bakery: bool,
+
+        #[clap(short, long, help = "If given, uses the given user as end user of a workflow instead of the one in the instance file.")]
+        user: Option<String>,
+
+        #[clap(long, help = "If given, shows profile times if they are available.")]
+        profile: bool,
     },
 
     #[clap(name = "data", about = "Data-related commands.")]
@@ -161,25 +180,6 @@ enum SubCommand {
         #[clap(short, long, default_value = "latest", help = "Version of the package")]
         version: SemVersion,
     },
-
-    // #[clap(name = "login", about = "Log in to a registry")]
-    // Login {
-    //     #[clap(name = "HOST", help = "Hostname of the registry. May include a prefix URL.")]
-    //     host : Hostname,
-
-    //     #[clap(short, long, group = "identity", help = "Username of the account. Specify this if the remote instance does require secure authentication using certificates (see '--identity' in that case).")]
-    //     username    : Option<String>,
-    //     #[clap(short, long, group = "identity", help = "Path to the SSL certificate file to use to authenticate yourself in the remote instance. If the remote instance does not require secure authentication, consider using '--username' instead.")]
-    //     certificate : Option<PathBuf>,
-
-    //     #[clap(short, long, default_value = "50051", help = "The remote API port to connect to. You don't have to specify this if your system administrator didn't say so.")]
-    //     api_port : u16,
-    //     #[clap(short, long, default_value = "50053", help = "The remote driver port to connect to. You don't have to specify this if your system administrator didn't say so.")]
-    //     drv_port : u16,
-
-    //     #[clap(long, help = "If given, does not check with the remote host if the credentials are correct, but just caches them for further subcommands.")]
-    //     unchecked : bool,
-    // },
 
     // #[clap(name = "logout", about = "Log out from a registry")]
     // Logout {},
@@ -613,6 +613,14 @@ enum InstanceSubcommand {
                     you to change it."
         )]
         drv_port: u16,
+        /// The name of the user as which we login.
+        #[clap(
+            short = 'U',
+            long,
+            help = "The name as which to login to the instance. This is used to tell checkers who will download the result, but only tentatively; a \
+                    final check happens using domain-specific credentials. Will default to a random name when omitted."
+        )]
+        user:     Option<String>,
 
         /// Any custom name for this instance.
         #[clap(short, long, help = "Some name to set for this instance. If omitted, will set the hostname instead.")]
@@ -673,6 +681,14 @@ enum InstanceSubcommand {
         /// Change the driver port to this.
         #[clap(short, long, help = "If given, changes the port of the driver service for this instance to this.")]
         drv_port: Option<u16>,
+        /// The name of the user as which we login.
+        #[clap(
+            short,
+            long,
+            help = "If given, changes the name as which to login to the instance. This is used to tell checkers who will download the result, but \
+                    only tentatively; a final check happens using domain-specific credentials."
+        )]
+        user:     Option<String>,
     },
 }
 
@@ -735,14 +751,13 @@ async fn main() -> Result<()> {
     let options = Cli::parse();
 
     // Prepare the logger
-    let mut logger = env_logger::builder();
-    logger.format_module_path(false);
+    if let Err(err) = HumanLogger::terminal(if options.debug { DebugMode::Debug } else { DebugMode::HumanFriendly }).init() {
+        eprintln!("WARNING: Failed to setup logger: {err} (no logging for this session)");
+    }
+    info!("{} - v{}", env!("CARGO_BIN_NAME"), env!("CARGO_PKG_VERSION"));
 
-    if options.debug {
-        logger.filter_module("brane", LevelFilter::Debug).init();
-    } else {
-        logger.filter_module("brane", LevelFilter::Warn).init();
-
+    // Also setup humanpanic
+    if !options.debug {
         setup_panic!(Metadata {
             name:     "Brane CLI".into(),
             version:  env!("CARGO_PKG_VERSION").into(),
@@ -770,7 +785,7 @@ async fn main() -> Result<()> {
     match run(options).await {
         Ok(_) => process::exit(0),
         Err(err) => {
-            eprintln!("{}: {}", style("error").bold().red(), err);
+            error!("{}", err.trace());
             process::exit(1);
         },
     }
@@ -854,6 +869,11 @@ async fn run(options: Cli) -> Result<(), CliError> {
                     }
                 },
             }
+        },
+        Check { file, bakery, user, profile } => {
+            if let Err(err) = check::handle(file, if bakery { Language::Bakery } else { Language::BraneScript }, user, profile).await {
+                return Err(CliError::CheckError { err });
+            };
         },
         Data { subcommand } => {
             // Match again
@@ -993,12 +1013,13 @@ async fn run(options: Cli) -> Result<(), CliError> {
             // Switch on the subcommand
             use InstanceSubcommand::*;
             match subcommand {
-                Add { hostname, api_port, drv_port, name, use_immediately, unchecked, force } => {
+                Add { hostname, api_port, drv_port, user, name, use_immediately, unchecked, force } => {
                     if let Err(err) = instance::add(
                         name.unwrap_or_else(|| hostname.hostname.clone()),
                         hostname,
                         api_port,
                         drv_port,
+                        user.unwrap_or_else(|| names::three::lowercase::rand().into()),
                         use_immediately,
                         unchecked,
                         force,
@@ -1025,8 +1046,8 @@ async fn run(options: Cli) -> Result<(), CliError> {
                     }
                 },
 
-                Edit { name, hostname, api_port, drv_port } => {
-                    if let Err(err) = instance::edit(name, hostname, api_port, drv_port) {
+                Edit { name, hostname, api_port, drv_port, user } => {
+                    if let Err(err) = instance::edit(name, hostname, api_port, drv_port, user) {
                         return Err(CliError::InstanceError { err });
                     }
                 },

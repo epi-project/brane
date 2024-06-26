@@ -1,16 +1,16 @@
 //  UTILS.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    23 Nov 2022, 14:15:54
 //  Last edited:
 //    28 Nov 2022, 13:23:15
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Utilities shared across the crate.
-// 
+//
 
 use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
@@ -18,12 +18,12 @@ use std::path::{Component, Path, PathBuf};
 
 /***** LIBRARY *****/
 /// Function that resolves the given config path.
-/// 
+///
 /// Effectively replaces '$CONFIG' by the path given.
-/// 
+///
 /// # Arguments
 /// - ``
-/// 
+///
 /// # Returns
 /// The same path as given, but now resolved.
 pub fn resolve_config_path(path: PathBuf, config_path: impl AsRef<Path>) -> PathBuf {

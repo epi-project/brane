@@ -4,7 +4,7 @@
 //  Created:
 //    13 Sep 2022, 16:43:11
 //  Last edited:
-//    07 Nov 2023, 16:15:37
+//    31 Jan 2024, 11:36:37
 //  Auto updated?
 //    Yes
 //
@@ -18,15 +18,16 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use async_trait::async_trait;
-use brane_ast::ast::{DataName, Edge, SymTable};
+use brane_ast::ast::{Edge, SymTable};
 use brane_ast::locations::Location;
 use brane_ast::{DataType, Workflow};
 use log::info;
-use specifications::data::{AccessKind, AvailabilityKind};
+use specifications::data::{AccessKind, AvailabilityKind, DataName};
 use specifications::profiling::ProfileScopeHandle;
 
 pub use crate::errors::DummyVmError as Error;
 use crate::errors::VmError;
+use crate::pc::ProgramCounter;
 use crate::spec::{CustomGlobalState, RunState, TaskInfo, VmPlugin};
 use crate::value::FullValue;
 use crate::vm::Vm;
@@ -138,12 +139,13 @@ impl VmPlugin for DummyPlugin {
     async fn preprocess(
         _global: Arc<RwLock<Self::GlobalState>>,
         _local: Self::LocalState,
+        pc: ProgramCounter,
         _loc: Location,
         name: DataName,
         _preprocess: specifications::data::PreprocessKind,
         _prof: ProfileScopeHandle<'_>,
     ) -> Result<AccessKind, Self::PreprocessError> {
-        info!("Processing dummy `DummyVm::preprocess()` call for intermediate result '{}'", name);
+        info!("Processing dummy `DummyVm::preprocess()` call for intermediate result '{name}' in {pc}");
 
         // We also accept it with a dummy accesskind
         Ok(AccessKind::File { path: PathBuf::new() })
@@ -168,7 +170,7 @@ impl VmPlugin for DummyPlugin {
         let state: RwLockReadGuard<Self::GlobalState> = global.read().unwrap();
 
         // Returns default values for the various types a function can have
-        let ret: &DataType = &state.workflow.as_ref().unwrap().table.tasks[info.id].func().ret;
+        let ret: &DataType = &state.workflow.as_ref().unwrap().table.tasks[info.def].func().ret;
         Ok(Some(default_return_value(ret, state.workflow.as_ref().unwrap(), info.name, info.package_name, info.result)))
     }
 
@@ -313,7 +315,7 @@ impl DummyPlanner {
         }
 
         // Write the results to the global state
-        *state_results = table.results.clone();
+        state_results.clone_from(&table.results);
 
         // Then, put the table back
         let mut table: Arc<SymTable> = Arc::new(table);

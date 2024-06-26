@@ -11,7 +11,6 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 async-compression = { version = "0.4", features = ["tokio","gzip"] }
-dirs-2 = "3.0.1"
 async-trait = "0.1"
 base64 = "0.21"
 bollard = "0.14"
@@ -20,9 +19,11 @@ clap = { version = "4.0.24", features = ["derive","env"] }
 console = "0.15"
 cwl = { git = "https://github.com/onnovalkering/cwl-rs" }
 dialoguer = "0.10"
+dirs-2 = "3.0.1"
 dotenvy = "0.15"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
 env_logger = "0.10"
+error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
 filetime = "0.2.15"
 flate2 = { version = "1.0", features = ["zlib"], default-features = false }
 fs_extra = "1.2"
@@ -30,11 +31,13 @@ futures = "0.3"
 futures-util = "0.3"
 # git2 = { version = "0.17", features = ["vendored-libgit2"] }
 graphql_client = "0.13"
+humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
 human-panic = "1.0"
 hyper = "0.14"
 indicatif = "0.17"
 lazy_static = "1.4"
 log = "0.4"
+names = { git = "https://github.com/Lut99/names-rs", default-features = false, features = ["rand", "three-lowercase"]}
 openapiv3 = "0.5"
 parking_lot = "0.12"
 path-clean = "1.0"
@@ -48,16 +51,16 @@ semver = "1.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_with = "3.0"
-serde_yaml = "0.9"
+serde_yaml = { version = "0.0.10", package = "serde_yml" }
 tar = "0.4"
 tempfile = "3.2"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 tokio-tar = "0.3.0"
 tokio-util = { version = "0.7", features = ["codec"] }
-tonic = "0.9"
+tonic = "0.11"
 url = "2.2"
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1.7", features = ["serde", "v4"] }
 x509-parser = "0.15"
 
 brane-ast = { path = "../brane-ast" }
@@ -73,6 +76,7 @@ specifications = { path = "../specifications" }
 
 # Hacky indeed but necessary to dodge OpenSSL linking, which we need to make cross-compilation _so_ much easier
 [dependencies.openssl-sys]
+version = "0.9"
 features = ["vendored"]
 
 

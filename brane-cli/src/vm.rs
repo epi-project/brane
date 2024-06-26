@@ -4,7 +4,7 @@
 //  Created:
 //    24 Oct 2022, 15:34:05
 //  Last edited:
-//    13 Dec 2023, 08:29:14
+//    31 Jan 2024, 14:23:06
 //  Auto updated?
 //    Yes
 //
@@ -20,10 +20,10 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
-use brane_ast::ast::DataName;
 use brane_ast::locations::Location;
 use brane_ast::Workflow;
 use brane_exe::errors::VmError;
+use brane_exe::pc::ProgramCounter;
 use brane_exe::spec::{RunState, TaskInfo, VmPlugin};
 use brane_exe::value::FullValue;
 use brane_exe::Vm;
@@ -37,7 +37,7 @@ use chrono::Utc;
 use log::{debug, info};
 use parking_lot::Mutex;
 use specifications::container::{Image, VolumeBind};
-use specifications::data::{AccessKind, DataIndex, DataInfo, PreprocessKind};
+use specifications::data::{AccessKind, DataIndex, DataInfo, DataName, PreprocessKind};
 use specifications::package::{PackageIndex, PackageInfo};
 use specifications::profiling::ProfileScopeHandle;
 use tokio::fs as tfs;
@@ -64,13 +64,14 @@ impl VmPlugin for OfflinePlugin {
     async fn preprocess(
         _global: Arc<RwLock<Self::GlobalState>>,
         _local: Self::LocalState,
+        pc: ProgramCounter,
         _loc: Location,
         name: DataName,
         preprocess: PreprocessKind,
         _prof: ProfileScopeHandle<'_>,
     ) -> Result<AccessKind, Self::PreprocessError> {
-        info!("Preprocessing data '{}' in an offline environment", name);
-        debug!("Method of preprocessing: {:?}", preprocess);
+        info!("Preprocessing data '{name}' for call at {pc} in an offline environment");
+        debug!("Method of preprocessing: {preprocess:?}");
 
         // Match on the type of preprocessing
         match preprocess {

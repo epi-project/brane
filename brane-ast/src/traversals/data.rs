@@ -159,7 +159,7 @@ fn pass_stmt(stmt: &mut Stmt, table: &mut DataState, is_branch: bool, scope: &Rc
             if let Some(expr) = expr {
                 // Return whether the expression returns any datasets
                 let res: HashSet<Data> = pass_expr(expr, table);
-                *output = res.clone();
+                output.clone_from(&res);
                 res
             } else {
                 // Otherwise, it doesn't return any new identifiers
@@ -320,7 +320,7 @@ fn pass_expr(expr: &mut Expr, table: &DataState) -> HashSet<Data> {
                         let res: HashSet<Data> = HashSet::from([Data::IntermediateResult(id)]);
 
                         // Note it in the function
-                        *result = res.clone();
+                        result.clone_from(&res);
 
                         // Return the identifier to return from this call
                         res
@@ -332,11 +332,11 @@ fn pass_expr(expr: &mut Expr, table: &DataState) -> HashSet<Data> {
                     // It's an internal call. As such, propagate what we know of the symbol table declaration (or rather, compile state).
                     if entry.name == BuiltinFunctions::CommitResult.name() {
                         // Attempt to find out the name of the dataset
-                        let arg: &Expr = args.get(0).unwrap();
+                        let arg: &Expr = args.first().unwrap();
                         if let Expr::Literal { literal: brane_dsl::ast::Literal::String { value, .. } } = arg {
                             // OK return that as a data
                             let res: HashSet<Data> = HashSet::from([Data::Data(value.clone())]);
-                            *result = res.clone();
+                            result.clone_from(&res);
                             res
                         } else {
                             panic!("Got non-string-literal name argument for builtin `commit_result()`");

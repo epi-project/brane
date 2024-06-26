@@ -1,16 +1,16 @@
 //  MANAGE.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    23 Nov 2022, 11:07:05
 //  Last edited:
-//    02 Oct 2023, 17:21:55
+//    12 Jan 2024, 10:43:44
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Defines warp-paths that relate to management of the proxy service.
-// 
+//
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -19,46 +19,41 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::{Arc, MutexGuard};
 
 use log::{debug, error, info};
-use tokio::net::{TcpListener, TcpStream};
-use warp::{Rejection, Reply};
-use warp::http::StatusCode;
-use warp::hyper::{Body, Response};
-use warp::hyper::body::Bytes;
-
 use specifications::address::Address;
+use tokio::net::{TcpListener, TcpStream};
+use warp::http::StatusCode;
+use warp::hyper::body::Bytes;
+use warp::hyper::{Body, Response};
+use warp::{Rejection, Reply};
 
 use crate::errors::RedirectError;
-use crate::spec::{Context, NewPathRequest, NewPathRequestTlsOptions};
 use crate::ports::PortAllocator;
 use crate::redirect::path_server_factory;
+use crate::spec::{Context, NewPathRequest, NewPathRequestTlsOptions};
 
 
 /***** HELPER MACROS *****/
 /// "Casts" the given StatusCode to an empty response.
 macro_rules! response {
-    (StatusCode::$status:ident) => {
+    (StatusCode:: $status:ident) => {
         Response::builder().status(StatusCode::$status).body(Body::empty()).unwrap()
     };
 }
 
 /// "Casts" the given StatusCode to an empty response.
 macro_rules! reject {
-    ($msg:expr) => {
-        {
-            #[derive(Debug)]
-            struct InternalError;
-            impl Display for InternalError {
-                fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
-                    write!(f, "An internal error has occurred.")
-                }
-            }
-            impl Error for InternalError {}
-            impl warp::reject::Reject for InternalError {}
-
-            // Return that
-            warp::reject::custom(InternalError)
+    ($msg:expr) => {{
+        #[derive(Debug)]
+        struct InternalError;
+        impl Display for InternalError {
+            fn fmt(&self, f: &mut Formatter<'_>) -> FResult { write!(f, "An internal error has occurred.") }
         }
-    };
+        impl Error for InternalError {}
+        impl warp::reject::Reject for InternalError {}
+
+        // Return that
+        warp::reject::custom(InternalError)
+    }};
 }
 
 
@@ -67,19 +62,19 @@ macro_rules! reject {
 
 /***** LIBRARY *****/
 /// Creates a new path outgoing from the proxy service.
-/// 
+///
 /// This will allocate a new port that an internal service can connect to. Any traffic that then occurs on this port is forwarded and trafficked back to the specified domain.
-/// 
+///
 /// # Arguments
 /// - `body`: The body of the given request, which we will attempt to parse as JSON.
 /// - `context`: The Context struct that contains things we might need.
-/// 
+///
 /// # Returns
 /// A reponse with the following codes:
 /// - `200 OK` if the new path was successfully created. In the body, there is the (serialized) port number of the path to store.
 /// - `400 BAD REQUEST` if the given request body was not parseable as the desired JSON.
 /// - `507 INSUFFICIENT STORAGE` if the server is out of port ranges to allocate.
-/// 
+///
 /// # Errors
 /// This function errors if we failed to start a new task that listens for the given port. If so, a `500 INTERNAL ERROR` is returned.
 pub async fn new_outgoing_path(body: Bytes, context: Arc<Context>) -> Result<impl Reply, Rejection> {
@@ -111,7 +106,7 @@ pub async fn new_outgoing_path(body: Bytes, context: Arc<Context>) -> Result<imp
         let mut lock: MutexGuard<PortAllocator> = context.ports.lock().unwrap();
         match lock.allocate() {
             Some(port) => port,
-            None       => {
+            None => {
                 error!("No more ports left in range");
                 return Ok(response!(StatusCode::INSUFFICIENT_STORAGE));
             },
@@ -124,7 +119,7 @@ pub async fn new_outgoing_path(body: Bytes, context: Arc<Context>) -> Result<imp
     let address: SocketAddr = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port).into();
     let server = match path_server_factory(&context, address, body.address.clone(), body.tls.clone()).await {
         Ok(server) => server,
-        Err(err)   => {
+        Err(err) => {
             error!("Failed to create the path server: {}", err);
             return Err(reject!("An internal server error has occurred."));
         },
@@ -146,28 +141,32 @@ pub async fn new_outgoing_path(body: Bytes, context: Arc<Context>) -> Result<imp
 
 
 /// Creates a new path incoming to the proxy service.
-/// 
+///
 /// This will allocate a new static port that an internal service can connect to. Any traffic that then occurs on this port is forwarded and trafficked back to the specified, (probably) internal address.
-/// 
+///
 /// # Arguments
 /// - `port`: The port to allocate the new service on. Cannot be in the allocated range.
 /// - `address`: The address of the remote server to forward traffic to.
 /// - `context`: The Context struct that contains things we might need.
-/// 
+///
 /// # Errors
 /// This function will error if we setup the new tunnel server for some reason; typically, this will be if the port is already in use.
 pub async fn new_incoming_path(port: u16, address: Address, context: Arc<Context>) -> Result<(), RedirectError> {
     debug!("Creating new incoming path on port {} to '{}'...", port, address);
 
     // Sanity check: crash if the port is within the target range
-    if context.proxy.outgoing_range.contains(&port) { return Err(RedirectError::PortInOutgoingRange{ port, range: context.proxy.outgoing_range.clone() }); }
+    if context.proxy.outgoing_range.contains(&port) {
+        return Err(RedirectError::PortInOutgoingRange { port, range: context.proxy.outgoing_range.clone() });
+    }
 
     // Attempt to start listening on that port
     let socket_addr: SocketAddr = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port).into();
     debug!("Creating listener on '{}'", socket_addr);
     let listener: TcpListener = match TcpListener::bind(socket_addr).await {
         Ok(listener) => listener,
-        Err(err)     => { return Err(RedirectError::ListenerCreateError { address: socket_addr, err }); },
+        Err(err) => {
+            return Err(RedirectError::ListenerCreateError { address: socket_addr, err });
+        },
     };
 
     // Wrap that in a tokio future that does all of our work
@@ -177,7 +176,7 @@ pub async fn new_incoming_path(port: u16, address: Address, context: Arc<Context
             // Wait for the next connection
             debug!(">{}->{}: Ready for new connection", port, address);
             let (mut iconn, client_addr): (TcpStream, SocketAddr) = match listener.accept().await {
-                Ok(res)  => res,
+                Ok(res) => res,
                 Err(err) => {
                     error!(">{}->{}: Failed to accept incoming connection: {}", port, address, err);
                     continue;
@@ -190,7 +189,7 @@ pub async fn new_incoming_path(port: u16, address: Address, context: Arc<Context
             debug!("Connecting to '{}'...", addr);
             let mut oconn: TcpStream = match TcpStream::connect(&addr).await {
                 Ok(oconn) => oconn,
-                Err(err)  => {
+                Err(err) => {
                     error!(">{}->{}: Failed to connect to internal '{}': {}", port, address, addr, err);
                     continue;
                 },

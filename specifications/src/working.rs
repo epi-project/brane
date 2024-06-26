@@ -1,54 +1,68 @@
 //  WORKING.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    06 Jan 2023, 15:01:17
 //  Last edited:
-//    09 Jan 2023, 15:35:15
+//    07 Mar 2024, 11:58:09
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Contains prost messages for interacting with the job service /
 //!   worker.
-// 
+//
 
+use std::convert::TryFrom;
 use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::Stream;
 use prost::{Enumeration, Message, Oneof};
-use tonic::{Code, Request, Response, Status};
 use tonic::body::{empty_body, BoxBody};
 use tonic::client::Grpc as GrpcClient;
 use tonic::codec::{ProstCodec, Streaming};
-use tonic::codegen::{Body, BoxFuture, Context, Poll, Service, StdError};
-use tonic::codegen::futures_core::Stream;
-use tonic::codegen::http;
-use tonic::server::{Grpc as GrpcServer, ServerStreamingService, UnaryService};
+use tonic::codegen::{http, Body, BoxFuture, Context, Poll, Service, StdError};
+use tonic::server::{Grpc as GrpcServer, NamedService, ServerStreamingService, UnaryService};
 use tonic::transport::{Channel, Endpoint};
-use tonic::transport::NamedService;
-
+use tonic::{Code, Request, Response, Status};
 pub use JobServiceError as Error;
 
 
 /***** ERRORS *****/
+/// Defines the errors occurring when juggling [`PreprocessKind`]s.
+#[derive(Debug)]
+pub enum PreprocessKindConvertError {
+    /// The given [`specifications::working::PreprocessKind`] did not have a successfully parsed `dataname`-field.
+    NoDataName,
+}
+impl Display for PreprocessKindConvertError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use PreprocessKindConvertError::*;
+        match self {
+            NoDataName => write!(f, "Missing 'dataname' in given gRPC version of PreprocessKind"),
+        }
+    }
+}
+impl error::Error for PreprocessKindConvertError {}
+
 /// Defines the errors occuring in the JobServiceClient or JobServiceServer.
 #[derive(Debug)]
 pub enum JobServiceError {
     /// Failed to create an endpoint with the given address.
-    EndpointError{ address: String, err: tonic::transport::Error },
+    EndpointError { address: String, err: tonic::transport::Error },
     /// Failed to connect to the given address.
-    ConnectError{ address: String, err: tonic::transport::Error },
+    ConnectError { address: String, err: tonic::transport::Error },
 }
 impl Display for JobServiceError {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use JobServiceError::*;
         match self {
-            EndpointError{ address, err } => write!(f, "Failed to create a new Endpoint from '{address}': {err}"),
-            ConnectError{ address, err }  => write!(f, "Failed to connect to gRPC endpoint '{address}': {err}"),
+            EndpointError { address, err } => write!(f, "Failed to create a new Endpoint from '{address}': {err}"),
+            ConnectError { address, err } => write!(f, "Failed to connect to gRPC endpoint '{address}': {err}"),
         }
     }
 }
@@ -84,11 +98,30 @@ impl error::Error for JobServiceError {}
 #[derive(Clone, Oneof)]
 pub enum DataName {
     /// The piece of data is a dataset.
-    #[prost(tag = "1", string)]
+    #[prost(tag = "2", string)]
     Data(String),
     /// The piece of data is an intermediate result.
-    #[prost(tag = "2", string)]
+    #[prost(tag = "3", string)]
     IntermediateResult(String),
+}
+
+impl From<crate::data::DataName> for DataName {
+    #[inline]
+    fn from(value: crate::data::DataName) -> Self {
+        match value {
+            crate::data::DataName::Data(name) => DataName::Data(name),
+            crate::data::DataName::IntermediateResult(name) => DataName::IntermediateResult(name),
+        }
+    }
+}
+impl From<DataName> for crate::data::DataName {
+    #[inline]
+    fn from(value: DataName) -> Self {
+        match value {
+            DataName::Data(name) => Self::Data(name),
+            DataName::IntermediateResult(name) => Self::IntermediateResult(name),
+        }
+    }
 }
 
 
@@ -98,51 +131,41 @@ pub enum DataName {
 pub struct TransferRegistryTar {
     /// The location where the address is from.
     #[prost(tag = "1", required, string)]
-    pub location : String,
-    /// The address + path that, once it receives a GET-request with credentials and such, downloads the referenced dataset.
-    #[prost(tag = "2", required, string)]
-    pub address  : String,
+    pub location: String,
+    /// The name of the dataset that we aim to retrieve.
+    #[prost(tags = "2,3", oneof = "DataName")]
+    pub dataname: Option<DataName>,
 }
 
 /// Auxillary enum that defines the possible kinds of datasets.
 #[derive(Clone, Oneof)]
 pub enum PreprocessKind {
     /// We want to transfer it as a tar.gz from a local registry.
-    #[prost(tag = "3", message)]
+    #[prost(tag = "1", message)]
     TransferRegistryTar(TransferRegistryTar),
 }
-
 impl From<crate::data::PreprocessKind> for PreprocessKind {
     #[inline]
     fn from(value: crate::data::PreprocessKind) -> Self {
         match value {
-            crate::data::PreprocessKind::TransferRegistryTar{ location, address } => Self::TransferRegistryTar(TransferRegistryTar{ location, address }),
+            crate::data::PreprocessKind::TransferRegistryTar { location, dataname } => {
+                Self::TransferRegistryTar(TransferRegistryTar { location, dataname: Some(dataname.into()) })
+            },
         }
     }
 }
-impl From<&crate::data::PreprocessKind> for PreprocessKind {
+impl TryFrom<PreprocessKind> for crate::data::PreprocessKind {
+    type Error = PreprocessKindConvertError;
+
     #[inline]
-    fn from(value: &crate::data::PreprocessKind) -> Self { Self::from(value.clone()) }
-}
-impl From<&mut crate::data::PreprocessKind> for PreprocessKind {
-    #[inline]
-    fn from(value: &mut crate::data::PreprocessKind) -> Self { Self::from(value.clone()) }
-}
-impl From<PreprocessKind> for crate::data::PreprocessKind {
-    #[inline]
-    fn from(value: PreprocessKind) -> Self {
+    fn try_from(value: PreprocessKind) -> Result<Self, Self::Error> {
         match value {
-            PreprocessKind::TransferRegistryTar(TransferRegistryTar{ location, address }) => crate::data::PreprocessKind::TransferRegistryTar{ location, address },
+            PreprocessKind::TransferRegistryTar(TransferRegistryTar { location, dataname }) => match dataname {
+                Some(dataname) => Ok(crate::data::PreprocessKind::TransferRegistryTar { location, dataname: dataname.into() }),
+                None => Err(PreprocessKindConvertError::NoDataName),
+            },
         }
     }
-}
-impl From<&PreprocessKind> for crate::data::PreprocessKind {
-    #[inline]
-    fn from(value: &PreprocessKind) -> Self { Self::from(value.clone()) }
-}
-impl From<&mut PreprocessKind> for crate::data::PreprocessKind {
-    #[inline]
-    fn from(value: &mut PreprocessKind) -> Self { Self::from(value.clone()) }
 }
 
 
@@ -161,47 +184,47 @@ pub enum TaskStatus {
 
     // Checker events
     /// The job has been authorized by the job's checker(s).
-    Authorized          = 2,
+    Authorized = 2,
     /// The job has been denied by the job's checker(s).
-    Denied              = 3,
+    Denied = 3,
     /// Authorization has failed. If seen, the `value` field is also populated with the error message.
     AuthorizationFailed = 4,
 
     // Creation events
     /// The job container has been created.
-    Created        = 5,
+    Created = 5,
     /// We failed to create the job container. If seen, the `value` field is also populated with the error message.
     CreationFailed = 6,
 
     // Initialization events
     /// The branelet has been booted (first event it sends).
-    Ready                = 7,
+    Ready = 7,
     /// The branelet node has been initialized; now only to spawn the job itself.
-    Initialized          = 8,
+    Initialized = 8,
     /// We failed to initialize branelet. If seen, the `value` field is also populated with the error message.
     InitializationFailed = 9,
     /// The actual subcall executeable / script has started
-    Started              = 10,
+    Started = 10,
     /// The subprocess executable did not want to start (calling it failed) If seen, the `value` field is also populated with the error message.
-    StartingFailed       = 11,
+    StartingFailed = 11,
 
     // Progress events
     /// Occassional message to let the user know the container is alive and running.
-    Heartbeat        = 12,
+    Heartbeat = 12,
     /// The package call went successfully from the branelet's side.
-    Completed        = 13,
+    Completed = 13,
     /// The package call went wrong from the branelet's side. If seen, the `value` field is also populated with the error message.
     CompletionFailed = 14,
 
     // Finish events
     /// The container has exited with a zero status code and return a value. If seen, then the `value` field is populated with the JSON-encoded FullValue returned.
-    Finished       = 15,
+    Finished = 15,
     /// The container was interrupted by the Job node
-    Stopped        = 16,
+    Stopped = 16,
     /// brane-let could not decode the output from the package call. If seen, the `value` field is also populated with the error message.
     DecodingFailed = 17,
     /// The container has exited with a non-zero status code.  If seen, the `value` field is populated with a JSON-encoded triplet of the error code, the container's stdout and the container's stderr.
-    Failed         = 18,
+    Failed = 18,
 }
 
 
@@ -209,15 +232,77 @@ pub enum TaskStatus {
 
 
 /***** MESSAGES *****/
+/// Request for checking workflow validity with the worker's checker.
+#[derive(Clone, Message)]
+pub struct CheckWorkflowRequest {
+    /// Some identifier relating to the worker which use-case (registry) is being used.
+    #[prost(tag = "1", required, string)]
+    pub use_case: String,
+    /// The workflow that should be checked.
+    #[prost(tag = "2", required, string)]
+    pub workflow: String,
+}
+
+/// Request for checking workflow validity with the worker's checker.
+#[derive(Clone, Message)]
+pub struct CheckTaskRequest {
+    /// Some identifier relating to the worker which use-case (registry) is being used.
+    #[prost(tag = "1", required, string)]
+    pub use_case: String,
+    /// The workflow that should be checked.
+    #[prost(tag = "2", required, string)]
+    pub workflow: String,
+    /// A pointer to the task in the `workflow` that should be specifically permitted.
+    #[prost(tag = "3", required, string)]
+    pub task_id:  String,
+}
+
+/// The reply sent by the worker if a workflow- or task is permitted (i.e., as response to [`CheckWorkflowRequest`] or [`CheckTaskRequest`]).
+#[derive(Clone, Message)]
+pub struct CheckReply {
+    /// Whether the checker approved or denied
+    #[prost(tag = "1", required, bool)]
+    pub verdict: bool,
+    /// If `verdict` is false, then this _may_ denote a list of reasons for denying it.
+    #[prost(tag = "2", repeated, string)]
+    pub reasons: Vec<String>,
+}
+
+
+
 /// Request for preprocessing a given dataset.
 #[derive(Clone, Message)]
 pub struct PreprocessRequest {
-    /// The dataset's name (and kind)
-    #[prost(tags = "1,2", oneof = "DataName")]
-    pub data : Option<DataName>,
+    /// Some identifier relating to the worker which use-case (registry) is being used.
+    #[prost(tag = "1", required, string)]
+    pub use_case: String,
+
+    // /// The dataset's name (and kind)
+    // #[prost(tags = "2,3", oneof = "DataName")]
+    // pub data: Option<DataName>,
     /// The type of preprocessing that will need to happen.
-    #[prost(tags = "3", oneof = "PreprocessKind")]
-    pub kind : Option<PreprocessKind>,
+    // #[prost(tags = "2", oneof = "PreprocessKind")]
+    // pub kind: Option<PreprocessKind>,
+    #[prost(tag = "2", required, message)]
+    pub kind: TransferRegistryTar,
+
+    /// The workflow provided as context of the data transfer.
+    #[prost(tag = "3", required, string)]
+    pub workflow: String,
+    /// The function in which we do the call.
+    #[prost(tag = "4", message)]
+    pub pc: Option<ProgramCounter>,
+}
+
+/// Defines two numbers that make up a program counter.
+#[derive(Clone, Message)]
+pub struct ProgramCounter {
+    /// The function ID of the PC.
+    #[prost(tag = "1", required, uint64)]
+    pub func_id:  u64,
+    /// The edge index of the PC.
+    #[prost(tag = "2", required, uint64)]
+    pub edge_idx: u64,
 }
 
 /// The reply sent by the worker when the preprocessing of a dataset has been done.
@@ -225,7 +310,7 @@ pub struct PreprocessRequest {
 pub struct PreprocessReply {
     /// The method of accessing this dataset from now on.
     #[prost(tag = "1", required, string)]
-    pub access : String,
+    pub access: String,
 }
 
 
@@ -233,26 +318,29 @@ pub struct PreprocessReply {
 /// Request for executing a task on some domain.
 #[derive(Clone, Message)]
 pub struct ExecuteRequest {
-    /// The location of the API service where information may be retrieved from.
+    /// Some identifier relating to the worker which use-case (registry) is being used.
     #[prost(tag = "1", required, string)]
-    pub api : String,
+    pub use_case: String,
 
     /// The workflow of which the task to execute is a part.
     #[prost(tag = "2", required, string)]
-    pub workflow : String,
+    pub workflow: String,
+    /// The function & edge in which we do the call.
+    #[prost(tag = "3", required, message)]
+    pub call_pc:  ProgramCounter,
     /// The index of the task to execute in the workflow's task table.
-    #[prost(tag = "3", required, uint64)]
-    pub task     : u64,
+    #[prost(tag = "4", required, uint64)]
+    pub task_def: u64,
 
     /// The input (i.e., datasets/intermediate results) that are used in this call. It is a map encoded as JSON.
-    #[prost(tag = "4", required, string)]
-    pub input  : String,
+    #[prost(tag = "5", required, string)]
+    pub input:  String,
     /// The intermediat result returned by this call, if any.
-    #[prost(tag = "5", optional, string)]
-    pub result : Option<String>,
+    #[prost(tag = "6", optional, string)]
+    pub result: Option<String>,
     /// The arguments to run the request with. Given as a JSON-encoded map of names to FullValues.
-    #[prost(tag = "6", required, string)]
-    pub args   : String,
+    #[prost(tag = "7", required, string)]
+    pub args:   String,
 }
 
 /// The reply sent by the worker while a task has executing.
@@ -260,10 +348,10 @@ pub struct ExecuteRequest {
 pub struct ExecuteReply {
     /// The current status of the task. May also indicate a failure status.
     #[prost(tag = "1", required, enumeration = "TaskStatus")]
-    pub status : i32,
+    pub status: i32,
     /// An optional value that may be carried along with some of the statusses. See the `TaskStatus` enum for more information.
     #[prost(tag = "2", optional, string)]
-    pub value  : Option<String>,
+    pub value:  Option<String>,
 }
 
 
@@ -273,10 +361,10 @@ pub struct ExecuteReply {
 pub struct CommitRequest {
     /// The name of the intermediate result to commit.
     #[prost(tag = "1", string)]
-    pub result_name : String,
+    pub result_name: String,
     /// The name that the result should have once it is committed.
     #[prost(tag = "2", string)]
-    pub data_name   : String,
+    pub data_name:   String,
 }
 
 /// The reply sent by the worker when the comittation was successfull.
@@ -292,18 +380,18 @@ pub struct CommitReply {}
 #[derive(Debug, Clone)]
 pub struct JobServiceClient {
     /// The client with which we actually do everything
-    client : GrpcClient<Channel>,
+    client: GrpcClient<Channel>,
 }
 
 impl JobServiceClient {
     /// Attempts to connect to the remote endpoint.
-    /// 
+    ///
     /// # Arguments
     /// - `address`: The address of the remote endpoint to connect to.
-    /// 
+    ///
     /// # Returns
     /// A new JobServiceClient instance that is connected to the remove endpoint.
-    /// 
+    ///
     /// # Errors
     /// This function errors if the connection could not be established for whatever reason.
     pub async fn connect(address: impl Into<String>) -> Result<Self, Error> {
@@ -313,27 +401,71 @@ impl JobServiceClient {
         let conn: Channel = match Endpoint::new(address.clone()) {
             Ok(endpoint) => match endpoint.connect().await {
                 Ok(conn) => conn,
-                Err(err) => { return Err(Error::ConnectError{ address, err }); },
+                Err(err) => {
+                    return Err(Error::ConnectError { address, err });
+                },
             },
-            Err(err) => { return Err(Error::EndpointError{ address, err }); },
+            Err(err) => {
+                return Err(Error::EndpointError { address, err });
+            },
         };
 
         // Store it internally
-        Ok(Self {
-            client : GrpcClient::new(conn),
-        })
+        Ok(Self { client: GrpcClient::new(conn) })
     }
 
+    /// Send a request to validate a workflow to the connected endpoint.
+    ///
+    /// # Arguments
+    /// - `request`: The [`CheckWorkflowRequest`] to send to the endpoint.
+    ///
+    /// # Returns
+    /// The [`CheckReply`] the endpoint returns.
+    ///
+    /// # Errors
+    /// This function errors if either we failed to send the request or the endpoint itself failed to process it.
+    pub async fn check_workflow(&mut self, request: impl tonic::IntoRequest<CheckWorkflowRequest>) -> Result<Response<CheckReply>, Status> {
+        // Assert the client is ready to get the party started
+        if let Err(err) = self.client.ready().await {
+            return Err(Status::new(Code::Unknown, format!("Service was not ready: {err}")));
+        }
 
+        // Set the default stuff
+        let codec: ProstCodec<_, _> = ProstCodec::default();
+        let path: http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/CheckWorkflow");
+        self.client.unary(request.into_request(), path, codec).await
+    }
+
+    /// Send a request to validate a task in a workflow to the connected endpoint.
+    ///
+    /// # Arguments
+    /// - `request`: The [`CheckTaskRequest`] to send to the endpoint.
+    ///
+    /// # Returns
+    /// The [`CheckReply`] the endpoint returns.
+    ///
+    /// # Errors
+    /// This function errors if either we failed to send the request or the endpoint itself failed to process it.
+    pub async fn check_task(&mut self, request: impl tonic::IntoRequest<CheckTaskRequest>) -> Result<Response<CheckReply>, Status> {
+        // Assert the client is ready to get the party started
+        if let Err(err) = self.client.ready().await {
+            return Err(Status::new(Code::Unknown, format!("Service was not ready: {err}")));
+        }
+
+        // Set the default stuff
+        let codec: ProstCodec<_, _> = ProstCodec::default();
+        let path: http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/CheckTask");
+        self.client.unary(request.into_request(), path, codec).await
+    }
 
     /// Send a PreprocessRequest to the connected endpoint.
-    /// 
+    ///
     /// # Arguments
     /// - `request`: The PreprocessRequest to send to the endpoint.
-    /// 
+    ///
     /// # Returns
     /// The PreprocessReply the endpoint returns.
-    /// 
+    ///
     /// # Errors
     /// This function errors if either we failed to send the request or the endpoint itself failed to process it.
     pub async fn preprocess(&mut self, request: impl tonic::IntoRequest<PreprocessRequest>) -> Result<Response<PreprocessReply>, Status> {
@@ -343,19 +475,19 @@ impl JobServiceClient {
         }
 
         // Set the default stuff
-        let codec : ProstCodec<_, _>        = ProstCodec::default();
-        let path  : http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/Preprocess");
+        let codec: ProstCodec<_, _> = ProstCodec::default();
+        let path: http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/Preprocess");
         self.client.unary(request.into_request(), path, codec).await
     }
 
     /// Send an ExecuteRequest to the connected endpoint.
-    /// 
+    ///
     /// # Arguments
     /// - `request`: The ExecuteRequest to send to the endpoint.
-    /// 
+    ///
     /// # Returns
     /// The ExecuteReply the endpoint returns.
-    /// 
+    ///
     /// # Errors
     /// This function errors if either we failed to send the request or the endpoint itself failed to process it.
     pub async fn execute(&mut self, request: impl tonic::IntoRequest<ExecuteRequest>) -> Result<Response<Streaming<ExecuteReply>>, Status> {
@@ -365,19 +497,19 @@ impl JobServiceClient {
         }
 
         // Set the default stuff
-        let codec : ProstCodec<_, _>        = ProstCodec::default();
-        let path  : http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/Execute");
+        let codec: ProstCodec<_, _> = ProstCodec::default();
+        let path: http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/Execute");
         self.client.server_streaming(request.into_request(), path, codec).await
     }
 
     /// Send a CommitRequest to the connected endpoint.
-    /// 
+    ///
     /// # Arguments
     /// - `request`: The CommitRequest to send to the endpoint.
-    /// 
+    ///
     /// # Returns
     /// The CommitReply the endpoint returns.
-    /// 
+    ///
     /// # Errors
     /// This function errors if either we failed to send the request or the endpoint itself failed to process it.
     pub async fn commit(&mut self, request: impl tonic::IntoRequest<CommitRequest>) -> Result<Response<CommitReply>, Status> {
@@ -387,8 +519,8 @@ impl JobServiceClient {
         }
 
         // Set the default stuff
-        let codec : ProstCodec<_, _>        = ProstCodec::default();
-        let path  : http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/Commit");
+        let codec: ProstCodec<_, _> = ProstCodec::default();
+        let path: http::uri::PathAndQuery = http::uri::PathAndQuery::from_static("/job.JobService/Commit");
         self.client.unary(request.into_request(), path, codec).await
     }
 }
@@ -396,7 +528,7 @@ impl JobServiceClient {
 
 
 /// The JobService is a trait for easily writing a service for the driver communication protocol.
-/// 
+///
 /// Implementation based on the auto-generated version from tonic.
 #[async_trait]
 pub trait JobService: 'static + Send + Sync {
@@ -405,38 +537,62 @@ pub trait JobService: 'static + Send + Sync {
 
 
 
+    /// Handle for when a [`CheckWorkflowRequest`] comes in.
+    ///
+    /// # Arguments
+    /// - `request`: The ([`tonic::Request`]-wrapped) [`CheckWorkflowRequest`] containing the relevant details.
+    ///
+    /// # Returns
+    /// A [`CheckReply`] for this request, wrapped in a [`tonic::Response`].
+    ///
+    /// # Errors
+    /// This function may error (i.e., send back a `tonic::Status`) whenever it fails.
+    async fn check_workflow(&self, request: Request<CheckWorkflowRequest>) -> Result<Response<CheckReply>, Status>;
+
+    /// Handle for when a [`CheckTaskRequest`] comes in.
+    ///
+    /// # Arguments
+    /// - `request`: The ([`tonic::Request`]-wrapped) [`CheckTaskRequest`] containing the relevant details.
+    ///
+    /// # Returns
+    /// A [`CheckReply`] for this request, wrapped in a [`tonic::Response`].
+    ///
+    /// # Errors
+    /// This function may error (i.e., send back a `tonic::Status`) whenever it fails.
+    async fn check_task(&self, request: Request<CheckTaskRequest>) -> Result<Response<CheckReply>, Status>;
+
     /// Handle for when a PreprocessRequest comes in.
-    /// 
+    ///
     /// # Arguments
     /// - `request`: The (`tonic::Request`-wrapped) PreprocessRequest containing the relevant details.
-    /// 
+    ///
     /// # Returns
     /// A PreprocessReply for this request, wrapped in a `tonic::Response`.
-    /// 
+    ///
     /// # Errors
     /// This function may error (i.e., send back a `tonic::Status`) whenever it fails.
     async fn preprocess(&self, request: Request<PreprocessRequest>) -> Result<Response<PreprocessReply>, Status>;
 
     /// Handle for when an ExecuteRequest comes in.
-    /// 
+    ///
     /// # Arguments
     /// - `request`: The (`tonic::Request`-wrapped) ExecuteRequest containing the relevant details.
-    /// 
+    ///
     /// # Returns
     /// A stream of ExecuteReply messages, updating the client and eventually sending back the workflow result.
-    /// 
+    ///
     /// # Errors
     /// This function may error (i.e., send back a `tonic::Status`) whenever it fails.
     async fn execute(&self, request: Request<ExecuteRequest>) -> Result<Response<Self::ExecuteStream>, Status>;
 
     /// Handle for when a CommitRequest comes in.
-    /// 
+    ///
     /// # Arguments
     /// - `request`: The (`tonic::Request`-wrapped) CommitRequest containing the relevant details.
-    /// 
+    ///
     /// # Returns
     /// A CommitReply for this request, wrapped in a `tonic::Response`.
-    /// 
+    ///
     /// # Errors
     /// This function may error (i.e., send back a `tonic::Status`) whenever it fails.
     async fn commit(&self, request: Request<CommitRequest>) -> Result<Response<CommitReply>, Status>;
@@ -446,23 +602,19 @@ pub trait JobService: 'static + Send + Sync {
 #[derive(Clone, Debug)]
 pub struct JobServiceServer<T> {
     /// The service that we host.
-    service : Arc<T>,
+    service: Arc<T>,
 }
 
 impl<T> JobServiceServer<T> {
     /// Constructor for the JobServiceServer.
-    /// 
+    ///
     /// # Arguments
     /// - `service`: The Service to serve.
-    /// 
+    ///
     /// # Returns
     /// A new JobServiceServer instance.
     #[inline]
-    pub fn new(service: T) -> Self {
-        Self {
-            service : Arc::new(service),
-        }
-    }
+    pub fn new(service: T) -> Self { Self { service: Arc::new(service) } }
 }
 
 impl<T, B> Service<http::Request<B>> for JobServiceServer<T>
@@ -471,24 +623,74 @@ where
     B: 'static + Send + Body,
     B::Error: 'static + Send + Into<StdError>,
 {
+    type Error = std::convert::Infallible;
+    type Future = BoxFuture<Self::Response, Self::Error>;
     type Response = http::Response<BoxBody>;
-    type Error    = std::convert::Infallible;
-    type Future   = BoxFuture<Self::Response, Self::Error>;
 
     #[inline]
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> { Poll::Ready(Ok(())) }
 
     fn call(&mut self, req: http::Request<B>) -> Self::Future {
         match req.uri().path() {
+            // Incoming CheckRequest
+            "/job.JobService/CheckWorkflow" => {
+                /// Helper struct for the given JobService that focusses specifically on this request.
+                struct CheckWorkflowSvc<T>(Arc<T>);
+                impl<T: JobService> UnaryService<CheckWorkflowRequest> for CheckWorkflowSvc<T> {
+                    type Future = BoxFuture<Response<Self::Response>, Status>;
+                    type Response = CheckReply;
+
+                    fn call(&mut self, req: Request<CheckWorkflowRequest>) -> Self::Future {
+                        // Return the service function as the future to run
+                        let service = self.0.clone();
+                        let fut = async move { (*service).check_workflow(req).await };
+                        Box::pin(fut)
+                    }
+                }
+
+                // Create a future that creates the service
+                let service = self.service.clone();
+                Box::pin(async move {
+                    let method: CheckWorkflowSvc<T> = CheckWorkflowSvc(service);
+                    let codec: ProstCodec<_, _> = ProstCodec::default();
+                    let mut grpc: GrpcServer<ProstCodec<_, _>> = GrpcServer::new(codec);
+                    Ok(grpc.unary(method, req).await)
+                })
+            },
+
+            // Incoming CheckRequest
+            "/job.JobService/CheckTask" => {
+                /// Helper struct for the given JobService that focusses specifically on this request.
+                struct CheckTaskSvc<T>(Arc<T>);
+                impl<T: JobService> UnaryService<CheckTaskRequest> for CheckTaskSvc<T> {
+                    type Future = BoxFuture<Response<Self::Response>, Status>;
+                    type Response = CheckReply;
+
+                    fn call(&mut self, req: Request<CheckTaskRequest>) -> Self::Future {
+                        // Return the service function as the future to run
+                        let service = self.0.clone();
+                        let fut = async move { (*service).check_task(req).await };
+                        Box::pin(fut)
+                    }
+                }
+
+                // Create a future that creates the service
+                let service = self.service.clone();
+                Box::pin(async move {
+                    let method: CheckTaskSvc<T> = CheckTaskSvc(service);
+                    let codec: ProstCodec<_, _> = ProstCodec::default();
+                    let mut grpc: GrpcServer<ProstCodec<_, _>> = GrpcServer::new(codec);
+                    Ok(grpc.unary(method, req).await)
+                })
+            },
+
             // Incoming PreprocessRequest
             "/job.JobService/Preprocess" => {
                 /// Helper struct for the given JobService that focusses specifically on this request.
                 struct PreprocessSvc<T>(Arc<T>);
                 impl<T: JobService> UnaryService<PreprocessRequest> for PreprocessSvc<T> {
+                    type Future = BoxFuture<Response<Self::Response>, Status>;
                     type Response = PreprocessReply;
-                    type Future   = BoxFuture<Response<Self::Response>, Status>;
 
                     fn call(&mut self, req: Request<PreprocessRequest>) -> Self::Future {
                         // Return the service function as the future to run
@@ -501,9 +703,9 @@ where
                 // Create a future that creates the service
                 let service = self.service.clone();
                 Box::pin(async move {
-                    let method   : PreprocessSvc<T>              = PreprocessSvc(service);
-                    let codec    : ProstCodec<_, _>              = ProstCodec::default();
-                    let mut grpc : GrpcServer<ProstCodec<_, _,>> = GrpcServer::new(codec);
+                    let method: PreprocessSvc<T> = PreprocessSvc(service);
+                    let codec: ProstCodec<_, _> = ProstCodec::default();
+                    let mut grpc: GrpcServer<ProstCodec<_, _>> = GrpcServer::new(codec);
                     Ok(grpc.unary(method, req).await)
                 })
             },
@@ -513,9 +715,9 @@ where
                 /// Helper struct for the given DriverService that focusses specifically on this request.
                 struct ExecuteSvc<T>(Arc<T>);
                 impl<T: JobService> ServerStreamingService<ExecuteRequest> for ExecuteSvc<T> {
-                    type Response       = ExecuteReply;
+                    type Future = BoxFuture<Response<Self::ResponseStream>, Status>;
+                    type Response = ExecuteReply;
                     type ResponseStream = T::ExecuteStream;
-                    type Future         = BoxFuture<Response<Self::ResponseStream>, Status>;
 
                     fn call(&mut self, req: Request<ExecuteRequest>) -> Self::Future {
                         // Return the service function as the future to run
@@ -528,9 +730,9 @@ where
                 // Create a future that creates the service
                 let service = self.service.clone();
                 Box::pin(async move {
-                    let method   : ExecuteSvc<T>                 = ExecuteSvc(service);
-                    let codec    : ProstCodec<_, _>              = ProstCodec::default();
-                    let mut grpc : GrpcServer<ProstCodec<_, _,>> = GrpcServer::new(codec);
+                    let method: ExecuteSvc<T> = ExecuteSvc(service);
+                    let codec: ProstCodec<_, _> = ProstCodec::default();
+                    let mut grpc: GrpcServer<ProstCodec<_, _>> = GrpcServer::new(codec);
                     Ok(grpc.server_streaming(method, req).await)
                 })
             },
@@ -540,8 +742,8 @@ where
                 /// Helper struct for the given JobService that focusses specifically on this request.
                 struct CommitSvc<T>(Arc<T>);
                 impl<T: JobService> UnaryService<CommitRequest> for CommitSvc<T> {
+                    type Future = BoxFuture<Response<Self::Response>, Status>;
                     type Response = CommitReply;
-                    type Future   = BoxFuture<Response<Self::Response>, Status>;
 
                     fn call(&mut self, req: Request<CommitRequest>) -> Self::Future {
                         // Return the service function as the future to run
@@ -554,9 +756,9 @@ where
                 // Create a future that creates the service
                 let service = self.service.clone();
                 Box::pin(async move {
-                    let method   : CommitSvc<T>                  = CommitSvc(service);
-                    let codec    : ProstCodec<_, _>              = ProstCodec::default();
-                    let mut grpc : GrpcServer<ProstCodec<_, _,>> = GrpcServer::new(codec);
+                    let method: CommitSvc<T> = CommitSvc(service);
+                    let codec: ProstCodec<_, _> = ProstCodec::default();
+                    let mut grpc: GrpcServer<ProstCodec<_, _>> = GrpcServer::new(codec);
                     Ok(grpc.unary(method, req).await)
                 })
             },
@@ -565,14 +767,12 @@ where
             _ => {
                 // Return a future that simply does ¯\_(ツ)_/¯
                 Box::pin(async move {
-                    Ok(
-                        http::Response::builder()
-                            .status(200)
-                            .header("grpc-status", "12")
-                            .header("content-type", "application/grpc")
-                            .body(empty_body())
-                            .unwrap(),
-                    )
+                    Ok(http::Response::builder()
+                        .status(200)
+                        .header("grpc-status", "12")
+                        .header("content-type", "application/grpc")
+                        .body(empty_body())
+                        .unwrap())
                 })
             },
         }

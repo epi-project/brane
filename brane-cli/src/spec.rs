@@ -95,7 +95,7 @@ impl FromStr for Hostname {
 
             // Assert the scheme only has alphanumeric characters
             for c in scheme.chars() {
-                if (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+                if !c.is_ascii_digit() && !c.is_ascii_lowercase() && !c.is_ascii_uppercase() {
                     return Err(HostnameParseError::IllegalSchemeChar { raw: scheme.into(), c });
                 }
             }

@@ -4,7 +4,7 @@
 //  Created:
 //    26 Jan 2023, 09:22:13
 //  Last edited:
-//    13 Dec 2023, 08:27:15
+//    08 Jan 2024, 10:43:17
 //  Auto updated?
 //    Yes
 //
@@ -77,9 +77,11 @@ fn read_active_instance_link() -> Result<String, Error> {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct InstanceInfo {
     /// The place where we can find the API service for this instance.
-    pub api: Address,
+    pub api:  Address,
     /// The place where we can find the driver service for this instance.
-    pub drv: Address,
+    pub drv:  Address,
+    /// A username to send with workflow requests as receiver of the final result.
+    pub user: String,
 }
 impl InstanceInfo {
     /// Reads this InstanceInfo from the active instance's directory in the local configuration directory.
@@ -297,17 +299,20 @@ impl InstanceInfo {
 /// - `hostname`: The hostname of the instance.
 /// - `api_port`: The port where we can find the API service.
 /// - `drv_port`: The port where we can find the driver service.
+/// - `user`: The name of the user to login as.
 /// - `use_immediately`: Whether to switch to it or not.
 /// - `unchecked`: Whether to skip instance alive checking (true) or not (false).
 /// - `force`: Whether to ask for permission before overwriting an existing instance.
 ///
 /// # Errors
 /// This function errors if we failed to generate any files, or if some check failed for this instance.
+#[allow(clippy::too_many_arguments)]
 pub async fn add(
     name: String,
     hostname: Hostname,
     api_port: u16,
     drv_port: u16,
+    user: String,
     use_immediately: bool,
     unchecked: bool,
     force: bool,
@@ -317,7 +322,7 @@ pub async fn add(
     // Assert the name is valid
     debug!("Asserting name validity...");
     for c in name.chars() {
-        if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_' && c != '.' && c != '-' {
+        if !c.is_ascii_lowercase() && !c.is_ascii_uppercase() && !c.is_ascii_digit() && c != '_' && c != '.' && c != '-' {
             return Err(Error::IllegalInstanceName { raw: name, illegal_char: c });
         }
     }
@@ -387,7 +392,7 @@ pub async fn add(
 
     // Create a new InstanceInfo
     debug!("Writing InstanceInfo...");
-    let info: InstanceInfo = InstanceInfo { api, drv };
+    let info: InstanceInfo = InstanceInfo { api, drv, user };
 
     // Write it to wherever it wants to be
     info.to_default_path(&name)?;
@@ -503,9 +508,9 @@ pub async fn list(show_status: bool) -> Result<(), Error> {
     let mut table = Table::new();
     table.set_format(format);
     if show_status {
-        table.add_row(row!["NAME", "API", "DRIVER", "STATUS"]);
+        table.add_row(row!["NAME", "API", "DRIVER", "USERNAME", "STATUS"]);
     } else {
-        table.add_row(row!["NAME", "API", "DRIVER"]);
+        table.add_row(row!["NAME", "API", "DRIVER", "USERNAME"]);
     }
 
     // Fetch the instances directory
@@ -555,7 +560,7 @@ pub async fn list(show_status: bool) -> Result<(), Error> {
         let name: Cow<str> = name.to_string_lossy();
 
         // Read the InstanceInfo for further details
-        let (api_addr, drv_addr): (String, String) = {
+        let (api_addr, drv_addr, user): (String, String, String) = {
             // Open up the file
             let info: InstanceInfo = match InstanceInfo::from_default_path(&name) {
                 Ok(info) => info,
@@ -572,21 +577,22 @@ pub async fn list(show_status: bool) -> Result<(), Error> {
                     return Err(err);
                 },
             };
-            (info.api.to_string(), info.drv.to_string())
+            (info.api.to_string(), info.drv.to_string(), info.user.clone())
         };
 
         // Re-style them if active
-        let (name, api, drv): (String, String, String) = if active_name.is_some() && active_name.as_ref().unwrap() == &name {
-            (style(name).bold().to_string(), style(&api_addr).bold().to_string(), style(drv_addr).bold().to_string())
+        let (name, api, drv, user): (String, String, String, String) = if active_name.is_some() && active_name.as_ref().unwrap() == &name {
+            (style(name).bold().to_string(), style(&api_addr).bold().to_string(), style(drv_addr).bold().to_string(), style(user).bold().to_string())
         } else {
-            (name.into(), api_addr.clone(), drv_addr)
+            (name.into(), api_addr.clone(), drv_addr, user)
         };
 
         // Align the properties found so far... properly
-        let (name, api, drv): (Cow<str>, Cow<str>, Cow<str>) = (
+        let (name, api, drv, user): (Cow<str>, Cow<str>, Cow<str>, Cow<str>) = (
             pad_str(&name, 25, Alignment::Left, Some("..")),
             pad_str(&api, 30, Alignment::Left, Some("..")),
             pad_str(&drv, 30, Alignment::Left, Some("..")),
+            pad_str(&user, 25, Alignment::Left, Some("..")),
         );
 
         // Either get the reachability and then add the row, or add the row immediately (depending on what the user wants us to do)
@@ -611,10 +617,10 @@ pub async fn list(show_status: bool) -> Result<(), Error> {
             let status: Cow<str> = pad_str(&status, 15, Alignment::Left, None);
 
             // Add the column
-            table.add_row(row![name, api, drv, status]);
+            table.add_row(row![name, api, drv, user, status]);
         } else {
             // Add the column
-            table.add_row(row![name, api, drv]);
+            table.add_row(row![name, api, drv, user]);
         }
     }
 
@@ -678,20 +684,27 @@ pub fn select(name: String) -> Result<(), Error> {
 /// - `hostname`: Whether to change the hostname of the instance and, if so, what to change it to.
 /// - `api_port`: Whether to change the API service port of the instance and, if so, what to change it to.
 /// - `drv_port`: Whether to change the driver service port of the instance and, if so, what to change it to.
+/// - `user`: Whether to change the user name which the user presents as receiver of the final result.
 ///
 /// # Errors
 /// This function errors if we failed to find the instance or failed to update its file.
-pub fn edit(name: Option<String>, hostname: Option<Hostname>, api_port: Option<u16>, drv_port: Option<u16>) -> Result<(), Error> {
+pub fn edit(
+    name: Option<String>,
+    hostname: Option<Hostname>,
+    api_port: Option<u16>,
+    drv_port: Option<u16>,
+    user: Option<String>,
+) -> Result<(), Error> {
     info!("Editing instance {}...", name.as_ref().map(|n| format!("'{n}'")).unwrap_or("<active>".into()));
 
     // Get the instance's directory
     debug!("Resolving instance directory...");
-    let instance_dir: PathBuf = name
+    let instance_path: PathBuf = name
         .as_ref()
         .map(|n| {
             // We fetch the directory based on the name
             match get_instance_dir(n) {
-                Ok(path) => Ok(path),
+                Ok(path) => Ok(path.join("info.yml")),
                 Err(err) => Err(Error::InstanceDirError { err }),
             }
         })
@@ -708,7 +721,7 @@ pub fn edit(name: Option<String>, hostname: Option<Hostname>, api_port: Option<u
 
     // With the path confirmed, load the info.yml
     debug!("Loading instance file...");
-    let mut info: InstanceInfo = InstanceInfo::from_path(instance_dir.join("info.yml"))?;
+    let mut info: InstanceInfo = InstanceInfo::from_path(instance_path.as_path())?;
 
     // Adapt whatever is necessary
     debug!("Updating information...");
@@ -726,10 +739,14 @@ pub fn edit(name: Option<String>, hostname: Option<Hostname>, api_port: Option<u
         println!("Updating driver service port to {}...", style(port).cyan().bold());
         info.drv = Address::Hostname(info.drv.domain().into(), port);
     }
+    if let Some(user) = user {
+        println!("Updating username to {}...", style(&user).cyan().bold());
+        info.user = user;
+    }
 
     // Write the modified file back
     debug!("Writing instance file back...");
-    info.to_path(instance_dir.join("info.yml"))?;
+    info.to_path(instance_path)?;
 
     // Done
     if let Some(name) = name {

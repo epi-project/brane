@@ -1,30 +1,29 @@
 //  INFRA.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    02 Nov 2022, 16:21:33
 //  Last edited:
 //    13 Jul 2023, 13:58:57
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Returns information about the infrastructure.
-// 
+//
 
 use std::collections::{HashMap, HashSet};
-
-use log::{debug, error};
-use warp::{Reply, Rejection};
-use warp::hyper::{Body, Response};
-use warp::hyper::header::HeaderValue;
 
 use brane_cfg::info::Info as _;
 use brane_cfg::infra::{InfraFile, InfraLocation};
 use brane_cfg::node::NodeConfig;
 use brane_prx::spec::NewPathRequestTlsOptions;
+use log::{debug, error};
 use specifications::address::Address;
 use specifications::package::Capability;
+use warp::hyper::header::HeaderValue;
+use warp::hyper::{Body, Response};
+use warp::{Rejection, Reply};
 
 pub use crate::errors::InfraError as Error;
 use crate::spec::Context;
@@ -32,13 +31,13 @@ use crate::spec::Context;
 
 /***** LIBRARY *****/
 /// Lists the registries at each location.
-/// 
+///
 /// # Arguments
 /// - `context`: The Context that contains stuff we need to run.
-/// 
+///
 /// # Returns
 /// A response that can be send to client. Specifically, it will contains a map (i.e., `HashMap`) of locations names to addresses where their registries may be found.
-/// 
+///
 /// # Errors
 /// This function may error (i.e., reject the request) if we failed to load the infrastructure file.
 pub async fn registries(context: Context) -> Result<impl Reply, Rejection> {
@@ -47,7 +46,7 @@ pub async fn registries(context: Context) -> Result<impl Reply, Rejection> {
     // Load the node config file
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
         Ok(config) => config,
-        Err(err)   => {
+        Err(err) => {
             error!("Failed to load NodeConfig file: {}", err);
             return Err(warp::reject::custom(Error::SecretError));
         },
@@ -60,8 +59,8 @@ pub async fn registries(context: Context) -> Result<impl Reply, Rejection> {
     // Load the infrastructure file
     let infra: InfraFile = match InfraFile::from_path(&node_config.node.central().paths.infra) {
         Ok(infra) => infra,
-        Err(err)  => {
-            error!("{}", Error::InfrastructureOpenError{ path: node_config.node.central().paths.infra.clone(), err });
+        Err(err) => {
+            error!("{}", Error::InfrastructureOpenError { path: node_config.node.central().paths.infra.clone(), err });
             return Err(warp::reject::custom(Error::SecretError));
         },
     };
@@ -76,18 +75,15 @@ pub async fn registries(context: Context) -> Result<impl Reply, Rejection> {
     let body: String = match serde_json::to_string(&locations) {
         Ok(body) => body,
         Err(err) => {
-            error!("{}", Error::SerializeError{ what: "list of all registry endpoints", err });
+            error!("{}", Error::SerializeError { what: "list of all registry endpoints", err });
             return Err(warp::reject::custom(Error::SecretError));
-        }
+        },
     };
     let body_len: usize = body.len();
 
     // Create the respones around it
     let mut response = Response::new(Body::from(body));
-    response.headers_mut().insert(
-        "Content-Length",
-        HeaderValue::from(body_len),
-    );
+    response.headers_mut().insert("Content-Length", HeaderValue::from(body_len));
 
     // Done
     Ok(response)
@@ -96,14 +92,14 @@ pub async fn registries(context: Context) -> Result<impl Reply, Rejection> {
 
 
 /// Returns the registry address for the requested location.
-/// 
+///
 /// # Arguments
 /// - `loc`: The location that the address is asked of.
 /// - `context`: The Context that contains stuff we need to run.
-/// 
+///
 /// # Returns
 /// A response that can be send to client. Specifically, it will contains the address of the registry as plain text.
-/// 
+///
 /// # Errors
 /// This function may error (i.e., reject the request) if we failed to load the infrastructure file.
 pub async fn get_registry(loc: String, context: Context) -> Result<impl Reply, Rejection> {
@@ -112,7 +108,7 @@ pub async fn get_registry(loc: String, context: Context) -> Result<impl Reply, R
     // Load the node config file
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
         Ok(config) => config,
-        Err(err)   => {
+        Err(err) => {
             error!("Failed to load NodeConfig file: {}", err);
             return Err(warp::reject::custom(Error::SecretError));
         },
@@ -125,8 +121,8 @@ pub async fn get_registry(loc: String, context: Context) -> Result<impl Reply, R
     // Load the infrastructure file
     let infra: InfraFile = match InfraFile::from_path(&node_config.node.central().paths.infra) {
         Ok(infra) => infra,
-        Err(err)  => {
-            error!("{}", Error::InfrastructureOpenError{ path: node_config.node.central().paths.infra.clone(), err });
+        Err(err) => {
+            error!("{}", Error::InfrastructureOpenError { path: node_config.node.central().paths.infra.clone(), err });
             return Err(warp::reject::custom(Error::SecretError));
         },
     };
@@ -134,19 +130,18 @@ pub async fn get_registry(loc: String, context: Context) -> Result<impl Reply, R
     // Find the location requested
     let info: &InfraLocation = match infra.get(&loc) {
         Some(info) => info,
-        None       => { return Err(warp::reject::not_found()); },
+        None => {
+            return Err(warp::reject::not_found());
+        },
     };
 
     // Create a body with the registry
-    let body     : String = info.registry.serialize().to_string();
-    let body_len : usize  = body.len();
+    let body: String = info.registry.serialize().to_string();
+    let body_len: usize = body.len();
 
     // Create the respones around it
     let mut response = Response::new(Body::from(body));
-    response.headers_mut().insert(
-        "Content-Length",
-        HeaderValue::from(body_len),
-    );
+    response.headers_mut().insert("Content-Length", HeaderValue::from(body_len));
 
     // Done
     Ok(response)
@@ -155,14 +150,14 @@ pub async fn get_registry(loc: String, context: Context) -> Result<impl Reply, R
 
 
 /// Returns the capabilities for the requested location.
-/// 
+///
 /// # Arguments
 /// - `loc`: The location that the capabilities are asked of.
 /// - `context`: The Context that contains stuff we need to run.
-/// 
+///
 /// # Returns
 /// A response that can be send to client. Specifically, it will contain a set of capabilities supported.
-/// 
+///
 /// # Errors
 /// This function may error (i.e., reject the request) if we failed to load the infrastructure file or contact the requested domain.
 pub async fn get_capabilities(loc: String, context: Context) -> Result<impl Reply, Rejection> {
@@ -171,7 +166,7 @@ pub async fn get_capabilities(loc: String, context: Context) -> Result<impl Repl
     // Load the node config file
     let node_config: NodeConfig = match NodeConfig::from_path(&context.node_config_path) {
         Ok(config) => config,
-        Err(err)   => {
+        Err(err) => {
             error!("Failed to load NodeConfig file: {}", err);
             return Err(warp::reject::custom(Error::SecretError));
         },
@@ -184,8 +179,8 @@ pub async fn get_capabilities(loc: String, context: Context) -> Result<impl Repl
     // Load the infrastructure file
     let infra: InfraFile = match InfraFile::from_path(&node_config.node.central().paths.infra) {
         Ok(infra) => infra,
-        Err(err)  => {
-            error!("{}", Error::InfrastructureOpenError{ path: node_config.node.central().paths.infra.clone(), err });
+        Err(err) => {
+            error!("{}", Error::InfrastructureOpenError { path: node_config.node.central().paths.infra.clone(), err });
             return Err(warp::reject::custom(Error::SecretError));
         },
     };
@@ -193,55 +188,60 @@ pub async fn get_capabilities(loc: String, context: Context) -> Result<impl Repl
     // Find the location requested
     let info: &InfraLocation = match infra.get(&loc) {
         Some(info) => info,
-        None       => { return Err(warp::reject::not_found()); },
+        None => {
+            return Err(warp::reject::not_found());
+        },
     };
 
     // Ask the location about its capabilities
     let reg_addr: String = format!("{}/infra/capabilities", info.registry);
-    let res: reqwest::Response = match context.proxy.get(&reg_addr, Some(NewPathRequestTlsOptions{ use_client_auth: false, location: loc })).await {
-        Ok(res)  => match res {
-            Ok(res)  => res,
+    let res: reqwest::Response = match context.proxy.get(&reg_addr, Some(NewPathRequestTlsOptions { use_client_auth: false, location: loc })).await {
+        Ok(res) => match res {
+            Ok(res) => res,
             Err(err) => {
-                error!("{}", Error::RequestError{ address: reg_addr, err });
+                error!("{}", Error::RequestError { address: reg_addr, err });
                 return Err(warp::reject::custom(Error::SecretError));
             },
         },
         Err(err) => {
-            error!("{}", Error::ProxyError{ err });
+            error!("{}", Error::ProxyError { err });
             return Err(warp::reject::custom(Error::SecretError));
         },
     };
     if !res.status().is_success() {
-        error!("{}", Error::RequestFailure{ address: reg_addr, code: res.status(), message: res.text().await.ok() });
+        error!("{}", Error::RequestFailure { address: reg_addr, code: res.status(), message: res.text().await.ok() });
         return Err(warp::reject::custom(Error::SecretError));
     }
 
     // Parse the body as the proper JSON
-    let capabilities : String              = match res.text().await {
+    let capabilities: String = match res.text().await {
         Ok(caps) => caps,
         Err(err) => {
-            error!("{}", Error::ResponseBodyError{ address: reg_addr, err });
+            error!("{}", Error::ResponseBodyError { address: reg_addr, err });
             return Err(warp::reject::custom(Error::SecretError));
         },
     };
-    let capabilities : HashSet<Capability> = match serde_json::from_str(&capabilities) {
+    let capabilities: HashSet<Capability> = match serde_json::from_str(&capabilities) {
         Ok(caps) => caps,
         Err(err) => {
-            error!("{}", Error::ResponseParseError{ address: reg_addr, raw: capabilities, err });
+            error!("{}", Error::ResponseParseError { address: reg_addr, raw: capabilities, err });
             return Err(warp::reject::custom(Error::SecretError));
         },
     };
 
     // Create a body with the registry (re-serialize for full correctness)
-    let body     : String = match serde_json::to_string(&capabilities) { Ok(body) => body, Err(err) => { error!("{}", Error::CapabilitiesSerializeError{ err }); return Err(warp::reject::custom(Error::SecretError)); }, };
-    let body_len : usize  = body.len();
+    let body: String = match serde_json::to_string(&capabilities) {
+        Ok(body) => body,
+        Err(err) => {
+            error!("{}", Error::CapabilitiesSerializeError { err });
+            return Err(warp::reject::custom(Error::SecretError));
+        },
+    };
+    let body_len: usize = body.len();
 
     // Create the respones around it
     let mut response = Response::new(Body::from(body));
-    response.headers_mut().insert(
-        "Content-Length",
-        HeaderValue::from(body_len),
-    );
+    response.headers_mut().insert("Content-Length", HeaderValue::from(body_len));
 
     // Done
     Ok(response)

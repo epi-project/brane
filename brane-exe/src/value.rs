@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2022, 13:44:07
 //  Last edited:
-//    07 Nov 2023, 14:46:40
+//    16 Jan 2024, 15:13:18
 //  Auto updated?
 //    Yes
 //
@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FResult};
 
 use brane_ast::data_type::DataType;
+use brane_ast::func_id::FunctionId;
 use brane_ast::spec::BuiltinClasses;
 use brane_ast::SymTable;
 use serde::de::Visitor;
@@ -380,9 +381,9 @@ impl<'a, 'b> Display for ValueDisplay<'a, 'b> {
             Function { def } => write!(
                 f,
                 "{}({}) -> {}",
-                self.table.func(*def).name,
-                self.table.func(*def).args.iter().map(|a| format!("{a}")).collect::<Vec<std::string::String>>().join(","),
-                self.table.func(*def).ret
+                self.table.func(FunctionId::Func(*def)).name,
+                self.table.func(FunctionId::Func(*def)).args.iter().map(|a| format!("{a}")).collect::<Vec<std::string::String>>().join(","),
+                self.table.func(FunctionId::Func(*def)).ret
             ),
             Instance { values, def } => write!(
                 f,
@@ -396,9 +397,9 @@ impl<'a, 'b> Display for ValueDisplay<'a, 'b> {
                 f,
                 "{}::{}({}) -> {}",
                 self.table.class(*cdef).name,
-                self.table.func(*fdef).name,
-                self.table.func(*fdef).args.iter().map(|a| format!("{a}")).collect::<Vec<std::string::String>>().join(","),
-                self.table.func(*fdef).ret
+                self.table.func(FunctionId::Func(*fdef)).name,
+                self.table.func(FunctionId::Func(*fdef)).args.iter().map(|a| format!("{a}")).collect::<Vec<std::string::String>>().join(","),
+                self.table.func(FunctionId::Func(*fdef)).ret
             ),
             Data { name } => write!(f, "Data<{name}>"),
             IntermediateResult { name } => write!(f, "IntermediateResult<{name}>"),
@@ -698,14 +699,19 @@ impl Value {
             },
 
             (Function { def }, DataType::Any) => Ok(Self::Function { def }),
-            (Function { def }, DataType::Function { args, ret }) => Ok(if &table.func(def).args == args && table.func(def).ret == **ret {
-                Self::Function { def }
-            } else {
-                return Err(Error::CastError {
-                    got:    DataType::Function { args: table.func(def).args.clone(), ret: Box::new(table.func(def).ret.clone()) },
-                    target: target.clone(),
-                });
-            }),
+            (Function { def }, DataType::Function { args, ret }) => {
+                Ok(if &table.func(FunctionId::Func(def)).args == args && table.func(FunctionId::Func(def)).ret == **ret {
+                    Self::Function { def }
+                } else {
+                    return Err(Error::CastError {
+                        got:    DataType::Function {
+                            args: table.func(FunctionId::Func(def)).args.clone(),
+                            ret:  Box::new(table.func(FunctionId::Func(def)).ret.clone()),
+                        },
+                        target: target.clone(),
+                    });
+                })
+            },
             (Function { def }, DataType::String) => Ok(Self::String { value: format!("{}", Self::Function { def }.display(table)) }),
 
             (Instance { values, def }, DataType::Any) => Ok(Self::Instance { values, def }),
@@ -759,7 +765,10 @@ impl Value {
             String { .. } => DataType::String,
 
             Array { values } => DataType::Array { elem_type: Box::new(values.iter().next().map(|v| v.data_type(table)).unwrap_or(DataType::Any)) },
-            Function { def } => DataType::Function { args: table.func(*def).args.clone(), ret: Box::new(table.func(*def).ret.clone()) },
+            Function { def } => DataType::Function {
+                args: table.func(FunctionId::Func(*def)).args.clone(),
+                ret:  Box::new(table.func(FunctionId::Func(*def)).ret.clone()),
+            },
             Instance { def, .. } => {
                 if table.class(*def).name == BuiltinClasses::Data.name() {
                     DataType::Data
@@ -767,7 +776,10 @@ impl Value {
                     DataType::Class { name: table.class(*def).name.clone() }
                 }
             },
-            Method { fdef, .. } => DataType::Function { args: table.func(*fdef).args.clone(), ret: Box::new(table.func(*fdef).ret.clone()) },
+            Method { fdef, .. } => DataType::Function {
+                args: table.func(FunctionId::Func(*fdef)).args.clone(),
+                ret:  Box::new(table.func(FunctionId::Func(*fdef)).ret.clone()),
+            },
             Data { .. } => DataType::Data,
             IntermediateResult { .. } => DataType::IntermediateResult,
 

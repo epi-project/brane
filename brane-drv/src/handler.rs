@@ -4,7 +4,7 @@
 //  Created:
 //    12 Sep 2022, 16:18:11
 //  Last edited:
-//    07 Nov 2023, 16:41:12
+//    07 Mar 2024, 14:20:06
 //  Auto updated?
 //    Yes
 //
@@ -18,21 +18,29 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use brane_ast::Workflow;
+use brane_cfg::info::Info;
+use brane_cfg::infra::InfraFile;
+use brane_cfg::node::{CentralConfig, NodeConfig, NodeSpecificConfig};
 use brane_exe::FullValue;
 use brane_prx::client::ProxyClient;
+use brane_tsk::errors::PlanError;
 use brane_tsk::spec::AppId;
 use dashmap::DashMap;
-use log::{debug, error};
-use specifications::driving::{CreateSessionReply, CreateSessionRequest, DriverService, ExecuteReply, ExecuteRequest};
+use enum_debug::EnumDebug as _;
+use error_trace::{trace, ErrorTrace as _};
+use log::{debug, error, info};
+use specifications::driving::{CheckReply, CheckRequest, CreateSessionReply, CreateSessionRequest, DriverService, ExecuteReply, ExecuteRequest};
 use specifications::profiling::ProfileReport;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
+use crate::check::RequestOutput;
 use crate::errors::RemoteVmError;
-use crate::gc;
 use crate::planner::InstancePlanner;
 use crate::vm::InstanceVm;
+use crate::{check, gc};
 
 
 /***** HELPER MACROS *****/
@@ -40,11 +48,11 @@ use crate::vm::InstanceVm;
 macro_rules! fatal_err {
     ($tx:ident,Status:: $status:ident, $err:expr) => {{
         // Always log to stderr
-        log::error!("{}", $err);
+        log::error!("{}", $err.trace());
         // Attempt to log on tx
         let serr: String = $err.to_string();
         if let Err(err) = $tx.send(Err(Status::$status(serr))).await {
-            log::error!("Failed to notify client of error: {}", err);
+            log::error!("{}", trace!(("Failed to notify client of error"), err));
         }
         // Return
         return;
@@ -54,7 +62,7 @@ macro_rules! fatal_err {
         log::error!("Aborting incoming request: {}", $status);
         // Attempt to log on tx
         if let Err(err) = $tx.send(Err($status)).await {
-            log::error!("Failed to notify client of error: {}", err);
+            log::error!("{}", trace!(("Failed to notify client of error"), err));
         }
         // Return
         return;
@@ -62,10 +70,10 @@ macro_rules! fatal_err {
 
     ($tx:ident, $rx:ident,Status:: $status:ident, $err:expr) => {{
         // Always log to stderr
-        log::error!("{}", $err);
+        log::error!("{}", $err.trace());
         // Attempt to log on tx
         if let Err(err) = $tx.send(Err(Status::$status($err.to_string()))).await {
-            log::error!("Failed to notify client of error: {}", err);
+            log::error!("{}", trace!(("Failed to notify client of error"), err));
         }
         // Return
         return Ok(Response::new(ReceiverStream::new($rx)));
@@ -75,7 +83,7 @@ macro_rules! fatal_err {
         log::error!("Aborting incoming request: {}", $status);
         // Attempt to log on tx
         if let Err(err) = $tx.send(Err($status)).await {
-            log::error!("Failed to notify client of error: {}", err);
+            log::error!("{}", trace!(("Failed to notify client of error"), err));
         }
         // Return
         return Ok(Response::new(ReceiverStream::new($rx)));
@@ -94,8 +102,6 @@ pub struct DriverHandler {
     node_config_path: PathBuf,
     /// The ProxyClient that we use to connect to/through `brane-prx`.
     proxy: Arc<ProxyClient>,
-    /// The planner we use to plan stuff.
-    planner: Arc<InstancePlanner>,
 
     /// Current sessions and active VMs. Note that this only concerns states if connected via a REPL-session; any in-statement state (i.e., calling nodes) is handled by virtue of the VM being implemented as `async`.
     sessions: Arc<DashMap<AppId, (InstanceVm, Instant)>>,
@@ -112,13 +118,13 @@ impl DriverHandler {
     /// # Returns
     /// A new DriverHandler instance.
     #[inline]
-    pub fn new(node_config_path: impl Into<PathBuf>, proxy: Arc<ProxyClient>, planner: Arc<InstancePlanner>) -> Self {
+    pub fn new(node_config_path: impl Into<PathBuf>, proxy: Arc<ProxyClient>) -> Self {
         // Create the new sessions list with its Garbage Collector (GC)
         let sessions: Arc<DashMap<AppId, (InstanceVm, Instant)>> = Arc::new(DashMap::new());
         tokio::spawn(gc::sessions(Arc::downgrade(&sessions)));
 
         // Now use that as this handler's sessions
-        Self { node_config_path: node_config_path.into(), proxy, planner, sessions }
+        Self { node_config_path: node_config_path.into(), proxy, sessions }
     }
 }
 
@@ -142,15 +148,140 @@ impl DriverService for DriverHandler {
 
         // Create a new VM for this session
         let app_id: AppId = AppId::generate();
-        self.sessions.insert(
-            app_id.clone(),
-            (InstanceVm::new(&self.node_config_path, app_id.clone(), self.proxy.clone(), self.planner.clone()), Instant::now()),
-        );
+        self.sessions.insert(app_id.clone(), (InstanceVm::new(&self.node_config_path, app_id.clone(), self.proxy.clone()), Instant::now()));
 
         // Now return the ID to the user for future reference
         debug!("Created new session '{}'", app_id);
         let reply = CreateSessionReply { uuid: app_id.into() };
         Ok(Response::new(reply))
+    }
+
+    /// Checks a workflow's validity in the backing instance.
+    ///
+    /// # Arguments
+    /// - `request`: The request with the new (already compiled) snippet to validate.
+    ///
+    /// # Returns
+    /// The response to the request, which contains the verdict of all checkers.
+    ///
+    /// # Errors
+    /// This function may error for any reason a job might fail.
+    async fn check(&self, request: Request<CheckRequest>) -> Result<Response<CheckReply>, Status> {
+        let report = ProfileReport::auto_reporting_file("brane-drv DriverHandler::check", "brane-drv_check");
+        let overhead = report.time("Handle overhead");
+
+        let CheckRequest { workflow } = request.into_inner();
+        debug!("Receiving check request");
+
+        // Deserialize the workflow
+        debug!("Deserializing input workflow...");
+        let workflow: Workflow = match serde_json::from_str(&workflow) {
+            Ok(workflow) => workflow,
+            Err(err) => {
+                debug!("{}", trace!(("Incoming request has invalid workflow"), err));
+                return Err(Status::invalid_argument("Invalid workflow"));
+            },
+        };
+
+        // Read the node file
+        debug!("Loading node config file '{}'...", self.node_config_path.display());
+        let central_cfg: CentralConfig = match NodeConfig::from_path_async(&self.node_config_path).await {
+            Ok(cfg) => match cfg.node {
+                NodeSpecificConfig::Central(central) => central,
+                NodeSpecificConfig::Worker(_) | NodeSpecificConfig::Proxy(_) => {
+                    error!("Given node config file '{}' is for a {}, but expected a Central", self.node_config_path.display(), cfg.node.variant());
+                    return Err(Status::internal("An internal error has occurred"));
+                },
+            },
+            Err(err) => {
+                error!("{}", trace!(("Failed to read node config file '{}'", self.node_config_path.display()), err));
+                return Err(Status::internal("An internal error has occurred"));
+            },
+        };
+
+        // Read the infra file
+        debug!("Loading infra file '{}'...", central_cfg.paths.infra.display());
+        let infra: InfraFile = match InfraFile::from_path_async(&central_cfg.paths.infra).await {
+            Ok(infra) => infra,
+            Err(err) => {
+                error!("{}", trace!(("Failed to read infra file '{}'", central_cfg.paths.infra.display()), err));
+                return Err(Status::internal("An internal error has occurred"));
+            },
+        };
+        overhead.stop();
+
+        // Plan the workflow first
+        debug!("Planning workflow on instance `brane-plr`...");
+        let wf_id: String = workflow.id.clone();
+        let workflow: Workflow =
+            match InstancePlanner::plan(&central_cfg.services.plr.address, AppId::generate(), workflow, report.nest("Planning")).await {
+                Ok(wf) => wf,
+                Err(PlanError::CheckerDenied { domain, reasons }) => {
+                    debug!("Checker denied workflow during planning already");
+                    return Ok(Response::new(CheckReply {
+                        verdict: false,
+                        who: Some(domain),
+                        reasons,
+                        profile: serde_json::to_string(report.scope()).ok(),
+                    }));
+                },
+                Err(err) => {
+                    error!("{}", trace!(("Failed to plan workflow '{wf_id}'"), err));
+                    return Err(Status::internal("An internal error has occurred"));
+                },
+            };
+
+        // Generate futures for handling everything
+        debug!("Generating requests for workflow '{}'...", workflow.id);
+        let req_gen = report.time("Spawning requests");
+        let handles: Vec<(String, JoinHandle<RequestOutput>)> = match check::spawn_requests(&infra, &workflow) {
+            Ok(reqs) => reqs,
+            Err(err) => {
+                error!("{}", trace!(("Failed to spawn requests for workflow '{}'", workflow.id), err));
+                return Err(Status::internal("An internal error has occurred"));
+            },
+        };
+        req_gen.stop();
+
+        // Next, join them all
+        debug!("Waiting for requests for workflow '{}' to complete...", workflow.id);
+        let req_join = report.time("Joining requests");
+        let mut result: Option<(String, Vec<String>)> = None;
+        for (checker, handle) in handles {
+            // Attempt to await the handle
+            let res: RequestOutput = match handle.await {
+                Ok(res) => res,
+                Err(err) => {
+                    error!("{}", trace!(("Failed to await JoinHandle for workflow '{}'", workflow.id), err));
+                    return Err(Status::internal("An internal error has occurred"));
+                },
+            };
+
+            // Match on the result to propagate appropriately
+            match res {
+                // Keep going if this request is OK
+                Ok(None) => continue,
+                Ok(Some(who)) => {
+                    // Stop if the first checker denied it
+                    result = Some(who);
+                    break;
+                },
+                Err(err) => {
+                    // Stop if any request failed
+                    error!("{}", trace!(("Failed to ask checker '{checker}' for permission for workflow '{}'", workflow.id), err));
+                    return Err(Status::internal("An internal error has occurred"));
+                },
+            }
+        }
+        req_join.stop();
+
+        // Send back the verdict to the user!
+        info!("Checkers verdict for workflow '{}' is {}", workflow.id, if result.is_none() { "ALLOW" } else { "DENY" });
+        if let Some((who, reasons)) = result {
+            Ok(Response::new(CheckReply { verdict: false, who: Some(who), reasons, profile: serde_json::to_string(report.scope()).ok() }))
+        } else {
+            Ok(Response::new(CheckReply { verdict: true, who: None, reasons: vec![], profile: serde_json::to_string(report.scope()).ok() }))
+        }
     }
 
     /// Executes a new job in an existing BraneScript session.
@@ -243,8 +374,21 @@ impl DriverService for DriverHandler {
 
                     // Send it
                     if let Err(err) = tx.send(Ok(reply)).await {
-                        error!("Failed to send workflow result back to client: {}", err);
+                        error!("{}", trace!(("Failed to send workflow result back to client"), err));
                     }
+                },
+                Err(RemoteVmError::PlanError { err: PlanError::CheckerDenied { domain, reasons } }) => {
+                    fatal_err!(
+                        tx,
+                        Status::permission_denied(format!(
+                            "Checker of domain '{domain}' denied execution{}",
+                            if !reasons.is_empty() {
+                                format!("\n\nReasons:\n{}\n", reasons.iter().map(|r| format!(" - {r}")).collect::<Vec<String>>().join("\n"))
+                            } else {
+                                String::new()
+                            }
+                        ))
+                    );
                 },
                 Err(err) => {
                     fatal_err!(tx, Status::internal, err);

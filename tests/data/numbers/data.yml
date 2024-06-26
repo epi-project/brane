@@ -1,0 +1,12 @@
+# TEST.yml
+#   by Tim Müller
+# 
+# An example data index file that describes a single dataset.
+# 
+
+
+# This is the identifier of the dataset. It must be unique across all domains.
+name: numbers
+description: A dataset with line-separated numbers
+access: !file
+  path: ./numbers.txt

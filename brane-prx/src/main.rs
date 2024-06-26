@@ -1,34 +1,35 @@
 //  MAIN.rs
 //    by Lut99
-// 
+//
 //  Created:
 //    23 Nov 2022, 10:52:33
 //  Last edited:
-//    07 Jun 2023, 16:29:29
+//    14 Jun 2024, 15:14:24
 //  Auto updated?
 //    Yes
-// 
+//
 //  Description:
 //!   Entrypoint to the `brane-prx` service.
-// 
+//
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-
-use clap::Parser;
-use dotenvy::dotenv;
-use log::{debug, error, info, LevelFilter};
-use warp::Filter;
+use std::time::Duration;
 
 use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig};
 use brane_cfg::proxy::ProxyConfig;
-
-use brane_prx::spec::Context;
-use brane_prx::ports::PortAllocator;
 use brane_prx::manage;
+use brane_prx::ports::PortAllocator;
+use brane_prx::spec::Context;
+use clap::Parser;
+use dotenvy::dotenv;
+use error_trace::trace;
+use log::{debug, error, info, warn, LevelFilter};
+use tokio::signal::unix::{signal, Signal, SignalKind};
+use warp::Filter;
 
 
 /***** ARGUMENTS *****/
@@ -37,11 +38,18 @@ use brane_prx::manage;
 struct Arguments {
     /// Print debug info
     #[clap(long, action, help = "If given, shows additional logging information.", env = "DEBUG")]
-    debug : bool,
+    debug: bool,
 
     /// Node environment metadata store.
-    #[clap(short, long, default_value = "/node.yml", help = "The path to the node environment configuration. This defines things such as where local services may be found or where to store files, as wel as this service's service address.", env = "NODE_CONFIG_PATH")]
-    node_config_path : PathBuf,
+    #[clap(
+        short,
+        long,
+        default_value = "/node.yml",
+        help = "The path to the node environment configuration. This defines things such as where local services may be found or where to store \
+                files, as wel as this service's service address.",
+        env = "NODE_CONFIG_PATH"
+    )]
+    node_config_path: PathBuf,
 }
 
 
@@ -69,8 +77,8 @@ async fn main() {
     debug!("Loading node.yml file '{}'...", args.node_config_path.display());
     let node_config: NodeConfig = match NodeConfig::from_path(&args.node_config_path) {
         Ok(config) => config,
-        Err(err)   => {
-            error!("Failed to load NodeConfig file: {}", err);
+        Err(err) => {
+            error!("{}", trace!(("Failed to load NodeConfig file"), err));
             std::process::exit(1);
         },
     };
@@ -81,12 +89,12 @@ async fn main() {
         let proxy_path: &Path = match &node_config.node {
             NodeSpecificConfig::Central(node) => match &node.paths.proxy {
                 Some(path) => path,
-                None       => { break 'proxy Default::default() },
+                None => break 'proxy Default::default(),
             },
 
             NodeSpecificConfig::Worker(node) => match &node.paths.proxy {
                 Some(path) => path,
-                None       => { break 'proxy Default::default() },
+                None => break 'proxy Default::default(),
             },
 
             NodeSpecificConfig::Proxy(node) => &node.paths.proxy,
@@ -96,8 +104,8 @@ async fn main() {
         debug!("Loading proxy.yml file '{}'...", proxy_path.display());
         match ProxyConfig::from_path(proxy_path) {
             Ok(config) => config,
-            Err(err)   => {
-                error!("Failed to load ProxyConfig file: {}", err);
+            Err(err) => {
+                error!("{}", trace!(("Failed to load ProxyConfig file"), err));
                 std::process::exit(1);
             },
         }
@@ -106,11 +114,11 @@ async fn main() {
     // Prepare the context for this node
     debug!("Preparing warp...");
     let context: Arc<Context> = Arc::new(Context {
-        node_config_path : args.node_config_path,
+        node_config_path: args.node_config_path,
 
-        ports  : Mutex::new(PortAllocator::new(*proxy_config.outgoing_range.start(), *proxy_config.outgoing_range.end())),
-        proxy  : proxy_config,
-        opened : Mutex::new(HashMap::new()),
+        ports:  Mutex::new(PortAllocator::new(*proxy_config.outgoing_range.start(), *proxy_config.outgoing_range.end())),
+        proxy:  proxy_config,
+        opened: Mutex::new(HashMap::new()),
     });
 
     // Spawn the incoming ports before we listen for new outgoing port requests
@@ -133,11 +141,38 @@ async fn main() {
     // Extract the proxy address
     let bind_addr: SocketAddr = match node_config.node {
         NodeSpecificConfig::Central(node) => node.services.prx.private().bind,
-        NodeSpecificConfig::Worker(node)  => node.services.prx.private().bind,
-        NodeSpecificConfig::Proxy(node)   => node.services.prx.bind,
+        NodeSpecificConfig::Worker(node) => node.services.prx.private().bind,
+        NodeSpecificConfig::Proxy(node) => node.services.prx.bind,
     };
 
     // Run the server
     info!("Reading to accept new connections @ '{}'...", bind_addr);
-    warp::serve(filter).run(bind_addr).await
+    let handle = warp::serve(filter).try_bind_with_graceful_shutdown(bind_addr, async {
+        // Register a SIGTERM handler to be Docker-friendly
+        let mut handler: Signal = match signal(SignalKind::terminate()) {
+            Ok(handler) => handler,
+            Err(err) => {
+                error!("{}", trace!(("Failed to register SIGTERM signal handler"), err));
+                warn!("Service will NOT shutdown gracefully on SIGTERM");
+                loop {
+                    tokio::time::sleep(Duration::from_secs(24 * 3600)).await;
+                }
+            },
+        };
+
+        // Wait until we receive such a signal after which we terminate the server
+        handler.recv().await;
+        info!("Received SIGTERM, shutting down gracefully...");
+    });
+
+    match handle {
+        Ok((addr, srv)) => {
+            info!("Now serving @ '{addr}'");
+            srv.await
+        },
+        Err(err) => {
+            error!("{}", trace!(("Failed to serve at '{bind_addr}'"), err));
+            std::process::exit(1);
+        },
+    }
 }
