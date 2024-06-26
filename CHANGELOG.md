@@ -3,7 +3,7 @@
 All notable changes to the Brane framework will be documented in this file.
 
 ## [4.0.0] - TODO
-This update sees a lot of changes. Most notably, it integrated with the [policy reasoner effort](https://github.com/epi-project/policy-reasoner) (see issue #60).
+This update sees a lot of changes. Most notably, it integrated with the [policy reasoner effort](https://github.com/epi-project/policy-reasoner) (see issue [#60](https://github.com/epi-project/brane/issues/60)).
 
 ### Added
 - Attributes to BraneScript (e.g., `#[tag("amy.foo")]` or `#![on("foo")]`).
