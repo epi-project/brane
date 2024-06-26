@@ -3,6 +3,7 @@ name = "brane-dsl"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2018"
+rust-version = "1.67.1"
 
 [dependencies]
 bytes = "1"

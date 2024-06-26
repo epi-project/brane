@@ -3,6 +3,7 @@ name = "brane-cfg"
 version = { workspace = true }
 authors = ["Onno Valkering", "Tim Müller"]
 edition = "2018"
+rust-version = "1.67.1"
 
 [dependencies]
 async-trait = "0.1"
