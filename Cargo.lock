@@ -586,7 +586,7 @@ dependencies = [
 [[package]]
 name = "brane-ast"
 version = "3.0.0"
-source = "git+https://github.com/epi-project/brane?branch=develop#85a379b917ba229f8e99df515234b682969c028c"
+source = "git+https://github.com/epi-project/brane?branch=develop#5944e993ff4c0521e065218e7d1feb60ef0e099b"
 dependencies = [
  "brane-dsl 3.0.0 (git+https://github.com/epi-project/brane?branch=develop)",
  "brane-shr 3.0.0 (git+https://github.com/epi-project/brane?branch=develop)",
@@ -824,7 +824,7 @@ dependencies = [
 [[package]]
 name = "brane-dsl"
 version = "3.0.0"
-source = "git+https://github.com/epi-project/brane?branch=develop#85a379b917ba229f8e99df515234b682969c028c"
+source = "git+https://github.com/epi-project/brane?branch=develop#5944e993ff4c0521e065218e7d1feb60ef0e099b"
 dependencies = [
  "brane-shr 3.0.0 (git+https://github.com/epi-project/brane?branch=develop)",
  "bytes",
@@ -868,7 +868,7 @@ dependencies = [
 [[package]]
 name = "brane-exe"
 version = "3.0.0"
-source = "git+https://github.com/epi-project/brane?branch=develop#85a379b917ba229f8e99df515234b682969c028c"
+source = "git+https://github.com/epi-project/brane?branch=develop#5944e993ff4c0521e065218e7d1feb60ef0e099b"
 dependencies = [
  "async-recursion",
  "async-trait",
@@ -1088,7 +1088,7 @@ dependencies = [
 [[package]]
 name = "brane-shr"
 version = "3.0.0"
-source = "git+https://github.com/epi-project/brane?branch=develop#85a379b917ba229f8e99df515234b682969c028c"
+source = "git+https://github.com/epi-project/brane?branch=develop#5944e993ff4c0521e065218e7d1feb60ef0e099b"
 dependencies = [
  "async-compression 0.3.15",
  "console",
@@ -1199,9 +1199,9 @@ checksum = "514de17de45fdb8dc022b1a7975556c53c86f9f0aa5f534b98977b171857c2c9"
 
 [[package]]
 name = "cc"
-version = "1.0.100"
+version = "1.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c891175c3fb232128f48de6590095e59198bbeb8620c310be349bfc3afd12c7b"
+checksum = "ac367972e516d45567c7eafc73d24e1c193dcf200a8d94e9db7b3d38b349572d"
 
 [[package]]
 name = "cfg-if"
@@ -1880,9 +1880,9 @@ dependencies = [
 
 [[package]]
 name = "either"
-version = "1.12.0"
+version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3dca9240753cf90908d7e4aac30f630662b02aebaa1b58a3cadabdb23385b58b"
+checksum = "60b1af1c220855b6ceac025d3f6ecdd2b7c4894bfe9cd9bda4fbb4bc7c0d4cf0"
 
 [[package]]
 name = "encode_unicode"
@@ -4462,9 +4462,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.117"
+version = "1.0.118"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "455182ea6142b14f93f4bc5320a2b31c1f266b66a4a5c858b013302a5d8cbfc3"
+checksum = "d947f6b3163d8857ea16c4fa0dd4840d52f3041039a85decd46867eb1abef2e4"
 dependencies = [
  "indexmap 2.2.6",
  "itoa",
@@ -4834,7 +4834,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "3.0.0"
-source = "git+https://github.com/epi-project/brane?branch=develop#85a379b917ba229f8e99df515234b682969c028c"
+source = "git+https://github.com/epi-project/brane?branch=develop#5944e993ff4c0521e065218e7d1feb60ef0e099b"
 dependencies = [
  "anyhow",
  "async-trait",
