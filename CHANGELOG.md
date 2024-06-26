@@ -35,8 +35,8 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
     - Changing a worker's `node.yml` to map use-case identifiers to central registries (`brane-api`) (see the `usecases`-field) \[**breaking change**\].
     - Removing `branectl generate policies` as the old file is no longer used \[**breaking change**\].
 - Graceful shutdown for instance services (`brane-api`, `brane-drv`, `brane-job`, `brane-plr`, `brane-reg`).
-- `branectl` now embeds `cfssl`/`cfssljson` binaries, either downloaded or compiled from source at compile time. The latter because 1.6.3 does not include ARM binaries by default.
 - Passing the `--debug` flag is now the default to the builtin `docker-compose-*.yml` files in `branectl`. If you want to revert to default behaviour, extract the compose file(s) first (`branectl extract compose ...`), change it accordingly, and then pass it during lifetime commands (e.g., `branectl start -f path/to/compose/file ...`).
+- Minimum Rust versions to all `Cargo.toml` files ([#86](https://github.com/epi-project/brane/pull/86)).
 
 ### Changed
 - The WIR no longer has a dynamic definition table, but simply a large table spanning all scopes.
@@ -46,6 +46,8 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
 - BraneScript syntax to remove the `on`-structs, and instead using `on`-, `loc`- or `location`-attributes \[**breaking change**\].
 - More error prints to use a trace (i.e., `Error::source()`) rather than endless colons.
 - `brane-drv` and `brane-plr` to communicate using HTTP instead of Kafka, finally. This allows us to finally get rid of `aux-kafka` and `aux-zookeeper` \[**breaking change**\].
+- `branectl` now embeds `cfssl`/`cfssljson` binaries, either downloaded or compiled from source at compile time. The latter because 1.6.3 does not include ARM binaries by default.
+- Now relying on `serde_yml` instead of `serde_yaml` because the latter is no longer maintained ([#84](https://github.com/epi-project/brane/pull/84)).
 
 ### Fixed
 - The BraneScript compiler hanging in an infinite loop in some cases.
@@ -54,6 +56,12 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
 - CI/CD in the repository by moving most of it to scripts which we _can_ test offline.
 - The WIR using platform-specific `usize::MAX` to detect the main function. This has been replaced with `FunctionId` (`brane-ast`) and `ProgramCounter` (`brane-exe`) \[**breaking change**\].
 - `make.py` relying on buildx being the default Docker builder.
+- `make.py` reporting wrong names in `make.py --targets` for `*-image-build` targets ([#78](https://github.com/epi-project/brane/pull/78)).
+- `brane instance edit` accidentally appending `info.yml` twice ([#73](https://github.com/epi-project/brane/pull/73)).
+- Various examples not running (see [#76](https://github.com/epi-project/brane/pull/76)).
+- `cargo clippy`-warnings.
+- `Cargo.toml` not committing to patch-level minimum versions ([#92](https://github.com/epi-project/brane/pull/92)). Extra thanks to @DanielVoogsgerd for this one.
+- `specifications` not correctly setting the `rc` feature-flag for `serde` ([#90](https://github.com/epi-project/brane/pull/90)).
 
 ## [3.0.0] - 2023-10-22
 ### Added
