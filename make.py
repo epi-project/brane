@@ -5,7 +5,7 @@
 # Created:
 #   09 Jun 2022, 12:20:28
 # Last edited:
-#   30 Apr 2024, 10:46:16
+#   26 Jun 2024, 13:54:18
 # Auto updated?
 #   Yes
 #
@@ -3840,6 +3840,23 @@ if __name__ == "__main__":
 
     # Before we begin, move the current working directory to that of the file itself
     os.chdir(os.path.dirname(os.path.realpath(__file__)))
+
+    # Then make sure we generate the cache directory with a CACHEDIR.tag
+    if not os.path.exists(args.cache):
+        # Create the directory
+        os.makedirs(args.cache)
+
+        # Create the file
+        tag_path = os.path.join(args.cache, "CACHEDIR.TAG")
+        try:
+            with open(tag_path, "w") as h:
+                h.write(f"Signature: 8a477f597d28d172789f06886806bc55\n")
+                h.write(f"# This file is a cache directory tag created by BRANE's `make.py`.\n")
+                h.write(f"# For information about cache directory tags, see:\n")
+                h.write(f"#	    http://www.brynosaurus.com/cachedir/\n")
+        except IOError as e:
+            pwarning(f"Failed to generate CACHEDIR.TAG at '{tag_path}': {e}")
+            exit(e.errno)
 
     # Call for the given targets
     for target in args.target:

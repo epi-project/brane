@@ -4,7 +4,7 @@
 //  Created:
 //    20 Feb 2023, 14:59:16
 //  Last edited:
-//    13 Apr 2023, 09:56:02
+//    26 Jun 2024, 13:57:46
 //  Auto updated?
 //    Yes
 //
@@ -188,24 +188,6 @@ pub async fn services(
         }
         if let Err(err) = fs::create_dir_all(path) {
             return Err(Error::DirCreateError { what: "output", path: path.into(), err });
-        }
-
-        // Cargo places a CACHEDIR.TAG in the target directory upon creation, if we create the
-        // target directory instead, the directory is not and will not be tagged as a cache
-        // directory. This can cause issues with tools like backup solutions, which will start to
-        // back up the build artifacts.
-        if path.starts_with(Path::new("./target")) {
-            if let Err(err) = cachedir::add_tag(Path::new("./target")) {
-                // Recovable, this does not need to impact the run of the application, but the
-                // user should be warned.
-                warn!("Could not tag directory: `./target` as cachedir, this could have implications for backup solutions and equivalent.\n{err:#}");
-            }
-        } else {
-            if let Err(err) = cachedir::add_tag(&path) {
-                // Recovable, this does not need to impact the run of the application, but the
-                // user should be warned.
-                warn!("Could not tag directory: `{path:?}` as cachedir, this could have implications for backup solutions and equivalent.\n{err:#}");
-            }
         }
     }
     if !path.is_dir() {
