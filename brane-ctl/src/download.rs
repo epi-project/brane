@@ -224,7 +224,7 @@ pub async fn services(
                                 Err(err) => return Err(Error::CachedirTagCreate { path: tag_path, err }),
                             };
                             if let Err(err) = handle.write(
-                                b"Signature: 8a477f597d28d172789f06886806bc55\n# This file is a cache directory tag created by BRANE's `branectl`.\n# For information about cache directory tags, see:\n#	    http://www.brynosaurus.com/cachedir/\n",
+                                b"Signature: 8a477f597d28d172789f06886806bc55\n# This file is a cache directory tag created by BRANE's `branectl`.\n# For information about cache directory tags, see:\n#	    https://www.brynosaurus.com/cachedir/\n",
                             ) {
                                 return Err(Error::CachedirTagWrite { path: tag_path, err })
                             }

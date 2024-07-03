@@ -3865,7 +3865,7 @@ if __name__ == "__main__":
                         h.write(f"Signature: 8a477f597d28d172789f06886806bc55\n")
                         h.write(f"# This file is a cache directory tag created by BRANE's `make.py`.\n")
                         h.write(f"# For information about cache directory tags, see:\n")
-                        h.write(f"#	    http://www.brynosaurus.com/cachedir/\n")
+                        h.write(f"#	    https://www.brynosaurus.com/cachedir/\n")
                 except IOError as e:
                     pwarning(f"Failed to generate CACHEDIR.TAG at '{tag_path}': {e}")
                     exit(e.errno)
