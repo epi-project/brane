@@ -53,56 +53,11 @@ struct Cli {
 
 #[derive(Parser)]
 enum SubCommand {
-    #[clap(name = "build", about = "Build a package")]
-    Build {
-        #[clap(short, long, help = "The architecture for which to compile the image.")]
-        arch: Option<Arch>,
-        #[clap(
-            short,
-            long,
-            help = "Path to the directory to use as container working directory (defaults to the folder of the package file itself)"
-        )]
-        workdir: Option<PathBuf>,
-        #[clap(name = "FILE", help = "Path to the file to build")]
-        file: PathBuf,
-        #[clap(short, long, help = "Kind of package: cwl, dsl, ecu or oas")]
-        kind: Option<String>,
-        #[clap(short, long, help = "Path to the init binary to use (override Brane's binary)")]
-        init: Option<PathBuf>,
-        #[clap(long, action, help = "Don't delete build files")]
-        keep_files: bool,
-        #[clap(
-            short,
-            long,
-            help = "If given, does not ask permission to convert CRLF (Windows-style line endings) to LF (Unix-style line endings), but just does \
-                    it."
-        )]
-        crlf_ok: bool,
-    },
-
     #[clap(name = "certs", about = "Manage certificates for connecting to remote instances.")]
     Certs {
         // We subcommand further
         #[clap(subcommand)]
         subcommand: CertsSubcommand,
-    },
-
-    #[clap(
-        name = "check",
-        about = "Checks a workflow against the policy in the current remote instance. You can think of this as using `brane run --remote`, except \
-                 that the Workflow won't be executed - only policy is checked."
-    )]
-    Check {
-        #[clap(name = "FILE", help = "Path to the file to run. Use '-' to run from stdin instead.")]
-        file:   String,
-        #[clap(short, long, action, help = "Use Bakery instead of BraneScript")]
-        bakery: bool,
-
-        #[clap(short, long, help = "If given, uses the given user as end user of a workflow instead of the one in the instance file.")]
-        user: Option<String>,
-
-        #[clap(long, help = "If given, shows profile times if they are available.")]
-        profile: bool,
     },
 
     #[clap(name = "data", about = "Data-related commands.")]
@@ -112,54 +67,6 @@ enum SubCommand {
         subcommand: DataSubcommand,
     },
 
-    #[clap(name = "import", about = "Import a package")]
-    Import {
-        #[clap(short, long, help = "The architecture for which to compile the image.")]
-        arch:    Option<Arch>,
-        #[clap(name = "REPO", help = "Name of the GitHub repository containing the package")]
-        repo:    String,
-        #[clap(short, long, default_value = "main", help = "Name of the GitHub branch containing the package")]
-        branch:  String,
-        #[clap(
-            short,
-            long,
-            help = "Path to the directory to use as container working directory, relative to the repository (defaults to the folder of the package \
-                    file itself)"
-        )]
-        workdir: Option<PathBuf>,
-        #[clap(name = "FILE", help = "Path to the file to build, relative to the repository")]
-        file:    Option<PathBuf>,
-        #[clap(short, long, help = "Kind of package: cwl, dsl, ecu or oas")]
-        kind:    Option<String>,
-        #[clap(short, long, help = "Path to the init binary to use (override Brane's binary)")]
-        init:    Option<PathBuf>,
-
-        #[clap(
-            short,
-            long,
-            help = "If given, does not ask permission to convert CRLF (Windows-style line endings) to LF (Unix-style line endings), but just does \
-                    it."
-        )]
-        crlf_ok: bool,
-    },
-
-    #[clap(name = "inspect", about = "Inspect a package")]
-    Inspect {
-        #[clap(name = "NAME", help = "Name of the package")]
-        name:    String,
-        #[clap(name = "VERSION", default_value = "latest", help = "Version of the package")]
-        version: SemVersion,
-
-        // Alternative syntax to use.
-        #[clap(
-            short,
-            long,
-            default_value = "custom",
-            help = "Any alternative syntax to use for printed classes and functions. Can be 'bscript', 'bakery' or 'custom'."
-        )]
-        syntax: String,
-    },
-
     #[clap(name = "instance", about = "Commands that relate to connecting to remote instances.")]
     Instance {
         /// Subcommand further
@@ -167,244 +74,11 @@ enum SubCommand {
         subcommand: InstanceSubcommand,
     },
 
-    #[clap(name = "list", about = "List packages")]
-    List {
-        #[clap(short, long, action, help = "If given, only print the latest version of each package instead of all versions")]
-        latest: bool,
-    },
-
-    #[clap(name = "load", about = "Load a package locally")]
-    Load {
-        #[clap(name = "NAME", help = "Name of the package")]
-        name:    String,
-        #[clap(short, long, default_value = "latest", help = "Version of the package")]
-        version: SemVersion,
-    },
-
-    // #[clap(name = "logout", about = "Log out from a registry")]
-    // Logout {},
-    #[clap(name = "pull", about = "Pull a package from a registry")]
-    Pull {
-        #[clap(
-            name = "PACKAGES",
-            help = "Specify one or more packages to pull from a remote. You can either give a package as 'NAME' or 'NAME:VERSION', where VERSION is \
-                    assumed to be 'latest' if omitted."
-        )]
-        packages: Vec<String>,
-    },
-
-    #[clap(name = "push", about = "Push a package to a registry")]
-    Push {
-        #[clap(
-            name = "PACKAGES",
-            help = "Specify one or more packages to push to a remote. You can either give a package as 'NAME' or 'NAME:VERSION', where VERSION is \
-                    assumed to be 'latest' if omitted."
-        )]
-        packages: Vec<String>,
-    },
-
-    #[clap(name = "remove", about = "Remove a local package.")]
-    Remove {
-        #[clap(short, long, help = "Don't ask for confirmation before removal.")]
-        force:    bool,
-        #[clap(
-            name = "PACKAGES",
-            help = "Specify one or more packages to remove to a remote. You can either give a package as 'NAME' or 'NAME:VERSION', where ALL \
-                    versions of the packages will be removed if VERSION is omitted.."
-        )]
-        packages: Vec<String>,
-
-        /// The Docker socket location.
-        #[cfg(unix)]
-        #[clap(
-            short = 's',
-            long,
-            default_value = "/var/run/docker.sock",
-            help = "The path to the Docker socket with which we communicate with the dameon."
-        )]
-        docker_socket:  PathBuf,
-        /// The Docker socket location.
-        #[cfg(windows)]
-        #[clap(
-            short = 's',
-            long,
-            default_value = "//./pipe/docker_engine",
-            help = "The path to the Docker socket with which we communicate with the dameon."
-        )]
-        docker_socket:  PathBuf,
-        /// The Docker socket location.
-        #[cfg(not(any(unix, windows)))]
-        #[clap(short = 's', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket:  PathBuf,
-        /// The Docker client version.
-        #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
-        client_version: ClientVersion,
-    },
-
-    #[clap(name = "repl", about = "Start an interactive DSL session")]
-    Repl {
-        #[clap(short, long, value_names = &["address[:port]"], help = "If given, proxies any data transfers to this machine through the proxy at the given address. Irrelevant if not running remotely.")]
-        proxy_addr: Option<String>,
-
-        #[clap(short, long, help = "Create a remote REPL session to the instance you are currently logged-in to (see `brane login`)")]
-        remote: bool,
-        #[clap(short, long, value_names = &["uid"], help = "Attach to an existing remote session")]
-        attach: Option<AppId>,
-
-        #[clap(short, long, action, help = "Use Bakery instead of BraneScript")]
-        bakery: bool,
-        #[clap(short, long, action, help = "Clear history before session")]
-        clear:  bool,
-
-        #[clap(long, help = "If given, shows profile times if they are available.")]
-        profile: bool,
-
-        /// The Docker socket location.
-        #[cfg(unix)]
-        #[clap(
-            short = 's',
-            long,
-            default_value = "/var/run/docker.sock",
-            help = "The path to the Docker socket with which we communicate with the dameon."
-        )]
-        docker_socket:   PathBuf,
-        /// The Docker socket location.
-        #[cfg(windows)]
-        #[clap(
-            short = 's',
-            long,
-            default_value = "//./pipe/docker_engine",
-            help = "The path to the Docker socket with which we communicate with the dameon."
-        )]
-        docker_socket:   PathBuf,
-        /// The Docker socket location.
-        #[cfg(not(any(unix, windows)))]
-        #[clap(short = 's', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket:   PathBuf,
-        /// The Docker client version.
-        #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
-        client_version:  ClientVersion,
-        /// Whether to keep container after running or not.
-        #[clap(short = 'k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
-        keep_containers: bool,
-    },
-
-    #[clap(name = "run", about = "Run a DSL script locally")]
-    Run {
-        #[clap(short, long, value_names = &["address[:port]"], help = "If given, proxies any data transfers to this machine through the proxy at the given address. Irrelevant if not running remotely.")]
-        proxy_addr: Option<String>,
-
-        #[clap(short, long, action, help = "Use Bakery instead of BraneScript")]
-        bakery: bool,
-
-        #[clap(name = "FILE", help = "Path to the file to run. Use '-' to run from stdin instead.")]
-        file:    PathBuf,
-        #[clap(
-            long,
-            conflicts_with = "remote",
-            help = "If given, uses a dummy VM in the background which never actually runs any jobs. It only returns some default value for the \
-                    task's return type. Use this to run only the BraneScript part of your workflow."
-        )]
-        dry_run: bool,
-        #[clap(
-            short,
-            long,
-            conflicts_with = "dry_run",
-            help = "Create a remote session to the instance you are currently logged-in to (see `brane login`)"
-        )]
-        remote:  bool,
-
-        #[clap(long, help = "If given, shows profile times if they are available.")]
-        profile: bool,
-
-        /// The Docker socket location.
-        #[cfg(unix)]
-        #[clap(
-            short = 's',
-            long,
-            default_value = "/var/run/docker.sock",
-            help = "The path to the Docker socket with which we communicate with the dameon."
-        )]
-        docker_socket:   PathBuf,
-        /// The Docker socket location.
-        #[cfg(windows)]
-        #[clap(
-            short = 's',
-            long,
-            default_value = "//./pipe/docker_engine",
-            help = "The path to the Docker socket with which we communicate with the dameon."
-        )]
-        docker_socket:   PathBuf,
-        /// The Docker socket location.
-        #[cfg(not(any(unix, windows)))]
-        #[clap(short = 's', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket:   PathBuf,
-        /// The Docker client version.
-        #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
-        client_version:  ClientVersion,
-        /// Whether to keep container after running or not.
-        #[clap(short = 'k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
-        keep_containers: bool,
-    },
-
-    #[clap(name = "test", about = "Test a package locally")]
-    Test {
-        #[clap(name = "NAME", help = "Name of the package")]
-        name: String,
-        #[clap(name = "VERSION", default_value = "latest", help = "Version of the package")]
-        version: SemVersion,
-        #[clap(
-            short = 'r',
-            long,
-            help = "If given, prints the intermediate result returned by the tested function (if any). The given path should be relative to the \
-                    'result' folder."
-        )]
-        show_result: Option<PathBuf>,
-
-        /// The Docker socket location.
-        #[cfg(unix)]
-        #[clap(
-            short = 's',
-            long,
-            default_value = "/var/run/docker.sock",
-            help = "The path to the Docker socket with which we communicate with the dameon."
-        )]
-        docker_socket:   PathBuf,
-        /// The Docker socket location.
-        #[cfg(windows)]
-        #[clap(
-            short = 's',
-            long,
-            default_value = "//./pipe/docker_engine",
-            help = "The path to the Docker socket with which we communicate with the dameon."
-        )]
-        docker_socket:   PathBuf,
-        /// The Docker socket location.
-        #[cfg(not(any(unix, windows)))]
-        #[clap(short = 's', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
-        docker_socket:   PathBuf,
-        /// The Docker client version.
-        #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
-        client_version:  ClientVersion,
-        /// Whether to keep container after running or not.
-        #[clap(short = 'k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
-        keep_containers: bool,
-    },
-
-    #[clap(name = "search", about = "Search a registry for packages")]
-    Search {
-        #[clap(name = "TERM", help = "Term to use as search criteria")]
-        term: Option<String>,
-    },
-
-    #[clap(name = "unpublish", about = "Remove a package from a registry")]
-    Unpublish {
-        #[clap(name = "NAME", help = "Name of the package")]
-        name:    String,
-        #[clap(name = "VERSION", help = "Version of the package")]
-        version: SemVersion,
-        #[clap(short, long, action, help = "Don't ask for confirmation")]
-        force:   bool,
+    #[clap(name = "package", about = "Commands that relate to packages")]
+    Package {
+        /// Subcommand further
+        #[clap(subcommand)]
+        subcommand: PackageSubcommand,
     },
 
     #[clap(name = "upgrade", about = "Upgrades outdated configuration files to this Brane version")]
@@ -441,6 +115,13 @@ enum SubCommand {
                     this one is always reported second."
         )]
         remote: bool,
+    },
+
+    #[clap(name = "workflow", about = "Commands that relate to workflows")]
+    Workflow {
+        /// Subcommand further
+        #[clap(subcommand)]
+        subcommand: WorkflowSubcommand,
     },
 }
 
@@ -692,6 +373,345 @@ enum InstanceSubcommand {
     },
 }
 
+#[derive(Parser)]
+enum PackageSubcommand {
+    #[clap(name = "build", about = "Build a package")]
+    Build {
+        #[clap(short, long, help = "The architecture for which to compile the image.")]
+        arch: Option<Arch>,
+        #[clap(
+            short,
+            long,
+            help = "Path to the directory to use as container working directory (defaults to the folder of the package file itself)"
+        )]
+        workdir: Option<PathBuf>,
+        #[clap(name = "FILE", help = "Path to the file to build")]
+        file: PathBuf,
+        #[clap(short, long, help = "Kind of package: cwl, dsl, ecu or oas")]
+        kind: Option<String>,
+        #[clap(short, long, help = "Path to the init binary to use (override Brane's binary)")]
+        init: Option<PathBuf>,
+        #[clap(long, action, help = "Don't delete build files")]
+        keep_files: bool,
+        #[clap(
+            short,
+            long,
+            help = "If given, does not ask permission to convert CRLF (Windows-style line endings) to LF (Unix-style line endings), but just does \
+                    it."
+        )]
+        crlf_ok: bool,
+    },
+
+    #[clap(name = "import", about = "Import a package")]
+    Import {
+        #[clap(short, long, help = "The architecture for which to compile the image.")]
+        arch:    Option<Arch>,
+        #[clap(name = "REPO", help = "Name of the GitHub repository containing the package")]
+        repo:    String,
+        #[clap(short, long, default_value = "main", help = "Name of the GitHub branch containing the package")]
+        branch:  String,
+        #[clap(
+            short,
+            long,
+            help = "Path to the directory to use as container working directory, relative to the repository (defaults to the folder of the package \
+                    file itself)"
+        )]
+        workdir: Option<PathBuf>,
+        #[clap(name = "FILE", help = "Path to the file to build, relative to the repository")]
+        file:    Option<PathBuf>,
+        #[clap(short, long, help = "Kind of package: cwl, dsl, ecu or oas")]
+        kind:    Option<String>,
+        #[clap(short, long, help = "Path to the init binary to use (override Brane's binary)")]
+        init:    Option<PathBuf>,
+
+        #[clap(
+            short,
+            long,
+            help = "If given, does not ask permission to convert CRLF (Windows-style line endings) to LF (Unix-style line endings), but just does \
+                    it."
+        )]
+        crlf_ok: bool,
+    },
+
+    #[clap(name = "inspect", about = "Inspect a package")]
+    Inspect {
+        #[clap(name = "NAME", help = "Name of the package")]
+        name:    String,
+        #[clap(name = "VERSION", default_value = "latest", help = "Version of the package")]
+        version: SemVersion,
+
+        // Alternative syntax to use.
+        #[clap(
+            short,
+            long,
+            default_value = "custom",
+            help = "Any alternative syntax to use for printed classes and functions. Can be 'bscript', 'bakery' or 'custom'."
+        )]
+        syntax: String,
+    },
+
+    #[clap(name = "list", about = "List packages")]
+    List {
+        #[clap(short, long, action, help = "If given, only print the latest version of each package instead of all versions")]
+        latest: bool,
+    },
+
+    #[clap(name = "load", about = "Load a package locally")]
+    Load {
+        #[clap(name = "NAME", help = "Name of the package")]
+        name:    String,
+        #[clap(short, long, default_value = "latest", help = "Version of the package")]
+        version: SemVersion,
+    },
+
+    // #[clap(name = "logout", about = "Log out from a registry")]
+    // Logout {},
+    #[clap(name = "pull", about = "Pull a package from a registry")]
+    Pull {
+        #[clap(
+            name = "PACKAGES",
+            help = "Specify one or more packages to pull from a remote. You can either give a package as 'NAME' or 'NAME:VERSION', where VERSION is \
+                    assumed to be 'latest' if omitted."
+        )]
+        packages: Vec<String>,
+    },
+
+    #[clap(name = "push", about = "Push a package to a registry")]
+    Push {
+        #[clap(
+            name = "PACKAGES",
+            help = "Specify one or more packages to push to a remote. You can either give a package as 'NAME' or 'NAME:VERSION', where VERSION is \
+                    assumed to be 'latest' if omitted."
+        )]
+        packages: Vec<String>,
+    },
+
+    #[clap(name = "remove", about = "Remove a local package.")]
+    Remove {
+        #[clap(short, long, help = "Don't ask for confirmation before removal.")]
+        force:    bool,
+        #[clap(
+            name = "PACKAGES",
+            help = "Specify one or more packages to remove to a remote. You can either give a package as 'NAME' or 'NAME:VERSION', where ALL \
+                    versions of the packages will be removed if VERSION is omitted.."
+        )]
+        packages: Vec<String>,
+
+        /// The Docker socket location.
+        #[cfg(unix)]
+        #[clap(
+            short = 's',
+            long,
+            default_value = "/var/run/docker.sock",
+            help = "The path to the Docker socket with which we communicate with the dameon."
+        )]
+        docker_socket:  PathBuf,
+        /// The Docker socket location.
+        #[cfg(windows)]
+        #[clap(
+            short = 's',
+            long,
+            default_value = "//./pipe/docker_engine",
+            help = "The path to the Docker socket with which we communicate with the dameon."
+        )]
+        docker_socket:  PathBuf,
+        /// The Docker socket location.
+        #[cfg(not(any(unix, windows)))]
+        #[clap(short = 's', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
+        docker_socket:  PathBuf,
+        /// The Docker client version.
+        #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
+        client_version: ClientVersion,
+    },
+
+    #[clap(name = "test", about = "Test a package locally")]
+    Test {
+        #[clap(name = "NAME", help = "Name of the package")]
+        name: String,
+        #[clap(name = "VERSION", default_value = "latest", help = "Version of the package")]
+        version: SemVersion,
+        #[clap(
+            short = 'r',
+            long,
+            help = "If given, prints the intermediate result returned by the tested function (if any). The given path should be relative to the \
+                    'result' folder."
+        )]
+        show_result: Option<PathBuf>,
+
+        /// The Docker socket location.
+        #[cfg(unix)]
+        #[clap(
+            short = 's',
+            long,
+            default_value = "/var/run/docker.sock",
+            help = "The path to the Docker socket with which we communicate with the dameon."
+        )]
+        docker_socket:   PathBuf,
+        /// The Docker socket location.
+        #[cfg(windows)]
+        #[clap(
+            short = 's',
+            long,
+            default_value = "//./pipe/docker_engine",
+            help = "The path to the Docker socket with which we communicate with the dameon."
+        )]
+        docker_socket:   PathBuf,
+        /// The Docker socket location.
+        #[cfg(not(any(unix, windows)))]
+        #[clap(short = 's', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
+        docker_socket:   PathBuf,
+        /// The Docker client version.
+        #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
+        client_version:  ClientVersion,
+        /// Whether to keep container after running or not.
+        #[clap(short = 'k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
+        keep_containers: bool,
+    },
+
+    #[clap(name = "search", about = "Search a registry for packages")]
+    Search {
+        #[clap(name = "TERM", help = "Term to use as search criteria")]
+        term: Option<String>,
+    },
+
+    #[clap(name = "unpublish", about = "Remove a package from a registry")]
+    Unpublish {
+        #[clap(name = "NAME", help = "Name of the package")]
+        name:    String,
+        #[clap(name = "VERSION", help = "Version of the package")]
+        version: SemVersion,
+        #[clap(short, long, action, help = "Don't ask for confirmation")]
+        force:   bool,
+    },
+}
+
+#[derive(Parser)]
+enum WorkflowSubcommand {
+    #[clap(
+        name = "check",
+        about = "Checks a workflow against the policy in the current remote instance. You can think of this as using `brane run --remote`, except \
+                 that the Workflow won't be executed - only policy is checked."
+    )]
+    Check {
+        #[clap(name = "FILE", help = "Path to the file to run. Use '-' to run from stdin instead.")]
+        file:   String,
+        #[clap(short, long, action, help = "Use Bakery instead of BraneScript")]
+        bakery: bool,
+
+        #[clap(short, long, help = "If given, uses the given user as end user of a workflow instead of the one in the instance file.")]
+        user: Option<String>,
+
+        #[clap(long, help = "If given, shows profile times if they are available.")]
+        profile: bool,
+    },
+
+    #[clap(name = "repl", about = "Start an interactive DSL session")]
+    Repl {
+        #[clap(short, long, value_names = &["address[:port]"], help = "If given, proxies any data transfers to this machine through the proxy at the given address. Irrelevant if not running remotely.")]
+        proxy_addr: Option<String>,
+
+        #[clap(short, long, help = "Create a remote REPL session to the instance you are currently logged-in to (see `brane login`)")]
+        remote: bool,
+        #[clap(short, long, value_names = &["uid"], help = "Attach to an existing remote session")]
+        attach: Option<AppId>,
+
+        #[clap(short, long, action, help = "Use Bakery instead of BraneScript")]
+        bakery: bool,
+        #[clap(short, long, action, help = "Clear history before session")]
+        clear:  bool,
+
+        #[clap(long, help = "If given, shows profile times if they are available.")]
+        profile: bool,
+
+        /// The Docker socket location.
+        #[cfg(unix)]
+        #[clap(
+            short = 's',
+            long,
+            default_value = "/var/run/docker.sock",
+            help = "The path to the Docker socket with which we communicate with the dameon."
+        )]
+        docker_socket:   PathBuf,
+        /// The Docker socket location.
+        #[cfg(windows)]
+        #[clap(
+            short = 's',
+            long,
+            default_value = "//./pipe/docker_engine",
+            help = "The path to the Docker socket with which we communicate with the dameon."
+        )]
+        docker_socket:   PathBuf,
+        /// The Docker socket location.
+        #[cfg(not(any(unix, windows)))]
+        #[clap(short = 's', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
+        docker_socket:   PathBuf,
+        /// The Docker client version.
+        #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
+        client_version:  ClientVersion,
+        /// Whether to keep container after running or not.
+        #[clap(short = 'k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
+        keep_containers: bool,
+    },
+
+    #[clap(name = "run", about = "Run a DSL script locally")]
+    Run {
+        #[clap(short, long, value_names = &["address[:port]"], help = "If given, proxies any data transfers to this machine through the proxy at the given address. Irrelevant if not running remotely.")]
+        proxy_addr: Option<String>,
+
+        #[clap(short, long, action, help = "Use Bakery instead of BraneScript")]
+        bakery: bool,
+
+        #[clap(name = "FILE", help = "Path to the file to run. Use '-' to run from stdin instead.")]
+        file:    PathBuf,
+        #[clap(
+            long,
+            conflicts_with = "remote",
+            help = "If given, uses a dummy VM in the background which never actually runs any jobs. It only returns some default value for the \
+                    task's return type. Use this to run only the BraneScript part of your workflow."
+        )]
+        dry_run: bool,
+        #[clap(
+            short,
+            long,
+            conflicts_with = "dry_run",
+            help = "Create a remote session to the instance you are currently logged-in to (see `brane login`)"
+        )]
+        remote:  bool,
+
+        #[clap(long, help = "If given, shows profile times if they are available.")]
+        profile: bool,
+
+        /// The Docker socket location.
+        #[cfg(unix)]
+        #[clap(
+            short = 's',
+            long,
+            default_value = "/var/run/docker.sock",
+            help = "The path to the Docker socket with which we communicate with the dameon."
+        )]
+        docker_socket:   PathBuf,
+        /// The Docker socket location.
+        #[cfg(windows)]
+        #[clap(
+            short = 's',
+            long,
+            default_value = "//./pipe/docker_engine",
+            help = "The path to the Docker socket with which we communicate with the dameon."
+        )]
+        docker_socket:   PathBuf,
+        /// The Docker socket location.
+        #[cfg(not(any(unix, windows)))]
+        #[clap(short = 's', long, help = "The path to the Docker socket with which we communicate with the dameon.")]
+        docker_socket:   PathBuf,
+        /// The Docker client version.
+        #[clap(short='v', long, default_value = API_DEFAULT_VERSION.as_str(), help = "The API version with which we connect.")]
+        client_version:  ClientVersion,
+        /// Whether to keep container after running or not.
+        #[clap(short = 'k', long, help = "If given, does not remove containers after execution. This is useful for debugging them.")]
+        keep_containers: bool,
+    },
+}
+
 /// Defines the subcommands for the upgrade subcommand.
 #[derive(Parser)]
 enum UpgradeSubcommand {
@@ -803,52 +823,6 @@ async fn main() -> Result<()> {
 async fn run(options: Cli) -> Result<(), CliError> {
     use SubCommand::*;
     match options.sub_command {
-        Build { arch, workdir, file, kind, init, keep_files, crlf_ok } => {
-            // Resolve the working directory
-            let workdir = match workdir {
-                Some(workdir) => workdir,
-                None => match std::fs::canonicalize(&file) {
-                    Ok(file) => file.parent().unwrap().to_path_buf(),
-                    Err(err) => {
-                        return Err(CliError::PackageFileCanonicalizeError { path: file, err });
-                    },
-                },
-            };
-            let workdir = match std::fs::canonicalize(workdir) {
-                Ok(workdir) => workdir,
-                Err(err) => {
-                    return Err(CliError::WorkdirCanonicalizeError { path: file, err });
-                },
-            };
-
-            // Resolve the kind of the file
-            let kind = if let Some(kind) = kind {
-                match PackageKind::from_str(&kind) {
-                    Ok(kind) => kind,
-                    Err(err) => {
-                        return Err(CliError::IllegalPackageKind { kind, err });
-                    },
-                }
-            } else {
-                match brane_cli::utils::determine_kind(&file) {
-                    Ok(kind) => kind,
-                    Err(err) => {
-                        return Err(CliError::UtilError { err });
-                    },
-                }
-            };
-
-            // Build a new package with it
-            match kind {
-                PackageKind::Ecu => build_ecu::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, keep_files, crlf_ok)
-                    .await
-                    .map_err(|err| CliError::BuildError { err })?,
-                PackageKind::Oas => build_oas::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, keep_files)
-                    .await
-                    .map_err(|err| CliError::BuildError { err })?,
-                _ => eprintln!("Unsupported package kind: {kind}"),
-            }
-        },
         Certs { subcommand } => {
             use CertsSubcommand::*;
             match subcommand {
@@ -869,11 +843,6 @@ async fn run(options: Cli) -> Result<(), CliError> {
                     }
                 },
             }
-        },
-        Check { file, bakery, user, profile } => {
-            if let Err(err) = check::handle(file, if bakery { Language::Bakery } else { Language::BraneScript }, user, profile).await {
-                return Err(CliError::CheckError { err });
-            };
         },
         Data { subcommand } => {
             // Match again
@@ -919,96 +888,6 @@ async fn run(options: Cli) -> Result<(), CliError> {
                 },
             }
         },
-        Import { arch, repo, branch, workdir, file, kind, init, crlf_ok } => {
-            // Prepare the input URL and output directory
-            let url = format!("https://api.github.com/repos/{repo}/tarball/{branch}");
-            let dir = match TempDir::new() {
-                Ok(dir) => dir,
-                Err(err) => {
-                    return Err(CliError::ImportError { err: ImportError::TempDirError { err } });
-                },
-            };
-
-            // Download the file
-            let tar_path: PathBuf = dir.path().join("repo.tar.gz");
-            let dir_path: PathBuf = dir.path().join("repo");
-            if let Err(err) = brane_shr::fs::download_file_async(&url, &tar_path, DownloadSecurity { checksum: None, https: true }, None).await {
-                return Err(CliError::ImportError { err: ImportError::RepoCloneError { repo: url, target: dir_path, err } });
-            }
-            if let Err(err) = brane_shr::fs::unarchive_async(&tar_path, &dir_path).await {
-                return Err(CliError::ImportError { err: ImportError::RepoCloneError { repo: url, target: dir_path, err } });
-            }
-            // Resolve that one weird folder in there
-            let dir_path: PathBuf = match brane_shr::fs::recurse_in_only_child_async(&dir_path).await {
-                Ok(path) => path,
-                Err(err) => {
-                    return Err(CliError::ImportError { err: ImportError::RepoCloneError { repo: url, target: dir_path, err } });
-                },
-            };
-
-            // Try to get which file we need to use as package file
-            let file = match file {
-                Some(file) => dir_path.join(file),
-                None => dir_path.join(brane_cli::utils::determine_file(&dir_path).map_err(|err| CliError::UtilError { err })?),
-            };
-            let file = match std::fs::canonicalize(&file) {
-                Ok(file) => file,
-                Err(err) => {
-                    return Err(CliError::PackageFileCanonicalizeError { path: file, err });
-                },
-            };
-            if !file.starts_with(&dir_path) {
-                return Err(CliError::ImportError { err: ImportError::RepoEscapeError { path: file } });
-            }
-
-            // Try to resolve the working directory relative to the repository
-            let workdir = match workdir {
-                Some(workdir) => dir.path().join(workdir),
-                None => file.parent().unwrap().to_path_buf(),
-            };
-            let workdir = match std::fs::canonicalize(workdir) {
-                Ok(workdir) => workdir,
-                Err(err) => {
-                    return Err(CliError::WorkdirCanonicalizeError { path: file, err });
-                },
-            };
-            if !workdir.starts_with(&dir_path) {
-                return Err(CliError::ImportError { err: ImportError::RepoEscapeError { path: file } });
-            }
-
-            // Resolve the kind of the file
-            let kind = if let Some(kind) = kind {
-                match PackageKind::from_str(&kind) {
-                    Ok(kind) => kind,
-                    Err(err) => {
-                        return Err(CliError::IllegalPackageKind { kind, err });
-                    },
-                }
-            } else {
-                match brane_cli::utils::determine_kind(&file) {
-                    Ok(kind) => kind,
-                    Err(err) => {
-                        return Err(CliError::UtilError { err });
-                    },
-                }
-            };
-
-            // Build a new package with it
-            match kind {
-                PackageKind::Ecu => build_ecu::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, false, crlf_ok)
-                    .await
-                    .map_err(|err| CliError::BuildError { err })?,
-                PackageKind::Oas => {
-                    build_oas::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, false).await.map_err(|err| CliError::BuildError { err })?
-                },
-                _ => eprintln!("Unsupported package kind: {kind}"),
-            }
-        },
-        Inspect { name, version, syntax } => {
-            if let Err(err) = packages::inspect(name, version, syntax) {
-                return Err(CliError::OtherError { err });
-            };
-        },
         Instance { subcommand } => {
             // Switch on the subcommand
             use InstanceSubcommand::*;
@@ -1053,127 +932,239 @@ async fn run(options: Cli) -> Result<(), CliError> {
                 },
             }
         },
-        List { latest } => {
-            if let Err(err) = packages::list(latest) {
-                return Err(CliError::OtherError { err: anyhow::anyhow!(err) });
-            };
-        },
-        Load { name, version } => {
-            if let Err(err) = packages::load(name, version).await {
-                return Err(CliError::OtherError { err });
-            };
-        },
-        Pull { packages } => {
-            // Parse the NAME:VERSION pairs into a name and a version
-            if packages.is_empty() {
-                println!("Nothing to do.");
-                return Ok(());
-            }
-            let mut parsed: Vec<(String, SemVersion)> = Vec::with_capacity(packages.len());
-            for package in &packages {
-                parsed.push(match SemVersion::from_package_pair(package) {
-                    Ok(pair) => pair,
-                    Err(err) => {
-                        return Err(CliError::PackagePairParseError { raw: package.into(), err });
-                    },
-                })
-            }
 
-            // Now delegate the parsed pairs to the actual pull() function
-            if let Err(err) = registry::pull(parsed).await {
-                return Err(CliError::RegistryError { err });
-            };
-        },
-        Push { packages } => {
-            // Parse the NAME:VERSION pairs into a name and a version
-            if packages.is_empty() {
-                println!("Nothing to do.");
-                return Ok(());
-            }
-            let mut parsed: Vec<(String, SemVersion)> = Vec::with_capacity(packages.len());
-            for package in packages {
-                parsed.push(match SemVersion::from_package_pair(&package) {
-                    Ok(pair) => pair,
-                    Err(err) => {
-                        return Err(CliError::PackagePairParseError { raw: package, err });
-                    },
-                })
-            }
+        Package { subcommand } => {
+            match subcommand {
+                PackageSubcommand::Build { arch, workdir, file, kind, init, keep_files, crlf_ok } => {
+                    // Resolve the working directory
+                    let workdir = match workdir {
+                        Some(workdir) => workdir,
+                        None => match std::fs::canonicalize(&file) {
+                            Ok(file) => file.parent().unwrap().to_path_buf(),
+                            Err(err) => {
+                                return Err(CliError::PackageFileCanonicalizeError { path: file, err });
+                            },
+                        },
+                    };
+                    let workdir = match std::fs::canonicalize(workdir) {
+                        Ok(workdir) => workdir,
+                        Err(err) => {
+                            return Err(CliError::WorkdirCanonicalizeError { path: file, err });
+                        },
+                    };
 
-            // Now delegate the parsed pairs to the actual push() function
-            if let Err(err) = registry::push(parsed).await {
-                return Err(CliError::RegistryError { err });
-            };
-        },
-        Remove { force, packages, docker_socket, client_version } => {
-            // Parse the NAME:VERSION pairs into a name and a version
-            if packages.is_empty() {
-                println!("Nothing to do.");
-                return Ok(());
-            }
-            let mut parsed: Vec<(String, SemVersion)> = Vec::with_capacity(packages.len());
-            for package in packages {
-                parsed.push(match SemVersion::from_package_pair(&package) {
-                    Ok(pair) => pair,
-                    Err(err) => {
-                        return Err(CliError::PackagePairParseError { raw: package, err });
-                    },
-                })
-            }
+                    // Resolve the kind of the file
+                    let kind = if let Some(kind) = kind {
+                        match PackageKind::from_str(&kind) {
+                            Ok(kind) => kind,
+                            Err(err) => {
+                                return Err(CliError::IllegalPackageKind { kind, err });
+                            },
+                        }
+                    } else {
+                        match brane_cli::utils::determine_kind(&file) {
+                            Ok(kind) => kind,
+                            Err(err) => {
+                                return Err(CliError::UtilError { err });
+                            },
+                        }
+                    };
 
-            // Now delegate the parsed pairs to the actual remove() function
-            if let Err(err) = packages::remove(force, parsed, DockerOptions { socket: docker_socket, version: client_version }).await {
-                return Err(CliError::PackageError { err });
-            };
-        },
-        Repl { proxy_addr, bakery, clear, remote, attach, profile, docker_socket, client_version, keep_containers } => {
-            if let Err(err) = repl::start(
-                proxy_addr,
-                remote,
-                attach,
-                if bakery { Language::Bakery } else { Language::BraneScript },
-                clear,
-                profile,
-                DockerOptions { socket: docker_socket, version: client_version },
-                keep_containers,
-            )
-            .await
-            {
-                return Err(CliError::ReplError { err });
-            };
-        },
-        Run { proxy_addr, bakery, file, dry_run, remote, profile, docker_socket, client_version, keep_containers } => {
-            if let Err(err) = run::handle(
-                proxy_addr,
-                if bakery { Language::Bakery } else { Language::BraneScript },
-                file,
-                dry_run,
-                remote,
-                profile,
-                DockerOptions { socket: docker_socket, version: client_version },
-                keep_containers,
-            )
-            .await
-            {
-                return Err(CliError::RunError { err });
-            };
-        },
-        Test { name, version, show_result, docker_socket, client_version, keep_containers } => {
-            if let Err(err) =
-                test::handle(name, version, show_result, DockerOptions { socket: docker_socket, version: client_version }, keep_containers).await
-            {
-                return Err(CliError::TestError { err });
-            };
-        },
-        Search { term } => {
-            if let Err(err) = registry::search(term).await {
-                return Err(CliError::OtherError { err });
-            };
-        },
-        Unpublish { name, version, force } => {
-            if let Err(err) = registry::unpublish(name, version, force).await {
-                return Err(CliError::OtherError { err });
-            };
+                    // Build a new package with it
+                    match kind {
+                        PackageKind::Ecu => build_ecu::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, keep_files, crlf_ok)
+                            .await
+                            .map_err(|err| CliError::BuildError { err })?,
+                        PackageKind::Oas => build_oas::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, keep_files)
+                            .await
+                            .map_err(|err| CliError::BuildError { err })?,
+                        _ => eprintln!("Unsupported package kind: {kind}"),
+                    }
+                },
+                PackageSubcommand::Import { arch, repo, branch, workdir, file, kind, init, crlf_ok } => {
+                    // Prepare the input URL and output directory
+                    let url = format!("https://api.github.com/repos/{repo}/tarball/{branch}");
+                    let dir = match TempDir::new() {
+                        Ok(dir) => dir,
+                        Err(err) => {
+                            return Err(CliError::ImportError { err: ImportError::TempDirError { err } });
+                        },
+                    };
+
+                    // Download the file
+                    let tar_path: PathBuf = dir.path().join("repo.tar.gz");
+                    let dir_path: PathBuf = dir.path().join("repo");
+                    if let Err(err) =
+                        brane_shr::fs::download_file_async(&url, &tar_path, DownloadSecurity { checksum: None, https: true }, None).await
+                    {
+                        return Err(CliError::ImportError { err: ImportError::RepoCloneError { repo: url, target: dir_path, err } });
+                    }
+                    if let Err(err) = brane_shr::fs::unarchive_async(&tar_path, &dir_path).await {
+                        return Err(CliError::ImportError { err: ImportError::RepoCloneError { repo: url, target: dir_path, err } });
+                    }
+                    // Resolve that one weird folder in there
+                    let dir_path: PathBuf = match brane_shr::fs::recurse_in_only_child_async(&dir_path).await {
+                        Ok(path) => path,
+                        Err(err) => {
+                            return Err(CliError::ImportError { err: ImportError::RepoCloneError { repo: url, target: dir_path, err } });
+                        },
+                    };
+
+                    // Try to get which file we need to use as package file
+                    let file = match file {
+                        Some(file) => dir_path.join(file),
+                        None => dir_path.join(brane_cli::utils::determine_file(&dir_path).map_err(|err| CliError::UtilError { err })?),
+                    };
+                    let file = match std::fs::canonicalize(&file) {
+                        Ok(file) => file,
+                        Err(err) => {
+                            return Err(CliError::PackageFileCanonicalizeError { path: file, err });
+                        },
+                    };
+                    if !file.starts_with(&dir_path) {
+                        return Err(CliError::ImportError { err: ImportError::RepoEscapeError { path: file } });
+                    }
+
+                    // Try to resolve the working directory relative to the repository
+                    let workdir = match workdir {
+                        Some(workdir) => dir.path().join(workdir),
+                        None => file.parent().unwrap().to_path_buf(),
+                    };
+                    let workdir = match std::fs::canonicalize(workdir) {
+                        Ok(workdir) => workdir,
+                        Err(err) => {
+                            return Err(CliError::WorkdirCanonicalizeError { path: file, err });
+                        },
+                    };
+                    if !workdir.starts_with(&dir_path) {
+                        return Err(CliError::ImportError { err: ImportError::RepoEscapeError { path: file } });
+                    }
+
+                    // Resolve the kind of the file
+                    let kind = if let Some(kind) = kind {
+                        match PackageKind::from_str(&kind) {
+                            Ok(kind) => kind,
+                            Err(err) => {
+                                return Err(CliError::IllegalPackageKind { kind, err });
+                            },
+                        }
+                    } else {
+                        match brane_cli::utils::determine_kind(&file) {
+                            Ok(kind) => kind,
+                            Err(err) => {
+                                return Err(CliError::UtilError { err });
+                            },
+                        }
+                    };
+
+                    // Build a new package with it
+                    match kind {
+                        PackageKind::Ecu => build_ecu::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, false, crlf_ok)
+                            .await
+                            .map_err(|err| CliError::BuildError { err })?,
+                        PackageKind::Oas => build_oas::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, false)
+                            .await
+                            .map_err(|err| CliError::BuildError { err })?,
+                        _ => eprintln!("Unsupported package kind: {kind}"),
+                    }
+                },
+                PackageSubcommand::Inspect { name, version, syntax } => {
+                    if let Err(err) = packages::inspect(name, version, syntax) {
+                        return Err(CliError::OtherError { err });
+                    };
+                },
+                PackageSubcommand::List { latest } => {
+                    if let Err(err) = packages::list(latest) {
+                        return Err(CliError::OtherError { err: anyhow::anyhow!(err) });
+                    };
+                },
+                PackageSubcommand::Load { name, version } => {
+                    if let Err(err) = packages::load(name, version).await {
+                        return Err(CliError::OtherError { err });
+                    };
+                },
+                PackageSubcommand::Pull { packages } => {
+                    // Parse the NAME:VERSION pairs into a name and a version
+                    if packages.is_empty() {
+                        println!("Nothing to do.");
+                        return Ok(());
+                    }
+                    let mut parsed: Vec<(String, SemVersion)> = Vec::with_capacity(packages.len());
+                    for package in &packages {
+                        parsed.push(match SemVersion::from_package_pair(package) {
+                            Ok(pair) => pair,
+                            Err(err) => {
+                                return Err(CliError::PackagePairParseError { raw: package.into(), err });
+                            },
+                        })
+                    }
+
+                    // Now delegate the parsed pairs to the actual pull() function
+                    if let Err(err) = registry::pull(parsed).await {
+                        return Err(CliError::RegistryError { err });
+                    };
+                },
+                PackageSubcommand::Push { packages } => {
+                    // Parse the NAME:VERSION pairs into a name and a version
+                    if packages.is_empty() {
+                        println!("Nothing to do.");
+                        return Ok(());
+                    }
+                    let mut parsed: Vec<(String, SemVersion)> = Vec::with_capacity(packages.len());
+                    for package in packages {
+                        parsed.push(match SemVersion::from_package_pair(&package) {
+                            Ok(pair) => pair,
+                            Err(err) => {
+                                return Err(CliError::PackagePairParseError { raw: package, err });
+                            },
+                        })
+                    }
+
+                    // Now delegate the parsed pairs to the actual push() function
+                    if let Err(err) = registry::push(parsed).await {
+                        return Err(CliError::RegistryError { err });
+                    };
+                },
+                PackageSubcommand::Remove { force, packages, docker_socket, client_version } => {
+                    // Parse the NAME:VERSION pairs into a name and a version
+                    if packages.is_empty() {
+                        println!("Nothing to do.");
+                        return Ok(());
+                    }
+                    let mut parsed: Vec<(String, SemVersion)> = Vec::with_capacity(packages.len());
+                    for package in packages {
+                        parsed.push(match SemVersion::from_package_pair(&package) {
+                            Ok(pair) => pair,
+                            Err(err) => {
+                                return Err(CliError::PackagePairParseError { raw: package, err });
+                            },
+                        })
+                    }
+
+                    // Now delegate the parsed pairs to the actual remove() function
+                    if let Err(err) = packages::remove(force, parsed, DockerOptions { socket: docker_socket, version: client_version }).await {
+                        return Err(CliError::PackageError { err });
+                    };
+                },
+                PackageSubcommand::Test { name, version, show_result, docker_socket, client_version, keep_containers } => {
+                    if let Err(err) =
+                        test::handle(name, version, show_result, DockerOptions { socket: docker_socket, version: client_version }, keep_containers)
+                            .await
+                    {
+                        return Err(CliError::TestError { err });
+                    };
+                },
+                PackageSubcommand::Search { term } => {
+                    if let Err(err) = registry::search(term).await {
+                        return Err(CliError::OtherError { err });
+                    };
+                },
+                PackageSubcommand::Unpublish { name, version, force } => {
+                    if let Err(err) = registry::unpublish(name, version, force).await {
+                        return Err(CliError::OtherError { err });
+                    };
+                },
+            }
         },
         Upgrade { subcommand } => {
             // Match the subcommand in question
@@ -1232,6 +1223,45 @@ async fn run(options: Cli) -> Result<(), CliError> {
                     return Err(CliError::VersionError { err });
                 }
             }
+        },
+        Workflow { subcommand } => match subcommand {
+            WorkflowSubcommand::Check { file, bakery, user, profile } => {
+                if let Err(err) = check::handle(file, if bakery { Language::Bakery } else { Language::BraneScript }, user, profile).await {
+                    return Err(CliError::CheckError { err });
+                };
+            },
+            WorkflowSubcommand::Repl { proxy_addr, bakery, clear, remote, attach, profile, docker_socket, client_version, keep_containers } => {
+                if let Err(err) = repl::start(
+                    proxy_addr,
+                    remote,
+                    attach,
+                    if bakery { Language::Bakery } else { Language::BraneScript },
+                    clear,
+                    profile,
+                    DockerOptions { socket: docker_socket, version: client_version },
+                    keep_containers,
+                )
+                .await
+                {
+                    return Err(CliError::ReplError { err });
+                };
+            },
+            WorkflowSubcommand::Run { proxy_addr, bakery, file, dry_run, remote, profile, docker_socket, client_version, keep_containers } => {
+                if let Err(err) = run::handle(
+                    proxy_addr,
+                    if bakery { Language::Bakery } else { Language::BraneScript },
+                    file,
+                    dry_run,
+                    remote,
+                    profile,
+                    DockerOptions { socket: docker_socket, version: client_version },
+                    keep_containers,
+                )
+                .await
+                {
+                    return Err(CliError::RunError { err });
+                };
+            },
         },
     }
 
