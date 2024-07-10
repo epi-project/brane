@@ -135,6 +135,10 @@ fn main() {
         // Build if the binary does not yet exist
         let cfssl_path: PathBuf = build_dir.join("cmd").join("cfssl");
         let cfssljson_path: PathBuf = build_dir.join("cmd").join("cfssljson");
+
+        let cfssl_bin_path: PathBuf = cfssl_path.join("cfssl");
+        let cfssljson_bin_path: PathBuf = cfssljson_path.join("cfssljson");
+
         if !cfssl_path.exists() || !cfssljson_path.exists() {
             // Fetch the tag we need
             let mut cmd: Command = Command::new("git");
@@ -165,7 +169,7 @@ fn main() {
         }
 
         // Now run the build command for go to build the `cfssl` binary
-        if !cfssl_path.exists() {
+        if !cfssl_bin_path.exists() {
             let mut cmd: Command = Command::new("go");
             cmd.arg("build");
             cmd.arg(".");
@@ -180,7 +184,7 @@ fn main() {
         }
 
         // Same for the `cfssljson` binary
-        if !cfssljson_path.exists() {
+        if !cfssljson_bin_path.exists() {
             let mut cmd: Command = Command::new("go");
             cmd.arg("build");
             cmd.arg(".");
@@ -195,7 +199,7 @@ fn main() {
         }
 
         // OK, publish the paths
-        println!("cargo:rustc-env=CFSSL_PATH={}", cfssl_path.join("cfssl").display());
-        println!("cargo:rustc-env=CFSSLJSON_PATH={}", cfssljson_path.join("cfssljson").display());
+        println!("cargo:rustc-env=CFSSL_PATH={}", cfssl_bin_path.display());
+        println!("cargo:rustc-env=CFSSLJSON_PATH={}", cfssljson_bin_path.display());
     }
 }
