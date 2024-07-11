@@ -3,6 +3,7 @@ name = "brane-exe"
 version = { workspace = true }
 edition = "2021"
 authors = [ "Tim Müller" ]
+license = { workspace = true }
 
 [dependencies]
 async-recursion = "1.0.0"

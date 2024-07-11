@@ -3,6 +3,7 @@ name = "brane-tsk"
 version = { workspace = true }
 edition = "2021"
 authors = [ "Tim Müller" ]
+license = { workspace = true }
 
 
 [dependencies]

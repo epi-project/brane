@@ -3,6 +3,7 @@ name = "brane-drv"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2021"
+license = { workspace = true }
 
 [dependencies]
 async-trait = "0.1"
