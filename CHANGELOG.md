@@ -46,6 +46,7 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
 - BraneScript syntax to remove the `on`-structs, and instead using `on`-, `loc`- or `location`-attributes \[**breaking change**\].
 - More error prints to use a trace (i.e., `Error::source()`) rather than endless colons.
 - `brane-drv` and `brane-plr` to communicate using HTTP instead of Kafka, finally. This allows us to finally get rid of `aux-kafka` and `aux-zookeeper` \[**breaking change**\].
+- `brane`s interface has been restructured. Several commands operating on packages and workflows have been grouped under the `package` and `workflow` subcommands respectively.
 
 ### Fixed
 - The BraneScript compiler hanging in an infinite loop in some cases.
