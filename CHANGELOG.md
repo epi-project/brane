@@ -48,6 +48,7 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
 - `brane-drv` and `brane-plr` to communicate using HTTP instead of Kafka, finally. This allows us to finally get rid of `aux-kafka` and `aux-zookeeper` \[**breaking change**\].
 - `branectl` now embeds `cfssl`/`cfssljson` binaries, either downloaded or compiled from source at compile time. The latter because 1.6.3 does not include ARM binaries by default.
 - Now relying on `serde_yml` instead of `serde_yaml` because the latter is no longer maintained ([#84](https://github.com/epi-project/brane/pull/84)).
+- `brane`s interface has been restructured. Several commands operating on packages and workflows have been grouped under the `package` and `workflow` subcommands respectively.
 
 ### Fixed
 - The BraneScript compiler hanging in an infinite loop in some cases.

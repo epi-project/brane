@@ -1,0 +1,34 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  # Cargo version update
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    # Limit is arbitrary, but having a slight limit helps keeps stuff managable
+    open-pull-requests-limit: 5
+    groups:
+      backwards-compatible:
+        update-types:
+          - "patch"
+          - "minor"
+
+  # Cargo security update
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      # Very frequent checks for security updates
+      interval: daily
+    # Never let spam converns prevent security updates
+    open-pull-requests-limit: 0
+    ignore:
+      # Ignore all version updates
+      update-types:
+        - "version-update:patch"
+        - "version-update:minor"
+        - "version-update:major"
