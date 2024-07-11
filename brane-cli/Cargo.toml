@@ -3,65 +3,66 @@ name = "brane-cli"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2021"
+rust-version = "1.74.1"
 
 [[bin]]
 name = "brane"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1"
+anyhow = "1.0.66"
 async-compression = { version = "0.4", features = ["tokio","gzip"] }
-async-trait = "0.1"
-base64 = "0.21"
-bollard = "0.14"
-chrono = "0.4"
-clap = { version = "4.0.24", features = ["derive","env"] }
-console = "0.15"
+async-trait = "0.1.67"
+base64 = "0.21.0"
+bollard = "0.14.0"
+chrono = "0.4.23"
+clap = { version = "4.4.0", features = ["derive","env"] }
+console = "0.15.5"
 cwl = { git = "https://github.com/onnovalkering/cwl-rs" }
-dialoguer = "0.10"
+dialoguer = "0.10.0"
 dirs-2 = "3.0.1"
-dotenvy = "0.15"
+dotenvy = "0.15.0"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
-env_logger = "0.10"
+env_logger = "0.10.0"
 error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
 filetime = "0.2.15"
-flate2 = { version = "1.0", features = ["zlib"], default-features = false }
-fs_extra = "1.2"
-futures = "0.3"
-futures-util = "0.3"
+flate2 = { version = "1.0.13", features = ["zlib"], default-features = false }
+fs_extra = "1.2.0"
+futures = "0.3.24"
+futures-util = "0.3.30"
 # git2 = { version = "0.17", features = ["vendored-libgit2"] }
-graphql_client = "0.13"
+graphql_client = "0.13.0"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
-human-panic = "1.0"
-hyper = "0.14"
-indicatif = "0.17"
-lazy_static = "1.4"
-log = "0.4"
+human-panic = "1.0.0"
+hyper = "0.14.29"
+indicatif = "0.17.0"
+lazy_static = "1.4.0"
+log = "0.4.21"
 names = { git = "https://github.com/Lut99/names-rs", default-features = false, features = ["rand", "three-lowercase"]}
-openapiv3 = "0.5"
-parking_lot = "0.12"
-path-clean = "1.0"
-prettytable-rs = "0.10"
-rand = "0.8"
-reqwest = {version = "0.11", features = ["rustls-tls-manual-roots","json", "stream", "multipart"] }
-rustls = "0.21"
-rustyline = "11.0"
-rustyline-derive = "0.8"
-semver = "1.0"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serde_with = "3.0"
+openapiv3 = "0.5.0"
+parking_lot = "0.12.1"
+path-clean = "1.0.0"
+prettytable-rs = "0.10.0"
+rand = "0.8.5"
+reqwest = {version = "0.11.27", features = ["rustls-tls-manual-roots","json", "stream", "multipart"] }
+rustls = "0.21.6"
+rustyline = "11.0.0"
+rustyline-derive = "0.8.0"
+semver = "1.0.0"
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
+serde_with = "3.0.0"
 serde_yaml = { version = "0.0.10", package = "serde_yml" }
-tar = "0.4"
-tempfile = "3.2"
-tokio = { version = "1", features = ["full"] }
-tokio-stream = "0.1"
+tar = "0.4.21"
+tempfile = "3.10.1"
+tokio = { version = "1.38.0", features = ["full"] }
+tokio-stream = "0.1.6"
 tokio-tar = "0.3.0"
-tokio-util = { version = "0.7", features = ["codec"] }
-tonic = "0.11"
-url = "2.2"
-uuid = { version = "1.7", features = ["serde", "v4"] }
-x509-parser = "0.15"
+tokio-util = { version = "0.7.1", features = ["codec"] }
+tonic = "0.11.0"
+url = "2.5.0"
+uuid = { version = "1.7.0", features = ["serde", "v4"] }
+x509-parser = "0.15.0"
 
 brane-ast = { path = "../brane-ast" }
 brane-cfg = { path = "../brane-cfg" }
@@ -76,7 +77,7 @@ specifications = { path = "../specifications" }
 
 # Hacky indeed but necessary to dodge OpenSSL linking, which we need to make cross-compilation _so_ much easier
 [dependencies.openssl-sys]
-version = "0.9"
+version = "0.9.102"
 features = ["vendored"]
 
 
