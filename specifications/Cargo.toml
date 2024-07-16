@@ -10,7 +10,7 @@ anyhow = "1.0.66"
 async-trait = "0.1.67"
 base64 = "0.21.0"
 base64ct = { version = "1.6.0", features = ["std"] }
-chrono = { version = "0.4.23", features = ["serde"] }
+chrono = { version = "0.4.35", features = ["serde"] }
 const_format = "0.2.22"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
 futures = "0.3.24"
