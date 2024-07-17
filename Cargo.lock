@@ -659,6 +659,7 @@ dependencies = [
  "brane-tsk",
  "chrono",
  "clap 4.5.7",
+ "clap_complete",
  "console",
  "dialoguer 0.10.4",
  "dirs-2",
@@ -735,6 +736,7 @@ dependencies = [
  "brane-shr 3.0.0",
  "brane-tsk",
  "clap 4.5.7",
+ "clap_complete",
  "console",
  "dialoguer 0.11.0",
  "diesel",
@@ -1245,6 +1247,15 @@ dependencies = [
  "anstyle",
  "clap_lex",
  "strsim 0.11.1",
+]
+
+[[package]]
+name = "clap_complete"
+version = "4.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b4be9c4c4b1f30b78d8a750e0822b6a6102d97e62061c583a6c1dea2dfb33ae"
+dependencies = [
+ "clap 4.5.7",
 ]
 
 [[package]]
