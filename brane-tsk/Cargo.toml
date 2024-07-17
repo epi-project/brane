@@ -11,7 +11,7 @@ async-trait = "0.1.67"
 base64 = "0.21.0"
 base64ct = { version = "1.6.0", features = ["alloc"] }
 bollard = "0.14.0"
-chrono = "0.4.23"
+chrono = "0.4.35"
 console = "0.15.5"
 dialoguer = "0.11.0"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }

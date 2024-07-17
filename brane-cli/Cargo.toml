@@ -15,7 +15,7 @@ async-compression = { version = "0.4", features = ["tokio","gzip"] }
 async-trait = "0.1.67"
 base64 = "0.21.0"
 bollard = "0.14.0"
-chrono = "0.4.23"
+chrono = "0.4.35"
 clap = { version = "4.4.0", features = ["derive","env"] }
 console = "0.15.5"
 cwl = { git = "https://github.com/onnovalkering/cwl-rs" }
