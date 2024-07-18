@@ -30,13 +30,13 @@ futures = "0.3.24"
 futures-util = "0.3.30"
 # git2 = { version = "0.17", features = ["vendored-libgit2"] }
 graphql_client = "0.13.0"
-humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
+humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.1.0" }
 human-panic = "1.0.0"
 hyper = "0.14.29"
 indicatif = "0.17.0"
 lazy_static = "1.4.0"
 log = "0.4.21"
-names = { git = "https://github.com/Lut99/names-rs", default-features = false, features = ["rand", "three-lowercase"]}
+names = { git = "https://github.com/Lut99/names-rs", tag = "v0.1.0", default-features = false, features = ["rand", "three-lowercase"]}
 openapiv3 = "0.5.0"
 parking_lot = "0.12.1"
 path-clean = "1.0.0"
