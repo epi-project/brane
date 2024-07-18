@@ -36,6 +36,3 @@ brane-prx = { path = "../brane-prx" }
 brane-shr = { path = "../brane-shr" }
 brane-tsk = { path = "../brane-tsk" }
 specifications = { path = "../specifications" }
-
-[dev-dependencies]
-dashmap = "4.0.0"

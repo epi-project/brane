@@ -16,9 +16,7 @@ hex = "0.4.3"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
 indicatif = "0.17.0"
 log = "0.4.21"
-num-derive = "0.3.0"
 num-traits = "0.2.18"
-# rdkafka = { version = "0.31", features = ["cmake-build"] }
 regex = "1.5.0"
 reqwest = { version = "0.11.27", features = ["stream"] }
 sha2 = "0.10.6"
