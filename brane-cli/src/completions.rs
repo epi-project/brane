@@ -1,16 +1,11 @@
-
-include!("cli.rs");
-
 use std::fs::File;
-use std::path::PathBuf;
-use brane_cli::spec::{Hostname, VersionFix, API_DEFAULT_VERSION};
-use brane_tsk::docker::ClientVersion;
-use brane_tsk::spec::AppId;
-use clap::{Parser, CommandFactory};
-use specifications::arch::Arch;
-use specifications::version::Version as SemVersion;
-use clap_complete::{generate, shells::Shell::*};
 
+use clap::CommandFactory;
+use clap_complete::generate;
+use clap_complete::shells::Shell::*;
+
+mod cli;
+use cli::*;
 
 fn main() {
     let mut command = Cli::command();

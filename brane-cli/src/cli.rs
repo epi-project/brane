@@ -1,17 +1,26 @@
+use std::path::PathBuf;
+
+use brane_cli::spec::{Hostname, VersionFix, API_DEFAULT_VERSION};
+use brane_tsk::docker::ClientVersion;
+use brane_tsk::spec::AppId;
+use clap::Parser;
+use specifications::arch::Arch;
+use specifications::version::Version as SemVersion;
+
 /***** ARGUMENTS *****/
 #[derive(Parser)]
 #[clap(name = "brane", about = "The Brane command-line interface.")]
-struct Cli {
+pub(crate) struct Cli {
     #[clap(long, global = true, action, help = "Enable debug mode")]
-    debug: bool,
+    pub(crate) debug: bool,
     #[clap(long, action, help = "Skip dependencies check")]
-    skip_check: bool,
+    pub(crate) skip_check: bool,
     #[clap(subcommand)]
-    sub_command: SubCommand,
+    pub(crate) sub_command: SubCommand,
 }
 
 #[derive(Parser)]
-enum SubCommand {
+pub(crate) enum SubCommand {
     #[clap(name = "certs", about = "Manage certificates for connecting to remote instances.")]
     Certs {
         // We subcommand further
@@ -86,7 +95,7 @@ enum SubCommand {
 
 /// Defines the subcommands for the `instance certs` subommand
 #[derive(Parser)]
-enum CertsSubcommand {
+pub(crate) enum CertsSubcommand {
     #[clap(
         name = "add",
         about = "Adds a new CA/client certificate pair to this instance. If there are already certificates defined for this domain, will override \
@@ -164,7 +173,7 @@ enum CertsSubcommand {
 
 /// Defines the subsubcommands for the data subcommand.
 #[derive(Parser)]
-enum DataSubcommand {
+pub(crate) enum DataSubcommand {
     #[clap(name = "build", about = "Builds a locally available dataset from the given data.yml file and associated files (if any).")]
     Build {
         #[clap(name = "FILE", help = "Path to the file to build.")]
@@ -226,7 +235,7 @@ enum DataSubcommand {
 
 /// Defines the subcommands for the instance subommand
 #[derive(Parser)]
-enum InstanceSubcommand {
+pub(crate) enum InstanceSubcommand {
     #[clap(name = "add", about = "Defines a new instance to connect to.")]
     Add {
         /// The instance's hostname.
@@ -333,7 +342,7 @@ enum InstanceSubcommand {
 }
 
 #[derive(Parser)]
-enum PackageSubcommand {
+pub(crate) enum PackageSubcommand {
     #[clap(name = "build", about = "Build a package")]
     Build {
         #[clap(short, long, help = "The architecture for which to compile the image.")]
@@ -545,7 +554,7 @@ enum PackageSubcommand {
 }
 
 #[derive(Parser)]
-enum WorkflowSubcommand {
+pub(crate) enum WorkflowSubcommand {
     #[clap(
         name = "check",
         about = "Checks a workflow against the policy in the current remote instance. You can think of this as using `brane run --remote`, except \
@@ -673,7 +682,7 @@ enum WorkflowSubcommand {
 
 /// Defines the subcommands for the upgrade subcommand.
 #[derive(Parser)]
-enum UpgradeSubcommand {
+pub(crate) enum UpgradeSubcommand {
     #[clap(name = "data", about = "Upgrades old data.yml files to this Brane version.")]
     Data {
         /// The file or folder to upgrade.
@@ -710,7 +719,7 @@ enum UpgradeSubcommand {
 
 /// Defines the subcommands for the verify subcommand.
 #[derive(Parser)]
-enum VerifySubcommand {
+pub(crate) enum VerifySubcommand {
     #[clap(name = "config", about = "Verifies the configuration, e.g., an `infra.yml` files")]
     Config {
         #[clap(short, long, default_value = "./config/infra.yml", help = "The location of the infra.yml file to validate")]

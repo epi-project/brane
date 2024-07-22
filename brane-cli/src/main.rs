@@ -21,12 +21,10 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use brane_cli::errors::{CliError, ImportError};
-use brane_cli::spec::{Hostname, VersionFix, API_DEFAULT_VERSION};
 use brane_cli::{build_ecu, build_oas, certs, check, data, instance, packages, registry, repl, run, test, upgrade, verify, version};
 use brane_dsl::Language;
 use brane_shr::fs::DownloadSecurity;
-use brane_tsk::docker::{ClientVersion, DockerOptions};
-use brane_tsk::spec::AppId;
+use brane_tsk::docker::DockerOptions;
 use clap::Parser;
 use dotenvy::dotenv;
 use error_trace::ErrorTrace as _;
@@ -39,8 +37,8 @@ use specifications::version::Version as SemVersion;
 use tempfile::TempDir;
 
 
-include!("cli.rs");
-
+mod cli;
+use cli::*;
 
 /***** ENTRYPOINT *****/
 #[tokio::main]
