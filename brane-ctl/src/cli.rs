@@ -21,13 +21,13 @@ use specifications::version::Version;
 /// Defines the toplevel arguments for the `branectl` tool.
 #[derive(Debug, Parser)]
 #[clap(name = "branectl", about = "The server-side Brane command-line interface.")]
-pub struct Arguments {
+pub(crate) struct Arguments {
     /// If given, prints `info` and `debug` prints.
     #[clap(long, global = true, help = "If given, prints additional information during execution.")]
-    pub debug: bool,
+    pub(crate) debug: bool,
     /// If given, prints `info`, `debug` and `trace` prints.
     #[clap(long, global = true, conflicts_with = "debug", help = "If given, prints the largest amount of debug information as possible.")]
-    pub trace: bool,
+    pub(crate) trace: bool,
     /// The path to the node config file to use.
     #[clap(
         short,
@@ -37,20 +37,20 @@ pub struct Arguments {
         help = "The 'node.yml' file that describes properties about the node itself (i.e., the location identifier, where to find directories, \
                 which ports to use, ...)"
     )]
-    pub node_config: PathBuf,
+    pub(crate) node_config: PathBuf,
 
     /// The subcommand that can be run.
     #[clap(subcommand)]
-    pub subcommand: CtlSubcommand,
+    pub(crate) subcommand: CtlSubcommand,
 }
 
-pub fn parse() -> Arguments { Arguments::parse() }
+pub(crate) fn parse() -> Arguments { Arguments::parse() }
 
-pub fn command() -> clap::Command { Arguments::command() }
+pub(crate) fn command() -> clap::Command { Arguments::command() }
 
 /// Defines subcommands for the `branectl` tool.
 #[derive(Debug, Subcommand)]
-pub enum CtlSubcommand {
+pub(crate) enum CtlSubcommand {
     #[clap(subcommand)]
     Download(Box<DownloadSubcommand>),
     #[clap(subcommand)]
@@ -162,7 +162,7 @@ pub enum CtlSubcommand {
 /// Defines download-related subcommands for the `branectl` tool.
 #[derive(Debug, Subcommand)]
 #[clap(name = "download", about = "Download pre-compiled images or binaries from the project's repository.")]
-pub enum DownloadSubcommand {
+pub(crate) enum DownloadSubcommand {
     #[clap(name = "services", about = "Downloads all of the Brane service images from the GitHub repository to the local machine.")]
     Services {
         /// Whether to create any missing directories or not.
@@ -216,7 +216,7 @@ pub enum DownloadSubcommand {
 /// Defines generate-related subcommands for the `branectl` tool.
 #[derive(Debug, Subcommand)]
 #[clap(name = "generate", about = "Generate configuration files for setting up a new node.")]
-pub enum GenerateSubcommand {
+pub(crate) enum GenerateSubcommand {
     #[clap(name = "node", about = "Generates a new 'node.yml' file at the location indicated by --node-config.")]
     Node {
         /// Defines one or more additional hostnames to define in the nested Docker container.
@@ -443,7 +443,7 @@ pub enum GenerateSubcommand {
 /// Defines subcommands that allow us to unpack baked-in files.
 #[derive(Debug, Subcommand)]
 #[clap(name = "unpack", alias = "extract", about = "Unpack a certain file that is baked-in the CTL executable.")]
-pub enum UnpackSubcommand {
+pub(crate) enum UnpackSubcommand {
     #[clap(
         name = "compose",
         about = "Unpacks the Docker Compose file that we use to setup the services for an node. Note, however, that this Docker Compose file is \
@@ -477,7 +477,7 @@ pub enum UnpackSubcommand {
 /// Defines the subcommands for the upgrade subcommand
 #[derive(Debug, Subcommand)]
 #[clap(name = "upgrade", about = "Updates configuration files from an older BRANE version to this one.")]
-pub enum UpgradeSubcommand {
+pub(crate) enum UpgradeSubcommand {
     #[clap(name = "node", about = "Upgrade node.yml files to be compatible with this BRANE version.")]
     Node {
         /// The file or folder to upgrade.
@@ -515,7 +515,7 @@ pub enum UpgradeSubcommand {
 /// Defines subcommands relating to the wizard
 #[derive(Debug, Subcommand)]
 #[clap(name = "wizard", about = "A suite of interactive wizards to ease particular processes.")]
-pub enum WizardSubcommand {
+pub(crate) enum WizardSubcommand {
     #[clap(name = "setup", alias = "node", about = "Starts a wizard that sets up a new node.")]
     Setup {},
 }
@@ -523,7 +523,7 @@ pub enum WizardSubcommand {
 /// Defines package-related subcommands for the `branectl` tool.
 #[derive(Debug, Subcommand)]
 #[clap(name = "packages", about = "Manage packages that are stored on this node.")]
-pub enum PackageSubcommand {
+pub(crate) enum PackageSubcommand {
     /// Generates the hash for the given package container.
     #[clap(name = "hash", about = "Hashes the given `image.tar` file for use in policies.")]
     Hash {
@@ -540,12 +540,12 @@ pub enum PackageSubcommand {
 /// Defines data- and intermediate results-related subcommands for the `branectl` tool.
 #[derive(Debug, Subcommand)]
 #[clap(name = "data", about = "Manage data and intermediate results stored on this node.")]
-pub enum DataSubcommand {}
+pub(crate) enum DataSubcommand {}
 
 /// Defines policy-related subcommands for the `branectl` tool.
 #[derive(Debug, Subcommand)]
 #[clap(name = "policies", alias = "policy", about = "Manage the checker's policies by adding them or setting different active versions.")]
-pub enum PolicySubcommand {
+pub(crate) enum PolicySubcommand {
     /// Activates a policy in the remote checker.
     #[clap(name = "activate", about = "Activates an already added policy in the remote checker.")]
     Activate {
