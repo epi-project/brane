@@ -66,3 +66,4 @@ result_large_err = { level = "allow", priority = 1 }
 [[bin]]
 name = "completions"
 path = "src/completions.rs"
+doc = false
