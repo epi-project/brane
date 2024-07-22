@@ -13,7 +13,6 @@ dotenvy = "0.15.0"
 enum-debug = { git = "https://github.com/Lut99/enum-debug" }
 env_logger = "0.10.0"
 error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
-k8s-openapi = { version = "0.18", default-features = false, features = ["v1_23"] }
 log = "0.4.21"
 reqwest = "0.11.27"
 rustls = "0.21.6"

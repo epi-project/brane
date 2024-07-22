@@ -26,8 +26,6 @@ brane-shr = { path = "../brane-shr" }
 specifications = { path = "../specifications" }
 
 [dev-dependencies]
-simplelog = "0.12.0"
-
 brane-shr = { path = "../brane-shr" }
 
 [features]

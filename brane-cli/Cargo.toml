@@ -18,12 +18,10 @@ bollard = "0.14.0"
 chrono = "0.4.35"
 clap = { version = "4.4.0", features = ["derive","env"] }
 console = "0.15.5"
-cwl = { git = "https://github.com/onnovalkering/cwl-rs" }
 dialoguer = "0.10.0"
 dirs-2 = "3.0.1"
 dotenvy = "0.15.0"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
-env_logger = "0.10.0"
 error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
 filetime = "0.2.15"
 flate2 = { version = "1.0.13", features = ["zlib"], default-features = false }
@@ -66,7 +64,6 @@ x509-parser = "0.15.0"
 
 brane-ast = { path = "../brane-ast" }
 brane-cfg = { path = "../brane-cfg" }
-brane-drv = { path = "../brane-drv" }
 brane-dsl = { path = "../brane-dsl" }
 brane-exe = { path = "../brane-exe" }
 brane-oas = { path = "../brane-oas" }
