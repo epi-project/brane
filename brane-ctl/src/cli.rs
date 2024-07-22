@@ -1,3 +1,21 @@
+use std::net::IpAddr;
+use std::path::PathBuf;
+
+use brane_cfg::proxy::ProxyProtocol;
+use brane_ctl::spec::{
+    DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair,
+    PolicyInputLanguage, ResolvableNodeKind, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
+};
+use brane_tsk::docker::ClientVersion;
+use clap::{CommandFactory, Parser, Subcommand};
+use error_trace::ErrorTrace as _;
+use humantime::Duration as HumanDuration;
+use jsonwebtoken::jwk::KeyAlgorithm;
+// use log::error;
+use specifications::address::{Address, AddressOpt};
+use specifications::arch::Arch;
+use specifications::package::Capability;
+use specifications::version::Version;
 
 /***** ARGUMENTS *****/
 /// Defines the toplevel arguments for the `branectl` tool.
@@ -25,6 +43,10 @@ pub struct Arguments {
     #[clap(subcommand)]
     pub subcommand: CtlSubcommand,
 }
+
+pub fn parse() -> Arguments { Arguments::parse() }
+
+pub fn command() -> clap::Command { Arguments::command() }
 
 /// Defines subcommands for the `branectl` tool.
 #[derive(Debug, Subcommand)]

@@ -62,3 +62,7 @@ clap = { version = "4.4.0", features = ["derive","env"] }
 
 [lints.clippy]
 result_large_err = { level = "allow", priority = 1 }
+
+[[bin]]
+name = "completions"
+path = "src/completions.rs"

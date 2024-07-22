@@ -12,30 +12,18 @@
 //!   Entrypoint to the `branectl` executable.
 //
 
-use std::net::IpAddr;
-use std::path::PathBuf;
 
-use brane_cfg::proxy::{ForwardConfig, ProxyProtocol};
-use brane_ctl::spec::{
-    DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair,
-    PolicyInputLanguage, ResolvableNodeKind, StartOpts, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
-};
+use brane_cfg::proxy::ForwardConfig;
+use brane_ctl::spec::StartOpts;
 use brane_ctl::{download, generate, lifetime, packages, policies, unpack, upgrade, wizard};
-use brane_tsk::docker::{ClientVersion, DockerOptions};
-use clap::{Parser, Subcommand};
+use brane_tsk::docker::DockerOptions;
 use dotenvy::dotenv;
 use error_trace::ErrorTrace as _;
 use humanlog::{DebugMode, HumanLogger};
-use humantime::Duration as HumanDuration;
-use jsonwebtoken::jwk::KeyAlgorithm;
 use log::error;
-// use log::error;
-use specifications::address::{Address, AddressOpt};
-use specifications::arch::Arch;
-use specifications::package::Capability;
-use specifications::version::Version;
 
-include!("cli.rs");
+mod cli;
+use cli::*;
 
 /***** ENTYRPOINT *****/
 #[tokio::main(flavor = "current_thread")]
@@ -44,7 +32,7 @@ async fn main() {
     dotenv().ok();
 
     // Parse the arguments
-    let args = Arguments::parse();
+    let args = cli::parse();
 
     // // Initialize the logger
     // let mut logger = env_logger::builder();
