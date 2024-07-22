@@ -26,6 +26,7 @@ brane-shr = { path = "../brane-shr" }
 specifications = { path = "../specifications" }
 
 [dev-dependencies]
+humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.1.0" }
 brane-shr = { path = "../brane-shr" }
 
 [features]

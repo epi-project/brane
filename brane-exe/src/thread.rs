@@ -4,7 +4,7 @@
 //  Created:
 //    09 Sep 2022, 13:23:41
 //  Last edited:
-//    31 Jan 2024, 11:36:30
+//    23 Jul 2024, 01:31:41
 //  Auto updated?
 //    Yes
 //
@@ -62,9 +62,7 @@ mod tests {
     async fn test_thread() {
         // Setup the simple logger
         #[cfg(feature = "test_logging")]
-        if let Err(err) =
-            simplelog::TermLogger::init(log::LevelFilter::Debug, Default::default(), simplelog::TerminalMode::Mixed, simplelog::ColorChoice::Auto)
-        {
+        if let Err(err) = humanlog::HumanLogger::terminal(humanlog::DebugMode::Debug).init() {
             eprintln!("WARNING: Failed to setup logger: {err} (no logging for this session)");
         }
 

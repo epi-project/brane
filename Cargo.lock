@@ -616,7 +616,7 @@ dependencies = [
  "enum-debug",
  "expanduser",
  "human-panic",
- "humanlog",
+ "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs)",
  "log",
  "openssl-sys",
  "serde_json",
@@ -672,7 +672,7 @@ dependencies = [
  "futures-util",
  "graphql_client",
  "human-panic",
- "humanlog",
+ "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs)",
  "hyper 0.14.29",
  "indicatif",
  "lazy_static",
@@ -715,7 +715,7 @@ dependencies = [
  "brane-exe 3.0.0",
  "brane-tsk",
  "console",
- "humanlog",
+ "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs)",
  "libc",
  "log",
  "openssl-sys",
@@ -747,7 +747,7 @@ dependencies = [
  "error-trace",
  "hex-literal",
  "human-panic",
- "humanlog",
+ "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs)",
  "humantime",
  "jsonwebtoken",
  "lazy_static",
@@ -848,6 +848,7 @@ dependencies = [
  "console",
  "enum-debug",
  "futures",
+ "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs?tag=v0.1.0)",
  "lazy_static",
  "log",
  "num-traits",
@@ -977,7 +978,7 @@ dependencies = [
  "dotenvy",
  "error-trace",
  "futures-util",
- "humanlog",
+ "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs)",
  "log",
  "parking_lot",
  "rand 0.8.5",
@@ -1059,7 +1060,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.2.15",
  "hex",
- "humanlog",
+ "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs)",
  "indicatif",
  "log",
  "num-traits",
@@ -1086,7 +1087,7 @@ dependencies = [
  "fs2",
  "futures-util",
  "hex",
- "humanlog",
+ "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs)",
  "indicatif",
  "log",
  "num-derive 0.3.3",
@@ -1119,7 +1120,7 @@ dependencies = [
  "enum-debug",
  "futures-util",
  "graphql_client",
- "humanlog",
+ "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs)",
  "hyper 0.14.29",
  "indicatif",
  "lazy_static",
@@ -2445,6 +2446,18 @@ dependencies = [
  "serde_derive",
  "toml",
  "uuid 1.9.1",
+]
+
+[[package]]
+name = "humanlog"
+version = "0.1.0"
+source = "git+https://github.com/Lut99/humanlog-rs?tag=v0.1.0#3c7a024de4e5822c44c0f2d1ae4b08806e500d03"
+dependencies = [
+ "atty",
+ "chrono",
+ "console",
+ "log",
+ "parking_lot",
 ]
 
 [[package]]
