@@ -22,7 +22,7 @@ use error_trace::ErrorTrace as _;
 use humanlog::{DebugMode, HumanLogger};
 use log::error;
 
-mod cli;
+pub mod cli;
 use cli::*;
 
 /***** ENTYRPOINT *****/

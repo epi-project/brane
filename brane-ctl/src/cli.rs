@@ -7,15 +7,15 @@ use brane_ctl::spec::{
     PolicyInputLanguage, ResolvableNodeKind, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
 };
 use brane_tsk::docker::ClientVersion;
-use clap::{CommandFactory, Parser, Subcommand};
-use error_trace::ErrorTrace as _;
+use clap::{Parser, Subcommand};
 use humantime::Duration as HumanDuration;
 use jsonwebtoken::jwk::KeyAlgorithm;
-// use log::error;
 use specifications::address::{Address, AddressOpt};
 use specifications::arch::Arch;
 use specifications::package::Capability;
 use specifications::version::Version;
+
+pub(crate) fn parse() -> Arguments { Arguments::parse() }
 
 /***** ARGUMENTS *****/
 /// Defines the toplevel arguments for the `branectl` tool.
@@ -43,10 +43,6 @@ pub(crate) struct Arguments {
     #[clap(subcommand)]
     pub(crate) subcommand: CtlSubcommand,
 }
-
-pub(crate) fn parse() -> Arguments { Arguments::parse() }
-
-pub(crate) fn command() -> clap::Command { Arguments::command() }
 
 /// Defines subcommands for the `branectl` tool.
 #[derive(Debug, Subcommand)]
