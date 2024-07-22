@@ -1,5 +1,5 @@
 
-include!("../cli.rs");
+include!("cli.rs");
 
 use std::fs::File;
 use std::path::PathBuf;
