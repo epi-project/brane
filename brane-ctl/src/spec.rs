@@ -376,16 +376,16 @@ pub enum GenerateNodeSubcommand {
         prx_name: String,
 
         /// The port of the API service.
-        #[clap(short, long, default_value = "50051", help = "The port on which the API service is available.")]
+        #[clap(long, default_value = "50051", help = "The port on which the API service is available.")]
         api_port: u16,
         /// The port of the planner service.
-        #[clap(short, long, default_value = "50052", help = "The port on which the planner service is available.")]
+        #[clap(long, default_value = "50052", help = "The port on which the planner service is available.")]
         plr_port: u16,
         /// The port of the driver service.
-        #[clap(short, long, default_value = "50053", help = "The port on which the driver service is available.")]
+        #[clap(long, default_value = "50053", help = "The port on which the driver service is available.")]
         drv_port: u16,
         /// The port of the proxy service.
-        #[clap(short, long, default_value = "50050", help = "The port on which the proxy service is available.")]
+        #[clap(long, default_value = "50050", help = "The port on which the proxy service is available.")]
         prx_port: u16,
     },
 

@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 base64ct = "1.6.0"
 bollard = "0.14.0"
-clap = { version = "4.4.0", features = ["derive","env"] }
+clap = { version = "4.5.6", features = ["derive","env"] }
 console = "0.15.5"
 dialoguer = "0.11.0"
 diesel = { version = "2.1.0", features = ["sqlite"] }
@@ -46,6 +46,7 @@ brane-cfg = { path = "../brane-cfg" }
 brane-shr = { path = "../brane-shr" }
 brane-tsk = { path = "../brane-tsk" }
 specifications = { path = "../specifications" }
+clap_complete = "4.5.8"
 
 
 # Hacky indeed but necessary to dodge OpenSSL linking, which we need to make cross-compilation _so_ much easier
@@ -57,6 +58,12 @@ features = ["vendored"]
 [build-dependencies]
 download = { git = "https://github.com/Lut99/download-rs", tag = "v0.1.0", default-features = false, features = ["download"] }
 hex-literal = "0.4.0"
+clap = { version = "4.5.6", features = ["derive","env"] }
 
 [lints.clippy]
 result_large_err = { level = "allow", priority = 1 }
+
+[[bin]]
+name = "branectl-completions"
+path = "src/completions.rs"
+doc = false
