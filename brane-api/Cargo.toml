@@ -11,9 +11,9 @@ bytes = "1.2.0"
 chrono = "0.4.35"
 clap = { version = "4.5.6", features = ["derive","env"] }
 dotenvy = "0.15"
-enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
+enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
 env_logger = "0.10.0"
-error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
+error-trace = { git = "https://github.com/Lut99/error-trace-rs", tag = "v2.0.0" }
 futures = "0.3.24"
 juniper = "0.15.7"
 juniper_warp = "0.7.0"

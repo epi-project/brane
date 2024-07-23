@@ -7,7 +7,7 @@ rust-version = "1.67.1"
 
 [dependencies]
 console = "0.15.5"
-enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
+enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
 lazy_static = "1.4.0"
 log = "0.4.21"
 rand = "0.8.5"

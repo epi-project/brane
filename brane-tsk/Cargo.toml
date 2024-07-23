@@ -14,7 +14,7 @@ bollard = "0.14.0"
 chrono = "0.4.35"
 console = "0.15.5"
 dialoguer = "0.11.0"
-enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
+enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
 futures-util = "0.3.30"
 graphql_client = "0.13.0"
 hyper = "0.14.29"
@@ -43,7 +43,9 @@ specifications = { path = "../specifications" }
 
 
 [dev-dependencies]
-humanlog = { git = "https://github.com/Lut99/humanlog-rs" }
+clap = { version = "4.4.0", features = ["derive"] }
+dirs-2 = "3.0.0"
+humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.1.0" }
 lazy_static = "1.4.0"
 
 
