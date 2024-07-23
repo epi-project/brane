@@ -7,7 +7,7 @@ rust-version = "1.67.1"
 
 [dependencies]
 async-trait = "0.1.67"
-enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
+enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
 log = "0.4.21"
 rustls = "0.21.6"
 rustls-pemfile = "1.0.1"

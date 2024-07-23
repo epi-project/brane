@@ -9,7 +9,7 @@ rust-version = "1.67.1"
 async-compression = { version = "0.3.15", features = ["tokio","gzip"] }
 console = "0.15.5"
 dialoguer = { version = "0.10.0", features = ["completion", "history"] }
-enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
+enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
 fs2 = "0.4.0"
 futures-util = "0.3.30"
 hex = "0.4.3"

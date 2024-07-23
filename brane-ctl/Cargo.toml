@@ -20,8 +20,8 @@ diesel_migrations = "2.1.0"
 dirs-2 = "3.0.0"
 dotenvy = "0.15.0"
 eflint-to-json = { git = "https://github.com/epi-project/policy-reasoner" }
-enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
-error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
+enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
+error-trace = { git = "https://github.com/Lut99/error-trace-rs", tag = "v2.0.0" }
 # env_logger = "0.10"
 hex-literal = "0.4.0"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.1.0" }

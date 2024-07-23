@@ -21,8 +21,8 @@ console = "0.15.5"
 dialoguer = "0.10.0"
 dirs-2 = "3.0.1"
 dotenvy = "0.15.0"
-enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
-error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
+enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
+error-trace = { git = "https://github.com/Lut99/error-trace-rs", tag = "v2.0.0" }
 filetime = "0.2.15"
 flate2 = { version = "1.0.13", features = ["zlib"], default-features = false }
 fs_extra = "1.2.0"

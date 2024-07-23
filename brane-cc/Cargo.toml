@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4.4.0", features = ["derive","env"] }
 dotenvy = "0.15.0"
-enum-debug = { git = "https://github.com/Lut99/enum-debug", features = ["derive"] }
+enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
 humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.1.0" }
 human-panic = "1.0.0"
 log = "0.4.21"
