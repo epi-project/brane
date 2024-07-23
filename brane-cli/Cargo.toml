@@ -83,6 +83,6 @@ features = ["vendored"]
 print_exec_path = [ "brane-exe/print_exec_path" ]
 
 [[bin]]
-name = "completions"
+name = "brane-completions"
 path = "src/completions.rs"
 doc = false
