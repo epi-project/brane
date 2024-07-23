@@ -16,7 +16,7 @@ async-trait = "0.1.67"
 base64 = "0.21.0"
 bollard = "0.14.0"
 chrono = "0.4.35"
-clap = { version = "4.4.0", features = ["derive","env"] }
+clap = { version = "4.5.6", features = ["derive","env"] }
 console = "0.15.5"
 dialoguer = "0.10.0"
 dirs-2 = "3.0.1"
@@ -70,6 +70,7 @@ brane-oas = { path = "../brane-oas" }
 brane-shr = { path = "../brane-shr" }
 brane-tsk = { path = "../brane-tsk" }
 specifications = { path = "../specifications" }
+clap_complete = "4.5.8"
 
 
 # Hacky indeed but necessary to dodge OpenSSL linking, which we need to make cross-compilation _so_ much easier
@@ -80,3 +81,8 @@ features = ["vendored"]
 
 [features]
 print_exec_path = [ "brane-exe/print_exec_path" ]
+
+[[bin]]
+name = "brane-completions"
+path = "src/completions.rs"
+doc = false
