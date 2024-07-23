@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 base64ct = "1.6.0"
 bollard = "0.14.0"
-clap = { version = "4.4.0", features = ["derive","env"] }
+clap = { version = "4.5.6", features = ["derive","env"] }
 console = "0.15.5"
 dialoguer = "0.11.0"
 diesel = { version = "2.1.0", features = ["sqlite"] }
@@ -58,7 +58,7 @@ features = ["vendored"]
 [build-dependencies]
 download = { git = "https://github.com/Lut99/download-rs", default-features = false, features = ["download"] }
 hex-literal = "0.4.0"
-clap = { version = "4.4.0", features = ["derive","env"] }
+clap = { version = "4.5.6", features = ["derive","env"] }
 
 [lints.clippy]
 result_large_err = { level = "allow", priority = 1 }
