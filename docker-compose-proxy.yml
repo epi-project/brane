@@ -22,6 +22,8 @@ services:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${PROXY}:${PROXY}
     - ${CERTS}:${CERTS}
+    extra_hosts:
+    - host.docker.internal:host-gateway
 
 networks:
   default:

@@ -23,6 +23,8 @@ services:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${PROXY:-}:${PROXY:-}
     - ${CERTS}:${CERTS}
+    extra_hosts:
+    - host.docker.internal:host-gateway
 
   # The service in charge of policy
   brane-chk:
@@ -40,6 +42,8 @@ services:
     - ${POLICY_DB}:/data/policy.db
     - ${POLICY_DELIBERATION_SECRET}:/examples/config/jwk_set_delib.json
     - ${POLICY_EXPERT_SECRET}:/examples/config/jwk_set_expert.json
+    extra_hosts:
+    - host.docker.internal:host-gateway
 
   # The service in charge of the local container- and data registry
   brane-reg:
@@ -56,6 +60,8 @@ services:
     - ${POLICY_DELIBERATION_SECRET}:${POLICY_DELIBERATION_SECRET}
     - ${DATA}:${DATA}
     - ${RESULTS}:${RESULTS}
+    extra_hosts:
+    - host.docker.internal:host-gateway
 
   # The service that is the 'main' service on the worker.
   brane-job:
@@ -76,6 +82,8 @@ services:
     - ${TEMP_DATA}:${TEMP_DATA}
     - ${TEMP_RESULTS}:${TEMP_RESULTS}
     - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+    - host.docker.internal:host-gateway
 
 networks:
   default:
