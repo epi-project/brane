@@ -72,8 +72,8 @@ RUN mkdir -p /policy-reasoner/data && touch /policy-reasoner/data/policy.db
 WORKDIR /policy-reasoner
 RUN --mount=type=cache,id=cargoidx,target=/usr/local/cargo/registry \
     --mount=type=cache,id=reasonercache,target=/policy-reasoner/target \
-    cargo build --release --features brane-api-resolver \
- && cp ./target/release/policy-reasoner /brane-chk
+    cargo build --release --bin eflint --features brane-api-resolver \
+ && cp ./target/release/eflint /brane-chk
 
 # If ever run, run a shell
 WORKDIR /
