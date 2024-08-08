@@ -5,7 +5,7 @@
 # Created:
 #   09 Jun 2022, 12:20:28
 # Last edited:
-#   26 Jun 2024, 16:06:10
+#   08 Aug 2024, 14:17:26
 # Auto updated?
 #   Yes
 #
@@ -257,6 +257,7 @@ def resolve_args(text: str, args: argparse.Namespace) -> str:
         .replace("$RUST_ARCH", args.arch.to_rust()) \
         .replace("$DOCKER_ARCH", args.arch.to_docker()) \
         .replace("$JUICEFS_ARCH", args.arch.to_juicefs()) \
+        .replace("$REASONER", args.reasoner) \
         .replace("$CWD", os.getcwd())
 
 def cache_outdated(args: argparse.Namespace, file: str, is_src: bool) -> bool:
@@ -3432,6 +3433,10 @@ targets = {
 
 # Generate some really repetitive entries
 for svc in CENTRAL_SERVICES + WORKER_SERVICES:
+    # Define the build arguments for the release image
+    rls_args = {}
+    dev_args = { "ARCH": "$ARCH" }
+
     # Generate the service binary targets for those that support it
     if svc != "chk":
         targets[f"{svc}-binary-dev"] = CrateTarget(f"{svc}-binary-dev",
@@ -3449,16 +3454,20 @@ for svc in CENTRAL_SERVICES + WORKER_SERVICES:
             dep=f"{svc}-binary-dev",
             description=f"Installs the brane-{svc} debug binary to a separate location in the repo where Docker may access it."
         )
+    else:
+        # Add the additional build argument to select the reasoner
+        rls_args["REASONER"] = "$REASONER"
+        dev_args["REASONER"] = "$REASONER"
 
     # Generate the service image build target
     targets[f"{svc}-image"] = EitherTarget(f"{svc}-image",
         "dev", {
             False : ImageTarget(f"{svc}-image-release",
-                "./Dockerfile.rls", f"./target/release/brane-{svc}.tar", target=f"brane-{svc}",
+                "./Dockerfile.rls", f"./target/release/brane-{svc}.tar", target=f"brane-{svc}", build_args=rls_args,
                 srcs=typing.cast(typing.List[str], instance_srcs[svc]) if svc != "chk" else [],
             ),
             True  : ImageTarget(f"{svc}-image-debug",
-                "./Dockerfile.dev", f"./target/debug/brane-{svc}.tar", target=f"brane-{svc}", build_args={ "ARCH": "$ARCH" },
+                "./Dockerfile.dev", f"./target/debug/brane-{svc}.tar", target=f"brane-{svc}", build_args=dev_args,
                 srcs_deps={ f"install-{svc}-binary-dev": [f"./.container-bins/$ARCH/brane-{svc}"] },
                 deps=[f"install-{svc}-binary-dev"],
             ),
@@ -3810,6 +3819,7 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--os", help=f"Determines the OS for which to compile. Only relevant for the Brane-CLI. By default, will be the host's OS (host OS: '{Os.host()}')")
     parser.add_argument("-a", "--arch", help=f"The target architecture for which to compile. By default, will be the host's architecture (host architecture: '{Arch.host()}')")
     parser.add_argument("-c", "--cache", default="./target/make_cache", help="The location of the cache location for file hashes and such.")
+    parser.add_argument("-R", "--reasoner", default="eflint", help="Selects the reasoning backend for the `brane-chk` image if that's being build.")
 
     # Resolve arguments
     args = parser.parse_args()
