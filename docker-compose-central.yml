@@ -32,6 +32,8 @@ services:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${PROXY:-}:${PROXY:-}
     - ${CERTS}:${CERTS}
+    extra_hosts:
+    - host.docker.internal:host-gateway
 
   # The service in charge of package registry, downloading, uploading, etc
   brane-api:
@@ -53,6 +55,8 @@ services:
     labels:
     - kompose.service.type=nodeport
     - kompose.service.nodeport.port=50051
+    extra_hosts:
+    - host.docker.internal:host-gateway
 
   # The service that accepts client connections and executes workflow control flow
   brane-drv:
@@ -71,6 +75,8 @@ services:
     labels:
     - kompose.service.type=nodeport
     - kompose.service.nodeport.port=50053
+    extra_hosts:
+    - host.docker.internal:host-gateway
 
   # # The service logging everything
   # brane-log:
@@ -97,6 +103,8 @@ services:
     volumes:
     - ${NODE_CONFIG_PATH}:/node.yml
     - ${INFRA}:${INFRA}
+    extra_hosts:
+    - host.docker.internal:host-gateway
 
 networks:
   default:
