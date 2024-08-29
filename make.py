@@ -1927,14 +1927,15 @@ class ShellCommand(Command):
         Command that runs some shell script.
     """
 
-    _exec        : str
-    _args        : typing.List[str]
-    _cwd         : str | None
-    _env         : dict[str, str | None]
-    _description : str | None
+    _exec             : str
+    _args             : typing.List[str]
+    _cwd              : str | None
+    _env              : dict[str, str | None]
+    _description      : str | None
+    _ignore_exit_code : bool
 
     
-    def __init__(self, exec: str, *args: str, cwd: str | None = None, env: dict[str, str | None] = {}, description: str | None = None) -> None:
+    def __init__(self, exec: str, *args: str, cwd: str | None = None, env: dict[str, str | None] = {}, description: str | None = None, ignore_exit_code = False) -> None:
         """
             Constructor for the Command class.
 
@@ -1950,11 +1951,12 @@ class ShellCommand(Command):
         Command.__init__(self)
 
         # Populate ourselves, ez
-        self._exec        = exec
-        self._args        = list(args)
-        self._cwd         = cwd
-        self._env         = env
-        self._description = description
+        self._exec            = exec
+        self._args            = list(args)
+        self._cwd             = cwd
+        self._env             = env
+        self._description     = description
+        self.ignore_exit_code = ignore_exit_code
 
     def serialize(self, args: argparse.Namespace) -> str:
         """
@@ -2070,7 +2072,7 @@ class ShellCommand(Command):
         if not args.dry_run:
             handle = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, env=env, cwd=cwd)
             handle.wait()
-            return handle.returncode
+            return handle.returncode if not self.ignore_exit_code else 0
         else:
             return 0
 
@@ -2922,6 +2924,32 @@ class CrateTarget(Target):
         # Done
         return [ cmd ]
 
+class BuilderTarget(Target):
+    """
+        Target that creates a docker buildx builder
+    """
+
+    def __init__(self, name: str, deps: typing.List[str] = [], description: str = ""):
+        """
+            Constructor for the ImageTarget.
+
+            Arguments:
+            - `name`: The name of the target. Only used within this script to reference it later.
+            - `deps`: A list of dependencies for the Target. If any of these strong dependencies needs to be recompiled _any_ incurred changes, then this Target will be rebuild as well.
+            - `description`: If a non-empty string, then it's a description of the target s.t. it shows up in the list of all Targets.
+        """
+
+        # Set the super fields
+        super().__init__(name, [], [], [], deps, description)
+
+    def _cmds(self, args: argparse.Namespace) -> typing.List[Command]:
+        """
+            Returns the commands to run to build the builder
+        """
+        create_builder = ShellCommand("docker", "buildx", "create", "--driver", "docker-container", "--name", "brane-builder", ignore_exit_code = True)
+
+        return [ create_builder ]
+
 class ImageTarget(Target):
     """
         Target that builds an image according to a Dockerfile.
@@ -2976,7 +3004,7 @@ class ImageTarget(Target):
         mkdir = MakeDirCommand(os.path.dirname(destination))
 
         # Construct the build command
-        build = ShellCommand("docker", "buildx", "build", "--output", f"type=docker,dest={destination}", "-f", self._dockerfile)
+        build = ShellCommand("docker", "buildx", "build", "--output", f"type=docker,dest={destination}", "-f", self._dockerfile, "--builder", "brane-builder")
         if args.arch.is_given(): build.add("--platform", args.arch.to_docker())
         if self._target is not None: build.add("--target", self._target)
         for (name, value) in self._build_args.items():
@@ -3294,9 +3322,9 @@ targets = {
         deps=[ "test-units", "test-clippy", "test-security" ],
         description="Runs tests on the project by running both the unit tests and the clippy linter.",
     ),
-
-
-
+    "create-builder": BuilderTarget("build-target",
+        description="Creates the docker buildx builder needed to build a lot of the images",
+    ),
     "build-image" : ImageTarget("build-image",
         "./contrib/images/Dockerfile.build", "./target/debug/build.tar",
         description="Builds the image that can be used to build Brane targets in-container.",
@@ -3454,13 +3482,15 @@ for svc in CENTRAL_SERVICES + WORKER_SERVICES:
     targets[f"{svc}-image"] = EitherTarget(f"{svc}-image",
         "dev", {
             False : ImageTarget(f"{svc}-image-release",
-                "./Dockerfile.rls", f"./target/release/brane-{svc}.tar", target=f"brane-{svc}",
+                "./Dockerfile.rls", f"./target/release/brane-{svc}.tar",
+                target=f"brane-{svc}",
+                deps = ["create-builder"],
                 srcs=typing.cast(typing.List[str], instance_srcs[svc]) if svc != "chk" else [],
             ),
             True  : ImageTarget(f"{svc}-image-debug",
                 "./Dockerfile.dev", f"./target/debug/brane-{svc}.tar", target=f"brane-{svc}", build_args={ "ARCH": "$ARCH" },
                 srcs_deps={ f"install-{svc}-binary-dev": [f"./.container-bins/$ARCH/brane-{svc}"] },
-                deps=[f"install-{svc}-binary-dev"],
+                deps=["create-builder", f"install-{svc}-binary-dev"],
             ),
         },
         description=f"Builds the container image for the brane-{svc} service to a .tar file. Depending on whether '--dev' is given, it either builds a full release image or a development-optimised debug image (that copies the executable from the './.container-bins' folder instead of building it in-container). The development-optimised image prevents having to rebuild every time, but also creates much larger images."
