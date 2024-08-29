@@ -236,14 +236,7 @@ async fn main() {
             }
         },
         CtlSubcommand::Logs { exe, file } => {
-            if let Err(err) = lifetime::logs(
-                exe,
-                file,
-                args.node_config,
-                LogsOpts { compose_verbose: args.debug || args.trace },
-            )
-            .await
-            {
+            if let Err(err) = lifetime::logs(exe, file, args.node_config, LogsOpts { compose_verbose: args.debug || args.trace }).await {
                 error!("{}", err.trace());
                 std::process::exit(1);
             }

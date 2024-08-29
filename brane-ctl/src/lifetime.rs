@@ -677,7 +677,7 @@ fn construct_envs(version: &Version, node_config_path: &Path, node_config: &Node
 // TODO: Maybe wrap the (extra) arguments as value in the command
 enum DockerComposeCommand {
     Up,
-    Logs
+    Logs,
 }
 
 impl DockerComposeCommand {
@@ -845,7 +845,15 @@ pub async fn start(
             let envs: HashMap<&str, OsString> = construct_envs(&opts.version, &node_config_path, &node_config)?;
 
             // Launch the docker-compose command
-            run_compose(opts.compose_verbose, resolve_exe(exe)?, DockerComposeCommand::Up, resolve_node(file, "central"), &node_config.namespace, overridefile, envs)?;
+            run_compose(
+                opts.compose_verbose,
+                resolve_exe(exe)?,
+                DockerComposeCommand::Up,
+                resolve_node(file, "central"),
+                &node_config.namespace,
+                overridefile,
+                envs,
+            )?;
         },
 
         StartSubcommand::Worker { brane_prx, brane_chk, brane_reg, brane_job } => {
@@ -885,7 +893,15 @@ pub async fn start(
             let envs: HashMap<&str, OsString> = construct_envs(&opts.version, &node_config_path, &node_config)?;
 
             // Launch the docker-compose command
-            run_compose(opts.compose_verbose, resolve_exe(exe)?, DockerComposeCommand::Up, resolve_node(file, "worker"), &node_config.namespace, overridefile, envs)?;
+            run_compose(
+                opts.compose_verbose,
+                resolve_exe(exe)?,
+                DockerComposeCommand::Up,
+                resolve_node(file, "worker"),
+                &node_config.namespace,
+                overridefile,
+                envs,
+            )?;
         },
 
         StartSubcommand::Proxy { brane_prx } => {
@@ -915,7 +931,15 @@ pub async fn start(
             let envs: HashMap<&str, OsString> = construct_envs(&opts.version, &node_config_path, &node_config)?;
 
             // Launch the docker-compose command
-            run_compose(opts.compose_verbose, resolve_exe(exe)?, DockerComposeCommand::Up, resolve_node(file, "proxy"), &node_config.namespace, overridefile, envs)?;
+            run_compose(
+                opts.compose_verbose,
+                resolve_exe(exe)?,
+                DockerComposeCommand::Up,
+                resolve_node(file, "proxy"),
+                &node_config.namespace,
+                overridefile,
+                envs,
+            )?;
         },
     }
 
@@ -1011,12 +1035,7 @@ pub fn stop(compose_verbose: bool, exe: impl AsRef<str>, file: Option<PathBuf>, 
     Ok(())
 }
 
-pub async fn logs(
-    exe: impl AsRef<str>,
-    file: Option<PathBuf>,
-    node_config_path: impl Into<PathBuf>,
-    opts: LogsOpts,
-) -> Result<(), Error> {
+pub async fn logs(exe: impl AsRef<str>, file: Option<PathBuf>, node_config_path: impl Into<PathBuf>, opts: LogsOpts) -> Result<(), Error> {
     let exe: &str = exe.as_ref();
     let node_config_path: PathBuf = node_config_path.into();
     info!(
@@ -1044,7 +1063,15 @@ pub async fn logs(
     let envs: HashMap<&str, OsString> = construct_envs(&version, &node_config_path, &node_config)?;
 
     // Launch the docker-compose command
-    run_compose(opts.compose_verbose, resolve_exe(exe)?, DockerComposeCommand::Logs, resolve_node(file, "$NODE"), &node_config.namespace, None, envs)?;
+    run_compose(
+        opts.compose_verbose,
+        resolve_exe(exe)?,
+        DockerComposeCommand::Logs,
+        resolve_node(file, "$NODE"),
+        &node_config.namespace,
+        None,
+        envs,
+    )?;
 
     Ok(())
 }
