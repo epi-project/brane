@@ -219,7 +219,7 @@ pub enum BuildError {
     /// Command to compress the working directory returned a non-zero exit code
     WdCompressionError { command: String, code: i32, stdout: String, stderr: String },
     /// Failed to ask the user for consent.
-    WdConfirmationError { err: std::io::Error },
+    WdConfirmationError { err: dialoguer::Error },
 
     /// Could not serialize the OPenAPI file
     OpenAPISerializeError { err: serde_yaml::Error },
@@ -507,7 +507,7 @@ pub enum CertsError {
     /// No domain name found in the certificates.
     NoDomainName,
     /// Failed to ask the user for confirmation.
-    ConfirmationError { err: std::io::Error },
+    ConfirmationError { err: dialoguer::Error },
     /// The given certs directory existed but was not a directory.
     CertsDirNotADir { path: PathBuf },
     /// Failed to remove the certificates directory.
@@ -763,7 +763,7 @@ pub enum DataError {
     /// Failed to create the remote data index.
     RemoteDataIndexError { address: String, err: brane_tsk::errors::ApiError },
     /// Failed to select the download location in case there are multiple.
-    DataSelectError { err: std::io::Error },
+    DataSelectError { err: dialoguer::Error },
     /// We encountered a location we did not know
     UnknownLocation { name: String },
 
@@ -775,7 +775,7 @@ pub enum DataError {
     // /// Failed to ensure the directory of the given dataset.
     // DatasetDirError{ err: UtilError },
     /// Failed to ask the user for consent before removing the dataset.
-    ConfirmationError { err: std::io::Error },
+    ConfirmationError { err: dialoguer::Error },
     /// Failed to remove the dataset's directory
     RemoveError { path: PathBuf, err: std::io::Error },
 }
@@ -988,7 +988,7 @@ pub enum InstanceError {
     InstanceNotAliveError { address: String, code: StatusCode, err: Option<String> },
 
     /// Failed to ask the user for confirmation.
-    ConfirmationError { err: std::io::Error },
+    ConfirmationError { err: dialoguer::Error },
 
     /// Failed to get the instances directory.
     InstancesDirError { err: UtilError },
@@ -1126,7 +1126,7 @@ pub enum PackageError {
     /// Failed to resolve a specific package
     PackageError { name: String, err: UtilError },
     /// Failed to ask for the user's consent
-    ConsentError { err: std::io::Error },
+    ConsentError { err: dialoguer::Error },
     /// Failed to remove a package directory
     PackageRemoveError { name: String, version: Version, dir: PathBuf, err: std::io::Error },
     /// Failed to get the versions of a package
