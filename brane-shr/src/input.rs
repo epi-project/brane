@@ -33,11 +33,11 @@ use log::warn;
 #[derive(Debug)]
 pub enum Error {
     /// Failed to run a confirm prompt
-    Confirm { err: std::io::Error },
+    Confirm { err: dialoguer::Error },
     /// Failed to run a select prompt
-    Select { n_opts: usize, err: std::io::Error },
+    Select { n_opts: usize, err: dialoguer::Error },
     /// Failed to run a text prompt
-    Text { err: std::io::Error },
+    Text { err: dialoguer::Error },
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -283,9 +283,9 @@ pub fn confirm(prompt: impl ToString, default: Option<bool>) -> Result<bool, Err
     // Construct the prompt
     let theme: ColorfulTheme = ColorfulTheme::default();
     let mut confirm: Confirm = Confirm::with_theme(&theme);
-    confirm.with_prompt(prompt.to_string());
+    confirm = confirm.with_prompt(prompt.to_string());
     if let Some(default) = default {
-        confirm.default(default);
+        confirm = confirm.default(default);
     }
 
     // Run the prompt
@@ -332,12 +332,12 @@ where
     loop {
         // Construct the prompt
         let mut input: Input<String> = Input::with_theme(&theme);
-        input.with_prompt(&prompt);
+        input = input.with_prompt(&prompt);
         if let Some(default) = &default {
-            input.default(default.to_string());
+            input = input.default(default.to_string());
         }
         if let Some(history) = &mut history {
-            input.history_with(history);
+            input = input.history_with(history);
         }
 
         // Run the prompt
@@ -379,12 +379,12 @@ pub fn input_path(prompt: impl ToString, default: Option<impl Into<PathBuf>>, mu
     // Construct the prompt
     let theme: ColorfulTheme = ColorfulTheme::default();
     let mut input: Input<String> = Input::with_theme(&theme);
-    input.with_prompt(prompt.to_string()).completion_with(&FileAutocompleter);
+    input = input.with_prompt(prompt.to_string()).completion_with(&FileAutocompleter);
     if let Some(default) = default {
-        input.default(default.into().to_string_lossy().into());
+        input = input.default(default.into().to_string_lossy().into());
     }
     if let Some(history) = &mut history {
-        input.history_with(history);
+        input = input.history_with(history);
     }
 
     // Run the prompt
@@ -436,9 +436,9 @@ where
     loop {
         // Construct the prompt
         let mut input: Input<String> = Input::with_theme(&theme);
-        input.with_prompt(prompt.replace("%I", &(map.len() + 1).to_string())).allow_empty(true);
+        input = input.with_prompt(prompt.replace("%I", &(map.len() + 1).to_string())).allow_empty(true);
         if let Some(history) = &mut history {
-            input.history_with(history);
+            input = input.history_with(history);
         }
 
         // Interact with it
@@ -508,7 +508,7 @@ pub fn select<S: ToString>(prompt: impl ToString, options: impl IntoIterator<Ite
     // Construct the prompt
     let theme: ColorfulTheme = ColorfulTheme::default();
     let mut input: Select = Select::with_theme(&theme);
-    input.with_prompt(prompt.to_string()).default(default.unwrap_or(0)).items(&options).report(true);
+    input = input.with_prompt(prompt.to_string()).default(default.unwrap_or(0)).items(&options).report(true);
 
     // Run it
     match input.interact() {

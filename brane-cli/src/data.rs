@@ -456,7 +456,7 @@ pub async fn download(names: Vec<String>, locs: Vec<String>, proxy_addr: &Option
                     let colorful = ColorfulTheme::default();
                     let items: Vec<&String> = info.access.keys().collect();
                     let mut prompt = Select::with_theme(&colorful);
-                    prompt.items(&items).with_prompt("Select download location").default(0usize);
+                    prompt = prompt.items(&items).with_prompt("Select download location").default(0usize);
 
                     // Ask the user
                     match prompt.interact_on_opt(&Term::stderr()) {
