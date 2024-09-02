@@ -129,6 +129,15 @@ pub(crate) enum CtlSubcommand {
         #[clap(short, long, help = concat!("The docker-compose.yml file that defines the services to stop. You can use '$NODE' to match either 'central' or 'worker', depending how we started. If omitted, will use the baked-in counterpart (although that only works for the default version, v", env!("CARGO_PKG_VERSION"), ")."))]
         file: Option<PathBuf>,
     },
+    #[clap(name = "logs", about = "Show the logs for the specficied node")]
+    Logs {
+        /// The docker-compose command we run.
+        #[clap(short, long, default_value = "docker compose", help = "The command to use to run Docker Compose.")]
+        exe:  String,
+        /// The docker-compose file that we start.
+        #[clap(short, long, help = concat!("The docker-compose.yml file that defines the services to log. You can use '$NODE' to match either 'central' or 'worker', depending how we started. If omitted, will use the baked-in counterpart (although that only works for the default version, v", env!("CARGO_PKG_VERSION"), ")."))]
+        file: Option<PathBuf>,
+    },
 
     #[clap(name = "version", about = "Returns the version of this CTL tool and/or the local node.")]
     Version {

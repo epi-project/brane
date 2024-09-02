@@ -40,7 +40,7 @@ use specifications::container::Image;
 use specifications::version::Version;
 
 pub use crate::errors::LifetimeError as Error;
-use crate::spec::{StartOpts, StartSubcommand};
+use crate::spec::{LogsOpts, StartOpts, StartSubcommand};
 
 
 /***** HELPER STRUCTS *****/
@@ -674,6 +674,21 @@ fn construct_envs(version: &Version, node_config_path: &Path, node_config: &Node
     Ok(res)
 }
 
+// TODO: Maybe wrap the (extra) arguments as value in the command
+enum DockerComposeCommand {
+    Up,
+    Logs,
+}
+
+impl DockerComposeCommand {
+    fn to_args(&self) -> Vec<&'static str> {
+        match self {
+            DockerComposeCommand::Up => vec!["up", "-d"],
+            DockerComposeCommand::Logs => vec!["logs", "-f"],
+        }
+    }
+}
+
 /// Runs Docker compose on the given Docker file.
 ///
 /// # Arguments
@@ -693,6 +708,7 @@ fn construct_envs(version: &Version, node_config_path: &Path, node_config: &Node
 fn run_compose(
     compose_verbose: bool,
     exe: (String, Vec<String>),
+    command: DockerComposeCommand,
     file: impl AsRef<Path>,
     project: impl AsRef<str>,
     overridefile: Option<PathBuf>,
@@ -713,7 +729,7 @@ fn run_compose(
         cmd.arg("-f");
         cmd.arg(overridefile);
     }
-    cmd.args(["up", "-d"]);
+    cmd.args(command.to_args());
     cmd.envs(envs);
     cmd.stdin(Stdio::inherit());
     cmd.stdout(Stdio::inherit());
@@ -829,7 +845,15 @@ pub async fn start(
             let envs: HashMap<&str, OsString> = construct_envs(&opts.version, &node_config_path, &node_config)?;
 
             // Launch the docker-compose command
-            run_compose(opts.compose_verbose, resolve_exe(exe)?, resolve_node(file, "central"), &node_config.namespace, overridefile, envs)?;
+            run_compose(
+                opts.compose_verbose,
+                resolve_exe(exe)?,
+                DockerComposeCommand::Up,
+                resolve_node(file, "central"),
+                &node_config.namespace,
+                overridefile,
+                envs,
+            )?;
         },
 
         StartSubcommand::Worker { brane_prx, brane_chk, brane_reg, brane_job } => {
@@ -869,7 +893,15 @@ pub async fn start(
             let envs: HashMap<&str, OsString> = construct_envs(&opts.version, &node_config_path, &node_config)?;
 
             // Launch the docker-compose command
-            run_compose(opts.compose_verbose, resolve_exe(exe)?, resolve_node(file, "worker"), &node_config.namespace, overridefile, envs)?;
+            run_compose(
+                opts.compose_verbose,
+                resolve_exe(exe)?,
+                DockerComposeCommand::Up,
+                resolve_node(file, "worker"),
+                &node_config.namespace,
+                overridefile,
+                envs,
+            )?;
         },
 
         StartSubcommand::Proxy { brane_prx } => {
@@ -899,7 +931,15 @@ pub async fn start(
             let envs: HashMap<&str, OsString> = construct_envs(&opts.version, &node_config_path, &node_config)?;
 
             // Launch the docker-compose command
-            run_compose(opts.compose_verbose, resolve_exe(exe)?, resolve_node(file, "proxy"), &node_config.namespace, overridefile, envs)?;
+            run_compose(
+                opts.compose_verbose,
+                resolve_exe(exe)?,
+                DockerComposeCommand::Up,
+                resolve_node(file, "proxy"),
+                &node_config.namespace,
+                overridefile,
+                envs,
+            )?;
         },
     }
 
@@ -992,5 +1032,46 @@ pub fn stop(compose_verbose: bool, exe: impl AsRef<str>, file: Option<PathBuf>, 
     }
 
     // Done
+    Ok(())
+}
+
+pub async fn logs(exe: impl AsRef<str>, file: Option<PathBuf>, node_config_path: impl Into<PathBuf>, opts: LogsOpts) -> Result<(), Error> {
+    let exe: &str = exe.as_ref();
+    let node_config_path: PathBuf = node_config_path.into();
+    info!(
+        "Showing logs for node from Docker compose file '{}', defined in '{}'",
+        file.as_ref().map(|f| f.display().to_string()).unwrap_or_else(|| "<baked-in>".into()),
+        node_config_path.display()
+    );
+
+    // Start by loading the node config file
+    debug!("Loading node config file '{}'...", node_config_path.display());
+    let node_config: NodeConfig = match NodeConfig::from_path(&node_config_path) {
+        Ok(config) => config,
+        Err(err) => {
+            return Err(Error::NodeConfigLoadError { err });
+        },
+    };
+
+    let version = Version::from_str(env!("CARGO_PKG_VERSION")).unwrap();
+
+    // Resolve the Docker Compose file
+    debug!("Resolving Docker Compose file...");
+    let file: PathBuf = resolve_docker_compose_file(file, node_config.node.kind(), version)?;
+
+    // Construct the environment variables
+    let envs: HashMap<&str, OsString> = construct_envs(&version, &node_config_path, &node_config)?;
+
+    // Launch the docker-compose command
+    run_compose(
+        opts.compose_verbose,
+        resolve_exe(exe)?,
+        DockerComposeCommand::Logs,
+        resolve_node(file, "$NODE"),
+        &node_config.namespace,
+        None,
+        envs,
+    )?;
+
     Ok(())
 }

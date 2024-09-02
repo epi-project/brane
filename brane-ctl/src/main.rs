@@ -14,7 +14,7 @@
 
 
 use brane_cfg::proxy::ForwardConfig;
-use brane_ctl::spec::StartOpts;
+use brane_ctl::spec::{LogsOpts, StartOpts};
 use brane_ctl::{download, generate, lifetime, packages, policies, unpack, upgrade, wizard};
 use brane_tsk::docker::DockerOptions;
 use dotenvy::dotenv;
@@ -231,6 +231,12 @@ async fn main() {
         },
         CtlSubcommand::Stop { exe, file } => {
             if let Err(err) = lifetime::stop(args.debug || args.trace, exe, file, args.node_config) {
+                error!("{}", err.trace());
+                std::process::exit(1);
+            }
+        },
+        CtlSubcommand::Logs { exe, file } => {
+            if let Err(err) = lifetime::logs(exe, file, args.node_config, LogsOpts { compose_verbose: args.debug || args.trace }).await {
                 error!("{}", err.trace());
                 std::process::exit(1);
             }
