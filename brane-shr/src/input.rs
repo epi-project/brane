@@ -306,6 +306,7 @@ pub fn confirm(prompt: impl ToString, default: Option<bool>) -> Result<bool, Err
 /// - `what`: Some string description to show to the user that tells them what kind of thing they are inputting. Should fill in: `Invalid ...`. Only used in the case they fail the first time.
 /// - `prompt`: The prompt to display to the user.
 /// - `default`: Any default value to give, or else [`None`].
+/// - `validator`: A validator that implements the [`dialoguer::InputValidator`] trait, or None if it is not possible. You can use the [`NoValidator`] concrete type when using no validator like so `None::<NoValidator>`
 /// - `history`: An optional [`History`]-capabable struct that can be used to keep track of this prompt's history.
 ///
 /// # Returns
@@ -313,15 +314,18 @@ pub fn confirm(prompt: impl ToString, default: Option<bool>) -> Result<bool, Err
 ///
 /// # Errors
 /// This function errors if we failed to interact with the user.
-pub fn input<S>(
+pub fn input<S, VA>(
     what: impl Display,
     prompt: impl ToString,
     default: Option<impl Into<S>>,
+    validator: Option<VA>,
     mut history: Option<impl History<String>>,
 ) -> Result<S, Error>
 where
     S: FromStr + ToString,
     S::Err: error::Error,
+    VA: dialoguer::InputValidator<String>,
+    VA::Err: ToString,
 {
     // Preprocess the input
     let mut prompt: String = prompt.to_string();
@@ -329,17 +333,22 @@ where
 
     // Loop until the user enters a valid value.
     let theme: ColorfulTheme = ColorfulTheme::default();
-    loop {
-        // Construct the prompt
-        let mut input: Input<String> = Input::with_theme(&theme);
-        input = input.with_prompt(&prompt);
-        if let Some(default) = &default {
-            input = input.default(default.to_string());
-        }
-        if let Some(history) = &mut history {
-            input = input.history_with(history);
-        }
 
+    // Construct the prompt
+    let mut input: Input<String> = Input::with_theme(&theme);
+    if let Some(default) = &default {
+        input = input.default(default.to_string());
+    }
+    if let Some(history) = &mut history {
+        input = input.history_with(history);
+    }
+
+    if let Some(validator) = validator {
+        input = input.validate_with(validator);
+    }
+
+    loop {
+        let input = input.clone().with_prompt(&prompt);
         // Run the prompt
         let res: String = match input.interact_text() {
             Ok(res) => res,
@@ -380,6 +389,7 @@ pub fn input_path(prompt: impl ToString, default: Option<impl Into<PathBuf>>, mu
     let theme: ColorfulTheme = ColorfulTheme::default();
     let mut input: Input<String> = Input::with_theme(&theme);
     input = input.with_prompt(prompt.to_string()).completion_with(&FileAutocompleter);
+    input = input.validate_with(|path_str: &String| PathBuf::from_str(path_str).map(|_| ()).map_err(|_| String::from("Input is not a valid path")));
     if let Some(default) = default {
         input = input.default(default.into().to_string_lossy().into());
     }
@@ -404,6 +414,7 @@ pub fn input_path(prompt: impl ToString, default: Option<impl Into<PathBuf>>, mu
 /// - `prompt`: The prompt to display to the user. You can use `%I` to get the current prompt index.
 /// - `second_prompt`: Another prompt to show for entries beyond the first. You can use `%I` to get the current prompt index.
 /// - `split`: The split sequence between keys and values.
+/// - `validator`: A validator that implements the [`dialoguer::InputValidator`] trait, or None if it is not possible. You can use the [`NoValidator`] concrete type when using no validator like so `None::<NoValidator>`
 /// - `history`: An optional [`History`]-capabable struct that can be used to keep track of this prompt's history.
 ///
 /// # Returns
@@ -411,12 +422,13 @@ pub fn input_path(prompt: impl ToString, default: Option<impl Into<PathBuf>>, mu
 ///
 /// # Errors
 /// This function errors if we failed to interact with the user.
-pub fn input_map<K, V>(
+pub fn input_map<K, V, VA>(
     key_what: impl Display,
     val_what: impl Display,
     prompt: impl ToString,
     second_prompt: impl ToString,
     split: impl AsRef<str>,
+    validator: Option<VA>,
     mut history: Option<impl History<String>>,
 ) -> Result<HashMap<K, V>, Error>
 where
@@ -424,6 +436,8 @@ where
     V: FromStr,
     K::Err: error::Error,
     V::Err: error::Error,
+    VA: dialoguer::InputValidator<String>,
+    VA::Err: ToString,
 {
     // Do some preprocessing
     let theme: ColorfulTheme = ColorfulTheme::default();
@@ -433,14 +447,19 @@ where
 
     // Now query as long as the user wants to
     let mut map: HashMap<K, V> = HashMap::new();
-    loop {
-        // Construct the prompt
-        let mut input: Input<String> = Input::with_theme(&theme);
-        input = input.with_prompt(prompt.replace("%I", &(map.len() + 1).to_string())).allow_empty(true);
-        if let Some(history) = &mut history {
-            input = input.history_with(history);
-        }
 
+    // Construct the prompt
+    let mut input: Input<String> = Input::with_theme(&theme);
+    if let Some(history) = &mut history {
+        input = input.history_with(history);
+    }
+
+    if let Some(validator) = validator {
+        input = input.validate_with(validator);
+    }
+
+    loop {
+        let input = input.clone().with_prompt(prompt.replace("%I", &(map.len() + 1).to_string())).allow_empty(true);
         // Interact with it
         let entry: String = match input.interact_text() {
             Ok(entry) => entry,

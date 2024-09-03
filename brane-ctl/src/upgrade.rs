@@ -330,6 +330,7 @@ pub fn node(path: impl Into<PathBuf>, dry_run: bool, overwrite: bool, version: V
             "hostname",
             "Enter the hostname for this node (used to supplement v1.0.0 and older configs)",
             None::<&str>,
+            Some(|hostname_str: &String| (!hostname_str.is_empty()).then_some(()).ok_or_else(|| String::from("Hostname cannot be empty"))),
             None::<brane_shr::input::FileHistory>,
         ) {
             Ok(hostname) => hostname,
