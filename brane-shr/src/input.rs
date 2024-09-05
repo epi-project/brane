@@ -404,6 +404,79 @@ pub fn input_path(prompt: impl ToString, default: Option<impl Into<PathBuf>>, mu
     }
 }
 
+/// Prompts the user for a vector of arbitrary size.
+///
+/// # Arguments
+/// - `what`: Some string description to show to the user that tells them what kind of value they are inputting. Should fill in: `Invalid ...`. Only used in the case they fail the first time.
+/// - `prompt`: The prompt to display to the user. You can use `%I` to get the current prompt index.
+/// - `second_prompt`: Another prompt to show for entries beyond the first. You can use `%I` to get the current prompt index.
+/// - `validator`: A validator that implements the [`dialoguer::InputValidator`] trait, or None if it is not possible. You can use the [`NoValidator`] concrete type when using no validator like so `None::<NoValidator>`
+/// - `history`: An optional [`History`]-capabable struct that can be used to keep track of this prompt's history.
+///
+/// # Returns
+/// A new [`Vec`] that contains the user's entered values.
+///
+/// # Errors
+/// This function errors if we failed to interact with the user.
+pub fn input_vec<V, VA>(
+    what: impl Display,
+    prompt: impl ToString,
+    second_prompt: impl ToString,
+    validator: Option<VA>,
+    mut history: Option<impl History<String>>,
+) -> Result<Vec<V>, Error>
+where
+    V: FromStr,
+    V::Err: error::Error,
+    VA: dialoguer::InputValidator<String>,
+    VA::Err: ToString,
+{
+    // Do some preprocessing
+    let theme: ColorfulTheme = ColorfulTheme::default();
+    let mut prompt: Cow<str> = Cow::Owned(prompt.to_string());
+    let second_prompt: String = second_prompt.to_string();
+
+    // Now query as long as the user wants to
+    let mut vec: Vec<V> = Default::default();
+
+    // Construct the prompt
+    let mut input: Input<String> = Input::with_theme(&theme);
+    if let Some(history) = &mut history {
+        input = input.history_with(history);
+    }
+
+    if let Some(validator) = validator {
+        input = input.validate_with(validator);
+    }
+
+    loop {
+        let input = input.clone().with_prompt(prompt.replace("%I", &(vec.len() + 1).to_string())).allow_empty(true);
+        // Interact with it
+        let entry: String = match input.interact_text() {
+            Ok(entry) => entry,
+            Err(err) => {
+                return Err(Error::Text { err });
+            },
+        };
+        if entry.is_empty() {
+            return Ok(vec);
+        }
+
+        let value: V = match V::from_str(&entry) {
+            Ok(val) => val,
+            Err(err) => {
+                warn!("Failed to parse '{}' as {}: {}", entry, std::any::type_name::<V>(), err);
+                prompt = Cow::Owned(format!("'{entry}' is not a valid {what}; try again (or leave empty to finish)"));
+                continue;
+            },
+        };
+
+        // Finally, add it to the map and continue
+        vec.push(value);
+        prompt = Cow::Borrowed(&second_prompt);
+    }
+}
+
 /// Prompts the user for a map of arbitrary size.
 ///
 /// The user can specify keys multiple times to overwrite previous ones.
