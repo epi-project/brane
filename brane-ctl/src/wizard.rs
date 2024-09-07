@@ -17,19 +17,21 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
-use std::fs::{self, File};
+use std::fs::{self, canonicalize, File};
 use std::io::Write as _;
+use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::{Path, PathBuf};
 
 use brane_cfg::info::Info;
-use brane_cfg::node::{self, NodeConfig, NodeKind, NodeSpecificConfig};
+use brane_cfg::infra::InfraLocation;
+use brane_cfg::node::{self, CentralConfig, CentralPaths, CentralServices, ExternalService, NodeConfig, NodeKind, NodeSpecificConfig, PrivateOrExternalService, PrivateService, PublicService};
 use brane_cfg::proxy::{ForwardConfig, ProxyConfig, ProxyProtocol};
-use brane_shr::input::{confirm, input, input_map, input_path, select, FileHistory};
+use brane_shr::input::{confirm, input, input_map, input_path, select, select_enum, FileHistory};
 use console::style;
 use dirs_2::config_dir;
 use enum_debug::EnumDebug as _;
 use log::{debug, info};
-use specifications::address::Address;
+use specifications::address::{Address, Host};
 use validator::{FromStrValidator, MapValidator, PortValidator, RangeValidator};
 
 pub mod validator;
@@ -38,7 +40,15 @@ use crate::spec::InclusiveRange;
 
 type PortRangeValidator = RangeValidator<PortValidator>;
 type AddressValidator = FromStrValidator<Address>;
+type HostValidator = FromStrValidator<Host>;
 type PortMapValidator = MapValidator<PortValidator, AddressValidator>;
+
+type LocationId = String;
+type LocationIdValidator = FromStrValidator<LocationId>;
+type LocationMapValidator = MapValidator<LocationIdValidator, HostValidator>;
+
+static REG_PORT: u16 = 50151;
+static JOB_PORT: u16 = 50152;
 
 /***** HELPER MACROS *****/
 /// Generates a FileHistory that points to some branectl-specific directory in the [`config_dir()`].
@@ -79,26 +89,61 @@ macro_rules! generate_dir {
 #[derive(Debug)]
 pub enum Error {
     /// Failed to query the user for the node config file.
-    NodeConfigQuery { err: Box<Self> },
+    NodeConfigQuery {
+        err: Box<Self>,
+    },
     /// Failed to write the node config file.
-    NodeConfigWrite { err: Box<Self> },
+    NodeConfigWrite {
+        err: Box<Self>,
+    },
     /// Failed to query the user for the proxy config file.
-    ProxyConfigQuery { err: Box<Self> },
+    ProxyConfigQuery {
+        err: Box<Self>,
+    },
     /// Failed to write the proxy config file.
-    ProxyConfigWrite { err: Box<Self> },
+    ProxyConfigWrite {
+        err: Box<Self>,
+    },
+    /// Failed to write the proxy config file.
+    ProxyConfigRead {
+        err: brane_cfg::info::YamlError,
+    },
 
-    /// Failed to create a new file.
-    ConfigCreate { path: PathBuf, err: std::io::Error },
+    /// Failed to create a new file!().
+    ConfigCreate {
+        path: PathBuf,
+        err:  std::io::Error,
+    },
     /// Failed to generate a configuration file.
-    ConfigSerialize { path: PathBuf, err: brane_cfg::info::YamlError },
+    ConfigSerialize {
+        path: PathBuf,
+        err:  brane_cfg::info::YamlError,
+    },
     /// Failed to write to the config file.
-    ConfigWrite { path: PathBuf, err: std::io::Error },
+    ConfigWrite {
+        path: PathBuf,
+        err:  std::io::Error,
+    },
     /// Failed to generate a directory.
-    GenerateDir { path: PathBuf, err: std::io::Error },
+    GenerateDir {
+        path: PathBuf,
+        err:  std::io::Error,
+    },
     /// Failed the query the user for input.
     ///
     /// The `what` should fill in: `Failed to query the user for ...`
-    Input { what: &'static str, err: brane_shr::input::Error },
+    Input {
+        what: &'static str,
+        err:  brane_shr::input::Error,
+    },
+    InfraConfigWrite {
+        err: Box<Error>,
+    },
+    PathCanonicalize {
+        what: &'static str,
+        path: PathBuf,
+        err:  std::io::Error,
+    }
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
@@ -108,12 +153,17 @@ impl Display for Error {
             NodeConfigWrite { .. } => write!(f, "Failed to write node config file"),
             ProxyConfigQuery { .. } => write!(f, "Failed to query proxy service configuration"),
             ProxyConfigWrite { .. } => write!(f, "Failed to write proxy service config file"),
+            // TODO: Maybe we should elaborate on this error. I realise that it is easy to
+            // misinterpret this error as writing the error.
+            ProxyConfigRead { .. } => write!(f, "Failed to read proxy service config file"),
+            InfraConfigWrite { .. } => write!(f, "Failed to write infra config file"),
 
             ConfigCreate { path, .. } => write!(f, "Failed to create config file '{}'", path.display()),
             ConfigSerialize { path, .. } => write!(f, "Failed to serialize config to '{}'", path.display()),
             ConfigWrite { path, .. } => write!(f, "Failed to write to config file '{}'", path.display()),
             GenerateDir { path, .. } => write!(f, "Failed to generate directory '{}'", path.display()),
             Input { what, .. } => write!(f, "Failed to query the user for {what}"),
+            PathCanonicalize { what, path, .. } => write!(f, "Failed to canonicalize the {what} path: {}", path.display())
         }
     }
 }
@@ -123,14 +173,19 @@ impl error::Error for Error {
         match self {
             NodeConfigQuery { err } => Some(err),
             NodeConfigWrite { err } => Some(err),
+
             ProxyConfigQuery { err } => Some(err),
             ProxyConfigWrite { err } => Some(err),
+            ProxyConfigRead { err } => Some(err),
+
+            InfraConfigWrite { err } => Some(err),
 
             ConfigCreate { err, .. } => Some(err),
             ConfigSerialize { err, .. } => Some(err),
             ConfigWrite { err, .. } => Some(err),
             GenerateDir { err, .. } => Some(err),
             Input { err, .. } => Some(err),
+            PathCanonicalize { err, .. } => Some(err),
         }
     }
 }
@@ -355,9 +410,26 @@ pub fn query_proxy_node_config() -> Result<NodeConfig, Error> {
     })
 }
 
+#[derive(PartialEq)]
+enum ProxyConfigSource {
+    Default,
+    ExistingFile,
+    Prompt,
+}
 
+impl From<&ProxyConfigSource> for &'static str {
+    fn from(value: &ProxyConfigSource) -> Self {
+        match value {
+            ProxyConfigSource::Default => "Use the default configuration (often recommended)",
+            ProxyConfigSource::ExistingFile => "Use existing proxy.yml on your filesystem",
+            ProxyConfigSource::Prompt => "Configure it right now.",
+        }
+    }
+}
 
-
+impl Display for ProxyConfigSource {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult { write!(f, "{}", Into::<&str>::into(self)) }
+}
 
 /***** LIBRARY *****/
 /// Main handler for the `branectl wizard setup` (or `branectl wizard node`) subcommand.
@@ -371,6 +443,8 @@ pub fn setup() -> Result<(), Error> {
 
     // Let us setup the history structure
     generate_dir!(_path, config_dir().unwrap().join("branectl"));
+
+    // FIXME: I think XDG_CACHE_HOME is a better fit
     generate_dir!(_path, config_dir().unwrap().join("branectl").join("history"));
 
     // Do an intro prompt
@@ -444,9 +518,245 @@ pub fn setup() -> Result<(), Error> {
 
     // The rest is node-dependent
     match kind {
-        NodeKind::Central => {},
+        NodeKind::Central => {
+            println!(" - {}", style(config_dir.join("infra.yml").display()).bold());
+            println!(" - {}", style(config_dir.join("proxy.yml").display()).bold());
+            println!(" - {}", style(config_dir.join("node.yml").display()).bold());
+            println!();
 
-        NodeKind::Worker => {},
+            println!("{}", style("=== infra.yml ===").bold());
+
+            let location_id: String = input(
+                "<Location ID>",
+                "Insert a location ID for the central node",
+                Some("central"),
+                Some(LocationIdValidator::default()),
+                Some(hist!("location_id")),
+            )
+            .map_err(|err| Error::Input { what: "location id", err })?;
+
+            let central_node_dir = path.join(&location_id);
+            generate_dir!(central_node_dir);
+
+            // Read the map of incoming ports
+            let _worker_mapping: HashMap<LocationId, Host> = input_map(
+                "<Location ID>",
+                "<Address>",
+                "P2.1. Enter an worker mapping as: '<Location ID>:<Host>' (or leave empty to specify none)",
+                "P2.%I. Enter an additional worker mapping as '<Location ID>:<Host>' (or leave empty to finish)",
+                ":",
+                // None::<NoValidator>,
+                Some(LocationMapValidator { allow_empty: true, ..Default::default() }),
+                Some(hist!("location-map.hist")),
+            )
+            .map_err(|err| Error::Input { what: "outgoing range", err })?;
+
+            let infra_locations = _worker_mapping
+                .into_iter()
+                .map(|(location_id, host)| {
+                    (location_id.clone(), InfraLocation {
+                        // TODO: Prompt for the human readable name
+                        name:     location_id,
+                        delegate: (host.clone(), JOB_PORT).into(),
+                        registry: (host, REG_PORT).into(),
+})
+                })
+                .collect::<HashMap<_, _>>();
+
+            let infra_file = brane_cfg::infra::InfraFile::new(infra_locations);
+
+            println!("One can set the ports for all services on the worker in case these are different from the defaults.");
+            println!(
+                "This however is not yet supported in the generator. If you need this behaviour. It is recommended you use `branectl generate` \
+                 instead."
+            );
+            let infra_path = central_node_dir.join("infra.yml");
+
+            write_config(
+                infra_file,
+                &infra_path,
+                "https://wiki.enablingpersonalizedinterventions.nl/user-guide/config/admins/infra.html",
+            )
+            .map_err(|err| Error::InfraConfigWrite { err: Box::new(err) })?;
+
+            println!("{}", style("=== proxy.yml ===").bold());
+            let proxy_config_source = select_enum::<ProxyConfigSource>(
+                "How do you prefer to configure proxy.yml?",
+                // TODO: Maybe use strum or something to get 'm all
+                [ProxyConfigSource::Default, ProxyConfigSource::ExistingFile, ProxyConfigSource::Prompt],
+                None,
+            )
+            .map_err(|err| Error::Input { what: "config source", err })?;
+
+            let proxy = match proxy_config_source {
+                ProxyConfigSource::Default => ProxyConfig::default(),
+                ProxyConfigSource::ExistingFile => {
+                    let path = input_path("Select the existing proxy.yml on your system", None::<PathBuf>, Some(hist!("proxy-path.hist")))
+                        .map_err(|err| Error::Input { what: "proxy.yml path", err })?;
+                    println!("Using proxy.yml from: `{}`", path.display());
+                    println!("Note: that this will make a copy of this file. So changing it afterwards will have no effect.");
+                    ProxyConfig::from_path(path).map_err(|err| Error::ProxyConfigRead { err })?
+                },
+                ProxyConfigSource::Prompt => query_proxy_config()?,
+            };
+
+            let proxy_path = central_node_dir.join("proxy.yml");
+            write_config(proxy, &proxy_path, "https://wiki.enablingpersonalizedinterventions.nl/user-guide/config/admins/proxy.html")
+                .map_err(|err| Error::ProxyConfigWrite { err: Box::new(err) })?;
+
+            println!("{}", style("=== node.yml ===").bold());
+
+            println!("The default settings for node.yml are listed below:");
+            let node_defaults = confirm("Do you wish to use these defaults?", Some(true)).map_err(|err| Error::Input { what: "default central node", err })?;
+            let node = if node_defaults {
+                // FIXME: These need to become constants in the specification crate
+                let prx_port = 123;
+                let plr_port = 123;
+                let api_port = 123;
+                let drv_port = 123;
+
+                let api_name = String::from("");
+                let drv_name = String::from("");
+                let plr_name = String::from("");
+                let prx_name = String::from("");
+
+                let certs_path = "";
+                let packages_path = "";
+                let external_proxy = None;
+
+                // TODO: We need to figure this out, maybe prompt it or something
+                let hosts = Default::default();
+                let hostname = "";
+
+                NodeConfig {
+                    hostnames: hosts,
+                    namespace: "brane-central".into(),
+
+                    node: NodeSpecificConfig::Central(CentralConfig {
+                        paths: CentralPaths {
+                            certs:    canonicalize(&certs_path).map_err(|err| Error::PathCanonicalize { what: "cert path", path: certs_path.into(), err })?,
+                            packages: canonicalize(&packages_path).map_err(|err| Error::PathCanonicalize { what: "packages path", path: packages_path.into(), err })?,
+
+                            infra: canonicalize(&infra_path).map_err(|err| Error::PathCanonicalize { what: "infra configuration path", path: infra_path, err })?,
+                            proxy: if external_proxy.is_some() { None } else { Some(canonicalize(&proxy_path).map_err(|err| Error::PathCanonicalize { what: "proxy configuration path", path: proxy_path, err })?) },
+                        },
+
+                        services: CentralServices {
+                            api: PublicService {
+                                name:    api_name.clone(),
+                                bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), api_port).into(),
+                                address: Address::Hostname(format!("http://{api_name}"), api_port),
+
+                                external_address: Address::Hostname(format!("http://{hostname}"), api_port),
+                            },
+                            drv: PublicService {
+                                name:    drv_name.clone(),
+                                bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), drv_port).into(),
+                                address: Address::Hostname(format!("grpc://{drv_name}"), drv_port),
+
+                                external_address: Address::Hostname(format!("grpc://{hostname}"), drv_port),
+                            },
+                            plr: PrivateService {
+                                name:    plr_name.clone(),
+                                bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), plr_port).into(),
+                                address: Address::Hostname(format!("http://{plr_name}"), plr_port),
+                            },
+                            prx: if let Some(address) = external_proxy {
+                                PrivateOrExternalService::External(ExternalService { address })
+                            } else {
+                                PrivateOrExternalService::Private(PrivateService {
+                                    name:    prx_name.clone(),
+                                    bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), prx_port).into(),
+                                    address: Address::Hostname(format!("http://{prx_name}"), prx_port),
+                                })
+                            },
+
+                            aux_scylla: PrivateService {
+                                name:    "aux-scylla".into(),
+                                bind:    SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 9042).into(),
+                                address: Address::Hostname("aux-scylla".into(), 9042),
+                            },
+                        },
+                    })
+                }
+            } else {
+                // TODO: Prompt last parameters
+                todo!("Overriding the defaults is not yet supported in the wizard");
+            };
+
+            let node_path = central_node_dir.join("node.yml");
+
+            write_config(node, &node_path, "https://wiki.enablingpersonalizedinterventions.nl/user-guide/config/admins/node.html")
+                .map_err(|err| Error::NodeConfigWrite { err: Box::new(err) })?;
+
+            // q  -i, --infra <INFRA> The location of the 'infra.yml' file. Use '$CONFIG' to reference the value given by '--config-path'. [default: $CONFIG/infra.yml]
+            // -P, --proxy <PROXY> The location of the 'proxy.yml' file. Use '$CONFIG' to reference the value given by '--config-path'. [default: $CONFIG/proxy.yml]
+            //     --trace If given, prints the largest amount of debug information as possible.
+            // -c, --certs <CERTS> The location of the certificate directory. Use '$CONFIG' to reference the value given by '--config-path'. [default: $CONFIG/certs]
+            // -n, --node-config <NODE_CONFIG> The 'node.yml' file that describes properties about the node itself (i.e., the location identifier, where to find directories, which ports to use, ...) [default: ./node.yml]
+            //     --packages <PACKAGES> The location of the package directory. [default: ./packages]
+            //     --external-proxy <EXTERNAL_PROXY> If given, will use a proxy service running on the external address instead of one in this Docker service. This will mean that it will _not_ be spawned when running 'branectl start'. --api-name <API_NAME> The name of the API service's container. [default: brane-api]
+            //     --drv-name <DRV_NAME> The name of the driver service's container. [default: brane-drv]
+            //     --plr-name <PLR_NAME> The name of the planner service's container. [default: brane-plr]
+            //     --prx-name <PRX_NAME> The name of the proxy service's container. [default: brane-prx]
+            //     --api-port <API_PORT> The port on which the API service is available. [default: 50051]
+            //     --plr-port <PLR_PORT> The port on which the planner service is available. [default: 50052]
+            //     --drv-port <DRV_PORT> The port on which the driver service is available. [default: 50053]
+            //     --prx-port <PRX_PORT> The port on which the proxy service is available. [default: 50050]uestions for the node.yml
+
+
+            // TODO: Write node.yml
+        },
+
+        NodeKind::Worker => {
+            println!(" - {}", style(config_dir.join("backend.yml").display()).bold());
+            println!(" - {}", style(config_dir.join("proxy.yml").display()).bold());
+            println!(" - {}", style(config_dir.join("node.yml").display()).bold());
+            println!();
+
+            println!("Besides configuration files, we will probably want some other files as well:");
+            println!(" - {}", style(config_dir.join("policy_deliberation_secret.json").display()).bold());
+            println!(" - {}", style(config_dir.join("policy_expert_secret.yml.json").display()).bold());
+            println!(" - {}", style(config_dir.join("policy_token.json").display()).bold());
+            println!();
+
+            println!("And lastly:");
+            println!(" - {}", style("A 802.1X certificate").bold());
+            println!();
+
+            println!("{}", style("=== backend.yml ===").bold());
+            println!("{}", style("=== proxy.yml ===").bold());
+            println!("{}", style("=== node.yml ===").bold());
+
+            println!("{}", style("=== policy_deliberation_secret.json ===").bold());
+            // TODO: Confirm
+            println!("{}", style("=== policy_expert_secret.json ===").bold());
+            // TODO: Confirm
+            println!("{}", style("=== policy_token.json ===").bold());
+            // TODO: Confirm
+            // TODO: Ask name
+            println!("{}", style("=== policies.db ===").bold());
+            let create_policy_database = confirm("Do you wish to create a policy database (policies.db)", Some(true));
+            println!("{}", style("=== 801.1X certificate ===").bold());
+            let install = confirm("Do you wish to install this certificate on the central node", Some(true));
+
+            // branectl generate backend -f -p ./config/backend.yml local
+            // branectl generate proxy -f -p ./config/proxy.yml
+            // branectl generate policy_secret -f -p ./config/policy_deliberation_secret.json
+            // branectl generate policy_secret -f -p ./config/policy_expert_secret.json
+            // branectl generate policy_db -f -p ./policies.db
+            //
+            // branectl generate policy_token "dan" "${WORKER_NAME}" 1y -s ./config/policy_expert_secret.json -p ./policy_token.json
+            //
+            // # Note that we are using amys own registry in --use-cases (Are we?)
+            // branectl generate node -f worker "${CENTRAL_ADDRESS}" "${WORKER_NAME}" \
+            //     --use-cases "central=http://${CENTRAL_HOSTNAME}:50051" \
+            //     --reg-port 50151 --job-port 50152 --chk-port 50153 --prx-port 50150
+            //
+            // branectl generate certs -f -p ./config/certs server "${WORKER_NAME}" --hostname "${WORKER_ADDRESS}"
+            // mkdir "../central/config/certs/${WORKER_NAME}"
+            // cp ./config/certs/ca.pem "../central/config/certs/${WORKER_NAME}"
+        },
 
         NodeKind::Proxy => {
             println!(" - {}", style(config_dir.join("proxy.yml").display()).bold());
@@ -454,7 +764,7 @@ pub fn setup() -> Result<(), Error> {
 
             // Note: we don't check if the user wants a custom config, since they very likely want it if they are setting up a proxy node
             // For the proxy, we only need to read the proxy config
-            println!("=== proxy.yml===");
+            println!("{}", style("=== proxy.yml ===").bold());
             let cfg: ProxyConfig = match query_proxy_config() {
                 Ok(cfg) => cfg,
                 Err(err) => {

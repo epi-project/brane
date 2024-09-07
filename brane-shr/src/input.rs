@@ -608,3 +608,35 @@ pub fn select<S: ToString>(prompt: impl ToString, options: impl IntoIterator<Ite
         Err(err) => Err(Error::Select { n_opts: options.len(), err }),
     }
 }
+
+/// Prompts the user to select on the given values.
+///
+/// # Arguments
+/// - `prompt`: The prompt to display to the user.
+/// - `options`: A list of options to select from.
+/// - `default`: If not [`None`], then the select highlights another item than the first.
+///
+/// # Returns
+/// The selected option. If the user aborted the select, [`None`] is returned instead.
+///
+/// # Errors
+/// This function errors if we failed to interact with the user.
+pub fn select_enum<T: Display + PartialEq>(prompt: impl ToString, options: impl IntoIterator<Item = T>, default: Option<T>) -> Result<T, Error> {
+    // Collect the options
+    let mut options: Vec<T> = options.into_iter().collect();
+
+    // Construct the prompt
+    let theme: ColorfulTheme = ColorfulTheme::default();
+    let mut input: Select = Select::with_theme(&theme);
+    let default_index: usize = default.and_then(|item| {
+        options.iter().position(|elem| elem == &item)
+    }).unwrap_or(0);
+
+    input = input.with_prompt(prompt.to_string()).default(default_index).items(&options).report(true);
+
+    // Run it
+    match input.interact() {
+        Ok(index) => Ok(options.swap_remove(index)),
+        Err(err) => Err(Error::Select { n_opts: options.len(), err }),
+    }
+}

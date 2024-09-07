@@ -63,6 +63,50 @@ impl Error for AddressError {
 
 
 
+#[derive(Clone, Debug, EnumDebug)]
+pub enum Host {
+    Ipv4(Ipv4Addr),
+    Ipv6(Ipv6Addr),
+    Hostname(String),
+}
+
+impl From<Ipv4Addr> for Host {
+    fn from(value: Ipv4Addr) -> Self {
+        Self::Ipv4(value)
+    }
+}
+
+impl From<Ipv6Addr> for Host {
+    fn from(value: Ipv6Addr) -> Self {
+        Self::Ipv6(value)
+    }
+}
+
+impl From<(Host, u16)> for Address {
+    fn from((host, port): (Host, u16)) -> Self {
+        match host {
+            Host::Ipv4(x) => Self::Ipv4(x, port),
+            Host::Ipv6(x) => Self::Ipv6(x, port),
+            Host::Hostname(x) => Self::Hostname(x, port),
+        }
+    }
+}
+
+impl FromStr for Host {
+    type Err = std::convert::Infallible;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if let Ok(value) = value.parse::<Ipv4Addr>() {
+            return Ok(Self::Ipv4(value));
+        }
+
+        if let Ok(value) = value.parse::<Ipv6Addr>() {
+            return Ok(Self::Ipv6(value));
+        }
+
+        Ok(Self::Hostname(value.to_string()))
+    }
+}
 
 
 /***** LIBRARY *****/
