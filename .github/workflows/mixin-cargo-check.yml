@@ -39,13 +39,16 @@ jobs:
           version: 21.11
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install Cargo Hack
+        uses: taiki-e/install-action@cargo-hack
+
       - name: Check project (Locked) (Workspace)
         if: inputs.packages == 'workspace'
         run: cargo check --locked --workspace
 
       - name: Check project (Workspace)
         if: inputs.packages == 'workspace'
-        run: cargo check --workspace
+        run: cargo hack --feature-powerset check --workspace
 
       - name: Build project (Workspace)
         if: inputs.packages == 'workspace'
@@ -57,7 +60,7 @@ jobs:
 
       - name: Check project (Frontend)
         if: inputs.packages == 'frontend'
-        run: cargo check --package brane-cli --package brane-cc --package brane-cli-c
+        run: cargo hack --feature-powerset check --package brane-cli --package brane-cc --package brane-cli-c
 
       - name: Build project (Frontend)
         if: inputs.packages == 'frontend'
