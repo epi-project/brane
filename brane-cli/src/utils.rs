@@ -176,7 +176,7 @@ pub fn determine_kind(path: &Path) -> Result<PackageKind, UtilError> {
 
 
 
-/// **Edited: uses dirs_2 instead of appdirs and returns UtilErrors when it goes wrong.**
+/// **Edited: uses dirs instead of appdirs and returns UtilErrors when it goes wrong.**
 ///
 /// Returns the path of the configuration directory. Is guaranteed to be an absolute path when it returns successfully (but _not_ that it also exists!).
 ///
@@ -184,7 +184,7 @@ pub fn determine_kind(path: &Path) -> Result<PackageKind, UtilError> {
 /// The path of the Brane configuration directory if successful, or a UtilError otherwise.
 pub fn get_config_dir() -> Result<PathBuf, UtilError> {
     // Try to get the user directory
-    let user = match dirs_2::config_dir() {
+    let user = match dirs::config_dir() {
         Some(user) => user,
         None => {
             return Err(UtilError::UserConfigDirNotFound);
@@ -278,7 +278,7 @@ pub fn ensure_history_file(create: bool) -> Result<PathBuf, UtilError> {
 /// A PathBuf with the absolute path that is guaranteed to exist, or an UtilError otherwise.
 pub fn get_data_dir() -> Result<PathBuf, UtilError> {
     // Try to get the user directory
-    let user = match dirs_2::data_local_dir() {
+    let user = match dirs::data_local_dir() {
         Some(user) => user,
         None => {
             return Err(UtilError::UserLocalDataDirNotFound);

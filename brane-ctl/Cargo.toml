@@ -17,7 +17,7 @@ console = "0.15.5"
 dialoguer = "0.11.0"
 diesel = { version = "2.1.0", features = ["sqlite"] }
 diesel_migrations = "2.1.0"
-dirs-2 = "3.0.0"
+dirs = "5.0.0"
 dotenvy = "0.15.0"
 eflint-to-json = { git = "https://github.com/epi-project/policy-reasoner" }
 enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
