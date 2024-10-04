@@ -686,7 +686,7 @@ pub async fn initialize_instance_vm(
 ///
 /// # Arguments
 /// - `state`: The DummyVmState that we use to run the dummy VM.
-/// - `what`: The thing we're running. Either a filename, or something like '<stdin>'.
+/// - `what`: The thing we're running. Either a filename, or something like `<stdin>`.
 /// - `snippet`: The snippet (as raw text) to compile and run.
 ///
 /// # Returns
@@ -721,7 +721,7 @@ pub async fn run_dummy_vm(state: &mut DummyVmState, what: impl AsRef<str>, snipp
 ///
 /// # Arguments
 /// - `state`: The OfflineVmState that we use to run the local VM.
-/// - `what`: The thing we're running. Either a filename, or something like '<stdin>'.
+/// - `what`: The thing we're running. Either a filename, or something like `<stdin>`.
 /// - `snippet`: The snippet (as raw text) to compile and run.
 ///
 /// # Returns
@@ -757,7 +757,7 @@ pub async fn run_offline_vm(state: &mut OfflineVmState, what: impl AsRef<str>, s
 /// # Arguments
 /// - `drv_endpoint`: The `brane-drv` endpoint that we will connect to to run stuff (used for debugging only).
 /// - `state`: The InstanceVmState that we use to connect to the driver.
-/// - `what`: The thing we're running. Either a filename, or something like '<stdin>'.
+/// - `what`: The thing we're running. Either a filename, or something like `<stdin>`.
 /// - `snippet`: The snippet (as raw text) to compile and run.
 /// - `profile`: If given, prints the profile timings to stdout if reported by the remote.
 ///
