@@ -94,7 +94,7 @@ async fn main() {
     // Configure Scylla.
     debug!("Connecting to scylla...");
     let scylla = match SessionBuilder::new()
-        .known_node(&central.services.aux_scylla.address.to_string())
+        .known_node(central.services.aux_scylla.address.to_string())
         .connection_timeout(Duration::from_secs(3))
         .build()
         .await

@@ -244,8 +244,7 @@ pub struct AccessDataRequest {
     ///   - `usize::MAX` means main function (workflow.graph)
     ///   - otherwise, index into function table (workflow.funcs[...])
     /// - `1`: Pointer to the instruction (Edge) within the function indicated by `0`.
-    /// Empty if the requested dataset is the
-    /// result of the workflow
+    /// - Empty if the requested dataset is the result of the workflow
     pub task_id:  Option<ProgramCounter>,
 }
 
