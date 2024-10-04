@@ -38,7 +38,7 @@
 //!   - `brane-job`: Implements the _worker_ service in a Brane instance, which takes events emitted by the driver and executes them on the local domain where it is running.
 //!   - `brane-reg`: Implements the _local registry_ service in a Brane instance, which can be used by other services to query domain-local information of the instance.
 //!   - `brane-prx`: Implement the _proxy_ service in a Brane instance, which interface with the [BFC Framework](https://github.com/epi-project/EPIF-Configurations) and can route traffic through proxies as it travels between nodes.
-//!   -` brane-log`: Unused, but used to implement a lister on Kafka channels to log events.
+//!   - `brane-log`: Unused, but used to implement a lister on Kafka channels to log events.
 //!   
 //!   **Libraries**:  
 //!   - `brane-tsk`: Implements shared code used by the Brane VM plugins.
