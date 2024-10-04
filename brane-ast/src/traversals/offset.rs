@@ -10,7 +10,7 @@
 //
 //  Description:
 //!   Secret first first first traversal that simply updates all
-//!   [`TextRange`]s in the AST to have correct offsets w.r.t. the entire
+//!   [`brane_dsl::TextRange`]s in the AST to have correct offsets w.r.t. the entire
 //!   source (in case this is a snippet).
 //
 

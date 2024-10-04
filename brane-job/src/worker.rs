@@ -160,7 +160,7 @@ async fn update_client(tx: &Sender<Result<ExecuteReply, Status>>, status: JobSta
 //     }
 // }
 
-/// Defines errors occuring from the [`JobServer`] itself.
+/// Defines errors occuring from the [`WorkerServer`] itself.
 #[derive(Debug)]
 pub enum Error {
     /// Failed to load the node.yml file from disk
