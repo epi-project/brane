@@ -1,10 +1,12 @@
 [package]
 name = "brane-cli"
-version = { workspace = true }
-authors = { workspace = true }
-edition = "2021"
 rust-version = "1.74.1"
+edition = "2021"
 default-run = "brane"
+version.workspace = true
+repository.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "brane"
