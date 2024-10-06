@@ -15,10 +15,10 @@
 use nom::bytes::complete as bc;
 use nom::character::complete as cc;
 use nom::error::{ContextError, ParseError};
-use nom::{branch, combinator as comb, multi, sequence as seq, IResult, Parser};
+use nom::{IResult, Parser, branch, combinator as comb, multi, sequence as seq};
 
-use super::tokens::Token;
 use super::Span;
+use super::tokens::Token;
 
 
 /***** SCANNING FUNCTIONS *****/

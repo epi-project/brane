@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
-use backoff::{retry, Error, ExponentialBackoff};
+use backoff::{Error, ExponentialBackoff, retry};
 use brane_exe::FullValue;
 use cookie::Cookie as RawCookie;
 use cookie_store::{Cookie, CookieStore};
 use openapiv3::{OpenAPI, Operation, Parameter as OParameter, ReferenceOr, SecurityScheme};
-use reqwest::blocking::RequestBuilder;
 use reqwest::Url;
+use reqwest::blocking::RequestBuilder;
 use reqwest_cookie_store::CookieStoreRwLock;
 
 use crate::{build, resolver};

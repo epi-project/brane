@@ -14,10 +14,10 @@
 
 use nom::bytes::complete as bc;
 use nom::error::{ContextError, ParseError};
-use nom::{branch, combinator as comb, sequence as seq, IResult, Parser};
+use nom::{IResult, Parser, branch, combinator as comb, sequence as seq};
 
-use super::tokens::Token;
 use super::Span;
+use super::tokens::Token;
 
 
 /***** SCANNING FUNCTIONS *****/

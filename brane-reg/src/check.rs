@@ -14,9 +14,9 @@
 
 use std::sync::Arc;
 
+use brane_ast::Workflow;
 use brane_ast::ast::Edge;
 use brane_ast::func_id::FunctionId;
-use brane_ast::Workflow;
 use brane_cfg::info::Info as _;
 use brane_cfg::node::{NodeConfig, NodeSpecificConfig, WorkerConfig};
 use brane_exe::pc::ProgramCounter;

@@ -14,8 +14,8 @@
 //
 
 use log::trace;
-use nom::error::VerboseErrorKind;
 use nom::InputLength;
+use nom::error::VerboseErrorKind;
 use specifications::package::PackageIndex;
 
 use crate::errors;

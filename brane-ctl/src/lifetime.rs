@@ -30,11 +30,11 @@ use brane_cfg::node::{
     ProxyServices, WorkerConfig, WorkerPaths, WorkerServices,
 };
 use brane_cfg::proxy;
-use brane_tsk::docker::{ensure_image, get_digest, DockerOptions, ImageSource};
+use brane_tsk::docker::{DockerOptions, ImageSource, ensure_image, get_digest};
 use console::style;
 use log::{debug, info};
-use rand::distributions::Alphanumeric;
 use rand::Rng;
+use rand::distributions::Alphanumeric;
 use serde::{Deserialize, Serialize};
 use specifications::container::Image;
 use specifications::version::Version;

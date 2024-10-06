@@ -33,7 +33,7 @@ use brane_ast::state::CompileState;
 use brane_ast::traversals::print::ast;
 use brane_ast::{CompileResult, Error as AstError, ParserOptions, Warning as AstWarning};
 use brane_cli::data::download_data;
-use brane_cli::run::{initialize_instance, run_instance, InstanceVmState};
+use brane_cli::run::{InstanceVmState, initialize_instance, run_instance};
 use brane_exe::FullValue;
 use brane_tsk::api::{get_data_index, get_package_index};
 use console::style;

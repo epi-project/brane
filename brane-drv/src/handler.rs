@@ -27,7 +27,7 @@ use brane_tsk::errors::PlanError;
 use brane_tsk::spec::AppId;
 use dashmap::DashMap;
 use enum_debug::EnumDebug as _;
-use error_trace::{trace, ErrorTrace as _};
+use error_trace::{ErrorTrace as _, trace};
 use log::{debug, error, info};
 use specifications::driving::{CheckReply, CheckRequest, CreateSessionReply, CreateSessionRequest, DriverService, ExecuteReply, ExecuteRequest};
 use specifications::profiling::ProfileReport;

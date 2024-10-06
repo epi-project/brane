@@ -10,8 +10,8 @@
 // use nom::{IResult, Parser};
 use std::collections::HashSet;
 
-use nom::error::VerboseError;
 use nom::IResult;
+use nom::error::VerboseError;
 use specifications::package::PackageIndex;
 
 use super::ast::{Block, Expr, Literal, Program, Stmt};

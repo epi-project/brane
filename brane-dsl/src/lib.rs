@@ -28,7 +28,7 @@ pub mod symbol_table;
 
 
 // Bring some stuff into the crate namespace
-pub use compiler::{parse, ParserOptions};
+pub use compiler::{ParserOptions, parse};
 pub use data_type::DataType;
 pub use errors::ParseError as Error;
 pub use location::Location;

@@ -25,7 +25,7 @@ use specifications::package::PackageInfo;
 use specifications::version::Version;
 
 use crate::errors::TestError;
-use crate::run::{initialize_offline_vm, run_offline_vm, OfflineVmState};
+use crate::run::{OfflineVmState, initialize_offline_vm, run_offline_vm};
 use crate::utils::{ensure_datasets_dir, ensure_package_dir};
 
 
