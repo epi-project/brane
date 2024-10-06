@@ -17,18 +17,3 @@ updates:
         update-types:
           - "patch"
           - "minor"
-
-  # Cargo security update
-  - package-ecosystem: cargo
-    directory: /
-    schedule:
-      # Very frequent checks for security updates
-      interval: daily
-    # Never let spam converns prevent security updates
-    open-pull-requests-limit: 0
-    ignore:
-      # Ignore all version updates
-      update-types:
-        - "version-update:patch"
-        - "version-update:minor"
-        - "version-update:major"
