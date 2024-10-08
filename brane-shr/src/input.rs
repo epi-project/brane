@@ -88,7 +88,7 @@ impl FileHistory {
     /// A new FileHistory instance.
     ///
     /// # Warnings
-    /// This function emits warnings using [`log::warn()`] when it fails to read the file.
+    /// This function emits warnings using [`warn!()`] when it fails to read the file.
     pub fn new(path: impl Into<PathBuf>) -> Self {
         let path: PathBuf = path.into();
 
@@ -264,6 +264,9 @@ impl Completion for FileAutocompleter {
 }
 
 
+/***** VALIDATORS *****/
+/// A validator can be used to provide a shared concrete type when none are available.
+pub type NoValidator = fn(&String) -> Result<(), String>;
 
 
 

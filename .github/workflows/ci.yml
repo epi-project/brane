@@ -76,6 +76,10 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    env:
+      # Disallow warnings
+      RUSTDOCFLAGS: -DWarnings
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

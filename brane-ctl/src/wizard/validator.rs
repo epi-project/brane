@@ -1,7 +1,7 @@
 use dialoguer::InputValidator;
 
 /// A placeholder concrete type in cases where no validator is necessary
-pub type NoValidator = fn(&String) -> Result<(), String>;
+pub use brane_shr::input::NoValidator;
 
 /// A validator that solely validates that there if *some* input was provided
 #[derive(Default)]
