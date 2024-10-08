@@ -31,7 +31,7 @@ use super::Span;
 ///
 /// # Errors
 /// This function errors if we could not parse a comment.
-pub fn single_line_comment<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
+pub fn single_line_comment<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token<'a>, E> {
     comb::value(Token::None, seq::pair(bc::tag("//"), seq::terminated(comb::opt(bc::is_not("\n")), branch::alt((bc::tag("\n"), comb::eof)))))
         .parse(input)
 }
@@ -46,7 +46,7 @@ pub fn single_line_comment<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>
 ///
 /// # Errors
 /// This function errors if we could not parse a comment.
-pub fn multi_line_comment<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
+pub fn multi_line_comment<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token<'a>, E> {
     comb::value(Token::None, seq::tuple((bc::tag("/*"), comb::cut(seq::pair(bc::take_until("*/"), bc::tag("*/")))))).parse(input)
 }
 
@@ -65,7 +65,7 @@ pub fn multi_line_comment<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(
 ///
 /// # Errors
 /// This function errors if we could not parse a comment.
-pub fn parse<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
+pub fn parse<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token<'a>, E> {
     // println!("COMMENTS")
     branch::alt((single_line_comment, multi_line_comment)).parse(input)
 }

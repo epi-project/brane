@@ -28,7 +28,7 @@ use crate::tag_token;
 ///
 /// # Returns
 /// The remaining list of tokens and the parsed BinOp if there was anything to parse. Otherwise, a `nom::Error` is returned (which may be a real error or simply 'could not parse').
-pub fn parse<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Operator, E> {
+pub fn parse<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Operator, E> {
     branch::alt((comb::map(binary_operator, Operator::Binary), comb::map(unary_operator, Operator::Unary))).parse(input)
 }
 
@@ -43,7 +43,7 @@ pub fn parse<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: To
 ///
 /// # Returns
 /// The remaining list of tokens and the parsed BinOp if there was anything to parse. Otherwise, a `nom::Error` is returned (which may be a real error or simply 'could not parse').
-pub fn binary_operator<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, BinOp, E> {
+pub fn binary_operator<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, BinOp, E> {
     trace!("Attempting to parse binary operator");
     branch::alt((
         comb::map(seq::pair(tag_token!(Token::And), tag_token!(Token::And)), |t| BinOp::And {
@@ -74,7 +74,7 @@ pub fn binary_operator<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>
 ///
 /// # Returns
 /// The remaining list of tokens and the parsed UnaOp if there was anything to parse. Otherwise, a `nom::Error` is returned (which may be a real error or simply 'could not parse').
-pub fn unary_operator<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, UnaOp, E> {
+pub fn unary_operator<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, UnaOp, E> {
     trace!("Attempting to parse unary operator");
     branch::alt((
         comb::map(tag_token!(Token::Not), |t| UnaOp::Not { range: t.tok[0].inner().into() }),

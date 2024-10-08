@@ -367,12 +367,7 @@ async fn main() {
 
     // Setup the panic mode
     if !args.trace && !args.debug {
-        setup_panic!(Metadata {
-            name:     "Brane CLI".into(),
-            version:  env!("CARGO_PKG_VERSION").into(),
-            authors:  env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
-            homepage: env!("CARGO_PKG_HOMEPAGE").into(),
-        });
+        setup_panic!();
     }
 
     // Ensure there is always at least one file

@@ -76,7 +76,7 @@ fn resolve_escape(raw: String) -> String {
 ///
 /// # Returns
 /// The remaining list of tokens and the parsed Literal if there was anything to parse. Otherwise, a `nom::Error` is returned (which may be a real error or simply 'could not parse').
-pub fn parse<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Literal, E> {
+pub fn parse<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Literal, E> {
     trace!("Attempting to parse literal expression");
     branch::alt((
         comb::map(tag_token!(Token::Null), |t| Literal::Null { range: TextRange::from(t.tok[0].inner()) }),

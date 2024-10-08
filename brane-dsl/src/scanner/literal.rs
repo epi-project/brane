@@ -139,7 +139,7 @@ fn real<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -
 ///
 /// # Errors
 /// This function errors if we could not parse the literal token.
-pub fn parse<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
+pub fn parse<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token<'a>, E> {
     branch::alt((
         comb::map(null, Token::Null),
         comb::map(semver, Token::SemVer),

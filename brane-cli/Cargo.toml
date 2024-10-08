@@ -31,7 +31,7 @@ futures-util = "0.3.30"
 # git2 = { version = "0.17", features = ["vendored-libgit2"] }
 graphql_client = "0.13.0"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.1.0" }
-human-panic = "1.0.0"
+human-panic = "2.0.0"
 hyper = "0.14.29"
 indicatif = "0.17.0"
 lazy_static = "1.4.0"

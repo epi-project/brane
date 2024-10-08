@@ -33,7 +33,7 @@ use crate::tag_token;
 ///
 /// # Returns
 /// The remaining list of tokens and the parsed pair if there was anything to parse. Otherwise, a `nom::Error` is returned (which may be a real error or simply 'could not parse').
-pub fn instance_property<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, PropertyExpr, E> {
+pub fn instance_property<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, PropertyExpr, E> {
     trace!("Attempting to parse instance property");
 
     // Parse the head stuff
@@ -58,7 +58,7 @@ pub fn instance_property<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>
 ///
 /// # Returns
 /// The remaining list of tokens and the parsed Expr if there was anything to parse. Otherwise, a `nom::Error` is returned (which may be a real error or simply 'could not parse').
-pub fn parse<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Expr, E> {
+pub fn parse<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Expr, E> {
     trace!("Attempting to parse instance expression");
 
     // Get the new token first

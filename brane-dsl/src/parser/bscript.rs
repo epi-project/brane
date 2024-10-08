@@ -74,7 +74,7 @@ impl Node for ClassStmt {
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid block.
-fn block<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Block, E> {
+fn block<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Block, E> {
     trace!("Attempting to parse block");
 
     // Parse the left brace
@@ -98,7 +98,7 @@ fn block<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid (identifier, type) pair.
-fn property<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Property, E> {
+fn property<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Property, E> {
     trace!("Attempting to parse class property");
 
     // Parse as a separated pair
@@ -121,7 +121,7 @@ fn property<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tok
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid property or method definition.
-fn class_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, ClassStmt, E> {
+fn class_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, ClassStmt, E> {
     trace!("Attempting to parse class property or method");
 
     // Parse either as one or the other
@@ -170,7 +170,7 @@ pub fn parse_ast(input: Tokens) -> IResult<Tokens, Program, VerboseError<Tokens>
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn parse_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn parse_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse next statement");
 
     // If there are no more tokens, then easy
@@ -219,7 +219,7 @@ pub fn parse_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inpu
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn attribute<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Attribute, E> {
+pub fn attribute<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Attribute, E> {
     trace!("Attempting to parse Attribute");
 
     // Parse the possible attribute variants
@@ -261,7 +261,7 @@ pub fn attribute<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn attribute_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn attribute_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse Attribute-statement");
 
     // Parse the hashtag and opening square bracket, the attribute and the closing bracket
@@ -294,7 +294,7 @@ pub fn attribute_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn attribute_inner_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn attribute_inner_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse AttributeInner-statement");
 
     // Parse the hashtag and opening square bracket, the attribute and the closing bracket
@@ -330,7 +330,7 @@ pub fn attribute_inner_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn let_assign_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn let_assign_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse LetAssign-statement");
 
     // Parse the 'let' first
@@ -359,7 +359,7 @@ pub fn let_assign_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn assign_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn assign_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse Assign-statement");
 
     // Parse the body of the statement
@@ -390,7 +390,7 @@ pub fn assign_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inp
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
 #[inline]
-pub fn block_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn block_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse Block-statement");
 
     // Simply map the block helper function
@@ -416,7 +416,7 @@ pub fn block_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inpu
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn parallel_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn parallel_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse Parallel-statement");
 
     // Plausibly, parse a preceded part
@@ -474,7 +474,7 @@ pub fn parallel_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(i
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn declare_class_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn declare_class_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse Class-statement");
 
     // Parse the class keyword first
@@ -525,7 +525,7 @@ pub fn declare_class_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn declare_func_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn declare_func_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse Func-statement");
 
     // Hit the function token first
@@ -578,7 +578,7 @@ pub fn declare_func_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn if_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn if_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse If-statement");
 
     // As usual, parse the token first
@@ -612,7 +612,7 @@ pub fn if_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: 
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn import_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn import_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse Import-statement");
 
     // Parse the import token first
@@ -659,7 +659,7 @@ pub fn import_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inp
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn for_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn for_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse For-statement");
 
     // Parse the for token first
@@ -717,7 +717,7 @@ pub fn for_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input:
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn while_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn while_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse While-statement");
 
     // Parse the for token first
@@ -746,7 +746,7 @@ pub fn while_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inpu
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn return_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn return_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse Return-statement");
 
     // Parse the return token first
@@ -779,7 +779,7 @@ pub fn return_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(inp
 ///
 /// # Errors
 /// This function may error if the tokens do not comprise a valid statement.
-pub fn expr_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Stmt, E> {
+pub fn expr_stmt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Stmt, E> {
     trace!("Attempting to parse Expr-statement");
 
     // Simply do an expression + semicolon

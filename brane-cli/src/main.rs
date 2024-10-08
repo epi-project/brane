@@ -55,12 +55,7 @@ async fn main() -> Result<()> {
 
     // Also setup humanpanic
     if !options.debug {
-        setup_panic!(Metadata {
-            name:     "Brane CLI".into(),
-            version:  env!("CARGO_PKG_VERSION").into(),
-            authors:  env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
-            homepage: env!("CARGO_PKG_HOMEPAGE").into(),
-        });
+        setup_panic!();
     }
 
     // Check dependencies if not withheld from doing so

@@ -605,7 +605,7 @@ dependencies = [
  "dotenvy",
  "enum-debug 1.0.0 (git+https://github.com/Lut99/enum-debug?tag=v1.0.0)",
  "expanduser",
- "human-panic",
+ "human-panic 2.0.1",
  "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs?tag=v0.1.0)",
  "log",
  "openssl-sys",
@@ -662,7 +662,7 @@ dependencies = [
  "futures",
  "futures-util",
  "graphql_client",
- "human-panic",
+ "human-panic 2.0.1",
  "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs?tag=v0.1.0)",
  "hyper 0.14.30",
  "indicatif",
@@ -738,7 +738,7 @@ dependencies = [
  "enum-debug 1.0.0 (git+https://github.com/Lut99/enum-debug?tag=v1.0.0)",
  "error-trace 2.0.0 (git+https://github.com/Lut99/error-trace-rs?tag=v2.0.0)",
  "hex-literal",
- "human-panic",
+ "human-panic 2.0.1",
  "humanlog 0.1.0 (git+https://github.com/Lut99/humanlog-rs?tag=v0.1.0)",
  "humantime",
  "jsonwebtoken",
@@ -2462,6 +2462,22 @@ name = "human-panic"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4f016c89920bbb30951a8405ecacbb4540db5524313b9445736e7e1855cf370"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "backtrace",
+ "os_info",
+ "serde",
+ "serde_derive",
+ "toml",
+ "uuid 1.10.0",
+]
+
+[[package]]
+name = "human-panic"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c5a08ed290eac04006e21e63d32e90086b6182c7cd0452d10f4264def1fec9a"
 dependencies = [
  "anstream",
  "anstyle",
@@ -4590,7 +4606,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "futures",
- "human-panic",
+ "human-panic 1.2.3",
  "itertools 0.11.0",
  "libc",
  "log",
