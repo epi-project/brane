@@ -15,9 +15,9 @@
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::io::Write;
 
-use brane_dsl::spec::MergeStrategy;
 use brane_dsl::TextRange;
-use console::{style, Style};
+use brane_dsl::spec::MergeStrategy;
+use console::{Style, style};
 
 use crate::errors::{ewrite_range, n};
 use crate::spec::BuiltinClasses;

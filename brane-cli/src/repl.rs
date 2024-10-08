@@ -34,8 +34,8 @@ use rustyline_derive::Helper;
 pub use crate::errors::ReplError as Error;
 use crate::instance::InstanceInfo;
 use crate::run::{
-    initialize_instance_vm, initialize_offline_vm, process_instance_result, process_offline_result, run_instance_vm, run_offline_vm, InstanceVmState,
-    OfflineVmState,
+    InstanceVmState, OfflineVmState, initialize_instance_vm, initialize_offline_vm, process_instance_result, process_offline_result, run_instance_vm,
+    run_offline_vm,
 };
 use crate::utils::{ensure_config_dir, get_history_file};
 

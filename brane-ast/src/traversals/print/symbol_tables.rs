@@ -17,9 +17,9 @@ use std::cell::{Ref, RefCell};
 use std::io::Write;
 use std::rc::Rc;
 
+use brane_dsl::SymbolTable;
 use brane_dsl::ast::{Block, Program, Stmt};
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, VarEntry};
-use brane_dsl::SymbolTable;
 
 pub use crate::errors::AstError as Error;
 

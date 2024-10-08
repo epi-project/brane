@@ -15,10 +15,10 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result as FResult};
 
+use brane_ast::SymTable;
 use brane_ast::data_type::DataType;
 use brane_ast::func_id::FunctionId;
 use brane_ast::spec::BuiltinClasses;
-use brane_ast::SymTable;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value as JValue;

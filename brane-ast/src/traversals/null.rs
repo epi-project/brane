@@ -30,7 +30,7 @@ mod tests {
 
     use super::super::print::symbol_tables;
     use super::*;
-    use crate::{compile_program_to, CompileResult, CompileStage};
+    use crate::{CompileResult, CompileStage, compile_program_to};
 
 
     /// Tests the traversal by generating symbol tables for every file.

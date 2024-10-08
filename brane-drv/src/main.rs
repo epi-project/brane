@@ -23,9 +23,9 @@ use brane_prx::client::ProxyClient;
 use clap::Parser;
 use dotenvy::dotenv;
 use error_trace::trace;
-use log::{debug, error, info, warn, LevelFilter};
+use log::{LevelFilter, debug, error, info, warn};
 use specifications::driving::DriverServiceServer;
-use tokio::signal::unix::{signal, Signal, SignalKind};
+use tokio::signal::unix::{Signal, SignalKind, signal};
 use tonic::transport::Server;
 
 

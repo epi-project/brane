@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use brane_cli::spec::{Hostname, VersionFix, API_DEFAULT_VERSION};
+use brane_cli::spec::{API_DEFAULT_VERSION, Hostname, VersionFix};
 use brane_tsk::docker::ClientVersion;
 use brane_tsk::spec::AppId;
 use clap::Parser;

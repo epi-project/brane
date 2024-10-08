@@ -16,7 +16,7 @@ use std::num::NonZeroUsize;
 
 use log::trace;
 use nom::error::{ContextError, ParseError};
-use nom::{branch, combinator as comb, multi, sequence as seq, IResult, Parser};
+use nom::{IResult, Parser, branch, combinator as comb, multi, sequence as seq};
 
 use super::ast::{Expr, Identifier, Node, Operator, UnaOp};
 use crate::location::AllowedLocations;

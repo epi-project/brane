@@ -15,9 +15,9 @@
 use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
 
+use brane_ast::Workflow;
 use brane_ast::ast::Edge;
 use brane_ast::func_id::FunctionId;
-use brane_ast::Workflow;
 use brane_cfg::infra::{InfraFile, InfraLocation};
 use brane_exe::pc::ProgramCounter;
 use brane_shr::formatters::BlockFormatter;

@@ -16,9 +16,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use brane_ast::DataType;
 use brane_ast::ast::{SymTable, VarDef};
 use brane_ast::func_id::FunctionId;
-use brane_ast::DataType;
 
 pub use crate::errors::FrameStackError as Error;
 use crate::pc::ProgramCounter;

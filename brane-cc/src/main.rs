@@ -19,7 +19,7 @@ use std::path::PathBuf;
 
 use brane_ast::state::CompileState;
 use brane_ast::traversals::print::ast;
-use brane_ast::{compile_snippet, CompileResult, ParserOptions, Workflow};
+use brane_ast::{CompileResult, ParserOptions, Workflow, compile_snippet};
 use brane_cc::errors::CompileError;
 use brane_cc::spec::IndexLocation;
 use brane_dsl::Language;

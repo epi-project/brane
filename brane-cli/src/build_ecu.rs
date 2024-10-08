@@ -13,7 +13,7 @@ use specifications::arch::Arch;
 use specifications::container::{ContainerInfo, LocalContainerInfo};
 use specifications::package::PackageInfo;
 
-use crate::build_common::{build_docker_image, clean_directory, BRANELET_URL};
+use crate::build_common::{BRANELET_URL, build_docker_image, clean_directory};
 use crate::errors::BuildError;
 use crate::utils::ensure_package_dir;
 

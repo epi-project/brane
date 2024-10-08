@@ -17,11 +17,11 @@ use std::error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::str::FromStr;
 
+use brane_ast::DataType;
 use brane_ast::ast::{ClassDef, VarDef};
 use brane_ast::spec::BuiltinClasses;
-use brane_ast::DataType;
 use brane_exe::FullValue;
-use console::{style, Term};
+use console::{Term, style};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, Input as Prompt, Select};
 use log::debug;

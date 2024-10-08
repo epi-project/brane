@@ -21,11 +21,11 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use brane_shr::formatters::PrettyListFormatter;
-use console::{pad_str, style, Alignment};
+use console::{Alignment, pad_str, style};
 use dialoguer::Confirm;
 use log::{debug, info, warn};
-use prettytable::format::FormatBuilder;
 use prettytable::Table;
+use prettytable::format::FormatBuilder;
 use serde::{Deserialize, Serialize};
 use specifications::address::Address;
 

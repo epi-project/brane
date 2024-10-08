@@ -32,7 +32,7 @@ fn main() {
     #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     {
         // We can fetch them from the internet
-        use download::{download_file, DownloadSecurity};
+        use download::{DownloadSecurity, download_file};
         use hex_literal::hex;
 
         // Get the URL & checksum of the binary to download

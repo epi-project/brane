@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 use brane_cfg::info::Info;
 use brane_cfg::node::{self, NodeConfig, NodeKind, NodeSpecificConfig};
 use brane_cfg::proxy::{ForwardConfig, ProxyConfig, ProxyProtocol};
-use brane_shr::input::{confirm, input, input_map, input_path, select, FileHistory};
+use brane_shr::input::{FileHistory, confirm, input, input_map, input_path, select};
 use console::style;
 use dirs::config_dir;
 use enum_debug::EnumDebug as _;

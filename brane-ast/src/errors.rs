@@ -19,7 +19,7 @@ use std::io::Write;
 use brane_dsl::ast::Expr;
 use brane_dsl::spec::MergeStrategy;
 use brane_dsl::{DataType, TextRange};
-use console::{style, Style};
+use console::{Style, style};
 use specifications::version::Version;
 
 use crate::spec::BuiltinClasses;

@@ -18,9 +18,9 @@ use std::fs::{self, DirEntry, File, ReadDir};
 use std::io::Write as _;
 use std::path::{Component, Path, PathBuf};
 
-use brane_shr::fs::{download_file_async, move_path_async, unarchive_async, DownloadSecurity};
-use brane_tsk::docker::{connect_local, ensure_image, save_image, Docker, DockerOptions, ImageSource};
-use console::{style, Style};
+use brane_shr::fs::{DownloadSecurity, download_file_async, move_path_async, unarchive_async};
+use brane_tsk::docker::{Docker, DockerOptions, ImageSource, connect_local, ensure_image, save_image};
+use console::{Style, style};
 use enum_debug::EnumDebug as _;
 use log::{debug, info, warn};
 use specifications::arch::Arch;

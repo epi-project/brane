@@ -18,10 +18,10 @@ use std::mem;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use brane_ast::ast::{Edge, SymTable};
 use brane_ast::Workflow;
+use brane_ast::ast::{Edge, SymTable};
 use brane_tsk::errors::PlanError;
-use brane_tsk::spec::{Planner, LOCALHOST};
+use brane_tsk::spec::{LOCALHOST, Planner};
 use log::debug;
 use parking_lot::Mutex;
 use specifications::data::{AccessKind, AvailabilityKind, DataIndex, DataName};

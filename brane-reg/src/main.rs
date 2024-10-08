@@ -22,8 +22,8 @@ use brane_reg::spec::Context;
 use brane_reg::{check, data, health, infra, version};
 use clap::Parser;
 use dotenvy::dotenv;
-use error_trace::{trace, ErrorTrace as _};
-use log::{debug, error, info, LevelFilter};
+use error_trace::{ErrorTrace as _, trace};
+use log::{LevelFilter, debug, error, info};
 use rustls::Certificate;
 use warp::Filter;
 

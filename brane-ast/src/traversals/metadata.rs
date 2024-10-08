@@ -14,8 +14,8 @@
 
 use std::collections::HashMap;
 
-use brane_dsl::ast::{Attribute, Block, Expr, Literal, Metadata, Node as _, Program, Stmt};
 use brane_dsl::TextRange;
+use brane_dsl::ast::{Attribute, Block, Expr, Literal, Metadata, Node as _, Program, Stmt};
 use enum_debug::EnumDebug as _;
 
 use crate::errors::AstError;
@@ -33,7 +33,7 @@ mod tests {
 
     use super::super::print::dsl;
     use super::*;
-    use crate::{compile_program_to, CompileResult, CompileStage};
+    use crate::{CompileResult, CompileStage, compile_program_to};
 
 
     /// Tests the traversal by generating symbol tables for every file.

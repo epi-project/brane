@@ -16,7 +16,7 @@ use std::num::NonZeroUsize;
 
 use log::trace;
 use nom::error::{ContextError, ParseError};
-use nom::{combinator as comb, multi, sequence as seq, IResult, Parser};
+use nom::{IResult, Parser, combinator as comb, multi, sequence as seq};
 
 use super::ast::{Expr, Identifier, Node, PropertyExpr};
 use crate::parser::{expression, identifier};

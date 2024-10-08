@@ -24,8 +24,8 @@ use std::sync::Arc;
 
 use brane_dsl::spec::MergeStrategy;
 use enum_debug::EnumDebug;
-use rand::distributions::Alphanumeric;
 use rand::Rng as _;
+use rand::distributions::Alphanumeric;
 use serde::de::{self, Deserializer, Visitor};
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};

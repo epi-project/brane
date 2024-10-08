@@ -16,17 +16,17 @@ use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::sync::Arc;
 
+pub use DriverServiceError as Error;
 use async_trait::async_trait;
 use futures::Stream;
 use prost::Message;
-use tonic::body::{empty_body, BoxBody};
+use tonic::body::{BoxBody, empty_body};
 use tonic::client::Grpc as GrpcClient;
 use tonic::codec::{ProstCodec, Streaming};
-use tonic::codegen::{http, Body, BoxFuture, Context, Poll, Service, StdError};
+use tonic::codegen::{Body, BoxFuture, Context, Poll, Service, StdError, http};
 use tonic::server::{Grpc as GrpcServer, NamedService, ServerStreamingService, UnaryService};
 use tonic::transport::{Channel, Endpoint};
 use tonic::{Code, Request, Response, Status};
-pub use DriverServiceError as Error;
 
 
 /***** ERRORS *****/
