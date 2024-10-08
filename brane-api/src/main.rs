@@ -30,8 +30,9 @@ use juniper::EmptySubscription;
 use log::{debug, error, info, warn, LevelFilter};
 use scylla::{Session, SessionBuilder};
 use tokio::signal::unix::{signal, Signal, SignalKind};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use warp::Filter;
-
 
 /***** ARGUMENTS *****/
 #[derive(Parser)]
@@ -63,16 +64,12 @@ async fn main() {
     dotenv().ok();
     let opts = Opts::parse();
 
-    // Configure logger.
-    let mut logger = env_logger::builder();
-    logger.format_module_path(false);
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::EnvFilter::builder().with_default_directive(tracing::level_filters::LevelFilter::WARN.into()).from_env_lossy())
+        .init();
 
-    if opts.debug {
-        logger.filter_level(LevelFilter::Debug).init();
-    } else {
-        logger.filter_level(LevelFilter::Info).init();
-    }
-    info!("Initializing brane-job v{}...", env!("CARGO_PKG_VERSION"));
+    tracing::info!("Initializing brane-job v{}...", env!("CARGO_PKG_VERSION"));
 
     // Load the config, making sure it's a worker config
     debug!("Loading node.yml file '{}'...", opts.node_config_path.display());
