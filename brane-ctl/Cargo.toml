@@ -4,10 +4,16 @@ version = { workspace = true }
 edition = "2021"
 authors = [ "Tim Müller" ]
 rust-version = "1.74.1"
+default-run = "branectl"
 
 [[bin]]
 name = "branectl"
 path = "src/main.rs"
+
+[[bin]]
+name = "branectl-completions"
+path = "src/completions.rs"
+doc = false
 
 [dependencies]
 base64ct = "1.6.0"
@@ -62,8 +68,3 @@ clap = { version = "4.5.6", features = ["derive","env"] }
 
 [lints.clippy]
 result_large_err = { level = "allow", priority = 1 }
-
-[[bin]]
-name = "branectl-completions"
-path = "src/completions.rs"
-doc = false

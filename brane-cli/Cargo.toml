@@ -4,10 +4,16 @@ version = { workspace = true }
 authors = { workspace = true }
 edition = "2021"
 rust-version = "1.74.1"
+default-run = "brane"
 
 [[bin]]
 name = "brane"
 path = "src/main.rs"
+
+[[bin]]
+name = "brane-completions"
+path = "src/completions.rs"
+doc = false
 
 [dependencies]
 anyhow = "1.0.66"
@@ -81,8 +87,3 @@ features = ["vendored"]
 
 [features]
 print_exec_path = [ "brane-exe/print_exec_path" ]
-
-[[bin]]
-name = "brane-completions"
-path = "src/completions.rs"
-doc = false
