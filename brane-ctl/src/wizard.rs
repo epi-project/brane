@@ -26,7 +26,7 @@ use brane_cfg::node::{self, NodeConfig, NodeKind, NodeSpecificConfig};
 use brane_cfg::proxy::{ForwardConfig, ProxyConfig, ProxyProtocol};
 use brane_shr::input::{confirm, input, input_map, input_path, select, FileHistory};
 use console::style;
-use dirs_2::config_dir;
+use dirs::config_dir;
 use enum_debug::EnumDebug as _;
 use log::{debug, info};
 use specifications::address::Address;
