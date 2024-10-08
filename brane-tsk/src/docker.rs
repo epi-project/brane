@@ -23,11 +23,11 @@ use bollard::container::{
 };
 use bollard::image::{CreateImageOptions, ImportImageOptions, RemoveImageOptions, TagImageOptions};
 use bollard::models::{DeviceRequest, EndpointSettings, HostConfig};
-pub use bollard::{Docker, API_DEFAULT_VERSION};
+pub use bollard::{API_DEFAULT_VERSION, Docker};
 use brane_exe::FullValue;
 use enum_debug::EnumDebug;
-use futures_util::stream::TryStreamExt as _;
 use futures_util::StreamExt as _;
+use futures_util::stream::TryStreamExt as _;
 use hyper::body::Body;
 use log::debug;
 use serde::de::{Deserializer, Visitor};

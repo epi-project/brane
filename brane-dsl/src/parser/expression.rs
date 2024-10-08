@@ -16,7 +16,7 @@ use std::num::NonZeroUsize;
 
 use log::trace;
 use nom::error::{ContextError, ParseError};
-use nom::{branch, combinator as comb, multi, sequence as seq, IResult, Parser};
+use nom::{IResult, Parser, branch, combinator as comb, multi, sequence as seq};
 
 use super::ast::{Expr, Identifier, Node, Operator, UnaOp};
 use crate::location::AllowedLocations;
@@ -36,7 +36,7 @@ use crate::tag_token;
 ///
 /// # Errors
 /// This function returns a nom::Error if it failed to parse an expression.
-pub fn parse<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Expr, E> {
+pub fn parse<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Expr, E> {
     trace!("Attempting to parse expression");
 
     // Use a pratt parser(?) to actually parse it
@@ -56,7 +56,7 @@ pub fn parse<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: To
 ///
 /// # Errors
 /// This function returns a nom::Error if it failed to parse an expression.
-fn expr_pratt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>, min_bp: u8) -> IResult<Tokens, Expr, E> {
+fn expr_pratt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>, min_bp: u8) -> IResult<Tokens<'a>, Expr, E> {
     // Attempt to parse a unary operator first
     let (mut remainder, mut lhs) = match operator::unary_operator::<E>(input) {
         Ok((r, UnaOp::Idx { range })) => {
@@ -131,7 +131,7 @@ fn expr_pratt<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: T
 ///
 /// # Errors
 /// This function returns a nom::Error if it failed to parse an expression.
-pub fn expr_atom<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Expr, E> {
+pub fn expr_atom<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Expr, E> {
     trace!("Attempting to parse atomic expression");
 
     branch::alt((
@@ -156,7 +156,7 @@ pub fn expr_atom<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input
 ///
 /// # Errors
 /// This function returns a nom::Error if it failed to parse an expression.
-pub fn call_expr<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Expr, E> {
+pub fn call_expr<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Expr, E> {
     trace!("Attempting to parse Call-expression");
 
     // Parse optionally annotations
@@ -220,7 +220,7 @@ pub fn call_expr<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input
 ///
 /// # Errors
 /// This function returns a nom::Error if it failed to parse an expression.
-fn proj_expr<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens, Expr, E> {
+fn proj_expr<'a, E: ParseError<Tokens<'a>> + ContextError<Tokens<'a>>>(input: Tokens<'a>) -> IResult<Tokens<'a>, Expr, E> {
     trace!("Attempting to parse Projection-expression");
 
     // We parse an identifier with dot tentatively

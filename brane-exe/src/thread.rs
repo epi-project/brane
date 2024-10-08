@@ -48,7 +48,7 @@ mod tests {
     use std::sync::Mutex;
 
     use brane_ast::traversals::print::ast;
-    use brane_ast::{compile_program, CompileResult, ParserOptions};
+    use brane_ast::{CompileResult, ParserOptions, compile_program};
     use brane_shr::utilities::{create_data_index, create_package_index, test_on_dsl_files_async};
     use specifications::data::DataIndex;
     use specifications::package::PackageIndex;

@@ -42,7 +42,7 @@ use error_trace::trace;
 use humanlog::{DebugMode, HumanLogger};
 use log::{debug, error, info, warn};
 use parking_lot::Mutex;
-use tokio::signal::unix::{signal, Signal, SignalKind};
+use tokio::signal::unix::{Signal, SignalKind, signal};
 use warp::Filter as _;
 
 

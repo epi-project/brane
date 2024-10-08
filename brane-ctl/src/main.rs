@@ -14,7 +14,7 @@
 
 
 use brane_cfg::proxy::ForwardConfig;
-use brane_ctl::spec::StartOpts;
+use brane_ctl::spec::{LogsOpts, StartOpts};
 use brane_ctl::{download, generate, lifetime, packages, policies, unpack, upgrade, wizard};
 use brane_tsk::docker::DockerOptions;
 use dotenvy::dotenv;
@@ -34,22 +34,6 @@ async fn main() {
     // Parse the arguments
     let args = cli::parse();
 
-    // // Initialize the logger
-    // let mut logger = env_logger::builder();
-    // logger.format_module_path(false);
-    // if args.debug {
-    //     logger.filter_module("brane", LevelFilter::Debug).init();
-    // } else {
-    //     logger.filter_module("brane", LevelFilter::Warn).init();
-
-    //     human_panic::setup_panic!(Metadata {
-    //         name: "Brane CTL".into(),
-    //         version: env!("CARGO_PKG_VERSION").into(),
-    //         authors: env!("CARGO_PKG_AUTHORS").replace(":", ", ").into(),
-    //         homepage: env!("CARGO_PKG_HOMEPAGE").into(),
-    //     });
-    // }
-
     // Initialize the logger
     if let Err(err) = HumanLogger::terminal(if args.trace {
         DebugMode::Full
@@ -65,12 +49,7 @@ async fn main() {
 
     // Setup the friendlier version of panic
     if !args.trace && !args.debug {
-        human_panic::setup_panic!(Metadata {
-            name:     "Brane CTL".into(),
-            version:  env!("CARGO_PKG_VERSION").into(),
-            authors:  env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
-            homepage: env!("CARGO_PKG_HOMEPAGE").into(),
-        });
+        human_panic::setup_panic!();
     }
 
     // Now match on the command
@@ -231,6 +210,12 @@ async fn main() {
         },
         CtlSubcommand::Stop { exe, file } => {
             if let Err(err) = lifetime::stop(args.debug || args.trace, exe, file, args.node_config) {
+                error!("{}", err.trace());
+                std::process::exit(1);
+            }
+        },
+        CtlSubcommand::Logs { exe, file } => {
+            if let Err(err) = lifetime::logs(exe, file, args.node_config, LogsOpts { compose_verbose: args.debug || args.trace }).await {
                 error!("{}", err.trace());
                 std::process::exit(1);
             }

@@ -21,7 +21,7 @@ use std::str::FromStr as _;
 
 use async_compression::tokio::bufread::GzipDecoder;
 use async_compression::tokio::write::GzipEncoder;
-use console::{style, Style};
+use console::{Style, style};
 use fs2::FileExt as _;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, warn};

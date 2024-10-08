@@ -19,7 +19,7 @@ use std::path::PathBuf;
 
 use brane_ast::state::CompileState;
 use brane_ast::traversals::print::ast;
-use brane_ast::{compile_snippet, CompileResult, ParserOptions, Workflow};
+use brane_ast::{CompileResult, ParserOptions, Workflow, compile_snippet};
 use brane_cc::errors::CompileError;
 use brane_cc::spec::IndexLocation;
 use brane_dsl::Language;
@@ -367,12 +367,7 @@ async fn main() {
 
     // Setup the panic mode
     if !args.trace && !args.debug {
-        setup_panic!(Metadata {
-            name:     "Brane CLI".into(),
-            version:  env!("CARGO_PKG_VERSION").into(),
-            authors:  env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
-            homepage: env!("CARGO_PKG_HOMEPAGE").into(),
-        });
+        setup_panic!();
     }
 
     // Ensure there is always at least one file

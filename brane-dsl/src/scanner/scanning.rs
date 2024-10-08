@@ -15,10 +15,10 @@
 use nom::bytes::complete as bc;
 use nom::character::complete as cc;
 use nom::error::{ContextError, ParseError, VerboseError};
-use nom::{branch, combinator as comb, multi, sequence as seq, IResult, Parser};
+use nom::{IResult, Parser, branch, combinator as comb, multi, sequence as seq};
 
 use super::tokens::Token;
-use super::{comments, literal, Span};
+use super::{Span, comments, literal};
 
 
 /***** CONSTANTS *****/
@@ -56,7 +56,7 @@ fn ws0<'a, O, E: ParseError<Span<'a>>, F: Parser<Span<'a>, O, E>>(f: F) -> impl 
 ///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
-fn scan_token<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
+fn scan_token<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token<'a>, E> {
     // Keep trying until: eof or non-comment
     branch::alt((ws0(comments::parse), keyword, operator, punctuation, ws0(literal::parse), identifier)).parse(input)
 }
@@ -71,7 +71,7 @@ fn scan_token<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<
 ///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
-fn keyword<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
+fn keyword<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token<'a>, E> {
     ws0(branch::alt((
         comb::map(seq::terminated(bc::tag("break"), comb::peek(separator)), Token::Break),
         comb::map(seq::terminated(bc::tag("class"), comb::peek(separator)), Token::Class),
@@ -101,7 +101,7 @@ fn keyword<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>
 ///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
-fn operator<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
+fn operator<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token<'a>, E> {
     ws0(branch::alt((
         // Two character tokens
         comb::map(bc::tag(":="), Token::Assign),
@@ -135,7 +135,7 @@ fn operator<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a
 ///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
-fn punctuation<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
+fn punctuation<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token<'a>, E> {
     ws0(branch::alt((
         comb::map(bc::tag("("), Token::LeftParen),
         comb::map(bc::tag(")"), Token::RightParen),
@@ -162,7 +162,7 @@ fn punctuation<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span
 ///
 /// # Errors
 /// This function errors if we could not successfully parse the text.
-fn identifier<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
+fn identifier<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token<'a>, E> {
     ws0(comb::map(
         comb::recognize(seq::pair(branch::alt((cc::alpha1, bc::tag("_"))), multi::many0(branch::alt((cc::alphanumeric1, bc::tag("_")))))),
         Token::Ident,

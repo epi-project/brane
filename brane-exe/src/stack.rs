@@ -308,14 +308,14 @@ impl ToOwned for StackSlice {
 }
 
 impl<'a> IntoIterator for &'a StackSlice {
-    type IntoIter = std::iter::FilterMap<std::slice::Iter<'a, StackSlot>, fn(&'a StackSlot) -> Option<&Value>>;
+    type IntoIter = std::iter::FilterMap<std::slice::Iter<'a, StackSlot>, fn(&'a StackSlot) -> Option<&'a Value>>;
     type Item = &'a Value;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter { self.slots.iter().filter_map(|s: &StackSlot| if s.is_value() { Some(s.as_value()) } else { None }) }
 }
 impl<'a> IntoIterator for &'a mut StackSlice {
-    type IntoIter = std::iter::FilterMap<std::slice::IterMut<'a, StackSlot>, fn(&'a mut StackSlot) -> Option<&mut Value>>;
+    type IntoIter = std::iter::FilterMap<std::slice::IterMut<'a, StackSlot>, fn(&'a mut StackSlot) -> Option<&'a mut Value>>;
     type Item = &'a mut Value;
 
     #[inline]
@@ -534,14 +534,14 @@ impl IntoIterator for Stack {
     fn into_iter(self) -> Self::IntoIter { self.slots.into_iter().filter_map(|s: StackSlot| if s.is_value() { Some(s.into_value()) } else { None }) }
 }
 impl<'a> IntoIterator for &'a Stack {
-    type IntoIter = std::iter::FilterMap<std::slice::Iter<'a, StackSlot>, fn(&'a StackSlot) -> Option<&Value>>;
+    type IntoIter = std::iter::FilterMap<std::slice::Iter<'a, StackSlot>, fn(&'a StackSlot) -> Option<&'a Value>>;
     type Item = &'a Value;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter { self.slots.iter().filter_map(|s: &StackSlot| if s.is_value() { Some(s.as_value()) } else { None }) }
 }
 impl<'a> IntoIterator for &'a mut Stack {
-    type IntoIter = std::iter::FilterMap<std::slice::IterMut<'a, StackSlot>, fn(&'a mut StackSlot) -> Option<&mut Value>>;
+    type IntoIter = std::iter::FilterMap<std::slice::IterMut<'a, StackSlot>, fn(&'a mut StackSlot) -> Option<&'a mut Value>>;
     type Item = &'a mut Value;
 
     #[inline]

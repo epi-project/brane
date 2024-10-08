@@ -20,10 +20,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use brane_ast::state::CompileState;
-use brane_ast::{compile_snippet, CompileResult, ParserOptions, Workflow};
+use brane_ast::{CompileResult, ParserOptions, Workflow, compile_snippet};
 use brane_dsl::Language;
-use brane_exe::dummy::{DummyVm, Error as DummyVmError};
 use brane_exe::FullValue;
+use brane_exe::dummy::{DummyVm, Error as DummyVmError};
 use brane_tsk::docker::DockerOptions;
 use brane_tsk::errors::StringError;
 use brane_tsk::spec::{AppId, LOCALHOST};
@@ -32,7 +32,7 @@ use parking_lot::{Mutex, MutexGuard};
 use specifications::data::{AccessKind, DataIndex, DataInfo};
 use specifications::driving::{CreateSessionRequest, DriverServiceClient, ExecuteRequest};
 use specifications::package::PackageIndex;
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 use tonic::Code;
 
 use crate::data;

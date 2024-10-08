@@ -21,9 +21,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use async_recursion::async_recursion;
+use brane_ast::Workflow;
 use brane_ast::ast::{ComputeTaskDef, Edge, SymTable, TaskDef};
 use brane_ast::locations::Locations;
-use brane_ast::Workflow;
 use brane_cfg::info::Info as _;
 use brane_cfg::infra::{InfraFile, InfraLocation};
 use brane_cfg::node::{CentralConfig, NodeConfig};

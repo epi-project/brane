@@ -21,7 +21,7 @@ use brane_let::errors::LetError;
 use brane_let::{exec_ecu, exec_nop, exec_oas};
 use clap::Parser;
 use dotenvy::dotenv;
-use log::{debug, warn, LevelFilter};
+use log::{LevelFilter, debug, warn};
 use serde::de::DeserializeOwned;
 
 

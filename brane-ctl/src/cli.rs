@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use brane_cfg::proxy::ProxyProtocol;
 use brane_ctl::spec::{
-    DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange, Pair,
-    PolicyInputLanguage, ResolvableNodeKind, StartSubcommand, VersionFix, API_DEFAULT_VERSION,
+    API_DEFAULT_VERSION, DownloadServicesSubcommand, GenerateBackendSubcommand, GenerateCertsSubcommand, GenerateNodeSubcommand, InclusiveRange,
+    Pair, PolicyInputLanguage, ResolvableNodeKind, StartSubcommand, VersionFix,
 };
 use brane_tsk::docker::ClientVersion;
 use clap::{Parser, Subcommand};
@@ -127,6 +127,15 @@ pub(crate) enum CtlSubcommand {
         exe:  String,
         /// The docker-compose file that we start.
         #[clap(short, long, help = concat!("The docker-compose.yml file that defines the services to stop. You can use '$NODE' to match either 'central' or 'worker', depending how we started. If omitted, will use the baked-in counterpart (although that only works for the default version, v", env!("CARGO_PKG_VERSION"), ")."))]
+        file: Option<PathBuf>,
+    },
+    #[clap(name = "logs", about = "Show the logs for the specficied node")]
+    Logs {
+        /// The docker-compose command we run.
+        #[clap(short, long, default_value = "docker compose", help = "The command to use to run Docker Compose.")]
+        exe:  String,
+        /// The docker-compose file that we start.
+        #[clap(short, long, help = concat!("The docker-compose.yml file that defines the services to log. You can use '$NODE' to match either 'central' or 'worker', depending how we started. If omitted, will use the baked-in counterpart (although that only works for the default version, v", env!("CARGO_PKG_VERSION"), ")."))]
         file: Option<PathBuf>,
     },
 

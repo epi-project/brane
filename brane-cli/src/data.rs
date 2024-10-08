@@ -22,13 +22,13 @@ use brane_shr::fs::copy_dir_recursively_async;
 use brane_shr::utilities::is_ip_addr;
 use brane_tsk::spec::LOCALHOST;
 use chrono::Utc;
-use console::{pad_str, style, Alignment, Term};
+use console::{Alignment, Term, pad_str, style};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, Select};
 use hyper::body::Bytes;
 use indicatif::HumanDuration;
-use prettytable::format::FormatBuilder;
 use prettytable::Table;
+use prettytable::format::FormatBuilder;
 use rand::prelude::IteratorRandom;
 use reqwest::tls::{Certificate, Identity};
 use reqwest::{Client, ClientBuilder, Proxy, Response};
@@ -456,7 +456,7 @@ pub async fn download(names: Vec<String>, locs: Vec<String>, proxy_addr: &Option
                     let colorful = ColorfulTheme::default();
                     let items: Vec<&String> = info.access.keys().collect();
                     let mut prompt = Select::with_theme(&colorful);
-                    prompt.items(&items).with_prompt("Select download location").default(0usize);
+                    prompt = prompt.items(&items).with_prompt("Select download location").default(0usize);
 
                     // Ask the user
                     match prompt.interact_on_opt(&Term::stderr()) {

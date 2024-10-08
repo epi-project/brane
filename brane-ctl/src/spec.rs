@@ -293,6 +293,13 @@ pub struct StartOpts {
     pub profile_dir: Option<PathBuf>,
 }
 
+/// Defines a collection of options to pass to the `logs`-subcommand handler.
+#[derive(Clone, Debug)]
+pub struct LogsOpts {
+    /// Whether to enable extra verbosity for Docker Compose.
+    pub compose_verbose: bool,
+}
+
 
 
 /// A bit awkward here, but defines the subcommand for downloading service images from the repo.

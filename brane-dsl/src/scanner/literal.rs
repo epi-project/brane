@@ -15,10 +15,10 @@
 use nom::bytes::complete as bc;
 use nom::character::complete as cc;
 use nom::error::{ContextError, ParseError};
-use nom::{branch, combinator as comb, multi, sequence as seq, IResult, Parser};
+use nom::{IResult, Parser, branch, combinator as comb, multi, sequence as seq};
 
-use super::tokens::Token;
 use super::Span;
+use super::tokens::Token;
 
 
 /***** SCANNING FUNCTIONS *****/
@@ -139,7 +139,7 @@ fn real<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -
 ///
 /// # Errors
 /// This function errors if we could not parse the literal token.
-pub fn parse<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token, E> {
+pub fn parse<'a, E: ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Token<'a>, E> {
     branch::alt((
         comb::map(null, Token::Null),
         comb::map(semver, Token::SemVer),

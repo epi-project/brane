@@ -61,6 +61,7 @@ LABEL org.opencontainers.image.source https://github.com/epi-project/brane
 
 # Fetch the reasoner code next
 WORKDIR /
+ARG REASONER=eflint
 ARG REASONER_BRANCH=main
 ADD "http://github.com/epi-project/policy-reasoner/zipball/${REASONER_BRANCH}/" /policy-reasoner.zip
 RUN unzip /policy-reasoner.zip && mv /epi-project-policy-reasoner* /policy-reasoner
@@ -72,8 +73,8 @@ RUN mkdir -p /policy-reasoner/data && touch /policy-reasoner/data/policy.db
 WORKDIR /policy-reasoner
 RUN --mount=type=cache,id=cargoidx,target=/usr/local/cargo/registry \
     --mount=type=cache,id=reasonercache,target=/policy-reasoner/target \
-    cargo build --release --features brane-api-resolver \
- && cp ./target/release/policy-reasoner /brane-chk
+    cargo build --release --bin $REASONER --features brane-api-resolver \
+ && cp ./target/release/$REASONER /brane-chk
 
 # If ever run, run a shell
 WORKDIR /

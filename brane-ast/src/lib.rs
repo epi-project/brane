@@ -38,9 +38,9 @@ pub mod warnings;
 // Re-export some stuff from brane-dsl
 pub use ast::{SymTable, Workflow};
 pub use ast_unresolved::UnresolvedWorkflow;
-pub use brane_dsl::spec::{MergeStrategy, TextPos, TextRange};
 pub use brane_dsl::ParserOptions;
-pub use compile::{compile_program, compile_program_to, compile_snippet, compile_snippet_to, CompileResult, CompileStage};
+pub use brane_dsl::spec::{MergeStrategy, TextPos, TextRange};
+pub use compile::{CompileResult, CompileStage, compile_program, compile_program_to, compile_snippet, compile_snippet_to};
 pub use data_type::DataType;
 // Bring some stuff into the global namespace.
 pub use errors::AstError as Error;

@@ -4,7 +4,7 @@ use std::fmt::{self, Display, Formatter};
 use std::string::ToString;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value as JValue};
+use serde_json::{Value as JValue, json};
 use serde_with::skip_serializing_none;
 
 use crate::package::{Capability, PackageKind};

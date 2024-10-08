@@ -17,8 +17,8 @@ use std::fmt::{Debug, Display, Formatter, Result as FResult};
 use std::ops::{Add, AddAssign};
 use std::str::FromStr;
 
-use brane_ast::func_id::FunctionId;
 use brane_ast::SymTable;
+use brane_ast::func_id::FunctionId;
 use num_traits::AsPrimitive;
 use serde::de::{self, Deserialize, Deserializer, Visitor};
 use serde::ser::{Serialize, SerializeSeq, Serializer};

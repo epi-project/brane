@@ -45,7 +45,7 @@ mod tests {
 
     use super::super::print::ast_unresolved;
     use super::*;
-    use crate::{compile_snippet_to, CompileResult, CompileStage};
+    use crate::{CompileResult, CompileStage, compile_snippet_to};
 
 
     /// Tests the traversal by generating symbol tables for every file.

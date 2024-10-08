@@ -18,15 +18,15 @@ use std::fs::{self, DirEntry, File, ReadDir};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use brane_cfg::certs::load_all;
 use brane_shr::formatters::PrettyListFormatter;
-use console::{pad_str, style, Alignment};
+use console::{Alignment, pad_str, style};
 use dialoguer::Confirm;
 use enum_debug::EnumDebug;
-use prettytable::format::FormatBuilder;
 use prettytable::Table;
+use prettytable::format::FormatBuilder;
 use rustls::{Certificate, PrivateKey};
 use x509_parser::certificate::X509Certificate;
 use x509_parser::extensions::{ParsedExtension, X509Extension};

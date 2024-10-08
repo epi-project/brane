@@ -31,16 +31,16 @@ use brane_cfg::node::{
     ProxyPaths, ProxyServices, PublicService, WorkerConfig, WorkerPaths, WorkerServices, WorkerUsecase,
 };
 use brane_cfg::proxy::{self, ForwardConfig};
-use brane_shr::fs::{set_executable, DownloadSecurity};
+use brane_shr::fs::{DownloadSecurity, set_executable};
 use console::style;
 use diesel::{Connection as _, SqliteConnection};
 use diesel_migrations::{FileBasedMigrations, MigrationHarness as _};
 use enum_debug::EnumDebug as _;
 use jsonwebtoken::jwk::{self, Jwk, JwkSet, KeyAlgorithm, OctetKeyParameters, OctetKeyType, PublicKeyUse};
 use log::{debug, info, warn};
+use rand::Rng as _;
 use rand::distributions::Alphanumeric;
 use rand::rngs::OsRng;
-use rand::Rng as _;
 use serde::Serialize;
 use specifications::address::Address;
 use specifications::package::Capability;

@@ -24,15 +24,21 @@ use std::path::{Path, PathBuf};
 use brane_cfg::info::Info;
 use brane_cfg::node::{self, NodeConfig, NodeKind, NodeSpecificConfig};
 use brane_cfg::proxy::{ForwardConfig, ProxyConfig, ProxyProtocol};
-use brane_shr::input::{confirm, input, input_map, input_path, select, FileHistory};
+use brane_shr::input::{FileHistory, confirm, input, input_map, input_path, select};
 use console::style;
-use dirs_2::config_dir;
+use dirs::config_dir;
 use enum_debug::EnumDebug as _;
 use log::{debug, info};
 use specifications::address::Address;
+use validator::{FromStrValidator, MapValidator, PortValidator, RangeValidator};
+
+pub mod validator;
 
 use crate::spec::InclusiveRange;
 
+type PortRangeValidator = RangeValidator<PortValidator>;
+type AddressValidator = FromStrValidator<Address>;
+type PortMapValidator = MapValidator<PortValidator, AddressValidator>;
 
 /***** HELPER MACROS *****/
 /// Generates a FileHistory that points to some branectl-specific directory in the [`config_dir()`].
@@ -236,10 +242,6 @@ where
     Ok(())
 }
 
-
-
-
-
 /***** QUERY FUNCTIONS *****/
 /// Queries the user for the proxy services configuration.
 ///
@@ -254,6 +256,7 @@ pub fn query_proxy_config() -> Result<ProxyConfig, Error> {
         "port range",
         "P1. Enter the range of ports allocated for outgoing connections",
         Some(InclusiveRange::new(4200, 4299)),
+        Some(PortRangeValidator::default()),
         Some(hist!("prx-outgoing_range.hist")),
     ) {
         Ok(range) => range,
@@ -271,6 +274,8 @@ pub fn query_proxy_config() -> Result<ProxyConfig, Error> {
         "P2.1. Enter an incoming port map as '<incoming port>:<destination address>:<destination port>' (or leave empty to specify none)",
         "P2.%I. Enter an additional incoming port map as '<port>:<destination address>' (or leave empty to finish)",
         ":",
+        // None::<NoValidator>,
+        Some(PortMapValidator { allow_empty: true, ..Default::default() }),
         Some(hist!("prx-incoming.hist")),
     ) {
         Ok(incoming) => incoming,
@@ -294,6 +299,7 @@ pub fn query_proxy_config() -> Result<ProxyConfig, Error> {
             "address",
             "P3a. Enter the target address (including port) to route the traffic to",
             None::<Address>,
+            Some(AddressValidator::default()),
             Some(hist!("prx-forward-address.hist")),
         ) {
             Ok(address) => address,

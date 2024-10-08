@@ -13,11 +13,11 @@ dotenvy = "0.15.0"
 enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0" }
 env_logger = "0.10.0"
 error-trace = { git = "https://github.com/Lut99/error-trace-rs", tag = "v2.0.0" }
-log = "0.4.21"
+log = "0.4.22"
 reqwest = "0.11.27"
 rustls = "0.21.6"
-serde = { version = "1.0.203", features = ["rc"] }
-serde_json = "1.0.117"
+serde = { version = "1.0.204", features = ["rc"] }
+serde_json = "1.0.120"
 serde_yaml = { version = "0.0.10", package = "serde_yml" }
 tempfile = "3.10.1"
 tokio = { version = "1.38.0", features = ["rt","rt-multi-thread","macros","io-util", "signal"] }

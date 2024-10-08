@@ -17,9 +17,9 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
 
+use brane_dsl::SymbolTable;
 use brane_dsl::ast::{Block, Expr, Program, Stmt};
 use brane_dsl::symbol_table::{ClassEntry, FunctionEntry, VarEntry};
-use brane_dsl::SymbolTable;
 use enum_debug::EnumDebug as _;
 
 use crate::errors::AstError;
@@ -38,7 +38,7 @@ mod tests {
     use super::super::print::symbol_tables;
     use super::*;
     use crate::state::CompileState;
-    use crate::{compile_snippet_to, CompileResult, CompileStage};
+    use crate::{CompileResult, CompileStage, compile_snippet_to};
 
 
     /// Tests the traversal by generating symbol tables for every file.

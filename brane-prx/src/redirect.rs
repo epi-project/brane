@@ -29,8 +29,8 @@ use rustls::{Certificate, ConfigBuilder, PrivateKey, RootCertStore, ServerName};
 use socksx::{Socks5Client, Socks6Client};
 use specifications::address::Address;
 use tokio::net::{TcpListener, TcpStream};
-use tokio_rustls::client::TlsStream;
 use tokio_rustls::TlsConnector;
+use tokio_rustls::client::TlsStream;
 use url::Url;
 
 pub use crate::errors::RedirectError as Error;
