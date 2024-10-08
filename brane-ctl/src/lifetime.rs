@@ -429,7 +429,7 @@ fn get_log_level(service: ServiceKind) -> Option<String> {
     match std::env::var(&log_var) {
         Ok(val) => return Some(val),
         // TODO: Could use the trace! macro from error-trace.
-        Err(err) => tracing::info!(
+        Err(err) => tracing::trace!(
             "Malformed log level set using environment variable `{log_var}`. Falling back to using `BRANE_LOG`, if it is set. Cause: \n{err:#}"
         ),
     };
@@ -438,7 +438,7 @@ fn get_log_level(service: ServiceKind) -> Option<String> {
         Ok(val) => return Some(val),
         // TODO: Could use the trace! macro from error-trace.
         Err(err) => {
-            tracing::info!("Malformed log level set using environment variable `BRANE_LOG`. Continuing with default logging. Cause: \n{err:#}")
+            tracing::trace!("Malformed log level set using environment variable `BRANE_LOG`. Continuing with default logging. Cause: \n{err:#}")
         },
     };
 
@@ -458,11 +458,6 @@ fn get_log_level(service: ServiceKind) -> Option<String> {
 /// # Errors
 /// This function errors if we failed to write the file.
 fn generate_override_file(node_config: &NodeConfig, hosts: &HashMap<String, IpAddr>, profile_dir: Option<PathBuf>) -> Result<Option<PathBuf>, Error> {
-    // Early quit if there's nothing to do
-    if hosts.is_empty() {
-        return Ok(None);
-    }
-
     // Generate the ComposeOverrideFileService
     let svc: ComposeOverrideFileService = ComposeOverrideFileService {
         volumes: if let Some(dir) = profile_dir { vec![format!("{}:/logs/profile", dir.display())] } else { vec![] },
@@ -482,7 +477,9 @@ fn generate_override_file(node_config: &NodeConfig, hosts: &HashMap<String, IpAd
                     println!("Log level?");
                     if let Some(log_level) = get_log_level(ServiceKind::Central(service)) {
                         service_override.environment.push(format!("RUST_LOG={}", log_level));
-                        println!("Log level: {log_level}");
+                        tracing::warn!("Setting loglevel for {} to {}", service.to_service_name(), log_level);
+                    } else {
+                        tracing::warn!("Leaving loglevel for {} at its default", service.to_service_name());
                     }
                     (service.to_service_name(), service_override)
                 })
