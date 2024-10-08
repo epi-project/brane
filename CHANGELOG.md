@@ -161,7 +161,7 @@ This release basically sees the release of an entirely rebuilt framework. Expect
 - `make.sh` into `make.py`, which is completely re-designed to be more managable and complex (especially w.r.t. deciding if recompilation is necessary or not).
 - `brane push`, `brane pull` and `brane remove` to accept multiple packages to push, pull or remove respectively.
 - `specifications::version::Version` to be able to parse a given `<name>:<version>` pair (which will likely be the default way of entering versions from now on).
-- `docker-compose-*.yml` and `make.py` to make an explicit difference between a centralized, general control node and a domain-local worker node.
+- `docker-compose-*.yml` and `make.py` to make an explicit difference between a centralized, general central node and a domain-local worker node.
 - `brane-api` now needs to have knowledge about the infrastructure too (i.e., be provided with the `infra.yml` file).
 - `brane-job` to now explicitly live on a domain instead of the central node.
 - the semantics of the `install` section in `container.yml` files: now, the commands are processed _before_ the workspace is copied over instead of after in order to be much nicer to Docker caching. To emulate the old behaviour, use the new `unpack` section (see above).

@@ -88,8 +88,8 @@ impl<'de> YamlInfo<'de> for NodeConfig {}
 #[derive(Clone, Debug, Deserialize, EnumDebug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeSpecificConfig {
-    /// Defines the services for the control node.
-    #[serde(alias = "control")]
+    /// Defines the services for the central node.
+    #[serde(alias = "central")]
     Central(CentralConfig),
     /// Defines the services for the worker node.
     Worker(WorkerConfig),
@@ -339,7 +339,7 @@ impl NodeSpecificConfig {
 
 
 
-/// Defines the configuration for the central/control node.
+/// Defines the configuration for the central node.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CentralConfig {
     /// Defines the paths for this node.
@@ -348,7 +348,7 @@ pub struct CentralConfig {
     pub services: CentralServices,
 }
 
-/// Defines the paths for the central/control node.
+/// Defines the paths for the central node.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CentralPaths {
     /// The path to the certificate directory.
@@ -362,7 +362,7 @@ pub struct CentralPaths {
     pub proxy: Option<PathBuf>,
 }
 
-/// Defines the services for the central/control node.
+/// Defines the services for the central node.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CentralServices {
     // Brane services

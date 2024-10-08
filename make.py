@@ -31,9 +31,9 @@ import typing
 
 
 ##### CONSTANTS #####
-# List of services that live in the control part of an instance
+# List of services that live in the central part of an instance
 CENTRAL_SERVICES = [ "prx", "api", "drv", "plr" ]
-# List of auxillary services in the control part of an instance
+# List of auxillary services in the central part of an instance
 # At least, the ones we have to build.
 AUX_CENTRAL_SERVICES = []
 # List of services that live in a worker node in an instance
