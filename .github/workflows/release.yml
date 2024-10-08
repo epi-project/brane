@@ -37,7 +37,7 @@ jobs:
 
     # Finally, upload the binaries
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: linux-x86_64
         path: |
@@ -77,7 +77,7 @@ jobs:
 
     # Finally, upload the binaries
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: darwin-x86_64
         path: |
@@ -109,7 +109,7 @@ jobs:
   #       run: mkdir -p ./target/release && mv target/x86_64-unknown-linux-musl/release/brane target/release/brane-darwin-amd64
 
   #   - name: Upload artifact
-  #     uses: actions/upload-artifact@v2
+  #     uses: actions/upload-artifact@v4
   #     with:
   #       name: brane-darwin-amd64
   #       path: target/release/brane-darwin-amd64
@@ -140,7 +140,7 @@ jobs:
   #       run: mkdir -p ./target/release && mv target/aarch64-unknown-linux-musl/release/brane target/release/brane-darwin-arm64
 
   #   - name: Upload artifact
-  #     uses: actions/upload-artifact@v2
+  #     uses: actions/upload-artifact@v4
   #     with:
   #       name: brane-darwin-arm64
   #       path: target/release/brane-darwin-arm64
