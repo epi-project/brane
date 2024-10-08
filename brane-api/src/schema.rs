@@ -4,7 +4,7 @@
 //  Created:
 //    17 Oct 2022, 15:17:39
 //  Last edited:
-//    08 Feb 2024, 16:15:57
+//    08 Oct 2024, 15:20:52
 //  Auto updated?
 //    Yes
 //
@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use chrono::{DateTime, TimeZone, Utc};
-use juniper::{EmptySubscription, FieldResult, GraphQLObject, RootNode, graphql_object};
+use juniper::{graphql_object, EmptySubscription, FieldResult, GraphQLObject, RootNode};
 use log::{debug, info};
 use scylla::IntoTypedRows;
 use specifications::version::Version;
@@ -67,7 +67,8 @@ pub struct Query;
 #[graphql_object(context = Context)]
 impl Query {
     ///
-    async fn apiVersion() -> &str {
+    #[allow(non_snake_case)]
+    async fn apiVersion() -> &'static str {
         info!("Handling GRAPHQL on '/graphql' (i.e., get API version)");
         env!("CARGO_PKG_VERSION")
     }
