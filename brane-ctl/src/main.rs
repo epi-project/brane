@@ -34,22 +34,6 @@ async fn main() {
     // Parse the arguments
     let args = cli::parse();
 
-    // // Initialize the logger
-    // let mut logger = env_logger::builder();
-    // logger.format_module_path(false);
-    // if args.debug {
-    //     logger.filter_module("brane", LevelFilter::Debug).init();
-    // } else {
-    //     logger.filter_module("brane", LevelFilter::Warn).init();
-
-    //     human_panic::setup_panic!(Metadata {
-    //         name: "Brane CTL".into(),
-    //         version: env!("CARGO_PKG_VERSION").into(),
-    //         authors: env!("CARGO_PKG_AUTHORS").replace(":", ", ").into(),
-    //         homepage: env!("CARGO_PKG_HOMEPAGE").into(),
-    //     });
-    // }
-
     // Initialize the logger
     if let Err(err) = HumanLogger::terminal(if args.trace {
         DebugMode::Full
@@ -119,7 +103,7 @@ async fn main() {
 
             GenerateSubcommand::PolicyDatabase { fix_dirs, path, branch } => {
                 // Call the thing
-                if let Err(err) = generate::policy_database(fix_dirs, path, branch).await {
+                if let Err(err) = generate::policy_database(fix_dirs, path, &branch).await {
                     error!("{}", err.trace());
                     std::process::exit(1);
                 }
@@ -171,7 +155,7 @@ async fn main() {
         },
         CtlSubcommand::Wizard(subcommand) => match *subcommand {
             WizardSubcommand::Setup {} => {
-                if let Err(err) = wizard::setup() {
+                if let Err(err) = wizard::WizardChoice::run().await {
                     error!("{}", err.trace());
                     std::process::exit(1);
                 }

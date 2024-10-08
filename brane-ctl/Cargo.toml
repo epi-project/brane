@@ -3,13 +3,14 @@ name = "brane-ctl"
 version = { workspace = true }
 edition = "2021"
 authors = [ "Tim Müller" ]
-rust-version = "1.74.1"
+rust-version = "1.76.0"
 
 [[bin]]
 name = "branectl"
 path = "src/main.rs"
 
 [dependencies]
+# env_logger = "0.10"
 base64ct = "1.6.0"
 bollard = "0.14.0"
 clap = { version = "4.5.6", features = ["derive","env"] }
@@ -22,23 +23,23 @@ dotenvy = "0.15.0"
 eflint-to-json = { git = "https://github.com/epi-project/policy-reasoner" }
 enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
 error-trace = { git = "https://github.com/Lut99/error-trace-rs", tag = "v2.0.0" }
-# env_logger = "0.10"
+gethostname = "0.5.0"
 hex-literal = "0.4.0"
+human-panic = "1.0.0"
 humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.1.0" }
 humantime = "2.1.0"
-human-panic = "1.0.0"
 jsonwebtoken = "9.2.0"
 lazy_static = "1.4.0"
 log = "0.4.22"
 names = { git = "https://github.com/Lut99/names-rs", tag = "v0.1.0", default-features = false, features = [ "rand", "three-lowercase" ]}
 policy = { git = "https://github.com/epi-project/policy-reasoner" }
-srv = { git = "https://github.com/epi-project/policy-reasoner" }
 rand = "0.8.5"
 reqwest = { version = "0.11.27" }
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.120"
 serde_yaml = { version = "0.0.10", package = "serde_yml" }
 shlex = "1.1.0"
+srv = { git = "https://github.com/epi-project/policy-reasoner" }
 tempfile = "3.10.1"
 tokio = { version = "1.38.0", features = [] }
 
@@ -47,6 +48,7 @@ brane-shr = { path = "../brane-shr" }
 brane-tsk = { path = "../brane-tsk" }
 specifications = { path = "../specifications" }
 clap_complete = "4.5.8"
+indoc = "2.0.5"
 
 
 # Hacky indeed but necessary to dodge OpenSSL linking, which we need to make cross-compilation _so_ much easier
