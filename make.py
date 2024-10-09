@@ -2941,7 +2941,7 @@ class BuilderTarget(Target):
         """
 
         # Set the super fields
-        super().__init__(name, [], [], [], deps, description)
+        super().__init__(name, [], {}, [], deps, description)
 
     def _cmds(self, args: argparse.Namespace) -> typing.List[Command]:
         """
