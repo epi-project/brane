@@ -34,7 +34,7 @@ tokio-stream = "0.1.6"
 tokio-tar = "0.3.0"
 tokio-util = { version = "0.7.1", features = ["codec"] }
 uuid = { version = "1.7.0", features = ["serde", "v4"] }
-warp = "0.3.0"
+warp = "0.3.2"
 
 brane-cfg      = { path = "../brane-cfg" }
 brane-prx      = { path = "../brane-prx" }
