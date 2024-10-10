@@ -33,11 +33,9 @@ jobs:
           toolchain: ${{ inputs.rust-version }}
           components: rustfmt, clippy
 
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: 21.11
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install dependencies
+        if: inputs.os == 'ubuntu-latest'
+        run: sudo apt update && sudo apt install -y libsqlite3-dev
 
       - name: Install Cargo Hack
         uses: taiki-e/install-action@cargo-hack
