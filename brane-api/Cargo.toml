@@ -3,7 +3,7 @@ name = "brane-api"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2018"
-rust-version = "1.74.1"
+rust-version = "1.74"
 
 [dependencies]
 async-compression = { version = "0.3.15", features = ["tokio","gzip"] }

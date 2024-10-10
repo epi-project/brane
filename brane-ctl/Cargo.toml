@@ -3,8 +3,8 @@ name = "brane-ctl"
 version = { workspace = true }
 edition = "2021"
 authors = [ "Tim Müller" ]
-rust-version = "1.74.1"
 default-run = "branectl"
+rust-version = "1.78"
 
 [[bin]]
 name = "branectl"
