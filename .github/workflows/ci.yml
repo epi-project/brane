@@ -138,12 +138,15 @@ jobs:
     name: "Minimum supported rust version"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: cargo-bins/cargo-binstall@main
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Cargo Binstall
+        uses: cargo-bins/cargo-binstall@main
       - name: Install Cargo MSRV
-        run: cargo binstall --no-confirm cargo-msrv
+        run: cargo binstall --no-confirm cargo-msrv --version ^0.16
       - name: "Run minimum supported rust version"
-        run: cargo msrv
+        run: ./ci-cd/msrv
+
 
   lockfile:
     # Note that we don't depend on check in stable or nightly
