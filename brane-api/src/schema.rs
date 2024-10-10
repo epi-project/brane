@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use chrono::{DateTime, TimeZone, Utc};
-use juniper::{graphql_object, EmptySubscription, FieldResult, GraphQLObject, RootNode};
+use juniper::{EmptySubscription, FieldResult, GraphQLObject, RootNode, graphql_object};
 use log::{debug, info};
 use scylla::IntoTypedRows;
 use specifications::version::Version;

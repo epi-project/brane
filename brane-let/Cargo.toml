@@ -3,7 +3,7 @@ name = "brane-let"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2018"
-rust-version = "1.74.1"
+rust-version = "1.74"
 
 [[bin]]
 name = "branelet"

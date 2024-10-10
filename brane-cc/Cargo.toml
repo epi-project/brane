@@ -3,7 +3,7 @@ name = "brane-cc"
 version = { workspace = true }
 edition = "2021"
 authors = [ "Tim Müller" ]
-rust-version = "1.74.1"
+rust-version = "1.74"
 
 [[bin]]
 name = "branec"
