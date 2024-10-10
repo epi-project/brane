@@ -144,3 +144,23 @@ jobs:
         run: cargo binstall --no-confirm cargo-msrv
       - name: "Run minimum supported rust version"
         run: cargo msrv
+
+  lockfile:
+    # Note that we don't depend on check in stable or nightly
+    # as code need not compile for the formatter to work
+    name: "Lock file"
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: "Check if lockfile update is necessary"
+        # This will attempt an update all dependencies in our workspace (not transient).
+        # This should not be the case, so if it can locked will prevent it and return a non-zero exit code
+        # The behaviour should be comparable to `check --locked`, but without actually compiling it
+        run: cargo update --workspace --locked
