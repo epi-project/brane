@@ -15,8 +15,8 @@ enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", feat
 env_logger = "0.10.0"
 error-trace = { git = "https://github.com/Lut99/error-trace-rs", tag = "v2.0.0" }
 futures = "0.3.24"
-juniper = "0.15.7"
-juniper_warp = "0.7.0"
+juniper = { version = "0.16.1", features = ["chrono"] }
+juniper_warp = "0.8.0"
 # k8s-openapi = { version = "0.14", default-features = false, features = ["v1_23"] }
 log = "0.4.22"
 prost = "0.12.0"
