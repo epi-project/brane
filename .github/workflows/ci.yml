@@ -144,6 +144,8 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
       - name: Install Cargo MSRV
         run: cargo binstall --no-confirm cargo-msrv --version ^0.16
+      - name: Install dependencies
+        run: sudo apt update; sudo apt install -y yq
       - name: "Run minimum supported rust version"
         run: ./ci-cd/msrv
 
