@@ -6,7 +6,7 @@ ret=0
 echo "Running Cargo MSRV on the entire workspace"
 for file in $(tomlq -r < Cargo.toml .workspace.members.[]); do
     echo "::group::${file}"
-    if cargo msrv verify --output-format json --manifest-path "$file"; then
+    if ! cargo msrv verify --output-format json --manifest-path "$file"; then
         ret=1
     fi
     echo "::endgroup::"
