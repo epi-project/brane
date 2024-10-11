@@ -64,6 +64,9 @@ This update sees a lot of changes. Most notably, it integrated with the [policy 
 - `Cargo.toml` not committing to patch-level minimum versions ([#92](https://github.com/epi-project/brane/pull/92)). Extra thanks to @DanielVoogsgerd for this one.
 - `specifications` not correctly setting the `rc` feature-flag for `serde` ([#90](https://github.com/epi-project/brane/pull/90)).
 
+### Removed
+- `brane-aos` has been completely removed from Brane
+
 ## [3.0.0] - 2023-10-22
 ### Added
 - The `libbrane_cli.so` library (`brane-cli-c` crate), which provides C-bindings to the client functionality of the `brane` CLI tool. This can be used by other projects (e.g., [Brane IDE](https://github.com/epi-project/brane-ide)) to provide client functionality when written in C/C++.

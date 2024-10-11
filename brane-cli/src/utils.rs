@@ -145,7 +145,7 @@ pub fn determine_kind(path: &Path) -> Result<PackageKind, UtilError> {
         }
     }
 
-    // For CWL and OAS we need to look inside the file
+    // For CWL we need to look inside the file
     let mut file_content = String::new();
     {
         // Open the file
@@ -165,9 +165,6 @@ pub fn determine_kind(path: &Path) -> Result<PackageKind, UtilError> {
     // Check if the content contains a keywords that allow us to say which package it is
     if file_content.contains("cwlVersion") {
         return Ok(PackageKind::Cwl);
-    }
-    if file_content.contains("openapi") {
-        return Ok(PackageKind::Oas);
     }
 
     // Could not determine the package

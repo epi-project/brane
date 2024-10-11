@@ -21,7 +21,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use brane_cli::errors::{CliError, ImportError};
-use brane_cli::{build_ecu, build_oas, certs, check, data, instance, packages, registry, repl, run, test, upgrade, verify, version};
+use brane_cli::{build_ecu, certs, check, data, instance, packages, registry, repl, run, test, upgrade, verify, version};
 use brane_dsl::Language;
 use brane_shr::fs::DownloadSecurity;
 use brane_tsk::docker::DockerOptions;
@@ -247,9 +247,6 @@ async fn run(options: Cli) -> Result<(), CliError> {
                         PackageKind::Ecu => build_ecu::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, keep_files, crlf_ok)
                             .await
                             .map_err(|err| CliError::BuildError { err })?,
-                        PackageKind::Oas => build_oas::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, keep_files)
-                            .await
-                            .map_err(|err| CliError::BuildError { err })?,
                         _ => eprintln!("Unsupported package kind: {kind}"),
                     }
                 },
@@ -332,9 +329,6 @@ async fn run(options: Cli) -> Result<(), CliError> {
                     // Build a new package with it
                     match kind {
                         PackageKind::Ecu => build_ecu::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, false, crlf_ok)
-                            .await
-                            .map_err(|err| CliError::BuildError { err })?,
-                        PackageKind::Oas => build_oas::handle(arch.unwrap_or(Arch::HOST), workdir, file, init, false)
                             .await
                             .map_err(|err| CliError::BuildError { err })?,
                         _ => eprintln!("Unsupported package kind: {kind}"),
