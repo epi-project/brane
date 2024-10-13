@@ -66,14 +66,12 @@ pub struct Query;
 
 #[graphql_object(context = Context)]
 impl Query {
-    ///
     #[allow(non_snake_case)]
     async fn apiVersion() -> &'static str {
         info!("Handling GRAPHQL on '/graphql' (i.e., get API version)");
         env!("CARGO_PKG_VERSION")
     }
 
-    ///
     async fn packages(name: Option<String>, version: Option<String>, term: Option<String>, context: &Context) -> FieldResult<Vec<Package>> {
         info!("Handling GRAPHQL on '/graphql' (i.e., get packages list)");
         let scylla = context.scylla.clone();
@@ -153,13 +151,11 @@ pub struct Mutations;
 
 #[graphql_object(context = Context)]
 impl Mutations {
-    ///
     async fn login(_username: String, _password: String, _context: &Context) -> FieldResult<String> {
         info!("Handling GRAPHQL on '/graphql' (i.e., login)");
         todo!();
     }
 
-    ///
     async fn unpublish_package(name: String, version: String, context: &Context) -> FieldResult<&str> {
         info!("Handling GRAPHQL on '/graphql' (i.e., unpublish package)");
         let scylla = context.scylla.clone();

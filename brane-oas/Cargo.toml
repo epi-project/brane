@@ -21,3 +21,6 @@ serde = "1.0.204"
 serde_json = "1.0.120"
 serde_yaml = { version = "0.0.10", package = "serde_yml" }
 specifications = { path = "../specifications" }
+
+[lints]
+workspace = true
