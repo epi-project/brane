@@ -462,7 +462,7 @@ pub enum PackagesError {
     NodeConfigLoadError { err: brane_cfg::info::YamlError },
     /// The given node type is not supported for this operation.
     ///
-    /// The `what` should fill in the `<WHAT>` in: "Cannot `<WHAT>` on a ... node"
+    /// The `what` should fill in the \<WHAT\> in: "Cannot \<WHAT\> on a ... node"
     UnsupportedNode { what: &'static str, kind: NodeKind },
     /// The given file is not a file.
     FileNotAFile { path: PathBuf },

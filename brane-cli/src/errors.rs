@@ -1818,7 +1818,7 @@ impl Error for UtilError {}
 /// Defines errors that relate to finding our directories.
 #[derive(Debug)]
 pub enum DirError {
-    /// Failed to find a user directory. The `what` hints at the kind of user directory (fill in "`<WHAT>` directory", e.g., "config", "data", ...)
+    /// Failed to find a user directory. The `what` hints at the kind of user directory (fill in "\<what\> directory", e.g., "config", "data", ...)
     UserDirError { what: &'static str },
     /// Failed to read the softlink.
     SoftlinkReadError { path: PathBuf, err: std::io::Error },
