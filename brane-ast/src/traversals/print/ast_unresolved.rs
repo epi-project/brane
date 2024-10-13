@@ -192,6 +192,8 @@ pub fn pass_f_edges(writer: &mut impl Write, f_edges: &HashMap<usize, EdgeBuffer
 ///
 /// # Returns
 /// Nothing, but does print the buffer to stdout.
+// Clippy: Hash of EdgeBufferNodePtr is not mutable
+#[allow(clippy::mutable_key_type)]
 pub fn pass_edges(
     writer: &mut impl Write,
     edges: &EdgeBuffer,
@@ -224,6 +226,8 @@ pub fn pass_edges(
                     },
                     EdgeBufferNodeLink::Branch(true_branch, false_branch, next) => {
                         // Add next to a copy of the hashset
+                        // Clippy: Hash of EdgeBufferNodePtr is not mutable
+                        #[allow(clippy::mutable_key_type)]
                         let mut nested_stop: HashSet<EdgeBufferNodePtr> = stop.clone();
                         if let Some(next) = next {
                             nested_stop.insert(next.clone());
@@ -253,6 +257,8 @@ pub fn pass_edges(
                     },
                     EdgeBufferNodeLink::Parallel(branches, join) => {
                         // Add join to a copy of the hashset
+                        // Clippy: Hash of EdgeBufferNodePtr is not mutable
+                        #[allow(clippy::mutable_key_type)]
                         let mut nested_stop: HashSet<EdgeBufferNodePtr> = stop.clone();
                         nested_stop.insert(join.clone());
 
@@ -270,6 +276,8 @@ pub fn pass_edges(
                     },
                     EdgeBufferNodeLink::Loop(cond, body, next) => {
                         // Add next to a copy of the hashset
+                        // Clippy: Hash of EdgeBufferNodePtr is not mutable
+                        #[allow(clippy::mutable_key_type)]
                         let mut nested_stop: HashSet<EdgeBufferNodePtr> = stop.clone();
                         if let Some(next) = next {
                             nested_stop.insert(next.clone());
@@ -306,7 +314,7 @@ pub fn pass_edges(
         },
     }
 
-    // DOne
+    // Done
     Ok(())
 }
 

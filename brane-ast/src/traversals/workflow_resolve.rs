@@ -161,6 +161,8 @@ fn update_link(edge: &mut Edge, index: usize) {
 ///
 /// # Returns
 /// Nothing, but does add the edges in the `target` structure.
+// Clippy: Hash of EdgeBufferNodePtr is not mutable
+#[allow(clippy::mutable_key_type)]
 fn pass_edges(edges: EdgeBuffer, target: &mut Vec<Edge>, map: &mut HashMap<EdgeBufferNodePtr, usize>, offset: usize) {
     // Early quit if there's nothing to compile
     let mut edges_start: EdgeBufferNodePtr = match edges.start() {
