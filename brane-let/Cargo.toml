@@ -29,3 +29,6 @@ brane-ast = { path = "../brane-ast" }
 brane-exe = { path = "../brane-exe" }
 brane-oas = { path = "../brane-oas" }
 specifications = { path = "../specifications" }
+
+[lints]
+workspace = true

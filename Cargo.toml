@@ -69,5 +69,6 @@ name = "brane-meta"
 version.workspace = true
 edition = "2021"
 
-[lints.clippy]
+[workspace.lints.clippy]
 result_large_err = { level = "allow", priority = 1 }
+suspicious = "deny"
