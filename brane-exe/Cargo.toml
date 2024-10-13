@@ -34,3 +34,6 @@ brane-shr = { path = "../brane-shr" }
 [features]
 print_exec_path = []
 test_logging    = []
+
+[lints]
+workspace = true

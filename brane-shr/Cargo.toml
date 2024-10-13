@@ -32,3 +32,6 @@ specifications = { path = "../specifications" }
 [dev-dependencies]
 getrandom = "0.2.8"
 tempfile = "3.10.1"
+
+[lints]
+workspace = true
