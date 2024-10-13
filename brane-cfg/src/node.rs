@@ -89,7 +89,7 @@ impl<'de> YamlInfo<'de> for NodeConfig {}
 #[serde(rename_all = "snake_case")]
 pub enum NodeSpecificConfig {
     /// Defines the services for the central node.
-    #[serde(alias = "central")]
+    #[serde(alias = "control")]
     Central(CentralConfig),
     /// Defines the services for the worker node.
     Worker(WorkerConfig),
