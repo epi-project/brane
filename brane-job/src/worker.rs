@@ -229,18 +229,18 @@ struct PolicyValidateRequest {
 /***** AUXILLARY STRUCTURES *****/
 /// Helper structure for grouping together task-dependent "constants", but that are not part of the task itself.
 #[derive(Clone, Debug)]
-pub struct ControlNodeInfo {
+pub struct CentralNodeInfo {
     /// The address of the API service.
     pub api_endpoint: String,
 }
-impl ControlNodeInfo {
-    /// Constructor for the ControlNodeInfo.
+impl CentralNodeInfo {
+    /// Constructor for the CentralNodeInfo.
     ///
     /// # Arguments
     /// - `api_endpoint`: The address of the API service.
     ///
     /// # Returns
-    /// A new ControlNodeInfo instance.
+    /// A new CentralNodeInfo instance.
     #[inline]
     pub fn new(api_endpoint: impl Into<String>) -> Self { Self { api_endpoint: api_endpoint.into() } }
 }
@@ -1352,7 +1352,7 @@ async fn execute_task_local(
 /// - `tx`: The channel to transmit stuff back to the client on.
 /// - `use_case`: A string denoting which use-case (registry) we're using.
 /// - `workflow`: The Workflow that we're executing. Useful for communicating with the eFLINT backend.
-/// - `cinfo`: The ControlNodeInfo that specifies where to find services over at the control node.
+/// - `cinfo`: The CentralNodeInfo that specifies where to find services over at the central node.
 /// - `tinfo`: The TaskInfo that describes the task itself to execute.
 /// - `keep_container`: Whether to keep the container after execution or not.
 /// - `prof`: A ProfileScope to provide more detailled information about the time it takes to execute a task.
@@ -1369,7 +1369,7 @@ async fn execute_task(
     tx: Sender<Result<ExecuteReply, Status>>,
     use_case: &str,
     workflow: Workflow,
-    cinfo: ControlNodeInfo,
+    cinfo: CentralNodeInfo,
     tinfo: TaskInfo,
     keep_container: bool,
     prof: ProfileScopeHandle<'_>,
@@ -2081,8 +2081,8 @@ impl JobService for WorkerServer {
             },
         };
 
-        // Collect some request data into ControlNodeInfo's and TaskInfo's.
-        let cinfo: ControlNodeInfo = ControlNodeInfo::new(api.to_string());
+        // Collect some request data into CentralNodeInfo's and TaskInfo's.
+        let cinfo: CentralNodeInfo = CentralNodeInfo::new(api.to_string());
         let tinfo: TaskInfo = TaskInfo::new(
             task.function.name.clone(),
             ProgramCounter::new(
