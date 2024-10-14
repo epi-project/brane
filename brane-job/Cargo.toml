@@ -3,7 +3,7 @@ name = "brane-job"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2018"
-rust-version = "1.74.1"
+rust-version = "1.74"
 
 [dependencies]
 base64 = "0.21.0"

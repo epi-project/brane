@@ -3,7 +3,7 @@ name = "specifications"
 version = { workspace = true }
 authors = { workspace = true }
 edition = "2018"
-rust-version = "1.67.1"
+rust-version = "1.73"
 
 [dependencies]
 anyhow = "1.0.66"

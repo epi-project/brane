@@ -3,8 +3,8 @@ name = "brane-ctl"
 version = { workspace = true }
 edition = "2021"
 authors = [ "Tim Müller" ]
-rust-version = "1.74.1"
 default-run = "branectl"
+rust-version = "1.78"
 
 [[bin]]
 name = "branectl"
@@ -22,8 +22,8 @@ clap = { version = "4.5.6", features = ["derive","env"] }
 console = "0.15.5"
 dialoguer = "0.11.0"
 diesel = { version = "2.2.3", features = ["sqlite"] }
-diesel_migrations = "2.1.0"
-dirs = "5.0.0"
+diesel_migrations = "2.2.0"
+dirs = "5.0.1"
 dotenvy = "0.15.0"
 eflint-to-json = { git = "https://github.com/epi-project/policy-reasoner" }
 enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
