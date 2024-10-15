@@ -89,7 +89,7 @@ pub fn clean_directory(package_dir: &Path, files: Vec<&str>) {
 /// # Arguments
 ///  - `arch`: The architecture for which to build this image.
 ///  - `package_dir`: The build directory for this image. We expect the actual image files to be under ./container.
-///  - `tag`: Tag to give to the image so we can find it later (probably just <package name>:<package version>)
+///  - `tag`: Tag to give to the image so we can find it later (probably just `<package name>:<package version>`)
 ///
 /// # Errors
 /// This function fails if Buildx could not be test-ran, it could not run the Docker build command or the Docker build command did not return a successfull exit code.

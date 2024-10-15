@@ -53,7 +53,7 @@ use crate::vm::OfflineVm;
 /// - `dindex`: The DataIndex to resolve data instantiations with.
 /// - `user`: If given, then this is some tentative identifier of the user receiving the final workflow result.
 /// - `options`: The ParseOptions to use.
-/// - `what`: A string describing what we're parsing (e.g., a filename, `<stdin>`, ...).
+/// - `what`: A string describing what we're parsing (e.g., a filename, stdin, ...).
 /// - `snippet`: The actual snippet to parse.
 ///
 /// # Returns
@@ -686,7 +686,7 @@ pub async fn initialize_instance_vm(
 ///
 /// # Arguments
 /// - `state`: The DummyVmState that we use to run the dummy VM.
-/// - `what`: The thing we're running. Either a filename, or something like '<stdin>'.
+/// - `what`: The thing we're running. Either a filename, or something like stdin.
 /// - `snippet`: The snippet (as raw text) to compile and run.
 ///
 /// # Returns
@@ -721,7 +721,7 @@ pub async fn run_dummy_vm(state: &mut DummyVmState, what: impl AsRef<str>, snipp
 ///
 /// # Arguments
 /// - `state`: The OfflineVmState that we use to run the local VM.
-/// - `what`: The thing we're running. Either a filename, or something like '<stdin>'.
+/// - `what`: The thing we're running. Either a filename, or something like stdin.
 /// - `snippet`: The snippet (as raw text) to compile and run.
 ///
 /// # Returns
@@ -757,7 +757,7 @@ pub async fn run_offline_vm(state: &mut OfflineVmState, what: impl AsRef<str>, s
 /// # Arguments
 /// - `drv_endpoint`: The `brane-drv` endpoint that we will connect to to run stuff (used for debugging only).
 /// - `state`: The InstanceVmState that we use to connect to the driver.
-/// - `what`: The thing we're running. Either a filename, or something like '<stdin>'.
+/// - `what`: The thing we're running. Either a filename, or something like stdin.
 /// - `snippet`: The snippet (as raw text) to compile and run.
 /// - `profile`: If given, prints the profile timings to stdout if reported by the remote.
 ///
@@ -1005,7 +1005,7 @@ pub async fn handle(
 ///
 /// # Arguments
 /// - `options`: The ParseOptions that specify how to parse the incoming source.
-/// - `what`: A description of the source we're reading (e.g., the filename or `<stdin>`)
+/// - `what`: A description of the source we're reading (e.g., the filename or stdin)
 /// - `source`: The source code to read.
 ///
 /// # Returns
@@ -1030,7 +1030,7 @@ async fn dummy_run(options: ParserOptions, what: impl AsRef<str>, source: impl A
 /// # Arguments
 /// - `parse_opts`: The ParseOptions that specify how to parse the incoming source.
 /// - `docker_opts`: The options with which we connect to the local Docker daemon.
-/// - `what`: A description of the source we're reading (e.g., the filename or `<stdin>`)
+/// - `what`: A description of the source we're reading (e.g., the filename or stdin)
 /// - `source`: The source code to read.
 /// - `keep_containers`: Whether to keep containers after execution or not.
 ///
@@ -1063,7 +1063,7 @@ async fn local_run(
 /// - `info`: Information about the remote instance, including as who we're logged-in.
 /// - `proxy_addr`: The address to proxy any data transfers through if they occur.
 /// - `options`: The ParseOptions that specify how to parse the incoming source.
-/// - `what`: A description of the source we're reading (e.g., the filename or `<stdin>`)
+/// - `what`: A description of the source we're reading (e.g., the filename or stdin)
 /// - `source`: The source code to read.
 /// - `profile`: If given, prints the profile timings to stdout if reported by the remote.
 ///

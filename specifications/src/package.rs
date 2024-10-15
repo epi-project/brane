@@ -524,7 +524,7 @@ impl PackageIndex {
     /// Constructor for the PackageIndex.
     ///
     /// **Arguments**
-    ///  * `packages`: The map of packages to base this index on. Each key should be <name>-<version> (i.e., every package version is a separate entry).
+    ///  * `packages`: The map of packages to base this index on. Each key should be `<name>-<version>` (i.e., every package version is a separate entry).
     pub fn new(packages: Map<PackageInfo>) -> Self {
         // Compute the latest versions for each package
         let mut latest: Map<(Version, String)> = Map::with_capacity(packages.len());

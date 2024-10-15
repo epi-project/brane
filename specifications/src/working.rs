@@ -35,7 +35,7 @@ use tonic::{Code, Request, Response, Status};
 /// Defines the errors occurring when juggling [`PreprocessKind`]s.
 #[derive(Debug)]
 pub enum PreprocessKindConvertError {
-    /// The given [`specifications::working::PreprocessKind`] did not have a successfully parsed `dataname`-field.
+    /// The given [`PreprocessKind`] did not have a successfully parsed `dataname`-field.
     NoDataName,
 }
 impl Display for PreprocessKindConvertError {

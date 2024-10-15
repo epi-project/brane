@@ -25,7 +25,7 @@ use serde::ser::{Serialize, SerializeSeq, Serializer};
 
 
 /***** ERRORS *****/
-/// Defines errors when parsing `ProgramCounter` from a string.
+/// Defines errors when parsing [`ProgramCounter`] from a string.
 #[derive(Debug)]
 pub enum ProgramCounterParseError {
     /// Failed to find a ':' in the program counter string.
@@ -111,7 +111,7 @@ impl ProgramCounter {
 
     /// Returns a ProgramCounter that points to the given edge within the same function.
     ///
-    /// This function returns a new instance. To update an existing one, use [`Self::jump_mut`](jump_mut).
+    /// This function returns a new instance. To update an existing one, use [`ProgramCounter::jump_mut()`].
     ///
     /// # Arguments
     /// - `next`: The edge index of the new edge within this function.
@@ -125,7 +125,7 @@ impl ProgramCounter {
 
     /// Updates this program counter with a new edge index.
     ///
-    /// This function mutates `self`. To instead receive a new instance, use [`Self::jump`](jump).
+    /// This function mutates `self`. To instead receive a new instance, use [`ProgramCounter::jump`]
     ///
     /// # Arguments
     /// - `next`: The edge index of the new edge within this function.
@@ -141,7 +141,7 @@ impl ProgramCounter {
 
     /// Returns a ProgramCounter that points to the start of another function.
     ///
-    /// This function returns a new instance. To update an existing one, use [`Self::call_mut`](call_mut).
+    /// This function returns a new instance. To update an existing one, use [`ProgramCounter::call_mut`].
     ///
     /// # Arguments
     /// - `func`: The identifier of the function to point to.
@@ -155,7 +155,7 @@ impl ProgramCounter {
 
     /// Updates this program counter such that it points to the start of the given function.
     ///
-    /// This function mutates `self`. To instead receive a new instance, use [`Self::call`](call).
+    /// This function mutates `self`. To instead receive a new instance, use [`ProgramCounter::call`].
     ///
     /// # Arguments
     /// - `func`: The identifier of the function to point to.
@@ -176,7 +176,7 @@ impl ProgramCounter {
     /// - `symtable`: A workflow [`SymTable`] that is used to resolve the function identifiers to names.
     ///
     /// # Returns
-    /// A [`ProgramCounterFormatter`] that does the actual formatting as it implements [`Display`].
+    /// A [`ResolvedProgramCounter`] that does the actual formatting as it implements [`Display`].
     #[inline]
     pub fn resolved(&self, symtable: &SymTable) -> ResolvedProgramCounter {
         // Check if we can find a name
