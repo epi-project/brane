@@ -61,13 +61,24 @@ authors = [ "Onno Valkering", "Tim Müller" ]
 description = "The Brane Framework is a workflow execution system that is capable of dealing with sensitive dataset. Created for the [EPI project](https://enablingpersonalizedinterventions.nl)."
 repository = "https://github.com/epi-project/brane"
 documentation = "https://wiki.enablingpersonalizedinterventions.nl"
+license = "Apache-2.0"
 
+[workspace.dependencies]
+# Lut99 Crates
+humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.2.0" }
+enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.1.0", features = ["derive"] }
+error-trace = { git = "https://github.com/Lut99/error-trace-rs", tag = "v3.0.0" }
+transform = { git = "https://github.com/Lut99/transform-rs", tag = "v0.2.0" }
+names = { git = "https://github.com/Lut99/names-rs", tag = "v0.1.0", default-features = false, features = [ "rand", "three-lowercase" ]}
+download = { git = "https://github.com/Lut99/download-rs", tag = "v0.1.0", default-features = false, features = ["download"] }
 
 [package]
 name = "brane-meta"
-version.workspace = true
 edition = "2021"
 rust-version = "1.74"
+version.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [lints.clippy]
 result_large_err = { level = "allow", priority = 1 }

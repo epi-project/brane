@@ -1,9 +1,11 @@
 [package]
 name = "brane-tsk"
-version = { workspace = true }
 edition = "2021"
-authors = [ "Tim Müller" ]
 rust-version = "1.73"
+authors = [ "Tim Müller" ]
+version.workspace = true
+repository.workspace = true
+license.workspace = true
 
 
 [dependencies]
@@ -14,7 +16,7 @@ bollard = "0.14.0"
 chrono = "0.4.35"
 console = "0.15.5"
 dialoguer = "0.11.0"
-enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
+enum-debug.workspace = true
 futures-util = "0.3.30"
 graphql_client = "0.13.0"
 hyper = "0.14.29"
@@ -44,7 +46,7 @@ specifications = { path = "../specifications" }
 
 [dev-dependencies]
 clap = { version = "4.4.0", features = ["derive"] }
-humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.1.0" }
+humanlog.workspace = true
 lazy_static = "1.4.0"
 
 

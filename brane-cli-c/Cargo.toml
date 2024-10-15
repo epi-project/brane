@@ -1,10 +1,12 @@
 [package]
 name = "brane-cli-c"
-version = { workspace = true }
-edition = "2021"
-authors = { workspace = true }
 description = "Wrapper around `brane-cli` that provides C-bindings for interacting with a remote backend. This allows C-programs to act as a BRANE client."
 rust-version = "1.74"
+edition = "2021"
+version.workspace = true
+repository.workspace = true
+authors.workspace = true
+license.workspace = true
 
 
 [lib]
@@ -15,7 +17,7 @@ doc        = false
 
 [dependencies]
 console = "0.15.5"
-humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.1.0" }
+humanlog.workspace = true
 libc = "0.2.154"
 log = "0.4.22"
 parking_lot = "0.12.1"

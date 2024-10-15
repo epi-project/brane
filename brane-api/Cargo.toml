@@ -1,9 +1,11 @@
 [package]
 name = "brane-api"
-version = { workspace = true }
-authors = { workspace = true }
-edition = "2018"
 rust-version = "1.74"
+edition = "2021"
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+authors.workspace = true
 
 [dependencies]
 async-compression = { version = "0.3.15", features = ["tokio","gzip"] }
@@ -11,9 +13,9 @@ bytes = "1.2.0"
 chrono = "0.4.35"
 clap = { version = "4.5.6", features = ["derive","env"] }
 dotenvy = "0.15"
-enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
+enum-debug.workspace = true
 env_logger = "0.10.0"
-error-trace = { git = "https://github.com/Lut99/error-trace-rs", tag = "v2.0.0" }
+error-trace.workspace = true
 futures = "0.3.24"
 juniper = { version = "0.16.1", features = ["chrono"] }
 juniper_warp = "0.8.0"

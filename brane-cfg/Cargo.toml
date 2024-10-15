@@ -1,13 +1,15 @@
 [package]
 name = "brane-cfg"
-version = { workspace = true }
-authors = ["Onno Valkering", "Tim Müller"]
-edition = "2018"
 rust-version = "1.73"
+edition = "2018"
+authors = ["Onno Valkering", "Tim Müller"]
+version.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
 async-trait = "0.1.67"
-enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
+enum-debug.workspace = true
 log = "0.4.22"
 rustls = "0.21.6"
 rustls-pemfile = "1.0.1"

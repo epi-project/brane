@@ -1,9 +1,11 @@
 [package]
 name = "brane-exe"
-version = { workspace = true }
+rust-version = "1.73"
 edition = "2021"
 authors = [ "Tim Müller" ]
-rust-version = "1.73"
+version.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
 async-recursion = "1.0.0"
@@ -11,7 +13,7 @@ async-trait = "0.1.67"
 base64 = "0.13.0"
 # bollard = "0.11"
 console = "0.15.5"
-enum-debug = { git = "https://github.com/Lut99/enum-debug", tag = "v1.0.0", features = ["derive"] }
+enum-debug.workspace = true
 futures = "0.3.24"
 lazy_static = "1.4.0"
 log = "0.4.22"
@@ -26,7 +28,7 @@ brane-shr = { path = "../brane-shr" }
 specifications = { path = "../specifications" }
 
 [dev-dependencies]
-humanlog = { git = "https://github.com/Lut99/humanlog-rs", tag = "v0.1.0" }
+humanlog.workspace = true
 brane-shr = { path = "../brane-shr" }
 
 [features]
