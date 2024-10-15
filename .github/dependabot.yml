@@ -13,6 +13,24 @@ updates:
     # Limit is arbitrary, but having a slight limit helps keeps stuff manageable
     open-pull-requests-limit: 5
     groups:
+      # The policy reasoner functions as a whole, lets attempt to update it as a whole
+      policy-reasoner:
+        patterns:
+          - "auth-resolver"
+          - "deliberation"
+          - "eflint-to-json"
+          - "policy"
+          - "reasonerconn"
+          - "srv"
+          - "state-resolver"
+          - "workflow"
+          - "audit-logger"
+          - "nested-cli-parser"
+          # Tools
+          - "checker-client"
+          - "key-manager"
+          - "policy-builder"
+
       backwards-compatible:
         update-types:
           - "patch"
