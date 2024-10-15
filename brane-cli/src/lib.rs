@@ -10,7 +10,6 @@ extern crate lazy_static;
 #[macro_use]
 pub mod build_common;
 pub mod build_ecu;
-pub mod build_oas;
 pub mod certs;
 pub mod check;
 pub mod data;

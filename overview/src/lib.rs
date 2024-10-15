@@ -49,4 +49,10 @@
 //!   - `specifications`: Defines the "Brane interface", i.e., network structs, non-config file layouts (mostly relating to user-facing files) and outward-facing traits and enums. Also contains legacy definitions for the old workflow representation.
 //!   - `brane-shr`: Defines common utilities and functions that aren't really covered by `brane-cfg` or `specifications`.
 //!   - `brane-oas`: Unused, but used to implement a parser for the [Open API](https://www.openapis.org/) specification language.
+//!
+//!   **Graveyard**
+//!   Brane also has some projects that either did not make it, were abandoned, or were replaced.
+//!   Below a non-exhaustive list of those projects and what was the last version in which they
+//!   were developed.
+//!   - `brane-oas`: An Openapi specification crate for Brane. Removed after v3.0.0
 //

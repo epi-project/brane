@@ -11,7 +11,6 @@ members = [
 
     # These crates directly relate to the CLI tool
     "brane-cli",
-    "brane-oas",
 
     # These crates directly relate to the `branec` tool
     "brane-cc",
