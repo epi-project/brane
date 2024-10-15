@@ -18,4 +18,3 @@ pub mod common;
 pub mod errors;
 pub mod exec_ecu;
 pub mod exec_nop;
-pub mod exec_oas;

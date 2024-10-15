@@ -180,9 +180,6 @@ pub enum PackageKind {
     /// The package is an executable package (wrapping some other language or code)
     #[serde(rename = "ecu")]
     Ecu,
-    /// The package is implemented using the Open API Standard
-    #[serde(rename = "oas")]
-    Oas,
     /// The package is an external DSL function
     #[serde(rename = "dsl")]
     Dsl,
@@ -196,7 +193,6 @@ impl PackageKind {
     pub fn pretty(&self) -> &str {
         match self {
             PackageKind::Ecu => "code package",
-            PackageKind::Oas => "Open API Standard package",
             PackageKind::Dsl => "BraneScript/Bakery package",
             PackageKind::Cwl => "CWL package",
         }
@@ -213,7 +209,6 @@ impl std::str::FromStr for PackageKind {
         // Match
         match ls.as_str() {
             "ecu" => Ok(PackageKind::Ecu),
-            "oas" => Ok(PackageKind::Oas),
             "dsl" => Ok(PackageKind::Dsl),
             "cwl" => Ok(PackageKind::Cwl),
             _ => Err(PackageKindError::IllegalKind { skind: ls }),
@@ -229,7 +224,6 @@ impl std::convert::From<&PackageKind> for String {
     fn from(value: &PackageKind) -> String {
         match value {
             PackageKind::Ecu => String::from("ecu"),
-            PackageKind::Oas => String::from("oas"),
             PackageKind::Dsl => String::from("dsl"),
             PackageKind::Cwl => String::from("cwl"),
         }

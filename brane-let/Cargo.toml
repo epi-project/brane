@@ -27,5 +27,4 @@ yaml-rust = { version = "0.8", package = "yaml-rust2" }
 
 brane-ast = { path = "../brane-ast" }
 brane-exe = { path = "../brane-exe" }
-brane-oas = { path = "../brane-oas" }
 specifications = { path = "../specifications" }

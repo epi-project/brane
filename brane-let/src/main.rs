@@ -18,7 +18,7 @@ use std::process;
 
 use brane_let::common::PackageResult;
 use brane_let::errors::LetError;
-use brane_let::{exec_ecu, exec_nop, exec_oas};
+use brane_let::{exec_ecu, exec_nop};
 use clap::Parser;
 use dotenvy::dotenv;
 use log::{LevelFilter, debug, warn};
@@ -73,16 +73,6 @@ enum SubCommand {
     /// Don't perform any operation and return nothing
     #[clap(name = "no-op")]
     NoOp,
-    /// Call a Web API and return output
-    #[clap(name = "oas")]
-    WebApi {
-        /// Function to execute
-        function:    String,
-        /// Input arguments (encoded, as Base64'ed JSON)
-        arguments:   String,
-        #[clap(short, long, env = "BRANE_WORKDIR", default_value = "/opt/wd")]
-        working_dir: PathBuf,
-    },
 }
 
 
@@ -176,7 +166,6 @@ async fn run(
     // Switch on the sub_command to do the actual work
     let output = match sub_command {
         SubCommand::Code { function, arguments, working_dir } => exec_ecu::handle(function, decode_b64(arguments)?, working_dir).await,
-        SubCommand::WebApi { function, arguments, working_dir } => exec_oas::handle(function, decode_b64(arguments)?, working_dir).await,
         SubCommand::NoOp {} => exec_nop::handle().await,
     };
 
