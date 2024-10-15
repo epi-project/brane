@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/onnovalkering/brane/master/contrib/assets/logo.png" alt="logo" width="250"/>
+  <img src="https://raw.githubusercontent.com/onnovalkering/brane/main/contrib/assets/logo.png" alt="logo" width="250"/>
   <h3 align="center">Programmable Orchestration of Applications and Networking</h3>
 </p>
 
@@ -9,7 +9,7 @@
 
   [![Audit status](https://github.com/epi-project/brane/workflows/Audit/badge.svg)](https://github.com/epi-project/brane/actions)
   [![CI status](https://github.com/epi-project/brane/workflows/CI/badge.svg)](https://github.com/epi-project/brane/actions)
-  [![License: Apache-2.0](https://img.shields.io/github/license/epi-project/brane.svg)](https://github.com/epi-project/brane/blob/master/LICENSE)
+  [![License: Apache-2.0](https://img.shields.io/github/license/epi-project/brane.svg)](https://github.com/epi-project/brane/blob/main/LICENSE)
   [![Coverage status](https://coveralls.io/repos/github/epi-project/brane/badge.svg)](https://coveralls.io/github/epi-project/brane)
   [![Release](https://img.shields.io/github/release/epi-project/brane.svg)](https://github.com/epi-project/brane/releases/latest)
   [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3890928.svg)](https://doi.org/10.5281/zenodo.3890928)
