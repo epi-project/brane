@@ -595,6 +595,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "brane-chk"
+version = "3.0.0"
+dependencies = [
+ "brane-ast 3.0.0",
+ "brane-cfg",
+ "brane-exe 3.0.0",
+ "brane-tsk",
+ "enum-debug 1.1.0",
+ "policy-reasoner",
+ "specifications 3.0.0",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "brane-cli"
 version = "3.0.0"
 dependencies = [
@@ -3180,6 +3195,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "paste"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
 name = "path-clean"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3252,6 +3273,15 @@ dependencies = [
  "serde_json",
  "transform",
  "warp",
+]
+
+[[package]]
+name = "policy-reasoner"
+version = "1.0.0"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#419645de99ec940bd672dfc4b99748407672a5b2"
+dependencies = [
+ "specifications 0.2.0",
+ "workflow 0.2.0",
 ]
 
 [[package]]
@@ -4220,6 +4250,15 @@ dependencies = [
  "tokio",
  "url",
  "windows",
+]
+
+[[package]]
+name = "specifications"
+version = "0.2.0"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#419645de99ec940bd672dfc4b99748407672a5b2"
+dependencies = [
+ "paste",
+ "serde",
 ]
 
 [[package]]
@@ -5438,6 +5477,14 @@ dependencies = [
  "serde",
  "specifications 3.0.0 (git+https://github.com/epi-project/brane)",
  "transform",
+]
+
+[[package]]
+name = "workflow"
+version = "0.2.0"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#419645de99ec940bd672dfc4b99748407672a5b2"
+dependencies = [
+ "enum-debug 1.1.0",
 ]
 
 [[package]]
