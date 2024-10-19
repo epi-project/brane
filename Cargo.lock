@@ -603,10 +603,12 @@ dependencies = [
  "brane-exe 3.0.0",
  "brane-shr 3.0.0",
  "brane-tsk",
+ "eflint-json",
  "enum-debug 1.1.0",
  "humanlog 0.2.0",
  "names 0.1.0 (git+https://github.com/Lut99/names-rs)",
  "policy-reasoner",
+ "rand",
  "reqwest 0.12.8",
  "serde",
  "serde_json",
@@ -3292,7 +3294,7 @@ dependencies = [
 [[package]]
 name = "policy-reasoner"
 version = "1.0.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#e10601495c6d58db24ed8535b73cc68fd52bc3f3"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3d0d3bf07858662f2564779507f0a7ee592ba19a"
 dependencies = [
  "specifications 0.2.0",
  "workflow 0.2.0",
@@ -4269,7 +4271,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#e10601495c6d58db24ed8535b73cc68fd52bc3f3"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3d0d3bf07858662f2564779507f0a7ee592ba19a"
 dependencies = [
  "paste",
  "serde",
@@ -5540,7 +5542,7 @@ dependencies = [
 [[package]]
 name = "workflow"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#e10601495c6d58db24ed8535b73cc68fd52bc3f3"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3d0d3bf07858662f2564779507f0a7ee592ba19a"
 dependencies = [
  "enum-debug 1.1.0",
 ]
