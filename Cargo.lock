@@ -85,9 +85,9 @@ dependencies = [
 
 [[package]]
 name = "anstyle"
-version = "1.0.7"
+version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "038dfcf04a5feb68e9c60b21c9625a54c2c0616e79b72b0fd87075a056ae1d1b"
+checksum = "1bec1de6f59aedf83baf9ff929c98f2ad654b97c9510f4e70cf6f661d49fd5b1"
 
 [[package]]
 name = "anstyle-parse"
@@ -490,7 +490,7 @@ dependencies = [
  "brane-shr 3.0.0",
  "bytes",
  "chrono",
- "clap 4.5.9",
+ "clap 4.5.20",
  "dotenvy",
  "enum-debug 1.1.0",
  "env_logger",
@@ -564,7 +564,7 @@ dependencies = [
  "brane-dsl 3.0.0",
  "brane-shr 3.0.0",
  "brane-tsk",
- "clap 4.5.9",
+ "clap 4.5.20",
  "dotenvy",
  "enum-debug 1.1.0",
  "expanduser",
@@ -603,8 +603,10 @@ dependencies = [
  "brane-exe 3.0.0",
  "brane-shr 3.0.0",
  "brane-tsk",
+ "clap 4.5.20",
  "eflint-json",
  "enum-debug 1.1.0",
+ "error-trace 3.1.0",
  "humanlog 0.2.0",
  "names 0.1.0 (git+https://github.com/Lut99/names-rs)",
  "policy-reasoner",
@@ -615,6 +617,7 @@ dependencies = [
  "specifications 3.0.0",
  "thiserror",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -633,7 +636,7 @@ dependencies = [
  "brane-shr 3.0.0",
  "brane-tsk",
  "chrono",
- "clap 4.5.9",
+ "clap 4.5.20",
  "clap_complete",
  "console",
  "dialoguer 0.11.0",
@@ -710,7 +713,7 @@ dependencies = [
  "brane-cfg",
  "brane-shr 3.0.0",
  "brane-tsk",
- "clap 4.5.9",
+ "clap 4.5.20",
  "clap_complete",
  "console",
  "dialoguer 0.11.0",
@@ -755,7 +758,7 @@ dependencies = [
  "brane-prx",
  "brane-shr 3.0.0",
  "brane-tsk",
- "clap 4.5.9",
+ "clap 4.5.20",
  "dashmap",
  "dotenvy",
  "enum-debug 1.1.0",
@@ -871,7 +874,7 @@ dependencies = [
  "brane-shr 3.0.0",
  "brane-tsk",
  "chrono",
- "clap 4.5.9",
+ "clap 4.5.20",
  "deliberation",
  "dotenvy",
  "enum-debug 1.1.0",
@@ -899,7 +902,7 @@ dependencies = [
  "base64 0.13.1",
  "brane-ast 3.0.0",
  "brane-exe 3.0.0",
- "clap 4.5.9",
+ "clap 4.5.20",
  "dotenvy",
  "env_logger",
  "libc",
@@ -928,7 +931,7 @@ dependencies = [
  "brane-prx",
  "brane-shr 3.0.0",
  "brane-tsk",
- "clap 4.5.9",
+ "clap 4.5.20",
  "dotenvy",
  "error-trace 3.0.0",
  "futures-util",
@@ -953,7 +956,7 @@ dependencies = [
  "brane-cfg",
  "brane-shr 3.0.0",
  "brane-tsk",
- "clap 4.5.9",
+ "clap 4.5.20",
  "dotenvy",
  "env_logger",
  "error-trace 3.0.0",
@@ -982,7 +985,7 @@ dependencies = [
  "brane-exe 3.0.0",
  "brane-shr 3.0.0",
  "brane-tsk",
- "clap 4.5.9",
+ "clap 4.5.20",
  "deliberation",
  "dotenvy",
  "enum-debug 1.1.0",
@@ -1068,7 +1071,7 @@ dependencies = [
  "brane-exe 3.0.0",
  "brane-shr 3.0.0",
  "chrono",
- "clap 4.5.9",
+ "clap 4.5.20",
  "console",
  "dialoguer 0.11.0",
  "enum-debug 1.1.0",
@@ -1164,9 +1167,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.9"
+version = "4.5.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64acc1846d54c1fe936a78dc189c34e28d3f5afc348403f28ecf53660b9b8462"
+checksum = "b97f376d85a664d5837dbae44bf546e6477a679ff6610010f17276f686d867e8"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1174,9 +1177,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.9"
+version = "4.5.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fb8393d67ba2e7bfaf28a23458e4e2b543cc73a99595511eb207fdb8aede942"
+checksum = "19bc80abd44e4bed93ca373a0704ccbd1b710dc5749406201bb018272808dc54"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1190,14 +1193,14 @@ version = "4.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b4be9c4c4b1f30b78d8a750e0822b6a6102d97e62061c583a6c1dea2dfb33ae"
 dependencies = [
- "clap 4.5.9",
+ "clap 4.5.20",
 ]
 
 [[package]]
 name = "clap_derive"
-version = "4.5.8"
+version = "4.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bac35c6dafb060fd4d275d9a4ffae97917c13a6327903a8be2153cd964f7085"
+checksum = "4ac6a0c7b1a9e9a5186361f67dfa1b88213572f427fb9ab038efb2bd8c582dab"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -1791,6 +1794,11 @@ source = "git+https://github.com/Lut99/error-trace-rs#7e9b76a2a2746a8ab88776877a
 name = "error-trace"
 version = "3.0.0"
 source = "git+https://github.com/Lut99/error-trace-rs?tag=v3.0.0#a026dc304b5bcc40bc68574f21459d2f1b6cad90"
+
+[[package]]
+name = "error-trace"
+version = "3.1.0"
+source = "git+https://github.com/Lut99/error-trace-rs?tag=v3.1.0#c3046059215f2bf60175f0274ec91c241c6dd069"
 
 [[package]]
 name = "expanduser"
@@ -2792,6 +2800,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "matchers"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8263075bb86c5a1b1427b5ae862e8889656f126e9f77c484496e8b47cf5c5558"
+dependencies = [
+ "regex-automata 0.1.10",
+]
+
+[[package]]
 name = "matchit"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2983,6 +3000,16 @@ dependencies = [
  "bytecount",
  "memchr",
  "nom",
+]
+
+[[package]]
+name = "nu-ansi-term"
+version = "0.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
+dependencies = [
+ "overload",
+ "winapi",
 ]
 
 [[package]]
@@ -3184,6 +3211,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "overload"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
+
+[[package]]
 name = "overview"
 version = "3.0.0"
 
@@ -3294,7 +3327,7 @@ dependencies = [
 [[package]]
 name = "policy-reasoner"
 version = "1.0.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3d0d3bf07858662f2564779507f0a7ee592ba19a"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3762d65c46b619e2fe0e3d588082731db5c934db"
 dependencies = [
  "specifications 0.2.0",
  "workflow 0.2.0",
@@ -3561,8 +3594,17 @@ checksum = "b91213439dad192326a0d7c6ee3955910425f441d7038e0d6933b0aec5c4517f"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-automata",
- "regex-syntax",
+ "regex-automata 0.4.7",
+ "regex-syntax 0.8.4",
+]
+
+[[package]]
+name = "regex-automata"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c230d73fb8d8c1b9c0b3135c5142a8acee3a0558fb8db5cf1cb65f8d7862132"
+dependencies = [
+ "regex-syntax 0.6.29",
 ]
 
 [[package]]
@@ -3573,8 +3615,14 @@ checksum = "38caf58cc5ef2fed281f89292ef23f6365465ed9a41b7a7754eb4e26496c92df"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-syntax",
+ "regex-syntax 0.8.4",
 ]
+
+[[package]]
+name = "regex-syntax"
+version = "0.6.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f162c6dd7b008981e4d40210aca20b4bd0f9b60ca9271061b07f78537722f2e1"
 
 [[package]]
 name = "regex-syntax"
@@ -4156,6 +4204,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sharded-slab"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
 name = "shell-words"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4251,7 +4308,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
- "clap 4.5.9",
+ "clap 4.5.20",
  "dotenv",
  "env_logger",
  "futures",
@@ -4271,7 +4328,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3d0d3bf07858662f2564779507f0a7ee592ba19a"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3762d65c46b619e2fe0e3d588082731db5c934db"
 dependencies = [
  "paste",
  "serde",
@@ -4635,6 +4692,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "thread_local"
+version = "1.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b9ef9bad013ada3808854ceac7b46812a6465ba368859a37e2100283d2d719c"
+dependencies = [
+ "cfg-if",
+ "once_cell",
+]
+
+[[package]]
 name = "time"
 version = "0.3.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4948,6 +5015,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c06d3da6113f116aaee68e4d601191614c9053067f9ab7f6edbcb161237daa54"
 dependencies = [
  "once_cell",
+ "valuable",
+]
+
+[[package]]
+name = "tracing-log"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
+dependencies = [
+ "log",
+ "once_cell",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.3.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad0f048c97dbd9faa9b7df56362b8ebcaa52adb06b498c050d2f4e32f90a7a8b"
+dependencies = [
+ "matchers",
+ "nu-ansi-term",
+ "once_cell",
+ "regex",
+ "sharded-slab",
+ "smallvec",
+ "thread_local",
+ "tracing",
+ "tracing-core",
+ "tracing-log",
 ]
 
 [[package]]
@@ -5092,6 +5189,12 @@ dependencies = [
  "rand",
  "serde",
 ]
+
+[[package]]
+name = "valuable"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "vcpkg"
@@ -5542,9 +5645,10 @@ dependencies = [
 [[package]]
 name = "workflow"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3d0d3bf07858662f2564779507f0a7ee592ba19a"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3762d65c46b619e2fe0e3d588082731db5c934db"
 dependencies = [
  "enum-debug 1.1.0",
+ "serde",
 ]
 
 [[package]]

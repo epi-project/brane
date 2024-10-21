@@ -4,7 +4,7 @@
 //  Created:
 //    02 Nov 2023, 14:52:26
 //  Last edited:
-//    18 Oct 2024, 11:14:53
+//    21 Oct 2024, 13:42:54
 //  Auto updated?
 //    Yes
 //
@@ -25,7 +25,7 @@ use brane_ast::spec::BuiltinFunctions;
 use brane_ast::MergeStrategy;
 use brane_exe::pc::{ProgramCounter, ResolvedProgramCounter};
 use enum_debug::EnumDebug as _;
-use tracing::{debug, trace};
+use tracing::{debug, trace, Level};
 
 use super::utils;
 
@@ -1094,5 +1094,10 @@ pub fn simplify(mut wir: Workflow) -> Result<(Workflow, HashMap<ProgramCounter, 
     wir = inline_functions(wir, &mut calls);
 
     // Done!
+    if tracing::level_filters::STATIC_MAX_LEVEL >= Level::DEBUG {
+        let mut buf: Vec<u8> = vec![];
+        brane_ast::traversals::print::ast::do_traversal(&wir, &mut buf).unwrap();
+        debug!("Simplified workflow:\n\n{}\n", String::from_utf8_lossy(&buf));
+    }
     Ok((wir, calls))
 }
