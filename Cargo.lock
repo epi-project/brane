@@ -1664,6 +1664,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "eflint-json-reasoner"
+version = "0.2.0"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#87abf6e262c242d899c8f4e0fa5b4fdc4b9731e5"
+dependencies = [
+ "eflint-json",
+ "error-trace 3.1.0",
+ "reqwest 0.12.8",
+ "serde",
+ "serde_json",
+ "specifications 0.2.0",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "eflint-to-json"
 version = "0.1.0"
 source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99ea1ca75e62373494f0d21"
@@ -3329,8 +3344,9 @@ dependencies = [
 [[package]]
 name = "policy-reasoner"
 version = "1.0.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3762d65c46b619e2fe0e3d588082731db5c934db"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#87abf6e262c242d899c8f4e0fa5b4fdc4b9731e5"
 dependencies = [
+ "eflint-json-reasoner",
  "specifications 0.2.0",
  "workflow 0.2.0",
 ]
@@ -4330,7 +4346,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3762d65c46b619e2fe0e3d588082731db5c934db"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#87abf6e262c242d899c8f4e0fa5b4fdc4b9731e5"
 dependencies = [
  "paste",
  "serde",
@@ -5647,7 +5663,7 @@ dependencies = [
 [[package]]
 name = "workflow"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#3762d65c46b619e2fe0e3d588082731db5c934db"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#87abf6e262c242d899c8f4e0fa5b4fdc4b9731e5"
 dependencies = [
  "enum-debug 1.1.0",
  "serde",
