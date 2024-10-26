@@ -11,7 +11,7 @@ jobs:
     name: "Check & Build / All"
     uses: ./.github/workflows/mixin-cargo-check.yml
     with:
-      os: ubuntu-latest
+      os: ubuntu-24.04
       rust-version: stable
       packages: workspace
 
@@ -37,7 +37,7 @@ jobs:
 
     uses: ./.github/workflows/mixin-cargo-check.yml
     with:
-      os: ubuntu-latest
+      os: ubuntu-24.04
       rust-version: nightly
       packages: workspace
 
@@ -48,7 +48,7 @@ jobs:
 
     uses: ./.github/workflows/mixin-cargo-test.yml
     with:
-      os: ubuntu-latest
+      os: ubuntu-24.04
       rust-version: stable
 
   clippy:
@@ -58,7 +58,7 @@ jobs:
 
     uses: ./.github/workflows/mixin-cargo-clippy.yml
     with:
-      os: ubuntu-latest
+      os: ubuntu-24.04
       rust-version: stable
 
   # We use the nightly formatter because it has additional formatter settings
@@ -68,7 +68,7 @@ jobs:
     name: "Formatter"
     uses: ./.github/workflows/mixin-cargo-fmt.yml
     with:
-      os: ubuntu-latest
+      os: ubuntu-24.04
       rust-version: nightly
 
   doc:
@@ -76,7 +76,7 @@ jobs:
     # as code need not compile for the formatter to work
     name: "Documentation"
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
       # Disallow warnings
@@ -99,7 +99,7 @@ jobs:
     needs: check-nightly
     name: "Clippy (Nightly)"
     continue-on-error: true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -117,7 +117,7 @@ jobs:
   audit:
     # needs: check-stable-all
     name: "Audit"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: rustsec/audit-check@v2.0.0
@@ -126,7 +126,7 @@ jobs:
 
   direct-minimal-versions:
     name: "Direct Minimal versions"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install rust toolchain
@@ -142,7 +142,7 @@ jobs:
     # Lets first make sure it works with the most recent version before we attempt all supported versions
     needs: check-stable-all
     name: "Minimum supported rust version"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -161,7 +161,7 @@ jobs:
     # as code need not compile for the formatter to work
     name: "Lock file"
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
