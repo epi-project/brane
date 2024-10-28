@@ -32,6 +32,11 @@ ifeq ($(FORCE),1)
 	BUILDX_ARGS += --no-cache
 endif
 
+# Add a way to select what buildx builder to use
+ifdef BUILDX_BUILDER
+	BUILDX_ARGS += --builder $(BUILDX_BUILDER)
+endif
+
 # Universal targets
 .PHONY: all
 all: $(WORKSPACE_MEMBERS)
