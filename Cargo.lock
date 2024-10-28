@@ -332,7 +332,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b829e4e32b91e643de6eafe82b1d90675f5874230191a4ffbc1b336dec4d6bf"
 dependencies = [
  "async-trait",
- "axum-core",
+ "axum-core 0.3.4",
  "bitflags 1.3.2",
  "bytes",
  "futures-util",
@@ -348,9 +348,43 @@ dependencies = [
  "rustversion",
  "serde",
  "sync_wrapper 0.1.2",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
+]
+
+[[package]]
+name = "axum"
+version = "0.7.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "504e3947307ac8326a5437504c517c4b56716c9d98fac0028c2acc7ca47d70ae"
+dependencies = [
+ "async-trait",
+ "axum-core 0.4.5",
+ "bytes",
+ "futures-util",
+ "http 1.1.0",
+ "http-body 1.0.1",
+ "http-body-util",
+ "hyper 1.5.0",
+ "hyper-util",
+ "itoa",
+ "matchit",
+ "memchr",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustversion",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_urlencoded",
+ "sync_wrapper 1.0.1",
+ "tokio",
+ "tower 0.5.1",
+ "tower-layer",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -368,6 +402,27 @@ dependencies = [
  "rustversion",
  "tower-layer",
  "tower-service",
+]
+
+[[package]]
+name = "axum-core"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09f2bd6146b97ae3359fa0cc6d6b376d9539582c7b4220f041a33ec24c226199"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures-util",
+ "http 1.1.0",
+ "http-body 1.0.1",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "rustversion",
+ "sync_wrapper 1.0.1",
+ "tower-layer",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -598,6 +653,7 @@ dependencies = [
 name = "brane-chk"
 version = "3.0.0"
 dependencies = [
+ "axum 0.7.7",
  "brane-ast 3.0.0",
  "brane-cfg",
  "brane-exe 3.0.0",
@@ -606,8 +662,11 @@ dependencies = [
  "clap 4.5.20",
  "eflint-json",
  "enum-debug 1.1.0",
- "error-trace 3.1.0",
+ "error-trace 3.2.1",
+ "futures",
  "humanlog 0.2.0",
+ "hyper 1.5.0",
+ "hyper-util",
  "names 0.1.0 (git+https://github.com/Lut99/names-rs)",
  "policy-reasoner",
  "policy-store",
@@ -617,6 +676,8 @@ dependencies = [
  "serde_json",
  "specifications 3.0.0",
  "thiserror",
+ "tokio",
+ "tower-service",
  "tracing",
  "tracing-subscriber",
 ]
@@ -1821,6 +1882,14 @@ version = "3.1.0"
 source = "git+https://github.com/Lut99/error-trace-rs?tag=v3.1.0#c3046059215f2bf60175f0274ec91c241c6dd069"
 
 [[package]]
+name = "error-trace"
+version = "3.2.1"
+source = "git+https://github.com/Lut99/error-trace-rs?tag=v3.2.1#afe09a38a8cb2eaf4eb75c197993a79f1191c054"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "expanduser"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2421,6 +2490,7 @@ dependencies = [
  "http 1.1.0",
  "http-body 1.0.1",
  "httparse",
+ "httpdate",
  "itoa",
  "pin-project-lite",
  "smallvec",
@@ -2543,7 +2613,7 @@ dependencies = [
  "iana-time-zone-haiku",
  "js-sys",
  "wasm-bindgen",
- "windows-core 0.52.0",
+ "windows-core",
 ]
 
 [[package]]
@@ -2729,6 +2799,20 @@ dependencies = [
  "thiserror",
  "tokio",
  "warp",
+]
+
+[[package]]
+name = "jwk-auth"
+version = "0.2.0"
+source = "git+https://github.com/epi-project/policy-store#de8dc2de5fb6c8d4c0d002673d8f5c8eb78adff5"
+dependencies = [
+ "base64ct",
+ "http 1.1.0",
+ "jsonwebtoken",
+ "serde_json",
+ "specifications 0.1.0",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -3347,8 +3431,9 @@ dependencies = [
 [[package]]
 name = "policy-store"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#6cd2a878cf543d97e2bb9f0290cb57c9b4165a14"
+source = "git+https://github.com/epi-project/policy-store#de8dc2de5fb6c8d4c0d002673d8f5c8eb78adff5"
 dependencies = [
+ "jwk-auth",
  "specifications 0.1.0",
  "sqlite-database",
 ]
@@ -4108,6 +4193,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_path_to_error"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af99884400da37c88f5e9146b7f1fd0fbcae8f6eec4e9da38b67d05486f814a6"
+dependencies = [
+ "itoa",
+ "serde",
+]
+
+[[package]]
 name = "serde_repr"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4369,7 +4464,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#6cd2a878cf543d97e2bb9f0290cb57c9b4165a14"
+source = "git+https://github.com/epi-project/policy-store#de8dc2de5fb6c8d4c0d002673d8f5c8eb78adff5"
 dependencies = [
  "chrono",
  "http 1.1.0",
@@ -4455,7 +4550,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "sqlite-database"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#6cd2a878cf543d97e2bb9f0290cb57c9b4165a14"
+source = "git+https://github.com/epi-project/policy-store#de8dc2de5fb6c8d4c0d002673d8f5c8eb78adff5"
 dependencies = [
  "chrono",
  "diesel",
@@ -5000,7 +5095,7 @@ checksum = "76c4eb7a4e9ef9d4763600161f12f5070b92a578e1b634db88a6887844c91a13"
 dependencies = [
  "async-stream",
  "async-trait",
- "axum",
+ "axum 0.6.20",
  "base64 0.21.7",
  "bytes",
  "h2 0.3.26",
@@ -5013,7 +5108,7 @@ dependencies = [
  "prost",
  "tokio",
  "tokio-stream",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -5034,6 +5129,22 @@ dependencies = [
  "slab",
  "tokio",
  "tokio-util",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tower"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2873938d487c3cfb9aed7546dc9f2711d867c9f90c46b889989a2cb84eba6b4f"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "pin-project-lite",
+ "sync_wrapper 0.1.2",
+ "tokio",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -5472,7 +5583,7 @@ version = "0.51.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca229916c5ee38c2f2bc1e9d8f04df975b4bd93f9955dc69fabb5d91270045c9"
 dependencies = [
- "windows-core 0.51.1",
+ "windows-core",
  "windows-targets 0.48.5",
 ]
 
@@ -5483,15 +5594,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1f8cf84f35d2db49a46868f947758c7a1138116f7fac3bc844f43ade1292e64"
 dependencies = [
  "windows-targets 0.48.5",
-]
-
-[[package]]
-name = "windows-core"
-version = "0.52.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33ab640c8d7e35bf8ba19b884ba838ceb4fba93a4e8c65a9059d08afcfc683d9"
-dependencies = [
- "windows-targets 0.52.6",
 ]
 
 [[package]]
