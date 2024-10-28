@@ -34,7 +34,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Install dependencies
-        if: inputs.os == 'ubuntu-latest'
+        if: startsWith(inputs.os, 'ubuntu-')
         run: sudo apt update && sudo apt install -y libsqlite3-dev
 
       - name: Install Cargo Hack
