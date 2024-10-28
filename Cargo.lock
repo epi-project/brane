@@ -878,10 +878,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "brane-meta"
-version = "3.0.0"
-
-[[package]]
 name = "brane-plr"
 version = "3.0.0"
 dependencies = [
