@@ -287,7 +287,7 @@ dependencies = [
  "async-trait",
  "auth-resolver",
  "deliberation",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
  "hex",
  "policy",
  "serde",
@@ -547,7 +547,7 @@ dependencies = [
  "chrono",
  "clap 4.5.20",
  "dotenvy",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "env_logger",
  "error-trace 3.0.0",
  "futures",
@@ -579,7 +579,7 @@ dependencies = [
  "brane-dsl 3.0.0",
  "brane-shr 3.0.0",
  "console",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "lazy_static",
  "log",
  "num-traits",
@@ -599,7 +599,7 @@ dependencies = [
  "brane-dsl 3.0.0 (git+https://github.com/epi-project/brane)",
  "brane-shr 3.0.0 (git+https://github.com/epi-project/brane)",
  "console",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
  "lazy_static",
  "log",
  "num-traits",
@@ -621,7 +621,7 @@ dependencies = [
  "brane-tsk",
  "clap 4.5.20",
  "dotenvy",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "expanduser",
  "human-panic 2.0.1",
  "humanlog 0.2.0",
@@ -638,7 +638,7 @@ name = "brane-cfg"
 version = "3.0.0"
 dependencies = [
  "async-trait",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "log",
  "rustls 0.21.12",
  "rustls-pemfile 1.0.4",
@@ -661,7 +661,7 @@ dependencies = [
  "brane-tsk",
  "clap 4.5.20",
  "eflint-json",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "error-trace 3.2.1",
  "futures",
  "humanlog 0.2.0",
@@ -704,7 +704,7 @@ dependencies = [
  "dialoguer 0.11.0",
  "dirs 5.0.1",
  "dotenvy",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "error-trace 3.0.0",
  "filetime",
  "flate2",
@@ -785,7 +785,7 @@ dependencies = [
  "dotenvy",
  "download",
  "eflint-to-json",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "error-trace 3.0.0",
  "hex-literal",
  "human-panic 2.0.1",
@@ -823,7 +823,7 @@ dependencies = [
  "clap 4.5.20",
  "dashmap",
  "dotenvy",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "env_logger",
  "error-trace 3.0.0",
  "futures-util",
@@ -844,7 +844,7 @@ version = "3.0.0"
 dependencies = [
  "brane-shr 3.0.0",
  "bytes",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "log",
  "nom",
  "nom_locate",
@@ -864,7 +864,7 @@ source = "git+https://github.com/epi-project/brane#7ca39e7014080b9063599402badd0
 dependencies = [
  "brane-shr 3.0.0 (git+https://github.com/epi-project/brane)",
  "bytes",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
  "log",
  "nom",
  "nom_locate",
@@ -887,7 +887,7 @@ dependencies = [
  "brane-ast 3.0.0",
  "brane-shr 3.0.0",
  "console",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "futures",
  "humanlog 0.2.0",
  "lazy_static",
@@ -911,7 +911,7 @@ dependencies = [
  "brane-ast 3.0.0 (git+https://github.com/epi-project/brane)",
  "brane-shr 3.0.0 (git+https://github.com/epi-project/brane)",
  "console",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
  "futures",
  "lazy_static",
  "log",
@@ -939,7 +939,7 @@ dependencies = [
  "clap 4.5.20",
  "deliberation",
  "dotenvy",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "env_logger",
  "error-trace 3.0.0",
  "futures-util",
@@ -1050,7 +1050,7 @@ dependencies = [
  "clap 4.5.20",
  "deliberation",
  "dotenvy",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "env_logger",
  "error-trace 3.0.0",
  "log",
@@ -1074,7 +1074,7 @@ dependencies = [
  "async-compression 0.3.15",
  "console",
  "dialoguer 0.11.0",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "fs2",
  "futures-util",
  "getrandom 0.2.15",
@@ -1102,7 +1102,7 @@ dependencies = [
  "async-compression 0.3.15",
  "console",
  "dialoguer 0.10.4",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
  "fs2",
  "futures-util",
  "hex",
@@ -1136,7 +1136,7 @@ dependencies = [
  "clap 4.5.20",
  "console",
  "dialoguer 0.11.0",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "futures-util",
  "graphql_client",
  "humanlog 0.2.0",
@@ -1488,7 +1488,7 @@ source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99
 dependencies = [
  "brane-ast 3.0.0 (git+https://github.com/epi-project/brane)",
  "brane-exe 3.0.0 (git+https://github.com/epi-project/brane)",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
  "log",
  "serde",
  "serde_json",
@@ -1719,10 +1719,10 @@ dependencies = [
 [[package]]
 name = "eflint-json"
 version = "0.1.0"
-source = "git+https://gitlab.com/eflint/json-spec-rs?branch=incorrect-is-invariant#ec16789f8f697cf3edef32ea8f99ae73aea21ede"
+source = "git+https://gitlab.com/eflint/json-spec-rs?branch=incorrect-is-invariant#a77ae8c5050fcbeb36340ec86f353099d6c51182"
 dependencies = [
  "console",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "lazy_static",
  "serde",
 ]
@@ -1730,7 +1730,7 @@ dependencies = [
 [[package]]
 name = "eflint-json-reasoner"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#87abf6e262c242d899c8f4e0fa5b4fdc4b9731e5"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#acc8cd911d4574480c12023de3bc4b1e4b6884ca"
 dependencies = [
  "eflint-json",
  "error-trace 3.1.0",
@@ -1794,26 +1794,25 @@ checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
 
 [[package]]
 name = "enum-debug"
-version = "1.0.0"
-source = "git+https://github.com/Lut99/enum-debug#cd67d67d4bd8708eaa3343a6af515bf6ad5a3ce6"
+version = "1.1.0"
+source = "git+https://github.com/Lut99/enum-debug?tag=v1.1.0#f535466915f82861b0a2dc9d4e3a106f04d5ace7"
 dependencies = [
- "enum-debug-derive 1.0.0",
+ "enum-debug-derive 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
 ]
 
 [[package]]
 name = "enum-debug"
 version = "1.1.0"
-source = "git+https://github.com/Lut99/enum-debug?tag=v1.1.0#f535466915f82861b0a2dc9d4e3a106f04d5ace7"
+source = "git+https://github.com/Lut99/enum-debug#f535466915f82861b0a2dc9d4e3a106f04d5ace7"
 dependencies = [
- "enum-debug-derive 1.1.0",
+ "enum-debug-derive 1.1.0 (git+https://github.com/Lut99/enum-debug)",
 ]
 
 [[package]]
 name = "enum-debug-derive"
-version = "1.0.0"
-source = "git+https://github.com/Lut99/enum-debug#cd67d67d4bd8708eaa3343a6af515bf6ad5a3ce6"
+version = "1.1.0"
+source = "git+https://github.com/Lut99/enum-debug?tag=v1.1.0#f535466915f82861b0a2dc9d4e3a106f04d5ace7"
 dependencies = [
- "proc-macro-error",
  "quote",
  "syn 2.0.85",
 ]
@@ -1821,7 +1820,7 @@ dependencies = [
 [[package]]
 name = "enum-debug-derive"
 version = "1.1.0"
-source = "git+https://github.com/Lut99/enum-debug?tag=v1.1.0#f535466915f82861b0a2dc9d4e3a106f04d5ace7"
+source = "git+https://github.com/Lut99/enum-debug#f535466915f82861b0a2dc9d4e3a106f04d5ace7"
 dependencies = [
  "quote",
  "syn 2.0.85",
@@ -2804,7 +2803,7 @@ dependencies = [
 [[package]]
 name = "jwk-auth"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#de8dc2de5fb6c8d4c0d002673d8f5c8eb78adff5"
+source = "git+https://github.com/epi-project/policy-store#62626fac4f61ad6a859274c46eee7b1df15cab81"
 dependencies = [
  "base64ct",
  "http 1.1.0",
@@ -3410,7 +3409,7 @@ source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99
 dependencies = [
  "async-trait",
  "chrono",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
  "log",
  "serde",
  "serde_json",
@@ -3421,7 +3420,7 @@ dependencies = [
 [[package]]
 name = "policy-reasoner"
 version = "1.0.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#87abf6e262c242d899c8f4e0fa5b4fdc4b9731e5"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#acc8cd911d4574480c12023de3bc4b1e4b6884ca"
 dependencies = [
  "eflint-json-reasoner",
  "specifications 0.2.0",
@@ -3431,7 +3430,7 @@ dependencies = [
 [[package]]
 name = "policy-store"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#de8dc2de5fb6c8d4c0d002673d8f5c8eb78adff5"
+source = "git+https://github.com/epi-project/policy-store#62626fac4f61ad6a859274c46eee7b1df15cab81"
 dependencies = [
  "jwk-auth",
  "specifications 0.1.0",
@@ -3489,30 +3488,6 @@ checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
 dependencies = [
  "once_cell",
  "toml_edit 0.19.15",
-]
-
-[[package]]
-name = "proc-macro-error"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
-dependencies = [
- "proc-macro-error-attr",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
- "version_check",
-]
-
-[[package]]
-name = "proc-macro-error-attr"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
-dependencies = [
- "proc-macro2",
- "quote",
- "version_check",
 ]
 
 [[package]]
@@ -3635,7 +3610,7 @@ dependencies = [
  "async-trait",
  "audit-logger",
  "eflint-json",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
  "log",
  "policy",
  "reqwest 0.12.8",
@@ -4464,7 +4439,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#de8dc2de5fb6c8d4c0d002673d8f5c8eb78adff5"
+source = "git+https://github.com/epi-project/policy-store#62626fac4f61ad6a859274c46eee7b1df15cab81"
 dependencies = [
  "chrono",
  "http 1.1.0",
@@ -4474,7 +4449,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#87abf6e262c242d899c8f4e0fa5b4fdc4b9731e5"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#acc8cd911d4574480c12023de3bc4b1e4b6884ca"
 dependencies = [
  "paste",
  "serde",
@@ -4490,7 +4465,7 @@ dependencies = [
  "base64ct",
  "chrono",
  "const_format",
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "futures",
  "jsonwebtoken",
  "log",
@@ -4521,7 +4496,7 @@ dependencies = [
  "base64ct",
  "chrono",
  "const_format",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
  "futures",
  "jsonwebtoken",
  "log",
@@ -4550,7 +4525,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "sqlite-database"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#de8dc2de5fb6c8d4c0d002673d8f5c8eb78adff5"
+source = "git+https://github.com/epi-project/policy-store#62626fac4f61ad6a859274c46eee7b1df15cab81"
 dependencies = [
  "chrono",
  "diesel",
@@ -5801,7 +5776,7 @@ dependencies = [
  "brane-ast 3.0.0 (git+https://github.com/epi-project/brane)",
  "brane-exe 3.0.0 (git+https://github.com/epi-project/brane)",
  "eflint-json",
- "enum-debug 1.0.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
  "log",
  "num-traits",
  "rand",
@@ -5813,9 +5788,9 @@ dependencies = [
 [[package]]
 name = "workflow"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#87abf6e262c242d899c8f4e0fa5b4fdc4b9731e5"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#acc8cd911d4574480c12023de3bc4b1e4b6884ca"
 dependencies = [
- "enum-debug 1.1.0",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "serde",
 ]
 
