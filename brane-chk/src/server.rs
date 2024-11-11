@@ -4,7 +4,7 @@
 //  Created:
 //    28 Oct 2024, 20:44:52
 //  Last edited:
-//    05 Nov 2024, 11:47:54
+//    11 Nov 2024, 11:36:50
 //  Auto updated?
 //    Yes
 //
@@ -27,7 +27,7 @@ use axum::routing::get;
 use axum::{Extension, Router};
 use brane_ast::Workflow;
 use eflint_json::spec::Phrase;
-use error_trace::{trace, ErrorTrace as _, Trace};
+use error_trace::{ErrorTrace as _, Trace, trace};
 use futures::StreamExt as _;
 use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
@@ -35,21 +35,21 @@ use hyper_util::server::conn::auto::Builder as HyperBuilder;
 use policy_reasoner::spec::auditlogger::SessionedAuditLogger;
 use policy_reasoner::spec::reasonerconn::ReasonerResponse;
 use policy_reasoner::spec::{AuditLogger, ReasonerConnector, StateResolver};
-use policy_store::auth::jwk::keyresolver::KidResolver;
 use policy_store::auth::jwk::JwkResolver;
+use policy_store::auth::jwk::keyresolver::KidResolver;
 use policy_store::databases::sqlite::SQLiteDatabase;
+use policy_store::spec::AuthResolver as _;
 use policy_store::spec::authresolver::HttpError;
 use policy_store::spec::metadata::User;
-use policy_store::spec::AuthResolver as _;
-use rand::distributions::Alphanumeric;
 use rand::Rng;
+use rand::distributions::Alphanumeric;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::net::{TcpListener, TcpStream};
 use tower_service::Service as _;
 use tracing::field::Empty;
-use tracing::{debug, error, info, span, Instrument as _, Level};
+use tracing::{Instrument as _, Level, debug, error, info, span};
 
 use crate::stateresolver::{Input, QuestionInput};
 
@@ -242,7 +242,7 @@ where
     S::Error: HttpError,
     P: 'static + Send + Sync + ReasonerConnector,
     P::Reason: Serialize,
-    L: 'static + Send + Sync + AuditLogger,
+    L: Send + Sync + AuditLogger,
 {
     /// Helper function for handling all three endpoints after the question has been decided.
     ///
@@ -338,7 +338,7 @@ where
         State(this): State<Arc<Self>>,
         Extension(auth): Extension<User>,
         request: Request,
-    ) -> impl 'static + Send + Future<Output = (StatusCode, String)> {
+    ) -> impl Send + Future<Output = (StatusCode, String)> {
         let reference: Arc<String> =
             Arc::new(format!("{}-{}", auth.id, rand::thread_rng().sample_iter(Alphanumeric).take(8).map(char::from).collect::<String>()));
         let span_ref: Arc<String> = reference.clone();
@@ -372,7 +372,7 @@ where
         State(this): State<Arc<Self>>,
         Extension(auth): Extension<User>,
         request: Request,
-    ) -> impl 'static + Send + Future<Output = (StatusCode, String)> {
+    ) -> impl Send + Future<Output = (StatusCode, String)> {
         let reference: Arc<String> =
             Arc::new(format!("{}-{}", auth.id, rand::thread_rng().sample_iter(Alphanumeric).take(8).map(char::from).collect::<String>()));
         let span_ref: Arc<String> = reference.clone();
@@ -410,7 +410,7 @@ where
         State(this): State<Arc<Self>>,
         Extension(auth): Extension<User>,
         request: Request,
-    ) -> impl 'static + Send + Future<Output = (StatusCode, String)> {
+    ) -> impl Send + Future<Output = (StatusCode, String)> {
         let reference: Arc<String> =
             Arc::new(format!("{}-{}", auth.id, rand::thread_rng().sample_iter(Alphanumeric).take(8).map(char::from).collect::<String>()));
         let span_ref: Arc<String> = reference.clone();
@@ -455,7 +455,7 @@ where
     /// # Errors
     /// This function may error if the server failed to listen of if a fatal server errors comes
     /// along as it serves. However, client-side errors should not trigger errors at this level.
-    pub async fn serve(self) -> impl Future<Output = Result<(), Error>> {
+    pub fn serve(self) -> impl Future<Output = Result<(), Error>> {
         let this: Arc<Self> = Arc::new(self);
         async move {
             let span = span!(Level::INFO, "Server::serve", state = "starting", client = Empty);
