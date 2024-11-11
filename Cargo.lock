@@ -426,6 +426,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum-server"
+version = "0.2.0"
+source = "git+https://github.com/epi-project/policy-store#60cf600354b3bc85bc636e09e9b45b5e50c66247"
+dependencies = [
+ "axum 0.7.7",
+ "error-trace 3.2.1 (git+https://github.com/Lut99/error-trace-rs?tag=v3.2.1)",
+ "futures",
+ "hyper 1.5.0",
+ "hyper-util",
+ "serde",
+ "serde_json",
+ "specifications 0.1.0",
+ "thiserror",
+ "tokio",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -662,7 +681,7 @@ dependencies = [
  "clap 4.5.20",
  "eflint-json",
  "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
- "error-trace 3.2.1",
+ "error-trace 3.2.1 (git+https://github.com/Lut99/error-trace-rs?tag=v3.3.0)",
  "futures",
  "humanlog 0.2.0",
  "hyper 1.5.0",
@@ -1730,7 +1749,7 @@ dependencies = [
 [[package]]
 name = "eflint-json-reasoner"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#acc8cd911d4574480c12023de3bc4b1e4b6884ca"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#6228ef63f00ca893bc27b08bb311ef94c8367a3a"
 dependencies = [
  "eflint-json",
  "error-trace 3.1.0",
@@ -1889,6 +1908,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "error-trace"
+version = "3.2.1"
+source = "git+https://github.com/Lut99/error-trace-rs?tag=v3.3.0#09b802c7f582e33318968b612e08d4a558a31c14"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "expanduser"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1914,6 +1941,20 @@ dependencies = [
  "cfg-if",
  "rustix",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "file-logger"
+version = "0.2.0"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#6228ef63f00ca893bc27b08bb311ef94c8367a3a"
+dependencies = [
+ "chrono",
+ "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
+ "serde",
+ "serde_json",
+ "specifications 0.2.0",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2803,7 +2844,7 @@ dependencies = [
 [[package]]
 name = "jwk-auth"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#62626fac4f61ad6a859274c46eee7b1df15cab81"
+source = "git+https://github.com/epi-project/policy-store#60cf600354b3bc85bc636e09e9b45b5e50c66247"
 dependencies = [
  "base64ct",
  "http 1.1.0",
@@ -3420,9 +3461,10 @@ dependencies = [
 [[package]]
 name = "policy-reasoner"
 version = "1.0.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#acc8cd911d4574480c12023de3bc4b1e4b6884ca"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#6228ef63f00ca893bc27b08bb311ef94c8367a3a"
 dependencies = [
  "eflint-json-reasoner",
+ "file-logger",
  "specifications 0.2.0",
  "workflow 0.2.0",
 ]
@@ -3430,8 +3472,9 @@ dependencies = [
 [[package]]
 name = "policy-store"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#62626fac4f61ad6a859274c46eee7b1df15cab81"
+source = "git+https://github.com/epi-project/policy-store#60cf600354b3bc85bc636e09e9b45b5e50c66247"
 dependencies = [
+ "axum-server",
  "jwk-auth",
  "specifications 0.1.0",
  "sqlite-database",
@@ -4439,7 +4482,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#62626fac4f61ad6a859274c46eee7b1df15cab81"
+source = "git+https://github.com/epi-project/policy-store#60cf600354b3bc85bc636e09e9b45b5e50c66247"
 dependencies = [
  "chrono",
  "http 1.1.0",
@@ -4449,7 +4492,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#acc8cd911d4574480c12023de3bc4b1e4b6884ca"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#6228ef63f00ca893bc27b08bb311ef94c8367a3a"
 dependencies = [
  "paste",
  "serde",
@@ -4525,7 +4568,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "sqlite-database"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#62626fac4f61ad6a859274c46eee7b1df15cab81"
+source = "git+https://github.com/epi-project/policy-store#60cf600354b3bc85bc636e09e9b45b5e50c66247"
 dependencies = [
  "chrono",
  "diesel",
@@ -5788,7 +5831,7 @@ dependencies = [
 [[package]]
 name = "workflow"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#acc8cd911d4574480c12023de3bc4b1e4b6884ca"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#6228ef63f00ca893bc27b08bb311ef94c8367a3a"
 dependencies = [
  "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "serde",
