@@ -4,7 +4,7 @@
 //  Created:
 //    26 Jan 2023, 09:41:51
 //  Last edited:
-//    12 Nov 2024, 14:58:17
+//    13 Nov 2024, 13:28:30
 //  Auto updated?
 //    Yes
 //
@@ -48,6 +48,33 @@ impl Display for HostParseError {
     }
 }
 impl Error for HostParseError {}
+
+/// Errors that relate to parsing [`Address`]es.
+#[derive(Debug)]
+pub enum AddressParseError {
+    /// No input was given.
+    NoInput,
+    /// There wasn't a colon in the input.
+    MissingColon { raw: String },
+}
+impl Display for AddressParseError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        match self {
+            Self::NoInput => write!(f, "No address given"),
+            Self::MissingColon { raw } => write!(f, "No colon found in input {raw:?}"),
+        }
+    }
+}
+impl Error for AddressParseError {
+    #[inline]
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::NoInput => None,
+            Self::MissingColon { .. } => None,
+        }
+    }
+}
 
 /// Errors that relate to parsing Addresses.
 #[derive(Debug)]
@@ -194,13 +221,7 @@ impl<'a> Host<'a> {
     /// This function panics if self is actually NOT an [IPv4 address](Host::IPv4).
     #[inline]
     #[track_caller]
-    pub fn ipv4(&self) -> &Ipv4Addr {
-        if let Self::IPv4(addr) = self {
-            addr
-        } else {
-            panic!("Cannot unwrap {:?} as an Host::IPv4", self.variant())
-        }
-    }
+    pub fn ipv4(&self) -> &Ipv4Addr { if let Self::IPv4(addr) = self { addr } else { panic!("Cannot unwrap {:?} as an Host::IPv4", self.variant()) } }
 
     /// Assumes self is an [IPv6 address](Host::IPv6) and provides read-only access to it.
     ///
@@ -211,13 +232,7 @@ impl<'a> Host<'a> {
     /// This function panics if self is actually NOT an [IPv6 address](Host::IPv6).
     #[inline]
     #[track_caller]
-    pub fn ipv6(&self) -> &Ipv6Addr {
-        if let Self::IPv6(addr) = self {
-            addr
-        } else {
-            panic!("Cannot unwrap {:?} as an Host::IPv6", self.variant())
-        }
-    }
+    pub fn ipv6(&self) -> &Ipv6Addr { if let Self::IPv6(addr) = self { addr } else { panic!("Cannot unwrap {:?} as an Host::IPv6", self.variant()) } }
 
     /// Assumes self is a [hostname](Host::Name) and provides read-only access to it.
     ///
@@ -229,11 +244,7 @@ impl<'a> Host<'a> {
     #[inline]
     #[track_caller]
     pub fn name(&self) -> &str {
-        if let Self::Name(name) = self {
-            name.as_ref()
-        } else {
-            panic!("Cannot unwrap {:?} as an Host::Name", self.variant())
-        }
+        if let Self::Name(name) = self { name.as_ref() } else { panic!("Cannot unwrap {:?} as an Host::Name", self.variant()) }
     }
 
     /// Assumes self is an [IPv4 address](Host::IPv4) and provides mutable access to it.
@@ -246,11 +257,7 @@ impl<'a> Host<'a> {
     #[inline]
     #[track_caller]
     pub fn ipv4_mut(&mut self) -> &mut Ipv4Addr {
-        if let Self::IPv4(addr) = self {
-            addr
-        } else {
-            panic!("Cannot unwrap {:?} as an Host::IPv4", self.variant())
-        }
+        if let Self::IPv4(addr) = self { addr } else { panic!("Cannot unwrap {:?} as an Host::IPv4", self.variant()) }
     }
 
     /// Assumes self is an [IPv6 address](Host::IPv6) and provides mutable access to it.
@@ -263,11 +270,7 @@ impl<'a> Host<'a> {
     #[inline]
     #[track_caller]
     pub fn ipv6_mut(&mut self) -> &mut Ipv6Addr {
-        if let Self::IPv6(addr) = self {
-            addr
-        } else {
-            panic!("Cannot unwrap {:?} as an Host::IPv6", self.variant())
-        }
+        if let Self::IPv6(addr) = self { addr } else { panic!("Cannot unwrap {:?} as an Host::IPv6", self.variant()) }
     }
 
     /// Assumes self is a [hostname](Host::Name) and provides mutable access to it.
@@ -283,11 +286,7 @@ impl<'a> Host<'a> {
     #[inline]
     #[track_caller]
     pub fn name_mut(&mut self) -> &mut str {
-        if let Self::Name(name) = self {
-            name.to_mut()
-        } else {
-            panic!("Cannot unwrap {:?} as an Host::Name", self.variant())
-        }
+        if let Self::Name(name) = self { name.to_mut() } else { panic!("Cannot unwrap {:?} as an Host::Name", self.variant()) }
     }
 
     /// Assumes self is an [IPv4 address](Host::IPv4) and returns the inner address.
@@ -300,11 +299,7 @@ impl<'a> Host<'a> {
     #[inline]
     #[track_caller]
     pub fn into_ipv4(self) -> Ipv4Addr {
-        if let Self::IPv4(addr) = self {
-            addr
-        } else {
-            panic!("Cannot unwrap {:?} as an Host::IPv4", self.variant())
-        }
+        if let Self::IPv4(addr) = self { addr } else { panic!("Cannot unwrap {:?} as an Host::IPv4", self.variant()) }
     }
 
     /// Assumes self is an [IPv6 address](Host::IPv6) and returns the inner address.
@@ -317,11 +312,7 @@ impl<'a> Host<'a> {
     #[inline]
     #[track_caller]
     pub fn into_ipv6(self) -> Ipv6Addr {
-        if let Self::IPv6(addr) = self {
-            addr
-        } else {
-            panic!("Cannot unwrap {:?} as an Host::IPv6", self.variant())
-        }
+        if let Self::IPv6(addr) = self { addr } else { panic!("Cannot unwrap {:?} as an Host::IPv6", self.variant()) }
     }
 
     /// Assumes self is a [hostname](Host::Name) and returns the inner name.
@@ -334,11 +325,7 @@ impl<'a> Host<'a> {
     #[inline]
     #[track_caller]
     pub fn into_name(self) -> Cow<'a, str> {
-        if let Self::Name(name) = self {
-            name
-        } else {
-            panic!("Cannot unwrap {:?} as an Host::Name", self.variant())
-        }
+        if let Self::Name(name) = self { name } else { panic!("Cannot unwrap {:?} as an Host::Name", self.variant()) }
     }
 }
 // Formatting
@@ -674,6 +661,56 @@ impl<'a> Display for Address<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult { write!(f, "{}:{}", self.host, self.port) }
 }
 // De/Serialization
+impl<'a> Address<'a> {
+    /// Splits the given source string into an address and a port.
+    ///
+    /// # Arguments
+    /// - `s`: The source string to split.
+    ///
+    /// # Returns
+    /// Two string slices, one with the address and one with the port.
+    ///
+    /// # Errors
+    /// This function errors if the input `s`tring did not contain a `:`.
+    fn split_on_colon(s: &str) -> Result<(&str, &str), AddressParseError> {
+        // Assert there is *something*
+        if s.is_empty() {
+            return Err(AddressParseError::NoInput);
+        }
+
+        // Check the split
+        if let Some(pos) = s.find(':') { Ok((&s[..pos], &s[pos + 1..])) } else { Err(AddressParseError::MissingColon { raw: s.into() }) }
+    }
+
+    /// Parses the Host from the given source string.
+    ///
+    /// If the string represents a [hostname](Host::Name), then it is stored by reference instead
+    /// of clone for efficiency. You can perform the clone at any time by calling
+    /// [`Host::into_owned()`].
+    ///
+    /// The [`Host::from_str()`]-implementation does this automatically due to lifetime constraints.
+    ///
+    /// # Arguments
+    /// - `s`: The source string to parse.
+    ///
+    /// # Returns
+    /// A new Host, parsed from the given `s`tring.
+    ///
+    /// # Errors
+    /// This function errors if the given `s`tring is empty, or it consisted of non-legal hostname
+    /// characters. For an overview, see this [this](https://en.wikipedia.org/wiki/Hostname#Syntax)
+    /// list.
+    pub fn parse_str(s: &'a str) -> Result<Host<'a>, HostParseError> {
+        // Try as an IP address first
+        match Self::parse_ip(s) {
+            Some(host) => Ok(host),
+            None => {
+                Self::assert_name_validity(s)?;
+                Ok(Self::Name(Cow::Borrowed(s)))
+            },
+        }
+    }
+}
 impl<'a> Serialize for Address<'a> {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
