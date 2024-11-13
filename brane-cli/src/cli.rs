@@ -578,6 +578,9 @@ pub(crate) enum WorkflowSubcommand {
         #[clap(short, long, value_names = &["address[:port]"], help = "If given, proxies any data transfers to this machine through the proxy at the given address. Irrelevant if not running remotely.")]
         proxy_addr: Option<String>,
 
+        #[clap(name = "use case")]
+        use_case: String,
+
         #[clap(short, long, help = "Create a remote REPL session to the instance you are currently logged-in to (see `brane login`)")]
         remote: bool,
         #[clap(short, long, value_names = &["uid"], help = "Attach to an existing remote session")]
@@ -625,6 +628,9 @@ pub(crate) enum WorkflowSubcommand {
     Run {
         #[clap(short, long, value_names = &["address[:port]"], help = "If given, proxies any data transfers to this machine through the proxy at the given address. Irrelevant if not running remotely.")]
         proxy_addr: Option<String>,
+
+        #[clap(name = "use case")]
+        use_case: String,
 
         #[clap(short, long, action, help = "Use Bakery instead of BraneScript")]
         bakery: bool,

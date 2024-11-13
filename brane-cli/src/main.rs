@@ -496,10 +496,11 @@ async fn run(options: Cli) -> Result<(), CliError> {
                     return Err(CliError::CheckError { err });
                 };
             },
-            WorkflowSubcommand::Repl { proxy_addr, bakery, clear, remote, attach, profile, docker_socket, client_version, keep_containers } => {
+            WorkflowSubcommand::Repl { proxy_addr, use_case, bakery, clear, remote, attach, profile, docker_socket, client_version, keep_containers } => {
                 if let Err(err) = repl::start(
                     proxy_addr,
                     remote,
+                    use_case,
                     attach,
                     if bakery { Language::Bakery } else { Language::BraneScript },
                     clear,
@@ -512,10 +513,11 @@ async fn run(options: Cli) -> Result<(), CliError> {
                     return Err(CliError::ReplError { err });
                 };
             },
-            WorkflowSubcommand::Run { proxy_addr, bakery, file, dry_run, remote, profile, docker_socket, client_version, keep_containers } => {
+            WorkflowSubcommand::Run { proxy_addr, use_case, bakery, file, dry_run, remote, profile, docker_socket, client_version, keep_containers } => {
                 if let Err(err) = run::handle(
                     proxy_addr,
                     if bakery { Language::Bakery } else { Language::BraneScript },
+                    use_case,
                     file,
                     dry_run,
                     remote,

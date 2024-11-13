@@ -123,9 +123,9 @@ pub async fn assert_asset_permission(
         // Assert that they match with the request
         if client_name != at {
             return Err(AuthorizeError::AuthorizationUserMismatch {
-                who: format!("task {pc} executor"),
+                who: at.clone(),
                 authenticated: client_name.into(),
-                workflow: at.clone(),
+                workflow: workflow.clone(),
             });
         }
         if !input.contains_key(&data_name) {
@@ -133,13 +133,13 @@ pub async fn assert_asset_permission(
         }
     } else {
         // Authenticate the scientist
-        match &*workflow.user {
+        match workflow.user.as_ref() {
             Some(user) => {
                 if client_name != user {
                     return Err(AuthorizeError::AuthorizationUserMismatch {
-                        who: "end user".into(),
+                        who: user.to_string(),
                         authenticated: client_name.into(),
-                        workflow: user.clone(),
+                        workflow: workflow.clone(),
                     });
                 }
             },

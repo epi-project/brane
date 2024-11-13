@@ -20,6 +20,7 @@ use std::path::PathBuf;
 use bollard::ClientVersion;
 use brane_ast::func_id::FunctionId;
 use brane_ast::locations::{Location, Locations};
+use brane_ast::Workflow;
 use brane_exe::pc::ProgramCounter;
 use brane_shr::formatters::{BlockFormatter, Capitalizeable};
 use enum_debug::EnumDebug as _;
@@ -699,7 +700,7 @@ pub enum AuthorizeError {
     /// The data to authorize is not input to the task given as context.
     AuthorizationDataMismatch { pc: ProgramCounter, data_name: DataName },
     /// The user to authorize does not execute the given task.
-    AuthorizationUserMismatch { who: String, authenticated: String, workflow: String },
+    AuthorizationUserMismatch { who: String, authenticated: String, workflow: Workflow },
     /// An edge was referenced to be executed which wasn't an [`Edge::Node`](brane_ast::ast::Edge).
     AuthorizationWrongEdge { pc: ProgramCounter, got: String },
     /// An edge index given was out-of-bounds for the given function.
@@ -740,10 +741,10 @@ impl Display for AuthorizeError {
             AuthorizationUserMismatch { who, authenticated, workflow } => {
                 write!(
                     f,
-                    "Authorized user '{}' does not match {} user in workflow\n\nWorkflow:\n{}\n",
+                    "Authorized user '{}' does not match '{}' user in workflow\n\nWorkflow:\n{:#?}\n",
                     authenticated,
                     who,
-                    BlockFormatter::new(workflow)
+                    workflow
                 )
             },
             AuthorizationWrongEdge { pc, got } => write!(f, "Edge {pc} in workflow is not an Edge::Node but an Edge::{got}"),
