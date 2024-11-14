@@ -4,7 +4,7 @@
 //  Created:
 //    28 Feb 2023, 10:01:27
 //  Last edited:
-//    12 Nov 2024, 14:02:34
+//    14 Nov 2024, 15:11:07
 //  Auto updated?
 //    Yes
 //
@@ -21,7 +21,7 @@ use std::str::FromStr;
 
 use enum_debug::EnumDebug;
 use serde::{Deserialize, Serialize};
-use specifications::address::Address;
+use specifications::address::{Address, Host};
 
 pub use crate::errors::NodeConfigError as Error;
 use crate::errors::NodeKindParseError;
@@ -168,39 +168,21 @@ impl NodeSpecificConfig {
     /// # Returns
     /// A reference to the internal CentralConfig struct if we were a `NodeSpecificConfig::Central`. Will return `None` otherwise.
     #[inline]
-    pub fn try_central(&self) -> Option<&CentralConfig> {
-        if let Self::Central(config) = self {
-            Some(config)
-        } else {
-            None
-        }
-    }
+    pub fn try_central(&self) -> Option<&CentralConfig> { if let Self::Central(config) = self { Some(config) } else { None } }
 
     /// Provides mutable access to the central-node specific configuration.
     ///
     /// # Returns
     /// A mutable reference to the internal CentralConfig struct if we were a `NodeSpecificConfig::Central`. Will return `None` otherwise.
     #[inline]
-    pub fn try_central_mut(&mut self) -> Option<&mut CentralConfig> {
-        if let Self::Central(config) = self {
-            Some(config)
-        } else {
-            None
-        }
-    }
+    pub fn try_central_mut(&mut self) -> Option<&mut CentralConfig> { if let Self::Central(config) = self { Some(config) } else { None } }
 
     /// Returns the internal central-node specific configuration.
     ///
     /// # Returns
     /// The internal CentralConfig struct if we were a `NodeSpecificConfig::Central`. Will return `None` otherwise.
     #[inline]
-    pub fn try_into_central(self) -> Option<CentralConfig> {
-        if let Self::Central(config) = self {
-            Some(config)
-        } else {
-            None
-        }
-    }
+    pub fn try_into_central(self) -> Option<CentralConfig> { if let Self::Central(config) = self { Some(config) } else { None } }
 
     /// Returns if this NodeSpecificConfig is a `NodeSpecificConfig::Worker`.
     ///
@@ -262,39 +244,21 @@ impl NodeSpecificConfig {
     /// # Returns
     /// A reference to the internal WorkerConfig struct if we were a `NodeSpecificConfig::Worker`. Will return `None` otherwise.
     #[inline]
-    pub fn try_worker(&self) -> Option<&WorkerConfig> {
-        if let Self::Worker(config) = self {
-            Some(config)
-        } else {
-            None
-        }
-    }
+    pub fn try_worker(&self) -> Option<&WorkerConfig> { if let Self::Worker(config) = self { Some(config) } else { None } }
 
     /// Provides mutable access to the worker-node specific configuration.
     ///
     /// # Returns
     /// A mutable reference to the internal WorkerConfig struct if we were a `NodeSpecificConfig::Worker`. Will return `None` otherwise.
     #[inline]
-    pub fn try_worker_mut(&mut self) -> Option<&mut WorkerConfig> {
-        if let Self::Worker(config) = self {
-            Some(config)
-        } else {
-            None
-        }
-    }
+    pub fn try_worker_mut(&mut self) -> Option<&mut WorkerConfig> { if let Self::Worker(config) = self { Some(config) } else { None } }
 
     /// Returns the internal worker-node specific configuration.
     ///
     /// # Returns
     /// The internal WorkerConfig struct if we were a `NodeSpecificConfig::Worker`. Will return `None` otherwise.
     #[inline]
-    pub fn try_into_worker(self) -> Option<WorkerConfig> {
-        if let Self::Worker(config) = self {
-            Some(config)
-        } else {
-            None
-        }
-    }
+    pub fn try_into_worker(self) -> Option<WorkerConfig> { if let Self::Worker(config) = self { Some(config) } else { None } }
 
     /// Returns if this NodeSpecificConfig is a `NodeSpecificConfig::Proxy`.
     ///
@@ -356,39 +320,21 @@ impl NodeSpecificConfig {
     /// # Returns
     /// A reference to the internal ProxyConfig struct if we were a `NodeSpecificConfig::Proxy`. Will return `None` otherwise.
     #[inline]
-    pub fn try_proxy(&self) -> Option<&ProxyConfig> {
-        if let Self::Proxy(config) = self {
-            Some(config)
-        } else {
-            None
-        }
-    }
+    pub fn try_proxy(&self) -> Option<&ProxyConfig> { if let Self::Proxy(config) = self { Some(config) } else { None } }
 
     /// Provides mutable access to the proxy-node specific configuration.
     ///
     /// # Returns
     /// A mutable reference to the internal ProxyConfig struct if we were a `NodeSpecificConfig::Proxy`. Will return `None` otherwise.
     #[inline]
-    pub fn try_proxy_mut(&mut self) -> Option<&mut ProxyConfig> {
-        if let Self::Proxy(config) = self {
-            Some(config)
-        } else {
-            None
-        }
-    }
+    pub fn try_proxy_mut(&mut self) -> Option<&mut ProxyConfig> { if let Self::Proxy(config) = self { Some(config) } else { None } }
 
     /// Returns the internal proxy-node specific configuration.
     ///
     /// # Returns
     /// The internal ProxyConfig struct if we were a `NodeSpecificConfig::Proxy`. Will return `None` otherwise.
     #[inline]
-    pub fn try_into_proxy(self) -> Option<ProxyConfig> {
-        if let Self::Proxy(config) = self {
-            Some(config)
-        } else {
-            None
-        }
-    }
+    pub fn try_into_proxy(self) -> Option<ProxyConfig> { if let Self::Proxy(config) = self { Some(config) } else { None } }
 }
 
 
@@ -481,9 +427,9 @@ pub struct WorkerPaths {
     #[serde(alias = "policy_db")]
     pub policy_database: PathBuf,
     /// The path to the secret used for the deliberation endpoint in the checker.
-    pub policy_deliberation_secret: PathBuf,
+    pub policy_delib_secret: PathBuf,
     /// The path to the secret used for the policy expert endpoint in the checker.
-    pub policy_expert_secret: PathBuf,
+    pub policy_store_secret: PathBuf,
     /// The path the (persistent) audit log. Can be omitted to not have a persistent log.
     pub policy_audit_log: Option<PathBuf>,
     /// The path to the proxy file, if applicable. Ignored if no service is present.
@@ -616,39 +562,21 @@ impl PrivateOrExternalService {
     /// # Returns
     /// A reference to the internal `PrivateService` object if this is a `PrivateOrExternalService::Private`, or else `None`.
     #[inline]
-    pub fn try_private(&self) -> Option<&PrivateService> {
-        if let Self::Private(svc) = self {
-            Some(svc)
-        } else {
-            None
-        }
-    }
+    pub fn try_private(&self) -> Option<&PrivateService> { if let Self::Private(svc) = self { Some(svc) } else { None } }
 
     /// Provides mutable access to the internal `PrivateService` object, assuming this is one.
     ///
     /// # Returns
     /// A mutable reference to the internal `PrivateService` object if this is a `PrivateOrExternalService::Private`, or else `None`.
     #[inline]
-    pub fn try_private_mut(&mut self) -> Option<&mut PrivateService> {
-        if let Self::Private(svc) = self {
-            Some(svc)
-        } else {
-            None
-        }
-    }
+    pub fn try_private_mut(&mut self) -> Option<&mut PrivateService> { if let Self::Private(svc) = self { Some(svc) } else { None } }
 
     /// Returns the internal `PrivateService` object, assuming this is one.
     ///
     /// # Returns
     /// The internal `PrivateService` object if this is a `PrivateOrExternalService::Private`, or else `None`. This consumes `self`.
     #[inline]
-    pub fn try_into_private(self) -> Option<PrivateService> {
-        if let Self::Private(svc) = self {
-            Some(svc)
-        } else {
-            None
-        }
-    }
+    pub fn try_into_private(self) -> Option<PrivateService> { if let Self::Private(svc) = self { Some(svc) } else { None } }
 
     /// Returns whether this is an external service or not.
     ///
@@ -710,39 +638,21 @@ impl PrivateOrExternalService {
     /// # Returns
     /// A reference to the internal `ExternalService` object if this is a `PrivateOrExternalService::External`, or else `None`.
     #[inline]
-    pub fn try_external(&self) -> Option<&ExternalService> {
-        if let Self::External(svc) = self {
-            Some(svc)
-        } else {
-            None
-        }
-    }
+    pub fn try_external(&self) -> Option<&ExternalService> { if let Self::External(svc) = self { Some(svc) } else { None } }
 
     /// Provides mutable access to the internal `ExternalService` object, assuming this is one.
     ///
     /// # Returns
     /// A mutable reference to the internal `ExternalService` object if this is a `PrivateOrExternalService::External`, or else `None`.
     #[inline]
-    pub fn try_external_mut(&mut self) -> Option<&mut ExternalService> {
-        if let Self::External(svc) = self {
-            Some(svc)
-        } else {
-            None
-        }
-    }
+    pub fn try_external_mut(&mut self) -> Option<&mut ExternalService> { if let Self::External(svc) = self { Some(svc) } else { None } }
 
     /// Returns the internal `ExternalService` object, assuming this is one.
     ///
     /// # Returns
     /// The internal `ExternalService` object if this is a `PrivateOrExternalService::External`, or else `None`. This consumes `self`.
     #[inline]
-    pub fn try_into_external(self) -> Option<ExternalService> {
-        if let Self::External(svc) = self {
-            Some(svc)
-        } else {
-            None
-        }
-    }
+    pub fn try_into_external(self) -> Option<ExternalService> { if let Self::External(svc) = self { Some(svc) } else { None } }
 
     /// Provides access to the internal (private) address that services can connect to.
     ///
@@ -812,9 +722,15 @@ pub struct PrivateService {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DoublePrivateService {
     /// Defines the name of the Docker container.
-    pub name: String,
+    pub name:  String,
     /// Defines how the services on the same node can reach this service (which can be optimized due to the same-Docker-network property).
-    pub host: Address,
+    pub host:  Host,
+    /// The port of the deliberation API.
+    #[serde(alias = "deliberation")]
+    pub delib: u16,
+    /// The port of the storage API.
+    #[serde(alias = "storage")]
+    pub store: u16,
 }
 
 /// Defines a service that we do not host, but only use.

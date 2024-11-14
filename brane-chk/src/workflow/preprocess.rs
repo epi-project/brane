@@ -4,7 +4,7 @@
 //  Created:
 //    02 Nov 2023, 14:52:26
 //  Last edited:
-//    22 Oct 2024, 10:28:44
+//    14 Nov 2024, 17:51:11
 //  Auto updated?
 //    Yes
 //
@@ -19,13 +19,13 @@ use std::fmt::{Display, Formatter, Result as FResult};
 use std::panic::catch_unwind;
 use std::sync::Arc;
 
-use brane_ast::ast::{Edge, EdgeInstr, FunctionDef, SymTable, TaskDef, Workflow};
-use brane_ast::func_id::FunctionId;
-use brane_ast::spec::BuiltinFunctions;
-use brane_ast::MergeStrategy;
-use brane_exe::pc::{ProgramCounter, ResolvedProgramCounter};
 use enum_debug::EnumDebug as _;
-use tracing::{debug, trace, Level};
+use specifications::pc::{ProgramCounter, ResolvedProgramCounter};
+use specifications::wir::builtins::BuiltinFunctions;
+use specifications::wir::func_id::FunctionId;
+use specifications::wir::merge_strategy::MergeStrategy;
+use specifications::wir::{Edge, EdgeInstr, FunctionDef, SymTable, TaskDef, Workflow};
+use tracing::{Level, debug, trace};
 
 use super::utils;
 
@@ -37,7 +37,7 @@ mod tests {
     use std::path::PathBuf;
 
     use brane_ast::traversals::print::ast;
-    use brane_ast::{compile_program, CompileResult, ParserOptions};
+    use brane_ast::{CompileResult, ParserOptions, compile_program};
     use brane_shr::utilities::{create_data_index_from, create_package_index_from, test_on_dsl_files_in};
     use humanlog::{DebugMode, HumanLogger};
     use specifications::data::DataIndex;
@@ -471,11 +471,7 @@ fn resolve_calls(
             };
 
             // Only return the current one if the function returns void
-            if def.ret.is_void() {
-                Ok((HashMap::new(), stack_id))
-            } else {
-                Ok((HashMap::new(), None))
-            }
+            if def.ret.is_void() { Ok((HashMap::new(), stack_id)) } else { Ok((HashMap::new(), None)) }
         },
     }
 }

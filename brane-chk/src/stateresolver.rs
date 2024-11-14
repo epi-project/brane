@@ -4,7 +4,7 @@
 //  Created:
 //    17 Oct 2024, 16:09:36
 //  Last edited:
-//    06 Nov 2024, 14:58:07
+//    14 Nov 2024, 17:50:48
 //  Auto updated?
 //    Yes
 //
@@ -35,7 +35,7 @@ use specifications::data::DataInfo;
 use specifications::package::PackageIndex;
 use specifications::version::Version;
 use thiserror::Error;
-use tracing::{debug, span, warn, Level};
+use tracing::{Level, debug, span, warn};
 
 use crate::question::Question;
 use crate::workflow::compile;
@@ -683,7 +683,7 @@ pub struct Input {
     /// The usecase that determines the central registry to use.
     pub usecase:  String,
     /// The workflow to further resolve.
-    pub workflow: brane_ast::Workflow,
+    pub workflow: specifications::wir::Workflow,
     /// Question-specific input.
     pub input:    QuestionInput,
 }
