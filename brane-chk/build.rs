@@ -4,7 +4,7 @@
 //  Created:
 //    25 Nov 2024, 12:08:33
 //  Last edited:
-//    25 Nov 2024, 12:12:47
+//    25 Nov 2024, 20:53:59
 //  Auto updated?
 //    Yes
 //
@@ -18,6 +18,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
+use eflint_to_json::compile;
 use error_trace::trace;
 use sha2::{Digest as _, Sha256};
 
@@ -69,18 +70,14 @@ fn main() {
     let eflint_to_json_exe: Option<PathBuf> = match env::var("EFLINT_TO_JSON_PATH") {
         Ok(path) => {
             let path: PathBuf = path.into();
-            if path.is_relative() {
-                Some(src_dir.join(path))
-            } else {
-                Some(path)
-            }
+            if path.is_relative() { Some(src_dir.join(path)) } else { Some(path) }
         },
         Err(VarError::NotPresent) => None,
         Err(err) => panic!("{}", trace!(("Failed to get environment variable 'EFLINT_TO_JSON_PATH'"), err)),
     };
 
     // Mark the input files as source-dependent
-    let interface_dir: PathBuf = src_dir.join("policy").join("eflint").join("interface");
+    let interface_dir: PathBuf = src_dir.join("policy");
     println!("cargo:rerun-if-changed={}", interface_dir.display());
     println!("cargo:rerun-if-env-changed=EFLINT_TO_JSON_PATH");
 

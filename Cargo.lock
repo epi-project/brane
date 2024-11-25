@@ -428,7 +428,7 @@ dependencies = [
 [[package]]
 name = "axum-server"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#8e17a0bddf5f5fea7aca465b9cf343b2c62c76f2"
+source = "git+https://github.com/epi-project/policy-store#2aa4284eefe5a2c21adc093f451ff440450e7cde"
 dependencies = [
  "axum 0.7.7",
  "error-trace 3.2.1 (git+https://github.com/Lut99/error-trace-rs?tag=v3.2.1)",
@@ -687,6 +687,7 @@ dependencies = [
  "brane-tsk",
  "clap 4.5.20",
  "eflint-json",
+ "eflint-to-json 0.2.0",
  "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "error-trace 3.2.1 (git+https://github.com/Lut99/error-trace-rs?tag=v3.3.0)",
  "futures",
@@ -810,8 +811,8 @@ dependencies = [
  "diesel_migrations",
  "dirs 5.0.1",
  "dotenvy",
- "download",
- "eflint-to-json",
+ "download 0.1.0 (git+https://github.com/Lut99/download-rs?tag=v0.1.0)",
+ "eflint-to-json 0.1.0",
  "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "error-trace 3.0.0",
  "hex-literal",
@@ -1734,6 +1735,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "download"
+version = "0.1.0"
+source = "git+https://github.com/Lut99/download-rs#ebba70884249fcfcb978eef74c57da16b593ac33"
+dependencies = [
+ "console",
+ "hex",
+ "indicatif",
+ "reqwest 0.11.27",
+ "sha2",
+ "url",
+]
+
+[[package]]
 name = "dsl_auto_type"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1788,6 +1802,18 @@ dependencies = [
  "reqwest 0.12.8",
  "sha2",
  "tokio",
+]
+
+[[package]]
+name = "eflint-to-json"
+version = "0.2.0"
+source = "git+https://gitlab.com/eflint/eflint-to-json-rs?tag=v0.1.0#0950c102fb9924306f0b68923e40bbf88aab61b6"
+dependencies = [
+ "async-recursion",
+ "console",
+ "download 0.1.0 (git+https://github.com/Lut99/download-rs)",
+ "hex-literal",
+ "log",
 ]
 
 [[package]]
@@ -2856,7 +2882,7 @@ dependencies = [
 [[package]]
 name = "jwk-auth"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#8e17a0bddf5f5fea7aca465b9cf343b2c62c76f2"
+source = "git+https://github.com/epi-project/policy-store#2aa4284eefe5a2c21adc093f451ff440450e7cde"
 dependencies = [
  "base64ct",
  "http 1.1.0",
@@ -3484,7 +3510,7 @@ dependencies = [
 [[package]]
 name = "policy-store"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#8e17a0bddf5f5fea7aca465b9cf343b2c62c76f2"
+source = "git+https://github.com/epi-project/policy-store#2aa4284eefe5a2c21adc093f451ff440450e7cde"
 dependencies = [
  "axum-server",
  "jwk-auth",
@@ -4494,7 +4520,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#8e17a0bddf5f5fea7aca465b9cf343b2c62c76f2"
+source = "git+https://github.com/epi-project/policy-store#2aa4284eefe5a2c21adc093f451ff440450e7cde"
 dependencies = [
  "chrono",
  "http 1.1.0",
@@ -4584,7 +4610,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "sqlite-database"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#8e17a0bddf5f5fea7aca465b9cf343b2c62c76f2"
+source = "git+https://github.com/epi-project/policy-store#2aa4284eefe5a2c21adc093f451ff440450e7cde"
 dependencies = [
  "chrono",
  "diesel",
