@@ -460,6 +460,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "base16ct"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
+
+[[package]]
 name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -673,6 +679,7 @@ name = "brane-chk"
 version = "3.0.0"
 dependencies = [
  "axum 0.7.7",
+ "base16ct",
  "brane-ast 3.0.0",
  "brane-cfg",
  "brane-exe 3.0.0",
@@ -693,6 +700,7 @@ dependencies = [
  "reqwest 0.12.8",
  "serde",
  "serde_json",
+ "sha2",
  "specifications 3.0.0",
  "thiserror",
  "tokio",
