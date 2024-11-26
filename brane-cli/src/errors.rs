@@ -778,6 +778,7 @@ pub enum DataError {
     ConfirmationError { err: dialoguer::Error },
     /// Failed to remove the dataset's directory
     RemoveError { path: PathBuf, err: std::io::Error },
+    WorkflowSerializeError { context: String, err: serde_json::Error },
 }
 impl Display for DataError {
     #[inline]
@@ -851,6 +852,7 @@ impl Display for DataError {
             // DatasetDirError{ .. }   => write!(f, "Failed to get to-be-removed dataset directory: {}", err),
             ConfirmationError { .. } => write!(f, "Failed to ask the user (you) for confirmation before removing a dataset"),
             RemoveError { path, .. } => write!(f, "Failed to remove dataset directory '{}'", path.display()),
+            WorkflowSerializeError { context, .. } => write!(f, "Could not serialize workflow when: {context}"),
         }
     }
 }
@@ -910,6 +912,7 @@ impl Error for DataError {
             // DatasetDirError{ .. } => None,
             ConfirmationError { .. } => None,
             RemoveError { err, .. } => Some(err),
+            WorkflowSerializeError { err, .. } => Some(err),
         }
     }
 }
@@ -1391,7 +1394,7 @@ pub enum RunError {
     SessionCreateError { address: String, err: tonic::Status },
 
     /// An error occurred while compile the given snippet. It will already have been printed to stdout.
-    CompileError { what: String, errs: Vec<brane_ast::Error> },
+    CompileError(brane_ast::errors::CompileError),
     /// Failed to serialize the compiled workflow.
     WorkflowSerializeError { err: serde_json::Error },
     /// Requesting a command failed
