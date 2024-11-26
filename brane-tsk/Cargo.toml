@@ -52,3 +52,6 @@ lazy_static = "1.4.0"
 
 # [build-dependencies]
 # tonic-build = "0.8"
+
+[lints]
+workspace = true

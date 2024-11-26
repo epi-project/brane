@@ -1,7 +1,7 @@
 [package]
 name = "brane-plr"
+rust-version = "1.74.1"
 edition = "2021"
-rust-version = "1.74"
 version.workspace = true
 repository.workspace = true
 authors.workspace = true
@@ -30,3 +30,6 @@ brane-prx = { path = "../brane-prx" }
 brane-shr = { path = "../brane-shr" }
 brane-tsk = { path = "../brane-tsk" }
 specifications = { path = "../specifications" }
+
+[lints]
+workspace = true

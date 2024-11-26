@@ -22,3 +22,6 @@ uuid = { version = "1.7.0", features = ["serde", "v4"] }
 brane-dsl = { path = "../brane-dsl" }
 brane-shr = { path = "../brane-shr" }
 specifications = { path = "../specifications" }
+
+[lints]
+workspace = true

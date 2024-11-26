@@ -273,7 +273,7 @@ async fn remote_repl(
         match rl.readline(&p) {
             Ok(line) => {
                 // The command checked out, so add it to the history
-                if let Err(err) = rl.add_history_entry(&line.replace('\n', " ")) {
+                if let Err(err) = rl.add_history_entry(line.replace('\n', " ")) {
                     warn!("Failed to update REPL history: {err}");
                 }
 
@@ -361,7 +361,7 @@ async fn local_repl(
         match rl.readline(&p) {
             Ok(line) => {
                 // The command checked out, so add it to the history
-                if let Err(err) = rl.add_history_entry(&line.replace('\n', " ")) {
+                if let Err(err) = rl.add_history_entry(line.replace('\n', " ")) {
                     warn!("Failed to update REPL history: {err}");
                 }
 

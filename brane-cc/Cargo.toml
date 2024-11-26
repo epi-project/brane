@@ -37,3 +37,6 @@ expanduser = "1.2.2"
 [dependencies.openssl-sys]
 version = "0.9.102"
 features = ["vendored"]
+
+[lints]
+workspace = true

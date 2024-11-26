@@ -85,6 +85,8 @@ clap_complete = "4.5.8"
 version = "0.9.102"
 features = ["vendored"]
 
-
 [features]
 print_exec_path = [ "brane-exe/print_exec_path" ]
+
+[lints]
+workspace = true

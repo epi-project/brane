@@ -901,6 +901,8 @@ impl EdgeBuffer {
         };
 
         // Find the end of the buffer
+        // Clippy: Hash of EdgeBufferNodePtr is not mutable
+        #[allow(clippy::mutable_key_type)]
         let mut done: HashSet<EdgeBufferNodePtr> = HashSet::with_capacity(32);
         let mut end: EdgeBufferNodePtr = start.clone();
         loop {
@@ -979,6 +981,9 @@ impl EdgeBuffer {
     /// # Returns
     /// Whether or not this buffer fully returns (true) or not (false).
     pub fn fully_returns(&self) -> bool {
+        // Clippy: EdgeBufferNodePtr hash implementation only hashes the pointer, not the content
+        // of the key, so the hash of the pointer should stay consistent.
+        #[allow(clippy::mutable_key_type)]
         let mut done: HashSet<EdgeBufferNodePtr> = HashSet::new();
 
         // Iterate as long as we can

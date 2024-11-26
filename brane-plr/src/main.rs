@@ -4,7 +4,7 @@
 //  Created:
 //    17 Oct 2022, 17:27:16
 //  Last edited:
-//    08 Feb 2024, 17:12:35
+//    25 Nov 2024, 09:48:49
 //  Auto updated?
 //    Yes
 //
@@ -29,11 +29,11 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use brane_cfg::info::Info as _;
 use brane_cfg::node::{CentralConfig, NodeConfig};
-use brane_plr::context::Context;
+use brane_plr::context::{Context, Session};
 use brane_plr::planner;
 use brane_prx::client::ProxyClient;
 use clap::Parser;
@@ -106,7 +106,7 @@ async fn main() {
         let proxy: ProxyClient = ProxyClient::new(central_cfg.services.prx.address());
 
         // The state of previously planned workflow snippets per-instance.
-        let state: Mutex<HashMap<String, (Instant, HashMap<String, String>)>> = Mutex::new(HashMap::new());
+        let state: Mutex<HashMap<String, Session>> = Mutex::new(HashMap::new());
 
         // Build the context
         Arc::new(Context { node_config_path: opts.node_config_path, proxy, state })
