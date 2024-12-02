@@ -4,7 +4,7 @@
 //  Created:
 //    03 Jul 2023, 13:01:31
 //  Last edited:
-//    14 Nov 2024, 17:59:46
+//    02 Dec 2024, 14:55:53
 //  Auto updated?
 //    Yes
 //
@@ -187,10 +187,13 @@ fn upgrade<T: Serialize>(
                     debug!("File '{}' is a v{} {} file", path.display(), version, what);
 
                     // Convert it to another file
-                    let parent: Cow<Path> = path
-                        .parent()
-                        .map(Cow::Borrowed)
-                        .unwrap_or_else(|| if path.is_absolute() { Cow::Owned("/".into()) } else { Cow::Owned("./".into()) });
+                    let parent: Cow<Path> = path.parent().map(Cow::Borrowed).unwrap_or_else(|| {
+                        if path.is_absolute() {
+                            Cow::Owned("/".into())
+                        } else {
+                            Cow::Owned("./".into())
+                        }
+                    });
                     if !dry_run && overwrite {
                         // We upgrade in-place
                         println!(

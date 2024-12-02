@@ -428,7 +428,7 @@ dependencies = [
 [[package]]
 name = "axum-server"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#2aa4284eefe5a2c21adc093f451ff440450e7cde"
+source = "git+https://github.com/epi-project/policy-store#7c9faebb8a10fab43d4ce34a133c1ce8b09c4fea"
 dependencies = [
  "axum 0.7.7",
  "error-trace 3.2.1 (git+https://github.com/Lut99/error-trace-rs?tag=v3.2.1)",
@@ -1775,7 +1775,7 @@ dependencies = [
 [[package]]
 name = "eflint-json-reasoner"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#ec122f344dd6ad6c3ce933418bf93eb30e932ca1"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#9edf316562b5d705bfd2aca7775115ced303ed51"
 dependencies = [
  "eflint-json",
  "error-trace 3.1.0",
@@ -1984,7 +1984,7 @@ dependencies = [
 [[package]]
 name = "file-logger"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#ec122f344dd6ad6c3ce933418bf93eb30e932ca1"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#9edf316562b5d705bfd2aca7775115ced303ed51"
 dependencies = [
  "chrono",
  "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
@@ -2882,7 +2882,7 @@ dependencies = [
 [[package]]
 name = "jwk-auth"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#2aa4284eefe5a2c21adc093f451ff440450e7cde"
+source = "git+https://github.com/epi-project/policy-store#7c9faebb8a10fab43d4ce34a133c1ce8b09c4fea"
 dependencies = [
  "base64ct",
  "http 1.1.0",
@@ -3499,7 +3499,7 @@ dependencies = [
 [[package]]
 name = "policy-reasoner"
 version = "1.0.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#ec122f344dd6ad6c3ce933418bf93eb30e932ca1"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#9edf316562b5d705bfd2aca7775115ced303ed51"
 dependencies = [
  "eflint-json-reasoner",
  "file-logger",
@@ -3510,7 +3510,7 @@ dependencies = [
 [[package]]
 name = "policy-store"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#2aa4284eefe5a2c21adc093f451ff440450e7cde"
+source = "git+https://github.com/epi-project/policy-store#7c9faebb8a10fab43d4ce34a133c1ce8b09c4fea"
 dependencies = [
  "axum-server",
  "jwk-auth",
@@ -4520,7 +4520,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#2aa4284eefe5a2c21adc093f451ff440450e7cde"
+source = "git+https://github.com/epi-project/policy-store#7c9faebb8a10fab43d4ce34a133c1ce8b09c4fea"
 dependencies = [
  "chrono",
  "http 1.1.0",
@@ -4530,7 +4530,7 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#ec122f344dd6ad6c3ce933418bf93eb30e932ca1"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#9edf316562b5d705bfd2aca7775115ced303ed51"
 dependencies = [
  "paste",
  "serde",
@@ -4610,7 +4610,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "sqlite-database"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#2aa4284eefe5a2c21adc093f451ff440450e7cde"
+source = "git+https://github.com/epi-project/policy-store#7c9faebb8a10fab43d4ce34a133c1ce8b09c4fea"
 dependencies = [
  "chrono",
  "diesel",
@@ -5873,7 +5873,7 @@ dependencies = [
 [[package]]
 name = "workflow"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#ec122f344dd6ad6c3ce933418bf93eb30e932ca1"
+source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#9edf316562b5d705bfd2aca7775115ced303ed51"
 dependencies = [
  "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "serde",
