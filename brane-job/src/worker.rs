@@ -4,7 +4,7 @@
 //  Created:
 //    31 Oct 2022, 11:21:14
 //  Last edited:
-//    14 Nov 2024, 17:57:48
+//    06 Dec 2024, 18:25:11
 //  Auto updated?
 //    Yes
 //
@@ -46,7 +46,6 @@ use enum_debug::EnumDebug as _;
 use error_trace::{ErrorTrace as _, trace};
 use futures_util::StreamExt;
 use hyper::body::Bytes;
-use hyper::header;
 // use kube::config::Kubeconfig;
 use log::{debug, error, info, warn};
 use policy_reasoner::spec::reasonerconn::ReasonerResponse;
@@ -54,9 +53,9 @@ use policy_reasoner::spec::reasons::ManyReason;
 use reqwest::Method;
 use serde_json_any_key::json_to_map;
 use specifications::address::Address;
-use specifications::checking::{CheckResponse, CheckTaskRequest, CheckWorkflowRequest, Prost};
 // use brane_tsk::k8s::{self, K8sOptions};
-use specifications::checking::{DELIBERATION_API_EXECUTE_TASK, DELIBERATION_API_WORKFLOW};
+use specifications::checking::deliberation::{CHECK_TASK_PATH, CHECK_WORKFLOW_PATH};
+use specifications::checking::deliberation::{CheckResponse, CheckTaskRequest, CheckWorkflowRequest, Prost};
 use specifications::container::{Image, VolumeBind};
 use specifications::data::{AccessKind, AssetInfo, DataName};
 use specifications::package::{Capability, PackageIndex, PackageInfo, PackageKind};
@@ -599,12 +598,11 @@ async fn assert_task_permission(
         Ok(client) => client,
         Err(err) => return Err(AuthorizeError::ClientBuild { err }),
     };
-    let addr: String = format!("http://{}:{}/{}", worker_cfg.services.chk.host, worker_cfg.services.chk.delib, DELIBERATION_API_EXECUTE_TASK.1);
-    let req: reqwest::Request =
-        match client.request(DELIBERATION_API_EXECUTE_TASK.0, &addr).header(header::AUTHORIZATION, format!("Bearer {jwt}")).json(&body).build() {
-            Ok(req) => req,
-            Err(err) => return Err(AuthorizeError::ExecuteRequestBuild { addr, err }),
-        };
+    let addr: String = format!("http://{}:{}/{}", worker_cfg.services.chk.host, worker_cfg.services.chk.delib, CHECK_TASK_PATH.path);
+    let req: reqwest::Request = match client.request(CHECK_TASK_PATH.method, &addr).bearer_auth(jwt).json(&body).build() {
+        Ok(req) => req,
+        Err(err) => return Err(AuthorizeError::ExecuteRequestBuild { addr, err }),
+    };
 
     // Send it
     debug!("Sending request to '{addr}'...");
@@ -684,8 +682,8 @@ async fn check_workflow_or_task(
         CheckRequest::Workflow(req) => {
             // It's a workflow request
             (
-                DELIBERATION_API_WORKFLOW.0,
-                format!("http://{}:{}/{}", worker_cfg.services.chk.host, worker_cfg.services.chk.delib, DELIBERATION_API_WORKFLOW.1),
+                CHECK_WORKFLOW_PATH.method,
+                format!("http://{}:{}/{}", worker_cfg.services.chk.host, worker_cfg.services.chk.delib, CHECK_WORKFLOW_PATH.path),
                 match serde_json::to_string(req) {
                     Ok(req) => req,
                     Err(err) => {
@@ -698,8 +696,8 @@ async fn check_workflow_or_task(
         CheckRequest::Task(req) => {
             // It's a task request
             (
-                DELIBERATION_API_EXECUTE_TASK.0,
-                format!("http://{}:{}/{}", worker_cfg.services.chk.host, worker_cfg.services.chk.delib, DELIBERATION_API_EXECUTE_TASK.1),
+                CHECK_TASK_PATH.method,
+                format!("http://{}:{}/{}", worker_cfg.services.chk.host, worker_cfg.services.chk.delib, CHECK_TASK_PATH.path),
                 match serde_json::to_string(req) {
                     Ok(req) => req,
                     Err(err) => {
@@ -735,7 +733,7 @@ async fn check_workflow_or_task(
             return Err(Status::internal("An internal error occurred"));
         },
     };
-    let req: reqwest::Request = match client.request(method, &url).header(header::AUTHORIZATION, format!("Bearer {jwt}")).body(body).build() {
+    let req: reqwest::Request = match client.request(method, &url).bearer_auth(jwt).body(body).build() {
         Ok(req) => req,
         Err(err) => {
             let err = AuthorizeError::ExecuteRequestBuild { addr: url, err };

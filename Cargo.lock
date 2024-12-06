@@ -165,7 +165,7 @@ dependencies = [
  "nom",
  "num-traits",
  "rusticata-macros",
- "thiserror",
+ "thiserror 1.0.63",
  "time",
 ]
 
@@ -280,34 +280,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "audit-logger"
-version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99ea1ca75e62373494f0d21"
-dependencies = [
- "async-trait",
- "auth-resolver",
- "deliberation",
- "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
- "hex",
- "policy",
- "serde",
- "serde_json",
- "state-resolver",
- "warp",
- "workflow 0.1.0",
-]
-
-[[package]]
-name = "auth-resolver"
-version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99ea1ca75e62373494f0d21"
-dependencies = [
- "async-trait",
- "serde",
- "warp",
-]
-
-[[package]]
 name = "auto_enums"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -363,10 +335,10 @@ dependencies = [
  "axum-core 0.4.5",
  "bytes",
  "futures-util",
- "http 1.1.0",
+ "http 1.2.0",
  "http-body 1.0.1",
  "http-body-util",
- "hyper 1.5.0",
+ "hyper 1.5.1",
  "hyper-util",
  "itoa",
  "matchit",
@@ -413,7 +385,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures-util",
- "http 1.1.0",
+ "http 1.2.0",
  "http-body 1.0.1",
  "http-body-util",
  "mime",
@@ -428,20 +400,32 @@ dependencies = [
 [[package]]
 name = "axum-server"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#7c9faebb8a10fab43d4ce34a133c1ce8b09c4fea"
+source = "git+https://github.com/epi-project/policy-store#f7918c593665181962b83c400cc56fd93bdd2c1a"
 dependencies = [
  "axum 0.7.7",
+ "axum-server-spec",
  "error-trace 3.2.1 (git+https://github.com/Lut99/error-trace-rs?tag=v3.2.1)",
  "futures",
- "hyper 1.5.0",
+ "hyper 1.5.1",
  "hyper-util",
  "serde",
  "serde_json",
  "specifications 0.1.0",
- "thiserror",
+ "thiserror 2.0.4",
  "tokio",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "axum-server-spec"
+version = "0.2.0"
+source = "git+https://github.com/epi-project/policy-store#f7918c593665181962b83c400cc56fd93bdd2c1a"
+dependencies = [
+ "axum 0.7.7",
+ "http 1.2.0",
+ "serde",
+ "specifications 0.1.0",
 ]
 
 [[package]]
@@ -543,7 +527,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "serde_urlencoded",
- "thiserror",
+ "thiserror 1.0.63",
  "tokio",
  "tokio-util",
  "url",
@@ -581,7 +565,7 @@ dependencies = [
  "log",
  "prost",
  "rand",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "scylla",
  "serde",
  "serde_json",
@@ -687,23 +671,23 @@ dependencies = [
  "brane-tsk",
  "clap 4.5.20",
  "eflint-json",
- "eflint-to-json 0.2.0",
+ "eflint-to-json 0.2.0 (git+https://gitlab.com/eflint/eflint-to-json-rs?tag=v0.1.0)",
  "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "error-trace 3.2.1 (git+https://github.com/Lut99/error-trace-rs?tag=v3.3.0)",
  "futures",
  "humanlog 0.2.0",
- "hyper 1.5.0",
+ "hyper 1.5.1",
  "hyper-util",
  "names 0.1.0 (git+https://github.com/Lut99/names-rs)",
  "policy-reasoner",
  "policy-store",
  "rand",
- "reqwest 0.12.8",
+ "reqwest 0.12.9",
  "serde",
  "serde_json",
  "sha2",
  "specifications 3.0.0",
- "thiserror",
+ "thiserror 1.0.63",
  "tokio",
  "tower-service",
  "tracing",
@@ -753,7 +737,7 @@ dependencies = [
  "path-clean",
  "prettytable-rs",
  "rand",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "rustls 0.21.12",
  "rustyline",
  "rustyline-derive",
@@ -812,7 +796,7 @@ dependencies = [
  "dirs 5.0.1",
  "dotenvy",
  "download 0.1.0 (git+https://github.com/Lut99/download-rs?tag=v0.1.0)",
- "eflint-to-json 0.1.0",
+ "eflint-to-json 0.2.0 (git+https://gitlab.com/eflint/eflint-to-json-rs)",
  "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "error-trace 3.0.0",
  "hex-literal",
@@ -824,16 +808,14 @@ dependencies = [
  "log",
  "names 0.1.0 (git+https://github.com/Lut99/names-rs?tag=v0.1.0)",
  "openssl-sys",
- "policy",
  "policy-store",
  "rand",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "serde",
  "serde_json",
  "serde_yml",
  "shlex",
  "specifications 3.0.0",
- "srv",
  "tempfile",
  "tokio",
 ]
@@ -859,7 +841,7 @@ dependencies = [
  "log",
  "policy-reasoner",
  "prost",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "serde_json",
  "serde_json_any_key",
  "specifications 3.0.0",
@@ -884,7 +866,7 @@ dependencies = [
  "serde",
  "serde_json",
  "specifications 3.0.0",
- "thiserror",
+ "thiserror 1.0.63",
 ]
 
 [[package]]
@@ -904,7 +886,7 @@ dependencies = [
  "serde",
  "serde_json",
  "specifications 3.0.0 (git+https://github.com/epi-project/brane)",
- "thiserror",
+ "thiserror 1.0.63",
 ]
 
 [[package]]
@@ -973,10 +955,10 @@ dependencies = [
  "env_logger",
  "error-trace 3.0.0",
  "futures-util",
- "hyper 0.14.30",
+ "hyper 1.5.1",
  "log",
  "policy-reasoner",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "serde",
  "serde_json",
  "serde_json_any_key",
@@ -1000,7 +982,7 @@ dependencies = [
  "env_logger",
  "libc",
  "log",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "serde",
  "serde_json",
  "serde_yml",
@@ -1033,7 +1015,7 @@ dependencies = [
  "parking_lot",
  "policy-reasoner",
  "rand",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "serde_json",
  "specifications 3.0.0",
  "tokio",
@@ -1056,7 +1038,7 @@ dependencies = [
  "error-trace 3.0.0",
  "log",
  "never-say-never",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "rustls 0.21.12",
  "serde",
  "serde_json",
@@ -1086,7 +1068,7 @@ dependencies = [
  "env_logger",
  "error-trace 3.0.0",
  "log",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "rustls 0.21.12",
  "serde",
  "serde_json",
@@ -1116,7 +1098,7 @@ dependencies = [
  "log",
  "num-traits",
  "regex",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "sha2",
  "specifications 3.0.0",
  "tempfile",
@@ -1172,7 +1154,7 @@ dependencies = [
  "futures-util",
  "graphql_client",
  "humanlog 0.2.0",
- "hyper 0.14.30",
+ "hyper 1.5.1",
  "indicatif",
  "lazy_static",
  "log",
@@ -1180,7 +1162,7 @@ dependencies = [
  "parking_lot",
  "prost",
  "rand",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "serde",
  "serde_json",
  "serde_yml",
@@ -1585,7 +1567,7 @@ dependencies = [
  "console",
  "shell-words",
  "tempfile",
- "thiserror",
+ "thiserror 1.0.63",
  "zeroize",
 ]
 
@@ -1739,11 +1721,15 @@ name = "download"
 version = "0.1.0"
 source = "git+https://github.com/Lut99/download-rs#ebba70884249fcfcb978eef74c57da16b593ac33"
 dependencies = [
+ "async-compression 0.4.12",
  "console",
  "hex",
  "indicatif",
  "reqwest 0.11.27",
  "sha2",
+ "tokio",
+ "tokio-stream",
+ "tokio-tar",
  "url",
 ]
 
@@ -1779,29 +1765,12 @@ source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor
 dependencies = [
  "eflint-json",
  "error-trace 3.1.0",
- "reqwest 0.12.8",
+ "reqwest 0.12.9",
  "serde",
  "serde_json",
  "specifications 0.2.0",
- "thiserror",
+ "thiserror 1.0.63",
  "tracing",
-]
-
-[[package]]
-name = "eflint-to-json"
-version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99ea1ca75e62373494f0d21"
-dependencies = [
- "async-recursion",
- "console",
- "futures-util",
- "hex",
- "hex-literal",
- "indicatif",
- "log",
- "reqwest 0.12.8",
- "sha2",
- "tokio",
 ]
 
 [[package]]
@@ -1814,6 +1783,19 @@ dependencies = [
  "download 0.1.0 (git+https://github.com/Lut99/download-rs)",
  "hex-literal",
  "log",
+]
+
+[[package]]
+name = "eflint-to-json"
+version = "0.2.0"
+source = "git+https://gitlab.com/eflint/eflint-to-json-rs#0950c102fb9924306f0b68923e40bbf88aab61b6"
+dependencies = [
+ "async-recursion",
+ "console",
+ "download 0.1.0 (git+https://github.com/Lut99/download-rs)",
+ "hex-literal",
+ "log",
+ "tokio",
 ]
 
 [[package]]
@@ -1921,11 +1903,6 @@ dependencies = [
  "libc",
  "str-buf",
 ]
-
-[[package]]
-name = "error-trace"
-version = "2.0.0"
-source = "git+https://github.com/Lut99/error-trace-rs#7e9b76a2a2746a8ab88776877afd6ee53ea4b3b8"
 
 [[package]]
 name = "error-trace"
@@ -2209,7 +2186,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2ebc8013b4426d5b81a4364c419a95ed0b404af2b82e2457de52d9348f0e474"
 dependencies = [
  "combine",
- "thiserror",
+ "thiserror 1.0.63",
 ]
 
 [[package]]
@@ -2281,7 +2258,7 @@ dependencies = [
  "fnv",
  "futures-core",
  "futures-sink",
- "http 1.1.0",
+ "http 1.2.0",
  "indexmap 2.2.6",
  "slab",
  "tokio",
@@ -2405,9 +2382,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21b9ddb458710bc376481b842f5da65cdf31522de232c1ca8146abce2a358258"
+checksum = "f16ca2af56261c99fba8bac40a10251ce8188205a4c448fbb745a2e4daa76fea"
 dependencies = [
  "bytes",
  "fnv",
@@ -2432,7 +2409,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1efedce1fb8e6913f23e0c92de8e62cd5b772a67e7b3946df930a62566c93184"
 dependencies = [
  "bytes",
- "http 1.1.0",
+ "http 1.2.0",
 ]
 
 [[package]]
@@ -2443,19 +2420,9 @@ checksum = "793429d76616a256bcb62c2a2ec2bed781c8307e797e2598c50010f2bee2544f"
 dependencies = [
  "bytes",
  "futures-util",
- "http 1.1.0",
+ "http 1.2.0",
  "http-body 1.0.1",
  "pin-project-lite",
-]
-
-[[package]]
-name = "http-serde"
-version = "1.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f560b665ad9f1572cfcaf034f7fb84338a7ce945216d64a90fd81f046a3caee"
-dependencies = [
- "http 0.2.12",
- "serde",
 ]
 
 [[package]]
@@ -2557,15 +2524,15 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "1.5.0"
+version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbbff0a806a4728c99295b254c8838933b5b082d75e3cb70c8dab21fdfbcfa9a"
+checksum = "97818827ef4f364230e16705d4706e2897df2bb60617d6ca15d598025a3c481f"
 dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
  "h2 0.4.5",
- "http 1.1.0",
+ "http 1.2.0",
  "http-body 1.0.1",
  "httparse",
  "httpdate",
@@ -2578,27 +2545,13 @@ dependencies = [
 
 [[package]]
 name = "hyper-rustls"
-version = "0.24.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec3efd23720e2049821a693cbc7e65ea87c72f1c58ff2f9522ff332b1491e590"
-dependencies = [
- "futures-util",
- "http 0.2.12",
- "hyper 0.14.30",
- "rustls 0.21.12",
- "tokio",
- "tokio-rustls 0.24.1",
-]
-
-[[package]]
-name = "hyper-rustls"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ee4be2c948921a1a5320b629c4193916ed787a7f7f293fd3f7f5a6c9de74155"
 dependencies = [
  "futures-util",
- "http 1.1.0",
- "hyper 1.5.0",
+ "http 1.2.0",
+ "hyper 1.5.1",
  "hyper-util",
  "rustls 0.23.11",
  "rustls-pki-types",
@@ -2640,7 +2593,7 @@ checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
 dependencies = [
  "bytes",
  "http-body-util",
- "hyper 1.5.0",
+ "hyper 1.5.1",
  "hyper-util",
  "native-tls",
  "tokio",
@@ -2657,9 +2610,9 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "http 1.1.0",
+ "http 1.2.0",
  "http-body 1.0.1",
- "hyper 1.5.0",
+ "hyper 1.5.1",
  "pin-project-lite",
  "socket2",
  "tokio",
@@ -2874,7 +2827,7 @@ dependencies = [
  "juniper",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.63",
  "tokio",
  "warp",
 ]
@@ -2882,14 +2835,14 @@ dependencies = [
 [[package]]
 name = "jwk-auth"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#7c9faebb8a10fab43d4ce34a133c1ce8b09c4fea"
+source = "git+https://github.com/epi-project/policy-store#f7918c593665181962b83c400cc56fd93bdd2c1a"
 dependencies = [
  "base64ct",
- "http 1.1.0",
+ "http 1.2.0",
  "jsonwebtoken",
  "serde_json",
  "specifications 0.1.0",
- "thiserror",
+ "thiserror 1.0.63",
  "tracing",
 ]
 
@@ -3482,21 +3435,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231b230927b5e4ad203db57bbcbee2802f6bce620b1e4a9024a07d94e2907ec"
 
 [[package]]
-name = "policy"
-version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99ea1ca75e62373494f0d21"
-dependencies = [
- "async-trait",
- "chrono",
- "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
- "log",
- "serde",
- "serde_json",
- "transform",
- "warp",
-]
-
-[[package]]
 name = "policy-reasoner"
 version = "1.0.0"
 source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#8ca01dd905da99be4168c20b7eeda2d83a380466"
@@ -3510,9 +3448,10 @@ dependencies = [
 [[package]]
 name = "policy-store"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#7c9faebb8a10fab43d4ce34a133c1ce8b09c4fea"
+source = "git+https://github.com/epi-project/policy-store#f7918c593665181962b83c400cc56fd93bdd2c1a"
 dependencies = [
  "axum-server",
+ "axum-server-spec",
  "jwk-auth",
  "specifications 0.1.0",
  "sqlite-database",
@@ -3548,17 +3487,6 @@ dependencies = [
  "lazy_static",
  "term",
  "unicode-width",
-]
-
-[[package]]
-name = "problem_details"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09c30ce00f18c85c0a9cfaecb51d7d2bce8ca36f2d7850b009b3ea166f2dca9d"
-dependencies = [
- "http 0.2.12",
- "http-serde",
- "serde",
 ]
 
 [[package]]
@@ -3610,7 +3538,58 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72c71c0c79b9701efe4e1e4b563b2016dd4ee789eb99badcb09d61ac4b92e4a2"
 dependencies = [
  "libc",
- "thiserror",
+ "thiserror 1.0.63",
+]
+
+[[package]]
+name = "quinn"
+version = "0.11.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62e96808277ec6f97351a2380e6c25114bc9e67037775464979f3037c92d05ef"
+dependencies = [
+ "bytes",
+ "pin-project-lite",
+ "quinn-proto",
+ "quinn-udp",
+ "rustc-hash",
+ "rustls 0.23.11",
+ "socket2",
+ "thiserror 2.0.4",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "quinn-proto"
+version = "0.11.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2fe5ef3495d7d2e377ff17b1a8ce2ee2ec2a18cde8b6ad6619d65d0701c135d"
+dependencies = [
+ "bytes",
+ "getrandom 0.2.15",
+ "rand",
+ "ring",
+ "rustc-hash",
+ "rustls 0.23.11",
+ "rustls-pki-types",
+ "slab",
+ "thiserror 2.0.4",
+ "tinyvec",
+ "tracing",
+ "web-time",
+]
+
+[[package]]
+name = "quinn-udp"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bffec3605b73c6f1754535084a85229fa8a30f86014e6c81aeec4abb68b0285"
+dependencies = [
+ "libc",
+ "once_cell",
+ "socket2",
+ "tracing",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3683,27 +3662,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reasonerconn"
-version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99ea1ca75e62373494f0d21"
-dependencies = [
- "anyhow",
- "async-trait",
- "audit-logger",
- "eflint-json",
- "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
- "log",
- "policy",
- "reqwest 0.12.8",
- "serde",
- "serde_json",
- "state-resolver",
- "tokio",
- "transform",
- "workflow 0.1.0",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3755,7 +3713,7 @@ checksum = "bd283d9651eeda4b2a83a43c1c91b266c40fd76ecd39a50a8c630ae69dc72891"
 dependencies = [
  "getrandom 0.2.15",
  "libredox",
- "thiserror",
+ "thiserror 1.0.63",
 ]
 
 [[package]]
@@ -3817,13 +3775,11 @@ dependencies = [
  "http 0.2.12",
  "http-body 0.4.6",
  "hyper 0.14.30",
- "hyper-rustls 0.24.2",
  "hyper-tls 0.5.0",
  "ipnet",
  "js-sys",
  "log",
  "mime",
- "mime_guess",
  "native-tls",
  "once_cell",
  "percent-encoding",
@@ -3837,7 +3793,6 @@ dependencies = [
  "system-configuration 0.5.1",
  "tokio",
  "tokio-native-tls",
- "tokio-rustls 0.24.1",
  "tokio-util",
  "tower-service",
  "url",
@@ -3850,33 +3805,36 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.8"
+version = "0.12.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f713147fbe92361e52392c73b8c9e48c04c6625bce969ef54dc901e58e042a7b"
+checksum = "a77c62af46e79de0a562e1a9849205ffcb7fc1238876e9bd743357570e04046f"
 dependencies = [
  "base64 0.22.1",
  "bytes",
  "encoding_rs",
- "futures-channel",
  "futures-core",
  "futures-util",
  "h2 0.4.5",
- "http 1.1.0",
+ "http 1.2.0",
  "http-body 1.0.1",
  "http-body-util",
- "hyper 1.5.0",
- "hyper-rustls 0.27.2",
+ "hyper 1.5.1",
+ "hyper-rustls",
  "hyper-tls 0.6.0",
  "hyper-util",
  "ipnet",
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "native-tls",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
+ "quinn",
+ "rustls 0.23.11",
  "rustls-pemfile 2.1.2",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -3884,6 +3842,7 @@ dependencies = [
  "system-configuration 0.6.1",
  "tokio",
  "tokio-native-tls",
+ "tokio-rustls 0.26.0",
  "tokio-util",
  "tower-service",
  "url",
@@ -3928,6 +3887,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
 
 [[package]]
+name = "rustc-hash"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "583034fd73374156e66797ed8e5b0d5690409c9226b22d87cb7f19821c05d152"
+
+[[package]]
 name = "rusticata-macros"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3968,6 +3933,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4828ea528154ae444e5a642dbb7d5623354030dc9822b83fd9bb79683c7399d0"
 dependencies = [
  "once_cell",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki 0.102.6",
  "subtle",
@@ -3998,6 +3964,9 @@ name = "rustls-pki-types"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "976295e77ce332211c0d24d92c0e83e50f5c5f046d11082cea19f3df13a3562d"
+dependencies = [
+ "web-time",
+]
 
 [[package]]
 name = "rustls-webpki"
@@ -4141,7 +4110,7 @@ dependencies = [
  "socket2",
  "strum 0.23.0",
  "strum_macros 0.23.1",
- "thiserror",
+ "thiserror 1.0.63",
  "tokio",
  "tracing",
  "uuid",
@@ -4160,7 +4129,7 @@ dependencies = [
  "num_enum",
  "scylla-macros",
  "snap",
- "thiserror",
+ "thiserror 1.0.63",
  "tokio",
  "uuid",
 ]
@@ -4433,7 +4402,7 @@ checksum = "adc4e5204eb1910f40f9cfa375f6f05b68c3abac4b6fd879c8ff5e7ae8a0a085"
 dependencies = [
  "num-bigint",
  "num-traits",
- "thiserror",
+ "thiserror 1.0.63",
  "time",
 ]
 
@@ -4511,7 +4480,7 @@ dependencies = [
  "nix 0.27.1",
  "num-derive",
  "num-traits",
- "thiserror",
+ "thiserror 1.0.63",
  "tokio",
  "url",
  "windows",
@@ -4520,10 +4489,10 @@ dependencies = [
 [[package]]
 name = "specifications"
 version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-store#7c9faebb8a10fab43d4ce34a133c1ce8b09c4fea"
+source = "git+https://github.com/epi-project/policy-store#f7918c593665181962b83c400cc56fd93bdd2c1a"
 dependencies = [
  "chrono",
- "http 1.1.0",
+ "http 1.2.0",
  "serde",
 ]
 
@@ -4554,9 +4523,10 @@ dependencies = [
  "num-traits",
  "parking_lot",
  "policy-reasoner",
+ "policy-store",
  "prost",
  "rand",
- "reqwest 0.11.27",
+ "reqwest 0.12.9",
  "semver",
  "serde",
  "serde_json",
@@ -4610,7 +4580,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "sqlite-database"
 version = "0.2.0"
-source = "git+https://github.com/epi-project/policy-store#7c9faebb8a10fab43d4ce34a133c1ce8b09c4fea"
+source = "git+https://github.com/epi-project/policy-store#f7918c593665181962b83c400cc56fd93bdd2c1a"
 dependencies = [
  "chrono",
  "diesel",
@@ -4618,46 +4588,9 @@ dependencies = [
  "serde",
  "serde_json",
  "specifications 0.1.0",
- "thiserror",
+ "thiserror 1.0.63",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "srv"
-version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99ea1ca75e62373494f0d21"
-dependencies = [
- "audit-logger",
- "auth-resolver",
- "brane-ast 3.0.0 (git+https://github.com/epi-project/brane)",
- "brane-exe 3.0.0 (git+https://github.com/epi-project/brane)",
- "chrono",
- "deliberation",
- "error-trace 2.0.0",
- "http 1.1.0",
- "log",
- "policy",
- "problem_details",
- "reasonerconn",
- "serde",
- "serde_json",
- "state-resolver",
- "tokio",
- "tokio-scoped",
- "uuid",
- "warp",
- "workflow 0.1.0",
-]
-
-[[package]]
-name = "state-resolver"
-version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99ea1ca75e62373494f0d21"
-dependencies = [
- "async-trait",
- "serde",
- "workflow 0.1.0",
 ]
 
 [[package]]
@@ -4899,7 +4832,16 @@ version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0342370b38b6a11b6cc11d6a805569958d54cfa061a29969c3b5ce2ea405724"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.63",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f49a1853cf82743e3b7950f77e0f4d622ca36cf4317cba00c767838bac8d490"
+dependencies = [
+ "thiserror-impl 2.0.4",
 ]
 
 [[package]]
@@ -4907,6 +4849,17 @@ name = "thiserror-impl"
 version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4558b58466b9ad7ca0f102865eccc95938dca1a74a856f2b57b6629050da261"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8381894bb3efe0c4acac3ded651301ceee58a15d47c2e34885ed1908ad667061"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4973,9 +4926,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.41.0"
+version = "1.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "145f3413504347a2be84393cc8a7d2fb4d863b375909ea59f2158261aa258bbb"
+checksum = "5cec9b21b0450273377fc97bd4c33a8acffc8c996c987a7c5b319a0083707551"
 dependencies = [
  "backtrace",
  "bytes",
@@ -5039,16 +4992,6 @@ dependencies = [
  "rustls 0.23.11",
  "rustls-pki-types",
  "tokio",
-]
-
-[[package]]
-name = "tokio-scoped"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4beb8ba13bc53ac53ce1d52b42f02e5d8060f0f42138862869beb769722b256"
-dependencies = [
- "tokio",
- "tokio-stream",
 ]
 
 [[package]]
@@ -5304,12 +5247,12 @@ dependencies = [
  "byteorder",
  "bytes",
  "data-encoding",
- "http 1.1.0",
+ "http 1.2.0",
  "httparse",
  "log",
  "rand",
  "sha1",
- "thiserror",
+ "thiserror 1.0.63",
  "url",
  "utf-8",
 ]
@@ -5607,6 +5550,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "web-time"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "winapi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5855,23 +5808,6 @@ dependencies = [
 
 [[package]]
 name = "workflow"
-version = "0.1.0"
-source = "git+https://github.com/epi-project/policy-reasoner#9dfd53b9c6a3b8f2e99ea1ca75e62373494f0d21"
-dependencies = [
- "brane-ast 3.0.0 (git+https://github.com/epi-project/brane)",
- "brane-exe 3.0.0 (git+https://github.com/epi-project/brane)",
- "eflint-json",
- "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug)",
- "log",
- "num-traits",
- "rand",
- "serde",
- "specifications 3.0.0 (git+https://github.com/epi-project/brane)",
- "transform",
-]
-
-[[package]]
-name = "workflow"
 version = "0.2.0"
 source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#8ca01dd905da99be4168c20b7eeda2d83a380466"
 dependencies = [
@@ -5906,7 +5842,7 @@ dependencies = [
  "nom",
  "oid-registry",
  "rusticata-macros",
- "thiserror",
+ "thiserror 1.0.63",
  "time",
 ]
 
