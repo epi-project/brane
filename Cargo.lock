@@ -670,7 +670,7 @@ dependencies = [
  "brane-shr 3.0.0",
  "brane-tsk",
  "clap 4.5.20",
- "eflint-json",
+ "eflint-json 0.1.0",
  "eflint-to-json 0.2.0 (git+https://gitlab.com/eflint/eflint-to-json-rs?tag=v0.1.0)",
  "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "error-trace 3.2.1 (git+https://github.com/Lut99/error-trace-rs?tag=v3.3.0)",
@@ -787,6 +787,7 @@ dependencies = [
  "brane-cfg",
  "brane-shr 3.0.0",
  "brane-tsk",
+ "chrono",
  "clap 4.5.20",
  "clap_complete",
  "console",
@@ -796,6 +797,7 @@ dependencies = [
  "dirs 5.0.1",
  "dotenvy",
  "download 0.1.0 (git+https://github.com/Lut99/download-rs?tag=v0.1.0)",
+ "eflint-json 1.0.0",
  "eflint-to-json 0.2.0 (git+https://gitlab.com/eflint/eflint-to-json-rs)",
  "enum-debug 1.1.0 (git+https://github.com/Lut99/enum-debug?tag=v1.1.0)",
  "error-trace 3.0.0",
@@ -1213,9 +1215,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chrono"
-version = "0.4.38"
+version = "0.4.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
+checksum = "7e36cc9d416881d2e24f9a963be5fb1cd90966419ac844274161d10488b3e825"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -1759,11 +1761,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "eflint-json"
+version = "1.0.0"
+source = "git+https://gitlab.com/eflint/json-spec-rs#f4716c63158b3082a8861416378e5189e01930a3"
+dependencies = [
+ "enum-debug 1.0.0",
+ "serde",
+ "transform",
+ "versioning",
+]
+
+[[package]]
 name = "eflint-json-reasoner"
 version = "0.2.0"
 source = "git+https://github.com/epi-project/policy-reasoner?branch=lib-refactor#8ca01dd905da99be4168c20b7eeda2d83a380466"
 dependencies = [
- "eflint-json",
+ "eflint-json 0.1.0",
  "error-trace 3.1.0",
  "reqwest 0.12.9",
  "serde",
@@ -1833,6 +1846,14 @@ checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
 
 [[package]]
 name = "enum-debug"
+version = "1.0.0"
+source = "git+https://github.com/Lut99/enum-debug?tag=v1.0.0#cd67d67d4bd8708eaa3343a6af515bf6ad5a3ce6"
+dependencies = [
+ "enum-debug-derive 1.0.0",
+]
+
+[[package]]
+name = "enum-debug"
 version = "1.1.0"
 source = "git+https://github.com/Lut99/enum-debug?tag=v1.1.0#f535466915f82861b0a2dc9d4e3a106f04d5ace7"
 dependencies = [
@@ -1845,6 +1866,16 @@ version = "1.1.0"
 source = "git+https://github.com/Lut99/enum-debug#f535466915f82861b0a2dc9d4e3a106f04d5ace7"
 dependencies = [
  "enum-debug-derive 1.1.0 (git+https://github.com/Lut99/enum-debug)",
+]
+
+[[package]]
+name = "enum-debug-derive"
+version = "1.0.0"
+source = "git+https://github.com/Lut99/enum-debug?tag=v1.0.0#cd67d67d4bd8708eaa3343a6af515bf6ad5a3ce6"
+dependencies = [
+ "proc-macro-error",
+ "quote",
+ "syn 2.0.87",
 ]
 
 [[package]]
@@ -3497,6 +3528,30 @@ checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
 dependencies = [
  "once_cell",
  "toml_edit 0.19.15",
+]
+
+[[package]]
+name = "proc-macro-error"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
+dependencies = [
+ "proc-macro-error-attr",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "version_check",
+]
+
+[[package]]
+name = "proc-macro-error-attr"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "version_check",
 ]
 
 [[package]]
@@ -5393,6 +5448,17 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "versioning"
+version = "0.2.0"
+source = "git+https://github.com/Lut99/versioning-rs#7ddfcc666e126a053b8c00f0a4eea39df9576d92"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
+]
 
 [[package]]
 name = "void"
